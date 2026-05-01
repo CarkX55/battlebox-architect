@@ -1,0 +1,105 @@
+Manual de Arquitectura de Diseño: El Esqueleto de Diseño Balanceado
+
+1. La Filosofía del Esqueleto como Plano Arquitectónico
+
+El esqueleto de diseño no es una mera lista de cartas preliminar; es la infraestructura crítica que sostiene la integridad sistémica de la experiencia del jugador y el equilibrio dinámico del ecosistema de juego. Como arquitectos de sistemas, entendemos que la improvisación es el enemigo de la estabilidad en formatos limitados. Un esqueleto bien definido actúa como el plano maestro que mitiga los riesgos de desequilibrio, asegurando que los recursos fundamentales —desde la interactividad hasta la gestión del tempo— estén presentes en la densidad exacta para permitir que el juego funcione bajo presión competitiva.
+
+La estructura predefinida es nuestra salvaguarda contra la asimetría accidental. El rigor arquitectónico en el diseño nos otorga tres beneficios estratégicos fundamentales:
+
+* Visibilidad de necesidades sistémicas: Identifica brechas funcionales de forma inmediata, permitiendo al diseñador reconocer si un arquetipo carece de las herramientas reactivas necesarias antes de que llegue a playtesting.
+* Asignación optimizada de recursos: Garantiza una distribución equitativa de poder y utilidad entre colores, evitando que la identidad de una faceta del juego canibalice a las demás.
+* Flexibilidad controlada: Proporciona un marco de trabajo donde la iteración es quirúrgica; si un "slot" o espacio de diseño no cumple su función, el arquitecto conoce exactamente los límites de su sustitución sin comprometer la curva general.
+
+Esta disciplina estructural comienza con la ingeniería de la densidad de población del set: la distribución de criaturas.
+
+2. Anatomía del Set: Ratios de Criaturas y Distribución por Color
+
+En el diseño de "vanguardia" (Common/Uncommon), la densidad de criaturas es la variable individual más determinante para un entorno saludable. Las criaturas no son solo activos de combate; son el motor del ritmo de juego. Como arquitectos, calibramos esta densidad basándonos en la identidad mecánica de cada color, contrastando filosofías como el enfoque de "ejército" del Blanco frente a la naturaleza "reactiva de hechizos" del Azul.
+
+Basándonos en la infraestructura estándar de R&D para un set de 101 comunes, aplicamos los siguientes ratios de distribución:
+
+Color	Porcentaje de Criaturas	Filosofía Arquitectónica
+Blanco	62%	El "Color del Ejército": Superioridad numérica y cohesión.
+Verde	59%	El "Color de las Criaturas": Calidad, escala y dominancia física.
+Negro	56%	Equilibrio: Gestión de recursos entre amenazas y sacrificio.
+Rojo	53%	Agresión: Velocidad inicial apoyada por daño directo.
+Azul	50%	El "Color de los Hechizos": Densidad mínima; enfoque en control y evasión.
+
+Estos porcentajes no son sugerencias estéticas; son imperativos técnicos que dictan la probabilidad de que un jugador encuentre las herramientas necesarias para "girar la esquina" (turn the corner) y pasar de una postura defensiva a una ofensiva.
+
+3. Ingeniería de la Curva de Maná y Valor de Maná (MV)
+
+Una curva de maná suave es la columna vertebral que evita el estancamiento y garantiza que el jugador tenga acciones relevantes en cada etapa del juego. En lugar de agrupaciones vagas, el Arquitecto Principal utiliza slots de diseño granulares con Valores de Maná (MV) específicos para cada código de carta.
+
+Blanco (Infraestructura de Curva Progresiva)
+
+El blanco requiere una saturación de costes bajos para establecer su identidad de enjambre.
+
+* CW01: 1 MV
+* CW02: 1 o 2 MV (Nota: No asignar 2 MV si CW06 también es 2 MV)
+* CW03, CW04, CW05: 2 MV (El núcleo de la presión temprana)
+* CW06: 2 o 3 MV
+* CW07, CW08: 3 MV
+* CW09, CW10: 4 MV
+* CW11: 5 MV
+* CW12: 5 o 6 MV
+
+Azul (Infraestructura de Control Espaciado)
+
+El azul sacrifica densidad de criaturas para ganar espacios de interacción, distribuyendo sus activos para el juego medio y tardío.
+
+* CU01: 1 MV
+* CU02, CU03: 2 MV
+* CU04, CU05: 3 MV
+* CU06, CU07: 4 MV
+* CU08: 5 MV
+* CU09: 6+ MV (Generalmente una amenaza con restricciones de ataque o alta defensa).
+
+Esta precisión en el MV asegura que cada color mantenga su identidad táctica sin desmoronarse bajo el peso de una mano injugable. Sin embargo, el valor estatutario de estas criaturas debe ser complementado por capacidades de interacción.
+
+4. Integración de Palabras Clave Perennes (Evergreen Keywords)
+
+Las palabras clave perennes son las herramientas que permiten que el combate sea dinámico y comprensible. No obstante, su integración en rarezas comunes debe ser estrictamente gestionada para controlar la complejidad del tablero.
+
+Diccionario de Distribución Técnica:
+
+* Blanco: 2-3 Flying, 1 Lifelink, 1 Vigilance.
+* Azul: 3 Flying, 1 Flash, 0-1 Hexproof (solo en criaturas pequeñas).
+* Negro: 1 Deathtouch, 1 Flying, 1 Menace, 1 Lifelink.
+* Rojo: 1-2 Haste, 1 First Strike, 1 Trample, 1 Menace.
+* Verde: 1-2 Trample, 1 Reach, 1 Deathtouch, 1 Vigilance.
+
+Nota Técnica del Arquitecto: En el nivel de rareza Común, se aplica la restricción de "Palabra Clave Única". Una criatura rara vez debe poseer más de una habilidad de palabra clave; si se excede este límite, Flying suele ser una de las habilidades presentes debido a su naturaleza intuitiva de evasión.
+
+5. Gestión de Espacios para Hechizos No-Criatura: Remoción y Protección
+
+Los hechizos no-criatura son el tejido conectivo que permite a los jugadores interactuar con las amenazas del oponente. Aquí es donde el diseño del set (Limited) se encuentra con la teoría competitiva (Constructed). Aunque los manuales de Monkey Grow o Reanimator sugieren una "Regla de los 10-15" (piezas de interacción por mazo), el Arquitecto de Sistemas debe garantizar que el "as-fan" (la frecuencia de aparición en sobres) permita alcanzar esta densidad en un entorno limitado a través de los slots de comunes.
+
+Matriz de Funciones Técnicas por Slot (Comunes):
+
+Color	Slot de Diseño	Función Técnica
+Blanco	CW13, CW14, CW15	Small Removal, Efecto "Pacifismo" (Aura), Large/Tapped Creature Removal.
+Azul	CU11, CU12, CU16	Hard Counter (universal), Soft Counter (restringido), Bounce spell.
+Negro	CB11, CB12, CB13	Universal Removal, Small Removal, Edict (sacrificio) o condicional.
+Rojo	CR11, CR12, CR13	Efficient Direct Damage, Other Direct Damage, Steal Effect.
+Verde	CG12, CG17, CG19	Fight/Bite (daño por poder), Anti-flying, Art/Enc destruction.
+
+Al codificar estas funciones, aseguramos que el jugador tenga acceso a respuestas proporcionales a las amenazas, manteniendo la interactividad como una constante y no como una anomalía.
+
+6. Adaptabilidad Rosewater: Ajustando el Esqueleto a Nuevas Mecánicas
+
+El esqueleto de diseño es un documento vivo. Cada expansión introduce mecánicas temáticas —como Gravetwist— que requieren espacio dentro de la matriz. El Arquitecto debe ser capaz de integrar estas innovaciones sin fracturar la integridad de la curva.
+
+Para lograrlo, empleamos el concepto de "Extra Credit" o Ventaja Incidental: buscar mecánicas que proporcionen valor sin ocupar slots adicionales de robo de cartas (como Courser of Kruphix o efectos que se activan desde el cementerio). El protocolo de integración consta de tres pasos:
+
+1. Identificar slots redundantes: Localizar hechizos genéricos que pueden ser reemplazados por la nueva mecánica.
+2. Mapear la mecánica al color apropiado: Asegurar que la innovación respete la curva de maná preestablecida.
+3. Re-evaluar el impacto sistémico: Verificar que la inclusión de mecánicas de bloque no haya erosionado la capacidad del color para responder a amenazas básicas (ej. no sacrificar toda la remoción del Negro por exceso de cartas con Gravetwist).
+
+7. Conclusión: El Rigor como Garantía de Calidad
+
+El rigor en la construcción del esqueleto es lo que diferencia un producto profesional de alto valor de un diseño amateur. Un esqueleto defectuoso garantiza, mediante el determinismo matemático, un juego fallido por problemas de ritmo o inacción.
+
+La densidad de criaturas del 50%-62% no es solo un balance numérico; es una herramienta estratégica para asegurar que los jugadores puedan "Girar la Esquina". Como indica la teoría de Midrange, incluso los mazos de control necesitan la capacidad de transicionar hacia una ofensiva contundente para cerrar la partida. El esqueleto proporciona los activos necesarios para que el jugador nunca se sienta atrapado en una inercia defensiva infinita.
+
+El diseño de excelencia no es producto de la inspiración aislada, sino de la disciplina estructural. Un esqueleto bien diseñado es el contrato de confianza entre el arquitecto y el jugador: la promesa de que, sin importar la estrategia, el juego siempre ofrecerá una vía hacia la victoria.
