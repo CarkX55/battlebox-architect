@@ -12,11 +12,11 @@ function arraysEqual(a, b) {
 }
 
 const COLORS = [
-  { id: 'W', name: 'White', icon: '⚔', bg: 'bg-white', border: 'border-white', text: 'text-black' },
-  { id: 'U', name: 'Blue', icon: '🌊', bg: 'bg-blue-500', border: 'border-blue-500', text: 'text-white' },
-  { id: 'B', name: 'Black', icon: '💀', bg: 'bg-gray-900', border: 'border-gray-700', text: 'text-white' },
-  { id: 'R', name: 'Red', icon: '🔥', bg: 'bg-red-500', border: 'border-red-500', text: 'text-white' },
-  { id: 'G', name: 'Green', icon: '🌿', bg: 'bg-green-600', border: 'border-green-600', text: 'text-white' },
+  { id: 'W', name: 'White', icon: '/ASSETS/manaBlanco.png', bg: 'bg-white', border: 'border-white', text: 'text-black' },
+  { id: 'U', name: 'Blue', icon: '/ASSETS/manaAzul.png', bg: 'bg-blue-500', border: 'border-blue-500', text: 'text-white' },
+  { id: 'B', name: 'Black', icon: '/ASSETS/manaNegro.png', bg: 'bg-gray-900', border: 'border-gray-700', text: 'text-white' },
+  { id: 'R', name: 'Red', icon: '/ASSETS/manaRojo.png', bg: 'bg-red-500', border: 'border-red-500', text: 'text-white' },
+  { id: 'G', name: 'Green', icon: '/ASSETS/manaVerde.png', bg: 'bg-green-600', border: 'border-green-600', text: 'text-white' },
 ];
 
 const FORMATOS = [
@@ -169,13 +169,13 @@ export default function ForgeForm({ onSubmit, isLoading, disabled }) {
                       type="button"
                       onClick={() => toggleColor(color.id)}
                       className={cn(
-                        "w-14 h-14 rounded-full border-3 flex items-center justify-center text-2xl transition-all duration-300 relative",
+                        "w-14 h-14 rounded-full border-3 flex items-center justify-center transition-all duration-300 relative",
                         isSelected
-                          ? `${color.bg} ${color.text} scale-110 shadow-[0_0_20px_rgba(193,155,69,0.6)]`
-                          : "bg-[#1a1612] border-grimorio-gold/30 text-grimorio-gold/50 hover:border-grimorio-gold/60 hover:scale-105"
+                          ? `border-grimorio-gold scale-110 shadow-[0_0_20px_rgba(193,155,69,0.6)]`
+                          : "bg-[#1a1612] border-grimorio-gold/30 hover:border-grimorio-gold/60 hover:scale-105"
                       )}
                     >
-                      {color.id}
+                      <img src={color.icon} alt={color.name} className="w-10 h-10 object-contain" />
                       {isRecommended && (
                         <span className="absolute -top-1 -right-1 text-[10px] w-4 h-4 bg-grimorio-gold text-grimorio-dark rounded-full flex items-center justify-center font-bold shadow-md">
                           ★
