@@ -2,11 +2,11 @@ import { useState } from 'react';
 import { BATTLEBOX_BANLIST } from '../constants/legacyBattleBox';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../utils/cn';
-import ForgeForm from '../components/forge/ForgeForm';
+import ForgeForm, { COLORS } from '../components/forge/ForgeForm';
 import AiConfigPanel from '../components/forge/AiConfigPanel';
 import VisualGrid from '../components/battlebox/VisualGrid';
 import { getKarstenLandCount, generateManaBase } from '../services/deckCalculator';
-import { forgeMazo } from '../services/aiFactory';
+import { forgeMazo, callAI } from '../services/aiFactory';
 import { hydrateDeckCards, isLegalInLegacy } from '../services/cardHydrator';
 import { archiveDeck } from '../services/archiveService';
 import CardSearch from '../components/forge/CardSearch';
@@ -188,7 +188,11 @@ export default function DeckForge() {
       Responde EXCLUSIVAMENTE con un JSON puro: 
       { "plan": "...", "mulligan": "...", "tips": "..." }`;
 
-      const response = await callAI(prompt, aiConfig);
+      const messages = [
+        { role: 'system', content: 'Eres un Gran Maestro de Magic: The Gathering, experto en el formato Legacy Battle Box.' },
+        { role: 'user', content: prompt }
+      ];
+      const response = await callAI(messages, aiConfig, { forceJSON: true });
       const cleaned = response.replace(/```json/g, '').replace(/```/g, '').trim();
       const json = JSON.parse(cleaned);
       setPocketGuide(json);
@@ -242,8 +246,21 @@ export default function DeckForge() {
             <div className="flex flex-col mb-8 gap-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="text-3xl font-cinzel text-grimorio-gold">
+                  <h2 className="text-3xl font-cinzel text-grimorio-gold flex items-center gap-3">
                     📜 {aiMetadata?.deckName || 'Mazo Forjado'}
+                    {lastFormData?.colores?.length > 0 && (
+                      <div className="flex -space-x-2 ml-2">
+                        {COLORS.filter(c => lastFormData.colores.includes(c.id)).map(color => (
+                          <img 
+                            key={color.id} 
+                            src={color.icon} 
+                            alt={color.name} 
+                            title={color.name}
+                            className="w-8 h-8 rounded-full shadow-lg border border-black/50" 
+                          />
+                        ))}
+                      </div>
+                    )}
                   </h2>
                   <p className="text-grimorio-parchment/60 text-sm mt-1 uppercase tracking-widest">
                     Legacy Battle Box (Casual) • {lastFormData?.archetype}

@@ -89,3 +89,42 @@ export const BATTLEBOX_RULES = {
   noCombosBeforeTurn: 4,
   noFreeSpellsBeforeTurn: 4
 };
+
+export const MTG_TRIBES = [
+  { id: 'human', label: 'Humanos', colors: ['W', 'U', 'B', 'R', 'G'], strategies: ['tokens', 'aristocrats', 'prison', 'voltron', 'lifegain'], archetypes: ['aggro-sinergico', 'midrange'] },
+  { id: 'elf', label: 'Elfos', colors: ['G', 'B', 'W'], strategies: ['tokens', 'lifegain', 'aristocrats'], archetypes: ['aggro-sinergico', 'combo', 'ramp-tron'] },
+  { id: 'goblin', label: 'Goblins', colors: ['R', 'B', 'G'], strategies: ['tokens', 'aristocrats'], archetypes: ['aggro-puro', 'aggro-sinergico', 'combo'] },
+  { id: 'merfolk', label: 'Tritones (Merfolk)', colors: ['U', 'G'], strategies: ['blink', 'tokens'], archetypes: ['aggro-sinergico', 'tempo'] },
+  { id: 'zombie', label: 'Zombies', colors: ['B', 'U'], strategies: ['aristocrats', 'reanimator', 'madness', 'mill', 'tokens'], archetypes: ['aggro-sinergico', 'midrange', 'combo'] },
+  { id: 'vampire', label: 'Vampiros', colors: ['B', 'R', 'W'], strategies: ['aristocrats', 'lifegain', 'madness'], archetypes: ['aggro-sinergico', 'midrange'] },
+  { id: 'spirit', label: 'Espíritus', colors: ['W', 'U'], strategies: ['blink', 'prison', 'tokens'], archetypes: ['tempo', 'control-puro'] },
+  { id: 'angel', label: 'Ángeles', colors: ['W', 'R', 'B'], strategies: ['lifegain', 'blink', 'prison', 'reanimator'], archetypes: ['midrange', 'control-puro'] },
+  { id: 'demon', label: 'Demonios', colors: ['B'], strategies: ['aristocrats', 'reanimator'], archetypes: ['midrange', 'control-puro'] },
+  { id: 'dragon', label: 'Dragones', colors: ['R', 'B', 'G'], strategies: ['reanimator', 'tokens', 'blink'], archetypes: ['midrange', 'ramp-tron'] },
+  { id: 'eldrazi', label: 'Eldrazi', colors: ['W', 'U', 'B', 'R', 'G'], strategies: ['tokens', 'blink'], archetypes: ['ramp-tron', 'midrange'] },
+  { id: 'faerie', label: 'Hadas', colors: ['U', 'B'], strategies: ['blink', 'mill', 'prison'], archetypes: ['tempo', 'control-puro'] },
+  { id: 'rogue', label: 'Pícaros (Rogues)', colors: ['U', 'B'], strategies: ['mill', 'aristocrats'], archetypes: ['tempo', 'aggro-sinergico'] },
+  { id: 'pirate', label: 'Piratas', colors: ['U', 'B', 'R'], strategies: ['aristocrats', 'tokens'], archetypes: ['aggro-sinergico', 'tempo'] },
+  { id: 'dinosaur', label: 'Dinosaurios', colors: ['R', 'G', 'W'], strategies: ['landfall', 'tokens'], archetypes: ['midrange', 'ramp-tron'] },
+  { id: 'cat', label: 'Gatos', colors: ['W', 'G'], strategies: ['lifegain', 'voltron', 'tokens'], archetypes: ['aggro-sinergico', 'midrange'] },
+  { id: 'knight', label: 'Caballeros', colors: ['W', 'B', 'R'], strategies: ['voltron', 'tokens', 'aristocrats'], archetypes: ['aggro-sinergico', 'midrange'] },
+  { id: 'wizard', label: 'Magos (Wizards)', colors: ['U', 'R', 'B'], strategies: ['spellslinger', 'blink', 'mill'], archetypes: ['tempo', 'control-puro', 'combo'] },
+  { id: 'soldier', label: 'Soldados', colors: ['W', 'U'], strategies: ['tokens', 'prison', 'voltron'], archetypes: ['aggro-puro', 'aggro-sinergico'] },
+  { id: 'sliver', label: 'Slivers', colors: ['W', 'U', 'B', 'R', 'G'], strategies: ['tokens', 'voltron'], archetypes: ['aggro-sinergico', 'combo'] }
+];
+
+export const MTG_STRATEGIES = [
+  { id: 'aristocrats', label: 'Aristocrats (Sacrificio por valor)', colors: ['B', 'R', 'W'], archetypes: ['aggro-sinergico', 'midrange', 'combo'] },
+  { id: 'reanimator', label: 'Reanimator (Revivir criaturas)', colors: ['B', 'U', 'R', 'W'], archetypes: ['combo', 'midrange', 'ramp-tron'] },
+  { id: 'tokens', label: 'Tokens (Fichas y Enjambre)', colors: ['W', 'G', 'R'], archetypes: ['aggro-puro', 'aggro-sinergico', 'midrange'] },
+  { id: 'spellslinger', label: 'Spellslinger / Prowess (Conjuros e Instantáneos)', colors: ['U', 'R', 'W'], archetypes: ['tempo', 'combo', 'aggro-puro'] },
+  { id: 'blink', label: 'Blink / Flicker (Exiliar y volver al campo)', colors: ['W', 'U'], archetypes: ['tempo', 'midrange', 'control-puro'] },
+  { id: 'mill', label: 'Mill (Deckeo)', colors: ['U', 'B'], archetypes: ['combo', 'control-puro'] },
+  { id: 'enchantress', label: 'Enchantress / Auras (Sinergia de Encantamientos)', colors: ['W', 'G'], archetypes: ['midrange', 'combo', 'prision'] },
+  { id: 'landfall', label: 'Landfall (Sinergia de Tierras)', colors: ['G', 'R', 'U'], archetypes: ['midrange', 'ramp-tron'] },
+  { id: 'madness', label: 'Madness / Descarte (Abusar del cementerio)', colors: ['B', 'R'], archetypes: ['aggro-puro', 'aggro-sinergico', 'midrange'] },
+  { id: 'infect', label: 'Infect / Toxic (Veneno)', colors: ['B', 'G', 'U'], archetypes: ['aggro-puro', 'tempo'] },
+  { id: 'lifegain', label: 'Lifegain (Ganancia de vidas y contadores)', colors: ['W', 'B', 'G'], archetypes: ['aggro-sinergico', 'midrange'] },
+  { id: 'prison', label: 'Soft Prison / Pillow Fort (Impuestos y ralentización)', colors: ['W', 'U'], archetypes: ['prision', 'control-puro'] },
+  { id: 'voltron', label: 'Voltron (Equipos y Auras sobre una criatura)', colors: ['W', 'R'], archetypes: ['aggro-puro', 'aggro-sinergico', 'midrange'] }
+];

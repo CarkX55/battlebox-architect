@@ -14,12 +14,64 @@ import ManaCurve from '../components/forge/ManaCurve';
 
 const AI_STORAGE_KEY = 'mtg_ai_config_forge';
 
-const MANA_COLORS = { W: '#f9faf4', U: '#0e68ab', B: '#150b00', R: '#d3202a', G: '#00733e' };
+import { COLORS } from '../components/forge/ForgeForm';
 
-function ManaOrb({ color }) {
-  const bg = MANA_COLORS[color] || '#888';
-  return <div className="w-5 h-5 rounded-full border-2 border-amber-400/40 shadow-lg shadow-amber-900/30" style={{ background: `radial-gradient(circle at 35% 35%, ${bg}dd, ${bg}88)` }} />;
+function ManaOrb({ color, size = "w-5 h-5" }) {
+  const colorData = COLORS.find(c => c.id === color);
+  if (!colorData) return null;
+  return (
+    <img 
+      src={colorData.icon} 
+      alt={colorData.name} 
+      title={colorData.name}
+      className={`${size} rounded-full shadow-lg border border-black/50`} 
+    />
+  );
 }
+
+const ProxyListModal = ({ isOpen, onClose, activeDeck }) => {
+  if (!isOpen || !activeDeck) return null;
+  
+  let proxyList = '';
+  if (activeDeck.cards?.length > 0) {
+    proxyList += activeDeck.cards.map(c => `${c.quantity || 1} ${c.name}`).join('\n');
+  }
+  if (activeDeck.sideboard?.length > 0) {
+    proxyList += '\n\n// Sideboard\n' + activeDeck.sideboard.map(c => `${c.quantity || 1} ${c.name}`).join('\n');
+  }
+  
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="bg-grimorio-dark border border-emerald-500/30 rounded-xl p-6 w-full max-w-lg shadow-2xl"
+      >
+        <h3 className="text-2xl font-cinzel text-emerald-400 mb-4 flex justify-between items-center">
+          🖨️ Lista Proxy
+          <button onClick={onClose} className="text-gray-400 hover:text-white">✕</button>
+        </h3>
+        <textarea 
+          className="w-full h-64 bg-black/50 border border-grimorio-gold/20 text-grimorio-parchment p-4 font-mono text-sm rounded focus:outline-none focus:border-emerald-500/50 mb-4"
+          readOnly
+          value={proxyList.trim()}
+        />
+        <div className="flex justify-end gap-4">
+          <button onClick={onClose} className="px-4 py-2 border border-gray-600 rounded text-gray-300 hover:bg-gray-800 transition-colors">Cerrar</button>
+          <button 
+            onClick={() => {
+              navigator.clipboard.writeText(proxyList.trim());
+              onClose();
+            }}
+            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded font-bold transition-colors"
+          >
+            Copiar al Portapapeles
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+};
 
 // Se eliminó la función interna ManaCurve para usar el componente profesional importado
 
@@ -299,9 +351,9 @@ function GuideOverlay({ decks, onClose }) {
               <div className="mt-auto pt-[2mm] border-t border-[#c19b45]/30">
                 <div className="flex justify-between items-center mb-[2mm]">
                   <span className="text-[5.5px] font-cinzel text-[#92732c]/60 tracking-widest">ESTADÍSTICAS DEL MAZO</span>
-                  <div className="flex gap-1">
+                  <div className="flex gap-1 -space-x-1">
                     {d.colors?.map(c => (
-                      <div key={c} className="w-[2mm] h-[2mm] rounded-full border-[0.1mm] border-black/10" style={{ backgroundColor: MANA_COLORS[c] }} />
+                      <ManaOrb key={c} color={c} size="w-3 h-3" />
                     ))}
                   </div>
                 </div>
@@ -334,6 +386,7 @@ export default function BattleBox() {
   const [isEditing, setIsEditing] = useState(false);
   const [showHandSim, setShowHandSim] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
+  const [showProxyModal, setShowProxyModal] = useState(false);
 
 
   const archivedDecks = getArchivedDecks();
@@ -346,7 +399,7 @@ export default function BattleBox() {
       if (activeDeck && activeDeck.cards?.length > 0) {
         // Buscamos si falta información CRÍTICA (imágenes o costes en hechizos)
         const needsHydration = activeDeck.cards.some(c => 
-          (c.mana_value === undefined || !c.image_uris?.normal) && 
+          (c.mana_value === undefined || c.prices === undefined || !c.image_uris?.normal) && 
           !c.type_line?.toLowerCase().includes('land')
         );
         
@@ -407,6 +460,28 @@ export default function BattleBox() {
     const updatedDeck = { ...activeDeck, cards: updatedCards };
     updateArchivedDeck(activeDeck.id, { cards: updatedCards });
     setActiveDeck(updatedDeck);
+  };
+
+  const handleAddCopy = (cardName) => {
+    if (!activeDeck) return;
+    const updatedCards = activeDeck.cards.map(c => 
+      c.name === cardName ? { ...c, quantity: (c.quantity || 1) + 1 } : c
+    );
+    const updatedDeck = { ...activeDeck, cards: updatedCards };
+    updateArchivedDeck(activeDeck.id, { cards: updatedCards });
+    setActiveDeck(updatedDeck);
+  };
+
+  const handleUpdateField = (field, value) => {
+    if (!activeDeck) return;
+    const updatedDeck = { ...activeDeck, [field]: value };
+    setActiveDeck(updatedDeck);
+    updateArchivedDeck(activeDeck.id, updatedDeck);
+  };
+
+  const handleExportProxy = () => {
+    if (!activeDeck) return;
+    setShowProxyModal(true);
   };
 
   const sanitizeJSON = (raw) => {
@@ -644,7 +719,9 @@ export default function BattleBox() {
               <div key={deck.id} className="p-4 bg-grimorio-gold/5 border border-grimorio-gold/20 rounded-xl">
                 <div className="flex justify-between items-center">
                   <h4 className="text-grimorio-gold font-cinzel">{deck.name}</h4>
-                  <div className="flex gap-0.5">{deck.colors?.map(c => <div key={c} className={cn("w-2.5 h-2.5 rounded-full", c==='W'?"bg-white":c==='U'?"bg-blue-500":c==='B'?"bg-gray-800 border border-white/20":c==='R'?"bg-red-500":"bg-green-600")} />)}</div>
+                  <div className="flex -space-x-1">
+                    {deck.colors?.map(c => <ManaOrb key={c} color={c} size="w-4 h-4" />)}
+                  </div>
                 </div>
                 <p className="text-[10px] text-grimorio-parchment/40 uppercase mt-1">{deck.archetype}</p>
               </div>
@@ -734,8 +811,32 @@ export default function BattleBox() {
         <div className="max-w-7xl mx-auto space-y-12">
           <div className="flex justify-between items-start flex-wrap gap-4">
             <div>
-              <h2 className="text-5xl font-cinzel text-grimorio-gold">{activeDeck.name}</h2>
-              {activeDeck.lore && <p className="text-xl italic text-grimorio-parchment/80 mt-4 max-w-2xl">{activeDeck.lore}</p>}
+              <h2 className="text-5xl font-cinzel text-grimorio-gold flex items-center gap-4">
+                {isEditing ? (
+                  <input 
+                    type="text" 
+                    value={activeDeck.name} 
+                    onChange={(e) => handleUpdateField('name', e.target.value)}
+                    className="bg-black/50 border-b border-grimorio-gold/50 outline-none w-auto max-w-full focus:border-grimorio-gold"
+                  />
+                ) : (
+                  activeDeck.name
+                )}
+                <div className="flex -space-x-2">
+                  {activeDeck.colors?.map(c => <ManaOrb key={c} color={c} size="w-10 h-10" />)}
+                </div>
+              </h2>
+              {isEditing ? (
+                <textarea 
+                  className="w-full bg-black/50 border border-grimorio-gold/30 rounded p-2 text-xl italic text-grimorio-parchment/80 mt-4 max-w-2xl focus:border-grimorio-gold outline-none"
+                  value={activeDeck.lore || ''}
+                  onChange={(e) => handleUpdateField('lore', e.target.value)}
+                  rows={2}
+                  placeholder="Descripción del mazo..."
+                />
+              ) : (
+                activeDeck.lore && <p className="text-xl italic text-grimorio-parchment/80 mt-4 max-w-2xl">{activeDeck.lore}</p>
+              )}
               <div className="flex gap-3 mt-6 flex-wrap">
                 <button onClick={() => setShowGuides(true)} className="px-5 py-2 bg-amber-900/30 border border-[#c19b45]/50 rounded-lg text-[#c19b45] text-sm hover:bg-amber-900/50 transition-all flex items-center gap-2">📜 Guía de Bolsillo</button>
                 <button 
@@ -753,9 +854,14 @@ export default function BattleBox() {
                 >
                   🃏 Probar Mano
                 </button>
+                <button 
+                  onClick={handleExportProxy} 
+                  className="px-4 py-2 bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 rounded-lg text-sm hover:bg-emerald-500/40 transition-all"
+                >
+                  🖨️ Lista Proxy
+                </button>
               </div>
             </div>
-            <div className="flex gap-1">{activeDeck.colors?.map(c => <ManaOrb key={c} color={c} />)}</div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -765,6 +871,7 @@ export default function BattleBox() {
                 cards={activeDeck.cards} 
                 isEditing={isEditing} 
                 onRemoveCard={handleRemoveCard} 
+                onAddCard={handleAddCopy}
               />
             </div>
 
@@ -806,6 +913,15 @@ export default function BattleBox() {
         </div>
       </div>
       <AnimatePresence>{showGuides && <GuideOverlay decks={decksToPrint} onClose={() => setShowGuides(false)} />}</AnimatePresence>
+      <AnimatePresence>
+        {showProxyModal && (
+          <ProxyListModal 
+            isOpen={showProxyModal} 
+            onClose={() => setShowProxyModal(false)} 
+            activeDeck={activeDeck} 
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -144,97 +144,108 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
   
   const colors = colorIdentity.length > 0 ? colorIdentity : ['W'];
   const totalPips = Object.values(pipBalance).reduce((a, b) => a + b, 0) || 1;
-  
-  const isLegacy = format?.toUpperCase().includes('LEGACY');
-  const isMulticolor = colors.length >= 2; // En Legacy/Modern siempre queremos duals si hay >1 color
-  
-  // 1. Determinar cuántas Duals y cuántas Básicas
-  const dualCount = isMulticolor ? Math.floor(totalLands * 0.4) : 0; // 40% duals si es multicolor
-  const basicCount = totalLands - dualCount;
+  const isMulticolor = colors.length >= 2;
   
   const manaBase = [];
 
-  // 2. Generar Duals primero
-  if (dualCount > 0) {
-    const legacyDuals = [
-      { name: 'Underground Sea', colors: ['U', 'B'] },
-      { name: 'Volcanic Island', colors: ['U', 'R'] },
-      { name: 'Tropical Island', colors: ['U', 'G'] },
-      { name: 'Tundra', colors: ['W', 'U'] },
-      { name: 'Badlands', colors: ['B', 'R'] },
-      { name: 'Taiga', colors: ['R', 'G'] },
-      { name: 'Savannah', colors: ['G', 'W'] },
-      { name: 'Scrubland', colors: ['W', 'B'] },
-      { name: 'Bayou', colors: ['B', 'G'] },
-      { name: 'Plateau', colors: ['R', 'W'] }
-    ].filter(land => !BATTLEBOX_BANLIST.includes(land.name));
+  const legacyDuals = [
+    { name: 'Underground Sea', colors: ['U', 'B'] },
+    { name: 'Volcanic Island', colors: ['U', 'R'] },
+    { name: 'Tropical Island', colors: ['U', 'G'] },
+    { name: 'Tundra', colors: ['W', 'U'] },
+    { name: 'Badlands', colors: ['B', 'R'] },
+    { name: 'Taiga', colors: ['R', 'G'] },
+    { name: 'Savannah', colors: ['G', 'W'] },
+    { name: 'Scrubland', colors: ['W', 'B'] },
+    { name: 'Bayou', colors: ['B', 'G'] },
+    { name: 'Plateau', colors: ['R', 'W'] }
+  ].filter(land => !BATTLEBOX_BANLIST.includes(land.name));
 
-    const modernDuals = [
-      { name: 'Watery Grave', colors: ['U', 'B'] },
-      { name: 'Steam Vents', colors: ['U', 'R'] },
-      { name: 'Breeding Pool', colors: ['U', 'G'] },
-      { name: 'Hallowed Fountain', colors: ['W', 'U'] },
-      { name: 'Blood Crypt', colors: ['B', 'R'] },
-      { name: 'Stomping Ground', colors: ['R', 'G'] },
-      { name: 'Temple Garden', colors: ['G', 'W'] },
-      { name: 'Godless Shrine', colors: ['W', 'B'] },
-      { name: 'Overgrown Tomb', colors: ['B', 'G'] },
-      { name: 'Sacred Foundry', colors: ['R', 'W'] }
-    ].filter(land => !BATTLEBOX_BANLIST.includes(land.name));
+  const fetchLands = [
+    { name: 'Flooded Strand', colors: ['W', 'U'] },
+    { name: 'Polluted Delta', colors: ['U', 'B'] },
+    { name: 'Bloodstained Mire', colors: ['B', 'R'] },
+    { name: 'Wooded Foothills', colors: ['R', 'G'] },
+    { name: 'Windswept Heath', colors: ['G', 'W'] },
+    { name: 'Marsh Flats', colors: ['W', 'B'] },
+    { name: 'Scalding Tarn', colors: ['U', 'R'] },
+    { name: 'Verdant Catacombs', colors: ['B', 'G'] },
+    { name: 'Arid Mesa', colors: ['R', 'W'] },
+    { name: 'Misty Rainforest', colors: ['G', 'U'] }
+  ].filter(land => !BATTLEBOX_BANLIST.includes(land.name));
 
-    const dualLandPool = isLegacy ? legacyDuals : modernDuals;
-    // Filtrar duals que coincidan con la identidad de color
-    const availableDuals = dualLandPool.filter(d => 
-      d.colors.every(c => colorIdentity.includes(c))
-    );
-    
-    const pool = availableDuals.length > 0 ? availableDuals : dualLandPool.slice(0, 1);
+  let remainingLands = totalLands;
 
-    for (let i = 0; i < dualCount; i++) {
-      const dual = pool[i % pool.length];
-      manaBase.push({
-        name: dual.name,
-        quantity: 1,
-        category: 'Land',
-        type_line: `Land — ${isLegacy ? 'Dual' : 'Shock'}`,
-        color_identity: dual.colors
-      });
-    }
+  if (isMulticolor) {
+    // 1. DUAL LANDS (hasta 4 copias de las válidas para los colores)
+    const validDuals = legacyDuals.filter(d => d.colors.every(c => colors.includes(c)));
+    validDuals.forEach(dual => {
+      // 4 copias si son 2 colores, 2 copias si son 3+ colores para no ahogar el mazo
+      const quantity = colors.length === 2 ? 4 : 2;
+      if (remainingLands >= quantity) {
+        manaBase.push({
+          name: dual.name,
+          quantity: quantity,
+          category: 'Land',
+          type_line: 'Land — Dual',
+          color_identity: dual.colors
+        });
+        remainingLands -= quantity;
+      }
+    });
+
+    // 2. FETCHLANDS (hasta 8 copias distribuidas)
+    const validFetches = fetchLands.filter(f => f.colors.every(c => colors.includes(c)));
+    let fetchesAllocated = 0;
+    validFetches.forEach(fetch => {
+      // 4 copias por fetch, máximo 8 fetchlands en total
+      const quantity = colors.length === 2 ? 4 : 3;
+      if (remainingLands >= quantity && fetchesAllocated < 8) {
+        manaBase.push({
+          name: fetch.name,
+          quantity: quantity,
+          category: 'Land',
+          type_line: 'Land — Fetch',
+          color_identity: fetch.colors
+        });
+        remainingLands -= quantity;
+        fetchesAllocated += quantity;
+      }
+    });
   }
 
-  // 3. Generar Básicas para completar hasta totalLands
-  let basicsAllocated = 0;
+  // 3. TIERRAS BÁSICAS (Para el resto del hueco, basado en Pip Balance)
   const sortedColors = [...colors].sort((a, b) => pipBalance[b] - pipBalance[a]);
+  const initialRemainingForBasics = remainingLands;
 
   sortedColors.forEach((color, idx) => {
+    if (remainingLands <= 0) return;
+    
     let count;
     if (idx === sortedColors.length - 1) {
-      // El último color se lleva el resto para asegurar exactitud
-      count = basicCount - basicsAllocated;
+      // El último color se lleva todo el resto para asegurar llegar al total exacto
+      count = remainingLands;
     } else {
       const percentage = (pipBalance[color] || 0) / totalPips;
-      count = Math.round(percentage * basicCount);
+      count = Math.floor(percentage * initialRemainingForBasics);
     }
     
-    // Evitar que count sea negativo si algo salió mal
     count = Math.max(0, count);
-    basicsAllocated += count;
-
-    const landName = BASIC_LAND_NAMES[color] || 'Plains';
-    for (let i = 0; i < count; i++) {
+    
+    if (count > 0) {
+      const landName = BASIC_LAND_NAMES[color] || 'Plains';
       manaBase.push({
         name: landName,
-        quantity: 1,
+        quantity: count,
         category: 'Land',
         type_line: `Basic Land — ${landName}`,
         color_identity: [color]
       });
+      remainingLands -= count;
     }
   });
 
-  console.log(`🌍 Generadas EXACTAMENTE ${manaBase.length} tierras para un total de ${totalLands} solicitadas.`);
-  return manaBase;
-  
+  console.log(`🌍 Generadas EXACTAMENTE ${totalLands} tierras en formato Profesional Legacy.`);
   return manaBase;
 }
 

@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { cn } from '../../utils/cn';
 
-import { BATTLEBOX_ARCHETYPES, BATTLEBOX_FORMAT_NAME } from '../../constants/legacyBattleBox';
+import { BATTLEBOX_ARCHETYPES, BATTLEBOX_FORMAT_NAME, MTG_TRIBES, MTG_STRATEGIES } from '../../constants/legacyBattleBox';
 
 function arraysEqual(a, b) {
   if (a.length !== b.length) return false;
@@ -11,7 +11,7 @@ function arraysEqual(a, b) {
   return sorted1.every((v, i) => v === sorted2[i]);
 }
 
-const COLORS = [
+export const COLORS = [
   { id: 'W', name: 'White', icon: '/ASSETS/manaBlanco.png', bg: 'bg-white', border: 'border-white', text: 'text-black' },
   { id: 'U', name: 'Blue', icon: '/ASSETS/manaAzul.png', bg: 'bg-blue-500', border: 'border-blue-500', text: 'text-white' },
   { id: 'B', name: 'Black', icon: '/ASSETS/manaNegro.png', bg: 'bg-gray-900', border: 'border-gray-700', text: 'text-white' },
@@ -21,6 +21,13 @@ const COLORS = [
 
 const FORMATOS = [
   { value: 'legacy-battlebox', label: BATTLEBOX_FORMAT_NAME },
+];
+
+const RARITY_MODES = [
+  { value: 'standard', label: 'Estándar (Equilibrado)' },
+  { value: 'high-power', label: 'Alta Potencia (Raras y Míticas ilimitadas)' },
+  { value: 'pauper', label: 'Pauper (Solo Comunes)' },
+  { value: 'artisan', label: 'Artisan (Comunes e Infrecuentes)' }
 ];
 
 const ARCHETYPES = BATTLEBOX_ARCHETYPES.map(a => ({
@@ -34,11 +41,16 @@ const ARCHETYPES = BATTLEBOX_ARCHETYPES.map(a => ({
 export default function ForgeForm({ onSubmit, isLoading, disabled }) {
   const [formData, setFormData] = useState({
     formato: 'legacy-battlebox',
+    rarityMode: 'standard',
     archetype: 'midrange',
     colores: ['B', 'G', 'W'],
     tribe: '',
+    strategy: '',
     prompt: '',
   });
+  
+  const [isCustomTribe, setIsCustomTribe] = useState(false);
+  const [isCustomStrategy, setIsCustomStrategy] = useState(false);
   const [errors, setErrors] = useState({});
 
   const handleArchetypeChange = (val) => {
@@ -79,6 +91,29 @@ export default function ForgeForm({ onSubmit, isLoading, disabled }) {
       onSubmit(formData);
     }
   };
+
+  const availableTribes = useMemo(() => {
+    return MTG_TRIBES.filter(t => 
+      t.colors.some(c => formData.colores.includes(c)) && 
+      (!t.archetypes || t.archetypes.includes(formData.archetype))
+    );
+  }, [formData.colores, formData.archetype]);
+
+  const availableStrategies = useMemo(() => {
+    let strats = MTG_STRATEGIES.filter(s => 
+      s.colors.some(c => formData.colores.includes(c)) &&
+      (!s.archetypes || s.archetypes.includes(formData.archetype))
+    );
+    
+    if (formData.tribe && !isCustomTribe) {
+      const selectedTribe = MTG_TRIBES.find(t => t.label === formData.tribe);
+      if (selectedTribe && selectedTribe.strategies) {
+        strats = strats.filter(s => selectedTribe.strategies.includes(s.id));
+      }
+    }
+    
+    return strats;
+  }, [formData.colores, formData.archetype, formData.tribe, isCustomTribe]);
 
   const currentArchetype = ARCHETYPES.find(a => a.value === formData.archetype);
 
@@ -126,7 +161,6 @@ export default function ForgeForm({ onSubmit, isLoading, disabled }) {
               ))}
             </select>
 
-            {/* Archetype info card */}
             {currentArchetype && (
               <div className="mt-3 p-3 bg-grimorio-gold/5 border border-grimorio-gold/20 rounded-lg">
                 <p className="text-grimorio-parchment/80 text-sm leading-relaxed">
@@ -137,6 +171,23 @@ export default function ForgeForm({ onSubmit, isLoading, disabled }) {
                 </p>
               </div>
             )}
+
+            <label className="block text-grimorio-parchment text-sm font-medium mt-6 mb-2 uppercase tracking-wider">
+              Nivel de Potencia / Restricción
+            </label>
+            <select
+              value={formData.rarityMode}
+              onChange={(e) => setFormData(prev => ({ ...prev, rarityMode: e.target.value }))}
+              className="w-full px-4 py-3 bg-[#1a1612] border-2 border-grimorio-gold/30 rounded-lg 
+                         text-grimorio-parchment focus:border-grimorio-gold focus:outline-none
+                         transition-all cursor-pointer"
+            >
+              {RARITY_MODES.map(r => (
+                <option key={r.value} value={r.value} className="bg-[#1a1612]">
+                  {r.label}
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* Color Identity - contextual to archetype */}
@@ -206,15 +257,76 @@ export default function ForgeForm({ onSubmit, isLoading, disabled }) {
             <label className="block text-grimorio-parchment text-sm font-medium mb-2 uppercase tracking-wider">
               Tribu / Raza (opcional)
             </label>
-            <input
-              type="text"
-              value={formData.tribe}
-              onChange={(e) => setFormData(prev => ({ ...prev, tribe: e.target.value }))}
-              placeholder="Ej: Piratas, Zombies, Dragones, Elfos..."
+            <select
+              value={isCustomTribe ? 'custom' : formData.tribe}
+              onChange={(e) => {
+                if (e.target.value === 'custom') {
+                  setIsCustomTribe(true);
+                  setFormData(prev => ({ ...prev, tribe: '' }));
+                } else {
+                  setIsCustomTribe(false);
+                  setFormData(prev => ({ ...prev, tribe: e.target.value }));
+                }
+              }}
               className="w-full px-4 py-3 bg-[#1a1612] border-2 border-grimorio-gold/30 rounded-lg 
-                         text-grimorio-parchment placeholder-grimorio-gold/30
-                         focus:border-grimorio-gold focus:outline-none transition-all"
-            />
+                         text-grimorio-parchment focus:border-grimorio-gold focus:outline-none
+                         transition-all cursor-pointer mb-2"
+            >
+              <option value="">-- Ninguna / Cualquiera --</option>
+              {availableTribes.map(t => (
+                <option key={t.id} value={t.label}>{t.label}</option>
+              ))}
+              <option value="custom">Otra (Manual)...</option>
+            </select>
+            {isCustomTribe && (
+              <input
+                type="text"
+                value={formData.tribe}
+                onChange={(e) => setFormData(prev => ({ ...prev, tribe: e.target.value }))}
+                placeholder="Escribe tu tribu manual..."
+                className="w-full px-4 py-3 bg-[#1a1612] border-2 border-grimorio-gold/30 rounded-lg 
+                           text-grimorio-parchment placeholder-grimorio-gold/30
+                           focus:border-grimorio-gold focus:outline-none transition-all"
+              />
+            )}
+          </div>
+
+          <div>
+            <label className="block text-grimorio-parchment text-sm font-medium mb-2 uppercase tracking-wider">
+              Estrategia Mecánica (opcional)
+            </label>
+            <select
+              value={isCustomStrategy ? 'custom' : formData.strategy}
+              onChange={(e) => {
+                if (e.target.value === 'custom') {
+                  setIsCustomStrategy(true);
+                  setFormData(prev => ({ ...prev, strategy: '' }));
+                } else {
+                  setIsCustomStrategy(false);
+                  setFormData(prev => ({ ...prev, strategy: e.target.value }));
+                }
+              }}
+              className="w-full px-4 py-3 bg-[#1a1612] border-2 border-grimorio-gold/30 rounded-lg 
+                         text-grimorio-parchment focus:border-grimorio-gold focus:outline-none
+                         transition-all cursor-pointer mb-2"
+            >
+              <option value="">-- Ninguna --</option>
+              {availableStrategies.map(s => (
+                <option key={s.id} value={s.label}>{s.label}</option>
+              ))}
+              <option value="custom">Otra (Manual)...</option>
+            </select>
+            {isCustomStrategy && (
+              <input
+                type="text"
+                value={formData.strategy}
+                onChange={(e) => setFormData(prev => ({ ...prev, strategy: e.target.value }))}
+                placeholder="Escribe tu estrategia manual..."
+                className="w-full px-4 py-3 bg-[#1a1612] border-2 border-grimorio-gold/30 rounded-lg 
+                           text-grimorio-parchment placeholder-grimorio-gold/30
+                           focus:border-grimorio-gold focus:outline-none transition-all"
+              />
+            )}
           </div>
 
           <div>

@@ -11,7 +11,7 @@ const CATEGORIES = {
   Land: { label: 'Tierras', icon: '🌍' },
 };
 
-function CategorySection({ title, icon, cards, onRemove, isEditing }) {
+function CategorySection({ title, icon, cards, onRemove, onAdd, isEditing }) {
   if (cards.length === 0) return null;
 
   return (
@@ -31,6 +31,7 @@ function CategorySection({ title, icon, cards, onRemove, isEditing }) {
             card={card} 
             isEditing={isEditing}
             onRemove={onRemove}
+            onAdd={onAdd}
           />
         ))}
       </div>
@@ -38,7 +39,7 @@ function CategorySection({ title, icon, cards, onRemove, isEditing }) {
   );
 }
 
-export default function VisualGrid({ cards, onRemoveCard, isEditing }) {
+export default function VisualGrid({ cards, onRemoveCard, onAddCard, isEditing }) {
   // Función para determinar la categoría única de una carta por prioridad
   const getPrimaryCategory = (card) => {
     const type = card.type_line || '';
@@ -67,6 +68,11 @@ export default function VisualGrid({ cards, onRemoveCard, isEditing }) {
   const artifacts = (cardsByCategory.Artifact?.reduce((sum, c) => sum + (c.quantity || 1), 0) || 0);
   const lands = cardsByCategory.Land?.reduce((sum, c) => sum + (c.quantity || 1), 0) || 0;
 
+  const totalPrice = cards.reduce((sum, c) => {
+    const price = parseFloat(c.prices?.usd || c.prices?.usd_foil || c.prices?.eur || 0);
+    return sum + (price * (c.quantity || 1));
+  }, 0);
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap gap-4 p-4 bg-gradient-to-b from-[#2a2318] to-[#1a1612] border border-grimorio-gold/30 rounded-xl shadow-2xl">
@@ -94,6 +100,15 @@ export default function VisualGrid({ cards, onRemoveCard, isEditing }) {
           <p className="text-2xl font-cinzel text-green-400">{lands}</p>
           <p className="text-xs text-grimorio-parchment/60 uppercase tracking-wider">Tierras</p>
         </div>
+        {totalPrice > 0 && (
+          <>
+            <div className="w-px bg-grimorio-gold/20" />
+            <div className="text-center px-4">
+              <p className="text-2xl font-cinzel text-amber-500">${totalPrice.toFixed(2)}</p>
+              <p className="text-xs text-grimorio-parchment/60 uppercase tracking-wider">Mercado</p>
+            </div>
+          </>
+        )}
       </div>
 
       <div className="space-y-2">
@@ -104,6 +119,7 @@ export default function VisualGrid({ cards, onRemoveCard, isEditing }) {
             icon={icon} 
             cards={cardsByCategory[key] || []} 
             onRemove={onRemoveCard}
+            onAdd={onAddCard}
             isEditing={isEditing}
           />
         ))}
