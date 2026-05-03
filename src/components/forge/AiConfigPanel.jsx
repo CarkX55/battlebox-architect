@@ -204,10 +204,10 @@ export default function AiConfigPanel({ onConfigReady, storageKey = DEFAULT_STOR
           <button
             onClick={fetchModels}
             disabled={loadingModels || !apiKey}
-            className="w-full px-4 py-2 btn-magic-glass btn-glass-blue rounded-lg flex items-center justify-center gap-2 disabled:opacity-40"
+            className="w-full px-4 py-2 btn-stone-secondary flex items-center justify-center gap-2 disabled:opacity-40"
           >
             {loadingModels ? (
-              <span className="w-4 h-4 border border-magic-gold/30 border-t-magic-gold rounded-full animate-spin" />
+              <span className="w-4 h-4 border border-[#ffca58]/30 border-t-[#ffca58] rounded-full animate-spin" />
             ) : (
               <span>🔄</span>
             )}
