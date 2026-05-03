@@ -1,99 +1,43 @@
-Guía Maestra de Arquitectura de Mazos: Teoría, Probabilidad y Optimización de Recursos
+Guía Maestra de Arquitectura de Mazos: Fórmula de Maná Karsten Adaptada (Battle Box 60 Cartas)
 
-La ingeniería de un mazo competitivo de Magic: The Gathering (MTG) se fundamenta en la optimización del Turno Fundamental (TF). El TF es el pivote matemático donde una estrategia busca concluir el juego o establecer un estado de bloqueo irreversible. Cada decisión algorítmica, desde la densidad de tierras hasta la configuración de fuentes coloreadas, debe derivarse de este objetivo temporal. Ignorar el rigor estadístico en favor de la intuición incrementa la varianza sistémica, resultando en fallos de ejecución que degradan el rendimiento del mazo en entornos de alta presión.
+Esta guía define el rigor estadístico obligatorio para la arquitectura de bases de maná y la selección de hechizos en el formato Legacy Casual (60 cartas). La intuición está prohibida; toda inclusión de una carta está subordinada a la viabilidad de sus símbolos de maná ("pips").
 
-1. Taxonomía de Arquetipos y Filosofía de Diseño
+1. Optimización del Turno Fundamental (TF)
 
-El arquetipo define el modelo de recursos. Mientras que un mazo agresivo sacrifica longevidad por presión inmediata, un mazo de control debe garantizar el acceso persistente a recursos para alcanzar el juego tardío.
+El TF es el pivote matemático donde el mazo ejecuta su jugada más crítica. La selección de cartas y la curva deben alinearse a este objetivo temporal:
+* Aggro (TF 3-4): Exige una densidad máxima de costes 1 y 2. Tolera recuentos bajos de tierras (20-22).
+* Midrange (TF 4-5): Equilibra amenazas con disrupción. Tolera hechizos de doble coste (1BB o 2WW). Tierras (23-24).
+* Control (TF 6+): Prioriza no fallar tierras (land drops) en los primeros 6 turnos. Tierras (24-26).
+* Combo / Tempo (TF 3-5): Exige maná colorido en turno 1 de forma crítica. Tierras (20-23 según los cantrips).
 
-* Aggro (TF 3-4): Requiere una densidad máxima de amenazas de coste 1 y 2. Su configuración matemática tolera conteos bajos de tierras (20-22 en 60 cartas) porque el juego debe finalizar antes de que la "inundación de maná" (mana flood) sea un factor de pérdida. Prioriza el tempo sobre la ventaja de cartas.
-* Control (TF 6+): El modelo matemático debe priorizar el cumplimiento de los land drops 4, 5 y 6 con una consistencia superior al 90%. Utiliza una base de tierras alta (25-27) y herramientas de selección para asegurar la estabilización.
-* Midrange (TF 4-5): Equilibra amenazas de alto valor individual con disrupción. Requiere una curva de maná robusta y flexibilidad en las fuentes de color para ejecutar hechizos de doble coste (pips) en el medio juego.
-* Combo: Enfocado en la redundancia y búsqueda de piezas específicas. Su arquitectura depende de la probabilidad condicional: la capacidad de encontrar piezas A + B mediante cantrips antes de que el oponente cierre el TF.
-* Tempo: Busca obtener una ventaja temprana y protegerla. Su matemática es similar al Aggro pero con un mayor peso en fuentes de maná azul para interacción reactiva.
-* Prison/Lock: Su objetivo es la denegación de recursos. Requiere una consistencia absoluta en sus piezas de bloqueo iniciales para impedir que el oponente alcance su propio TF.
+2. La Regla de Karsten para 60 Cartas (El Umbral del 90%)
 
-La transición de la filosofía a la práctica requiere una infraestructura de maná capaz de sustentar la exigencia de los "pips" (símbolos de maná) en los turnos críticos.
+Para evitar el "Mana Screw" (tener hechizos pero no los colores correctos), cualquier hechizo elegido por la IA debe cumplir con las siguientes fuentes de color requeridas para garantizar un 90% de probabilidad de ser lanzado "en curva":
 
-2. Fundamentos de la Distribución Hipergeométrica
+Fuentes de Maná Coloreado Requeridas (Para Mazos de 60 Cartas):
+* Coste C (Ej. R - Llanowar Elves, Bolt) en Turno 1 -> Exige 14 fuentes enderezadas.
+* Coste 1C (Ej. 1U - Counterspell condicional) en Turno 2 -> Exige 13 fuentes.
+* Coste CC (Ej. UU - Counterspell puro) en Turno 2 -> Exige 21 fuentes.
+* Coste 1CC (Ej. 1BB - Liliana of the Veil) en Turno 3 -> Exige 18 fuentes.
+* Coste 3CC (Ej. 3WW - Baneslayer Angel) en Turno 5 -> Exige 15 fuentes.
+* Coste CCC (Ej. RRR - Goblin Chainwhirler) en Turno 3 -> Exige 23 fuentes.
 
-Para minimizar la varianza, el arquitecto sustituye la intuición por el cálculo de probabilidad sin reemplazo. Definimos las variables de entrada para el motor de cálculo:
+REGLA DE TOLERANCIA DE PIPS PARA LA IA:
+La IA tiene PROHIBIDO incluir cartas de triple coste específico (Ej: RRR, WWW) si el mazo tiene 3 o más colores. En mazos de 2 colores, solo se permiten cartas de doble coste específico (Ej: 1UU) si ese color es el principal.
 
-* Population Size (N): 40 (Limitado), 60 (Construido), 80 (Yorion), 99 (Commander).
-* Number of Successes in Population (K): Cantidad de copias de una carta o fuentes de un color.
-* Sample Size (n): Cartas vistas (mano inicial + robos por turno).
-* Successes in Sample (k): Éxitos requeridos (X).
+3. Calculadora de Tierras (El "Hueco" del Mazo)
 
-Para hechizos críticos, el umbral de éxito debe situarse entre el 90% y 95%. Un mazo que solo garantiza su color principal el 80% de las veces incurre en una "tasa de fallo autoinducido" del 20%.
-
-Matriz de Probabilidad: Éxito k ≥ 1 en Turno 1 (Muestra n=7)
-
-Fuentes (K)	40 Cartas	60 Cartas	80 Cartas	99 Cartas
-9	85.9%	70.1%	59.8%	51.5%
-14	95.9%	84.7%	75.8%	68.2%
-19	98.9%	93.1%	86.8%	80.4%
-
-Lograr un 90% de éxito en Commander (99 cartas) requiere una población de éxitos (K) significativamente mayor que en Standard (60 cartas) debido a la dilución estadística.
-
-3. Marco de Trabajo de Frank Karsten (Actualización 2022)
-
-Las tablas de Karsten son el estándar de oro para el lanzamiento "on curve". La distinción técnica más crítica es la diferencia entre fuentes giradas (tapped) y enderezadas (untapped). Para costes de Turno 1 (C), las fuentes computadas deben ser estrictamente capaces de producir maná el turno en que entran en juego.
-
-Fuentes de Maná Coloreado Requeridas (Umbral ~90-95%)
-
-Coste (Ejemplo)	Turno	40 Cartas	60 Cartas	80 Cartas	99 Cartas
-C (Swiftspear)	1	9*	14*	19*	19*
-1C (Shredder)	2	9	13	18	19
-CC (Lord Atlantis)	2	14*	21*	28*	30*
-1CC (Narset)	3	12	18	25	28
-3CC (Baneslayer)	5	10	15	20	23
-CCC (Chainwhirler)	3	16	23	32	36
-
-*Requiere que las fuentes entren enderezadas para maximizar la eficiencia del tempo.
-
-El impacto de los "pips" es exponencial: pasar de un coste 1C a CC en turno 2 exige un incremento del 61.5% en fuentes de ese color (de 13 a 21). El incumplimiento de estas cifras resulta en "mana screw" de color, donde el jugador posee el volumen de maná pero no la calidad necesaria.
+La IA genera el "Core" de hechizos (36-38 cartas) y el sistema inyecta las tierras automáticamente. Para ayudar al sistema, la IA debe conocer cómo se calculan las tierras:
+* Fórmula Base: ~14 tierras + (2 * Valor de Maná Promedio) - (0.15 * Hechizos de Robo/Ramp).
+* Implicación: Si la IA elige muchos hechizos de coste 4 o 5, el sistema meterá 24-26 tierras, reduciendo el espacio de la IA a 34-36 cartas. La IA debe mantener la curva baja (picos en 1 y 2) para maximizar los huecos de hechizos y mantener la agilidad del mazo.
 
 4. Moduladores de Consistencia y Pesos de Fuente
 
-Para optimizar el espacio del mazo, se integran cartas no-tierra mediante un sistema de pesos estadísticos ajustados por riesgo y resiliencia.
+No todos los productores de maná valen "1 tierra":
+1. Mana Dorks (Llanowar Elves): Valen 0.5 fuentes. Su alta vulnerabilidad ("Bolt the Bird") las hace poco fiables.
+2. Mana Rocks (Signets): Valen 0.75 fuentes. Solo cuentan para ayudar a hechizos de coste 3 o superior.
+3. Cantrips (Ponder, Opt): Valen 0.25 fuentes. Ayudan a encontrar tierras si se pueden lanzar en turno 1.
 
-Guía de Pesos de Fuente (Source Weights)
+5. Directriz Absoluta de Diseño
 
-1. Mana Dorks (0.5 fuentes): Criaturas como Llanowar Elves. Su peso se reduce debido al "Bolt the Bird" Coefficient: su alta vulnerabilidad al removal temprano las hace fuentes no fiables para el cálculo de tierras básicas.
-2. Mana Rocks (0.75 fuentes): Artefactos como Arcane Signet. Son más resilientes que las criaturas. Deben contarse como fuentes solo para hechizos de CMC 3 o superior.
-3. Cantrips (0.25 fuentes): Hechizos de coste 1 (Opt, Ponder). Aumentan la profundidad de la muestra. Solo computan si el mazo puede lanzarlos consistentemente en los turnos 1-2.
-4. Ramp Spells (CMC 2): Cartas como Farseek. Cuentan como fuente de color únicamente para hechizos de CMC 3 o superior.
-5. MDFCs (Modal Double-Faced Cards):
-  * Mitos (Emeria's Call): 1.0 fuentes (pueden entrar enderezadas).
-  * No-Mitos (Bala Ged Recovery): 0.8 fuentes (penalización por entrar giradas).
-
-Evaluación de Riesgo: El uso de tierras duales con tipos básicos (Shocklands, Triomes) es obligatorio para maximizar la eficacia de las Fetchlands, las cuales computan como fuentes completas de cualquier color que puedan buscar.
-
-5. Análisis de Probabilidad en Gameplay: Mulligans Algorítmicos
-
-La toma de decisiones bajo la Regla de Londres debe ser procedimental. El objetivo es maximizar la probabilidad de interactuar en el TF.
-
-Estrategia de Mulligan de Londres (Parámetros Técnicos)
-
-* Mano de 7 cartas: Ejecutar Mulligan si el conteo de tierras es {0, 1, 6, 7}. Las manos de 1 tierra solo son aceptables en mazos Aggro con AMV (Average Mana Value) < 1.8 y presencia de múltiples cantrips.
-* Mano de 6 cartas: Buscar un equilibrio de 3 tierras y 3 hechizos. Si hay >3 hechizos, colocar el hechizo de mayor CMC al fondo. Si hay <3 tierras, colocar un hechizo al fondo.
-* Impacto Play vs. Draw: En un mazo de 24 tierras, la probabilidad de alcanzar la 3ra tierra en T3 es:
-  * On the Play: 78.9% (Muestra n=9).
-  * On the Draw: 85.6% (Muestra n=10).
-  * Análisis: Estar en el robo permite conservar manos de 2 tierras con mayor seguridad estadística (Keepable si AMV ≤ 3).
-
-6. Apéndice Técnico para Integración en Software
-
-Para la implementación de motores de recomendación de IA o herramientas de construcción de mazos, se definen los siguientes parámetros lógicos:
-
-Reglas de Oro Algorítmicas
-
-1. Regla del 40%: Punto de partida para bases de maná (24/60, 17/40, 37/100).
-2. Regresión Lineal: Ajustar el conteo de tierras sumando un 5% de la población por cada 0.7 de incremento en el Valor de Maná Promedio (AMV).
-3. Penalización de Tempo: Límite estricto de tierras giradas (Tap-lands): 3 para Aggro, 9 para Control.
-
-Esquema Lógica de Cálculo (JSON Structure)
-
-{ "CALCULATION_ENGINE": { "VERSION": "2022_KARSTEN_REFINED", "TARGET_CONSISTENCY": 0.92, "MODIFIERS": { "MANA_DORK_VULNERABILITY": 0.50, "MANA_ROCK_RESILIENCE": 0.75, "CANTRIP_DENSITY_FACTOR": 0.25, "NON_MYTHIC_MDFC_PENALTY": -0.20, "TAP_LAND_TEMPO_COST": "DECREMENT_PRIORITY" }, "LOGIC_GATES": [ { "CONDITION": "CMC_COST_TURN_1", "REQUIREMENT": "UNTAPPED_SOURCE_ONLY", "MIN_SOURCES_60": 14 }, { "CONDITION": "COLOR_FIXING_PRIORITY", "ACTION": "PRIORITIZE_FETCH_SHOCK_SYNERGY" } ], "MULLIGAN_RULES": { "LONDON_RULE_ENABLED": true, "AUTO_MULL_7_CARD": [0, 1, 6, 7], "LINEAR_REGRESSION_ADJUSTMENT": "0.05_LAND_PER_0.7_AMV" } } }
-
-Este marco de trabajo garantiza que la arquitectura del mazo no solo sea estéticamente funcional, sino estadísticamente superior, alineando cada recurso con la realidad probabilística del juego competitivo.
+El mazo debe construirse asumiendo la probabilidad condicional. No sacrifiques la viabilidad del maná por incluir una carta "muy buena pero de un color secundario" en un coste difícil (Ej: Splashing un hechizo 1UU en un mazo mayoritariamente Verde/Rojo). La sinergia y el lanzamiento consistente en curva son innegociables.

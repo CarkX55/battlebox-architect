@@ -48,14 +48,31 @@ export async function getCardFromDB(name) {
 }
 
 async function fetchCardFromScryfall(cardName) {
-  const cleanName = cardName.replace(/^\d+x\s+/, '').trim();
-  const url = `https://api.scryfall.com/cards/named?exact=${encodeURIComponent(cleanName)}`;
+  let cleanName = cardName.replace(/^\d+x\s+/, '').trim();
+  
+  // Arreglar cartas dobles que vengan con un solo /
+  if (cleanName.includes('/') && !cleanName.includes('//')) {
+    cleanName = cleanName.replace(/\s*\/\s*/g, ' // ');
+  }
+  
+  // Buscar la carta exacta, omitiendo Universes Beyond y cartas de Arena
+  const searchQuery = `!"${cleanName}" -is:ub -is:digital`;
+  const url = `https://api.scryfall.com/cards/search?q=${encodeURIComponent(searchQuery)}`;
   
   try {
+    let data;
     const response = await fetch(url);
-    if (!response.ok) return null;
-    
-    const data = await response.json();
+    if (!response.ok) {
+      // Fallback al endpoint exacto normal si falla la búsqueda estricta
+      const fallbackUrl = `https://api.scryfall.com/cards/named?exact=${encodeURIComponent(cleanName)}`;
+      const fallbackResponse = await fetch(fallbackUrl);
+      if (!fallbackResponse.ok) return null;
+      data = await fallbackResponse.json();
+    } else {
+      const json = await response.json();
+      if (!json.data || json.data.length === 0) return null;
+      data = json.data[0];
+    }
     
     const card = {
       name: data.name,
@@ -64,6 +81,7 @@ async function fetchCardFromScryfall(cardName) {
       mana_value: data.cmc || 0,
       category: categorizeCard(data.type_line, data.oracle_text),
       legalities: data.legalities || {},
+      prices: data.prices || {},
       image_uris: data.image_uris ? {
         normal: data.image_uris.normal,
         large: data.image_uris.large,

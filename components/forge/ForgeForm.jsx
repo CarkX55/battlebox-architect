@@ -11,7 +11,7 @@ function arraysEqual(a, b) {
   return sorted1.every((v, i) => v === sorted2[i]);
 }
 
-const COLORS = [
+export const COLORS = [
   { id: 'W', name: 'White', icon: '/ASSETS/manaBlanco.png', bg: 'bg-white', border: 'border-white', text: 'text-black' },
   { id: 'U', name: 'Blue', icon: '/ASSETS/manaAzul.png', bg: 'bg-blue-500', border: 'border-blue-500', text: 'text-white' },
   { id: 'B', name: 'Black', icon: '/ASSETS/manaNegro.png', bg: 'bg-gray-900', border: 'border-gray-700', text: 'text-white' },
