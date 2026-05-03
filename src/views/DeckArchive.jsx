@@ -3,6 +3,7 @@ import { getArchivedDecks, deleteArchivedDeck } from '../services/archiveService
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../utils/cn';
 import { useAppStore } from '../store/useAppStore';
+import ManaOrb from '../components/atoms/ManaOrb';
 
 export default function DeckArchive() {
   const { setCurrentView, setActiveDeck, selectedDecks, toggleDeckSelection, clearSelection } = useAppStore();
@@ -89,14 +90,7 @@ export default function DeckArchive() {
               <div className="flex justify-between items-end">
                 <div className="flex gap-1">
                   {deck.colors?.map(c => (
-                    <div key={c} className={cn(
-                      "w-4 h-4 rounded-full border border-black/50 shadow-sm",
-                      c === 'W' && "bg-white",
-                      c === 'U' && "bg-blue-500",
-                      c === 'B' && "bg-black",
-                      c === 'R' && "bg-red-500",
-                      c === 'G' && "bg-green-600"
-                    )} />
+                    <ManaOrb key={c} color={c} size="w-5 h-5" />
                   ))}
                 </div>
                 <div className="text-xs text-grimorio-gold/40">

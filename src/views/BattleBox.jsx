@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAppStore } from '../store/useAppStore';
+import { MANA_COLORS } from '../constants/legacyBattleBox';
+import ManaOrb from '../components/atoms/ManaOrb';
 import VisualGrid from '../components/battlebox/VisualGrid';
 import { cn } from '../utils/cn';
 import { rebalanceDecks, generateDeckTactics } from '../services/aiFactory';
@@ -14,20 +16,7 @@ import ManaCurve from '../components/forge/ManaCurve';
 
 const AI_STORAGE_KEY = 'mtg_ai_config_forge';
 
-import { COLORS } from '../components/forge/ForgeForm';
-
-function ManaOrb({ color, size = "w-5 h-5" }) {
-  const colorData = COLORS.find(c => c.id === color);
-  if (!colorData) return null;
-  return (
-    <img 
-      src={colorData.icon} 
-      alt={colorData.name} 
-      title={colorData.name}
-      className={`${size} rounded-full shadow-lg border border-black/50`} 
-    />
-  );
-}
+// ManaOrb ahora se importa de components/atoms/ManaOrb
 
 const ProxyListModal = ({ isOpen, onClose, activeDeck }) => {
   if (!isOpen || !activeDeck) return null;

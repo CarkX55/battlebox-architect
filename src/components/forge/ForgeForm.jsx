@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { cn } from '../../utils/cn';
 
-import { BATTLEBOX_ARCHETYPES, BATTLEBOX_FORMAT_NAME, MTG_TRIBES, MTG_STRATEGIES } from '../../constants/legacyBattleBox';
+import { BATTLEBOX_ARCHETYPES, BATTLEBOX_FORMAT_NAME, MTG_TRIBES, MTG_STRATEGIES, COLORS } from '../../constants/legacyBattleBox';
 
 function arraysEqual(a, b) {
   if (a.length !== b.length) return false;
@@ -11,13 +11,6 @@ function arraysEqual(a, b) {
   return sorted1.every((v, i) => v === sorted2[i]);
 }
 
-export const COLORS = [
-  { id: 'W', name: 'White', icon: '/ASSETS/manaBlanco.png', bg: 'bg-white', border: 'border-white', text: 'text-black' },
-  { id: 'U', name: 'Blue', icon: '/ASSETS/manaAzul.png', bg: 'bg-blue-500', border: 'border-blue-500', text: 'text-white' },
-  { id: 'B', name: 'Black', icon: '/ASSETS/manaNegro.png', bg: 'bg-gray-900', border: 'border-gray-700', text: 'text-white' },
-  { id: 'R', name: 'Red', icon: '/ASSETS/manaRojo.png', bg: 'bg-red-500', border: 'border-red-500', text: 'text-white' },
-  { id: 'G', name: 'Green', icon: '/ASSETS/manaVerde.png', bg: 'bg-green-600', border: 'border-green-600', text: 'text-white' },
-];
 
 const FORMATOS = [
   { value: 'legacy-battlebox', label: BATTLEBOX_FORMAT_NAME },

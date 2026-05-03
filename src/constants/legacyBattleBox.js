@@ -1,5 +1,24 @@
 export const BATTLEBOX_FORMAT_NAME = "Legacy Battle Box (Casual)";
 
+export const MANA_COLORS = {
+  W: '#f8f6d8',
+  U: '#0e68ab',
+  B: '#150b00',
+  R: '#d3202a',
+  G: '#00733e',
+  C: '#96999a'
+};
+
+export const COLORS = [
+  { id: 'W', name: 'Blanco', icon: '/ASSETS/manaBlanco.png', color: MANA_COLORS.W, bg: 'bg-white', border: 'border-white', text: 'text-black' },
+  { id: 'U', name: 'Azul', icon: '/ASSETS/manaAzul.png', color: MANA_COLORS.U, bg: 'bg-blue-500', border: 'border-blue-500', text: 'text-white' },
+  { id: 'B', name: 'Negro', icon: '/ASSETS/manaNegro.png', color: MANA_COLORS.B, bg: 'bg-gray-900', border: 'border-gray-700', text: 'text-white' },
+  { id: 'R', name: 'Rojo', icon: '/ASSETS/manaRojo.png', color: MANA_COLORS.R, bg: 'bg-red-500', border: 'border-red-500', text: 'text-white' },
+  { id: 'G', name: 'Verde', icon: '/ASSETS/manaVerde.png', color: MANA_COLORS.G, bg: 'bg-green-600', border: 'border-green-600', text: 'text-white' }
+];
+
+
+
 export const BATTLEBOX_BANLIST = [
   // Aceleración de maná gratuita o demasiado eficiente
   "Sol Ring", "Mana Crypt", "Mox Diamond", "Chrome Mox", "Mox Opal",
