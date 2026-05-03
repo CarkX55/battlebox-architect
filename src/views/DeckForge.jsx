@@ -244,69 +244,66 @@ export default function DeckForge() {
             animate={{ opacity: 1, scale: 1 }}
             className="mt-8"
           >
-            <div className="flex flex-col mb-8 gap-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-3xl font-cinzel text-grimorio-gold flex items-center gap-3">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-8 gap-6 p-8 rounded-2xl frosted-panel shadow-2xl">
+              <div className="flex-1 min-w-0">
+                <div className="flex flex-wrap items-center gap-4 mb-2">
+                  <h2 className="text-3xl md:text-4xl font-cinzel text-magic-gold tracking-wide leading-tight">
                     📜 {aiMetadata?.deckName || 'Mazo Forjado'}
-                    {lastFormData?.colores?.length > 0 && (
-                      <div className="flex -space-x-1 ml-3">
-                        {lastFormData.colores.map(color => (
-                          <ManaOrb key={color} color={color} size="w-8 h-8" />
-                        ))}
-                      </div>
-                    )}
                   </h2>
-                  <p className="text-grimorio-parchment/60 text-sm mt-1 uppercase tracking-widest">
-                    Legacy Battle Box (Casual) • {lastFormData?.archetype}
-                  </p>
+                  {lastFormData?.colores?.length > 0 && (
+                    <div className="flex -space-x-2 bg-black/40 p-2 rounded-full border border-magic-gold/20 shadow-inner">
+                      {lastFormData.colores.map(color => (
+                        <ManaOrb key={color} color={color} size="w-12 h-12" />
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setIsEditing(!isEditing)}
-                    className={cn(
-                      "px-4 py-2 border rounded-lg transition-all flex items-center gap-2",
-                      isEditing 
-                        ? "bg-red-500/20 border-red-500 text-red-400" 
-                        : "bg-blue-500/20 border-blue-500/40 text-blue-400 hover:bg-blue-500/30"
-                    )}
-                  >
-                    {isEditing ? '💾 Guardar Cambios' : '✍️ Modo Edición'}
-                  </button>
-                  <button
-                    onClick={() => setShowHandSim(true)}
-                    className="px-4 py-2 bg-purple-500/20 border border-purple-500/40 text-purple-400 rounded-lg hover:bg-purple-500/30 transition-all"
-                  >
-                    🃏 Probar Mano
-                  </button>
-                  <button
-                    onClick={handleArchive}
-                    disabled={archived}
-                    className={cn(
-                      "px-4 py-2 border rounded-lg transition-all flex items-center gap-2",
-                      archived 
-                        ? "bg-green-500/20 border-green-500 text-green-400" 
-                        : "bg-grimorio-gold/20 border-grimorio-gold/40 text-grimorio-gold hover:bg-grimorio-gold/30"
-                    )}
-                  >
-                    {archived ? '✅ Archivado' : '📦 Archivar Mazo'}
-                  </button>
-                  <button
-                    onClick={() => setMode('form')}
-                    className="px-4 py-2 bg-grimorio-gold/20 border border-grimorio-gold/40 
-                               text-grimorio-gold rounded-lg hover:bg-grimorio-gold/30 transition-colors"
-                  >
-                    ← Nuevo Mazo
-                  </button>
-                </div>
+                <p className="text-[#f4ece0]/60 text-[11px] uppercase tracking-[0.3em] font-medium pl-1">
+                  Legacy Battle Box (Casual) • {lastFormData?.archetype}
+                </p>
               </div>
-
-              {warning && (
-                <div className="p-4 bg-orange-500/10 border border-orange-500/30 rounded-lg text-orange-400 text-sm">
-                  ⚠️ {warning}
-                </div>
-              )}
+              
+              <div className="flex flex-wrap gap-2 shrink-0">
+                <button
+                  onClick={() => setIsEditing(!isEditing)}
+                  className={cn(
+                    "btn-magic-glass btn-glass-blue",
+                    isEditing && "border-blue-500/50 bg-blue-500/10 text-blue-400 shadow-[0_0_15px_rgba(59,130,246,0.2)]"
+                  )}
+                >
+                  {isEditing ? '💾 Guardar' : '✍️ Edición'}
+                </button>
+                <button
+                  onClick={() => setShowHandSim(true)}
+                  className="btn-magic-glass btn-glass-purple"
+                >
+                  🃏 Mano
+                </button>
+                <button
+                  onClick={handleArchive}
+                  disabled={archived}
+                  className={cn(
+                    "btn-magic-glass btn-glass-gold",
+                    archived && "border-green-500/50 bg-green-500/10 text-green-400"
+                  )}
+                >
+                  {archived ? '✅ OK' : '📦 Archivar'}
+                </button>
+                <button
+                  onClick={() => setMode('form')}
+                  className="btn-magic-glass btn-glass-silver"
+                >
+                  ← Nuevo
+                </button>
+              </div>
             </div>
+
+            {warning && (
+              <div className="frosted-panel p-4 text-magic-gold text-sm flex items-center gap-3 mb-6 shadow-lg border-magic-gold/20">
+                <span className="text-xl">⚠️</span> {warning}
+              </div>
+            )}
+
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-12">
               <div className="lg:col-span-2">
@@ -327,7 +324,7 @@ export default function DeckForge() {
                     </div>
 
                     {sideboardStrategy && (
-                      <div className="mb-6 p-6 bg-purple-900/10 border border-purple-500/20 rounded-2xl relative overflow-hidden group">
+                      <div className="mb-6 p-6 frosted-panel border-purple-500/30 shadow-[inset_0_0_20px_rgba(168,85,247,0.1)] group">
                         <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
                           <span className="text-4xl">💡</span>
                         </div>
@@ -360,73 +357,73 @@ export default function DeckForge() {
 
                 <ManaCurve deck={renderDeck} />
 
-                <div className="p-6 bg-gradient-to-b from-[#2a2318] to-[#1a1612] border border-grimorio-gold/30 rounded-xl shadow-2xl relative overflow-hidden">
-                  <div className="absolute top-0 right-0 w-24 h-24 bg-grimorio-gold/5 rotate-45 translate-x-12 -translate-y-12 border border-grimorio-gold/10" />
-                  
-                  <h4 className="font-cinzel text-grimorio-gold text-lg mb-6 flex items-center gap-2 relative z-10">
-                    📖 Guía de Bolsillo
-                    {!pocketGuide && !isGeneratingGuide && (
-                      <button 
-                        onClick={generateGuide}
-                        className="ml-auto text-[10px] px-3 py-1 bg-grimorio-gold/10 hover:bg-grimorio-gold/20 border border-grimorio-gold/30 rounded-full transition-all uppercase tracking-widest font-bold text-grimorio-gold shadow-[0_0_10px_rgba(212,175,55,0.1)]"
-                      >
-                        ✨ Infundir Sabiduría
-                      </button>
-                    )}
-                  </h4>
-                  
-                  {isGeneratingGuide ? (
-                    <div className="space-y-4 animate-pulse">
-                      <div className="h-4 bg-grimorio-gold/10 rounded w-3/4" />
-                      <div className="h-4 bg-grimorio-gold/10 rounded w-full" />
-                      <div className="h-4 bg-grimorio-gold/10 rounded w-5/6" />
-                    </div>
-                  ) : pocketGuide ? (
-                    <div className="space-y-6 relative z-10">
-                      <div>
-                        <p className="text-[10px] font-bold text-grimorio-gold/60 uppercase tracking-widest mb-1 flex items-center gap-2">
-                          ⚔️ Plan de Ataque
-                        </p>
-                        <p className="text-sm text-grimorio-parchment/90 leading-relaxed italic">
-                          "{pocketGuide.plan}"
-                        </p>
+                <div className="parchment-scroll">
+                  <div className="parchment-content">
+                    <h4 className="font-cinzel text-[#4a3318] text-lg mb-6 flex items-center gap-2 relative z-10 border-b border-[#4a3318]/20 pb-2">
+                      📜 Guía de Sabiduría Ancestral
+                      {!pocketGuide && !isGeneratingGuide && (
+                        <button 
+                          onClick={generateGuide}
+                          className="ml-auto text-[10px] px-3 py-1 bg-[#4a3318]/10 hover:bg-[#4a3318]/20 border border-[#4a3318]/30 rounded-full transition-all uppercase tracking-widest font-bold text-[#4a3318]"
+                        >
+                          🖋️ Descifrar Pergamino
+                        </button>
+                      )}
+                    </h4>
+                    
+                    {isGeneratingGuide ? (
+                      <div className="space-y-4 animate-pulse">
+                        <div className="h-4 bg-[#4a3318]/10 rounded w-3/4" />
+                        <div className="h-4 bg-[#4a3318]/10 rounded w-full" />
+                        <div className="h-4 bg-[#4a3318]/10 rounded w-5/6" />
                       </div>
-                      
-                      {pocketGuide.mulligan && (
+                    ) : pocketGuide ? (
+                      <div className="space-y-6 relative z-10">
                         <div>
-                          <p className="text-[10px] font-bold text-grimorio-gold/60 uppercase tracking-widest mb-1 flex items-center gap-2">
-                            🃏 Estrategia Mulligan
+                          <p className="text-[11px] mb-1 flex items-center gap-2 parchment-label uppercase tracking-widest">
+                            ⚔️ Plan de Ataque
                           </p>
-                          <p className="text-sm text-grimorio-parchment/80 leading-relaxed">
-                            {pocketGuide.mulligan}
+                          <p className="text-sm leading-relaxed italic parchment-ink">
+                            "{pocketGuide.plan}"
                           </p>
                         </div>
-                      )}
-
-                      {pocketGuide.tips && (
-                        <div>
-                          <p className="text-[10px] font-bold text-grimorio-gold/60 uppercase tracking-widest mb-1 flex items-center gap-2">
-                            💡 Trucos Técnicos
-                          </p>
-                          <div className="text-sm text-grimorio-parchment/70 leading-relaxed whitespace-pre-line border-l-2 border-grimorio-gold/20 pl-4 py-1">
-                            {pocketGuide.tips}
+                        
+                        {pocketGuide.mulligan && (
+                          <div>
+                            <p className="text-[11px] mb-1 flex items-center gap-2 parchment-label uppercase tracking-widest">
+                              🃏 Estrategia Mulligan
+                            </p>
+                            <p className="text-sm leading-relaxed parchment-ink">
+                              {pocketGuide.mulligan}
+                            </p>
                           </div>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="text-center py-4">
-                      <p className="text-grimorio-parchment/40 text-xs italic mb-4">
-                        "El conocimiento es la mejor carta en tu mano."
-                      </p>
-                      <button 
-                        onClick={generateGuide}
-                        className="text-xs px-4 py-2 bg-grimorio-gold/5 hover:bg-grimorio-gold/10 border border-grimorio-gold/20 rounded-lg transition-all text-grimorio-gold"
-                      >
-                        Descifrar Estrategia
-                      </button>
-                    </div>
-                  )}
+                        )}
+  
+                        {pocketGuide.tips && (
+                          <div>
+                            <p className="text-[11px] mb-1 flex items-center gap-2 parchment-label uppercase tracking-widest">
+                              💡 Secretos del Hechicero
+                            </p>
+                            <div className="text-sm leading-relaxed whitespace-pre-line border-l-2 border-[#4a3318]/20 pl-4 py-1 parchment-ink">
+                              {pocketGuide.tips}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="text-center py-4">
+                        <p className="text-xs italic mb-4 parchment-ink opacity-60">
+                          "El conocimiento es la mejor carta en tu mano."
+                        </p>
+                        <button 
+                          onClick={generateGuide}
+                          className="text-xs px-4 py-2 bg-[#4a3318]/10 hover:bg-[#4a3318]/20 border border-[#4a3318]/30 rounded-lg transition-all text-[#4a3318] font-bold"
+                        >
+                          Descifrar Estrategia
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

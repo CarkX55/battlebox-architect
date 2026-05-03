@@ -2,7 +2,323 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
-  background-color: #1a1612;
+@font-face {
+  font-family: 'Beleren';
+  src: url('/fonts/Beleren.woff') format('woff');
+  font-weight: bold;
+  font-style: normal;
+}
+
+html, body {
+  background-color: #0a0a0a;
+  background-image: url('/ASSETS/Obsidiana.jpg?v=2');
+  background-attachment: fixed;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  image-rendering: high-quality;
   color: #f4ece0;
+  font-family: 'Beleren', serif !important; /* Aplicación global */
+}
+
+.font-cinzel {
+  font-family: 'Beleren', serif !important;
+}
+
+.text-magic-gold {
+  color: #ffdf91;
+  text-shadow: 0 0 10px rgba(255, 223, 145, 0.4), 0 2px 4px rgba(0,0,0,0.8);
+}
+
+.border-magic-gold {
+  border-color: rgba(255, 223, 145, 0.4);
+}
+
+.line-magic-gold {
+  background: linear-gradient(90deg, transparent, rgba(255, 223, 145, 0.6), transparent);
+  height: 1px;
+}
+
+/* Scrollbar Premium */
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0d0d0d;
+  border-left: 1px solid rgba(255, 223, 145, 0.1);
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(to bottom, #ffdf91, #c19b45);
+  border-radius: 5px;
+  border: 2px solid #0d0d0d;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #d4af37;
+}
+
+/* Clases de utilidad para efectos extra */
+.glass-panel {
+  background: rgba(15, 12, 10, 0.7);
+  backdrop-filter: blur(12px) saturate(180%);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
+  border: 1px solid rgba(193, 155, 69, 0.2);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8);
+}
+
+.glass-panel-hover:hover {
+  background: rgba(25, 20, 15, 0.8);
+  border: 1px solid rgba(193, 155, 69, 0.4);
+  transition: all 0.3s ease;
+}
+
+.btn-magic {
+  background: linear-gradient(135deg, rgba(193, 155, 69, 0.2), rgba(122, 94, 35, 0.2));
+  border: 1px solid rgba(193, 155, 69, 0.4);
+  color: #c19b45;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  text-shadow: 0 0 8px rgba(193, 155, 69, 0.3);
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-magic:hover {
+  background: linear-gradient(135deg, rgba(193, 155, 69, 0.4), rgba(122, 94, 35, 0.4));
+  border: 1px solid rgba(193, 155, 69, 0.8);
+  box-shadow: 0 0 20px rgba(193, 155, 69, 0.4);
+  transform: translateY(-1px);
+  color: #f4ece0;
+}
+
+.btn-magic:active {
+  transform: translateY(1px);
+}
+
+.btn-magic::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+.btn-asset {
+  border-style: solid;
+  border-width: 0 80px;
+  border-image-source: url('/ASSETS/Boton1.png?v=2');
+  border-image-slice: 0 180 0 180 fill;
+  height: 150px;
+  background-color: transparent;
+  color: #f4ece0;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.7rem;
+  font-weight: bold;
+  letter-spacing: 0.15em;
+  text-shadow: 0 3px 6px rgba(0,0,0,0.6);
+}
+
+.btn-asset:hover {
+  border-image-source: url('/ASSETS/BotonHover.png?v=2');
+  transform: scale(1.01);
+  filter: drop-shadow(0 0 15px rgba(193, 155, 69, 0.4));
+}
+
+.btn-asset:active {
+  border-image-source: url('/ASSETS/BotonPressed.png?v=2');
+  transform: scale(0.98);
+}
+.parchment-scroll {
+  background-image: url('/ASSETS/PergaminoGrande.png?v=1');
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  background-color: transparent;
+  color: #2a1b0a;
+  position: relative;
+  min-height: 600px;
+  display: flex;
+  flex-direction: column;
+  opacity: 1 !important;
+  font-family: 'Beleren', serif; /* Aplicar Beleren como base del pergamino */
+}
+
+.parchment-content {
+  position: relative;
+  z-index: 1;
+  padding: 100px 80px; /* Un poco más de margen para Beleren */
+  flex-grow: 1;
+}
+
+/* Limpiar antes y después previos */
+.parchment-scroll::before,
+.parchment-ink {
+  font-family: 'Beleren', serif;
+  color: #1a0f05; /* Tinta más oscura y profunda */
+  opacity: 0.95;
+  line-height: 1.5;
+  text-shadow: 0.5px 0.5px 0px rgba(255,255,255,0.4); /* Micro-relieve para separar de la textura */
+  letter-spacing: 0.01em;
+}
+
+.parchment-scroll h4 {
+  color: #2d1e12;
+  border-bottom-color: rgba(45, 30, 18, 0.2) !important;
+  text-shadow: 0.5px 0.5px 0px rgba(255,255,255,0.5);
+}
+
+.parchment-label {
+  color: #3d1a10; /* Un tono más rojizo/quemado para los títulos */
+  font-weight: 800;
+  text-shadow: 0.5px 0.5px 0px rgba(255,255,255,0.4);
+  opacity: 1 !important;
+}
+
+.frosted-panel {
+  position: relative;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 223, 145, 0.2);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(12px);
+  overflow: hidden;
+  border-radius: 1rem;
+}
+
+.frosted-panel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: url('/ASSETS/FrostedGlass.jpg');
+  background-size: cover;
+  background-position: center;
+  opacity: 0.4; /* Ajusta este valor para más o menos transparencia de la textura */
+  pointer-events: none;
+  z-index: -1;
+}
+
+.frosted-panel::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, transparent 50%, rgba(255,255,255,0.02) 100%);
+  pointer-events: none;
+}
+
+.btn-magic-glass {
+  @apply flex items-center gap-2 px-5 py-2.5 rounded-xl transition-all duration-300 font-cinzel text-xs uppercase tracking-[0.15em] relative overflow-hidden;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 223, 145, 0.4);
+  backdrop-filter: blur(8px);
+  color: #f4ece0;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+}
+
+.btn-magic-glass:hover {
+  border-color: rgba(255, 223, 145, 0.8);
+  transform: translateY(-3px) scale(1.02);
+  background: rgba(0, 0, 0, 0.6);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.6);
+}
+
+/* Variantes de resplandor */
+.btn-glass-blue:hover {
+  box-shadow: 0 0 15px rgba(56, 189, 248, 0.3);
+  background: rgba(56, 189, 248, 0.1);
+  border-color: rgba(56, 189, 248, 0.5);
+  color: #38bdf8;
+}
+
+.btn-glass-purple:hover {
+  box-shadow: 0 0 15px rgba(168, 85, 247, 0.3);
+  background: rgba(168, 85, 247, 0.1);
+  border-color: rgba(168, 85, 247, 0.5);
+  color: #a855f7;
+}
+
+.btn-glass-gold:hover {
+  box-shadow: 0 0 15px rgba(255, 223, 145, 0.3);
+  background: rgba(255, 223, 145, 0.1);
+  border-color: rgba(255, 223, 145, 0.5);
+  color: #c19b45;
+}
+
+.btn-glass-silver:hover {
+  box-shadow: 0 0 15px rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.4);
+  color: #ffffff;
+}
+
+.parchment-scroll h1, 
+.parchment-scroll h2, 
+.parchment-scroll h3, 
+.parchment-scroll h4 {
+  font-family: 'Beleren', serif;
+  color: #4a3318;
+  text-shadow: 0 1px 0px rgba(255,255,255,0.2);
+}
+
+.parchment-ink {
+  font-family: 'Beleren', serif;
+  color: #2a1b0a;
+  opacity: 0.95;
+  line-height: 1.4;
+}
+
+/* Panel de Cuero de Dragón */
+.leather-panel {
+  background-image: linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.4)), url('/ASSETS/texturacuerodragon.jpg');
+  background-size: cover;
+  background-position: center;
+  border: 2px solid #3d2b1f;
+  border-radius: 12px;
+  box-shadow: 
+    inset 0 0 30px rgba(0,0,0,0.8),
+    0 10px 25px rgba(0,0,0,0.5);
+  position: relative;
+  overflow: visible;
+}
+
+/* Efecto de borde cosido */
+.leather-panel::before {
+  content: '';
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  right: 6px;
+  bottom: 6px;
+  border: 1px dashed rgba(193, 155, 69, 0.2);
+  border-radius: 8px;
+  pointer-events: none;
+}
+
+.leather-panel h1, 
+.leather-panel h2, 
+.leather-panel h3, 
+.leather-panel h4 {
+  color: #ffdf91; /* Oro más brillante */
+  text-shadow: 
+    0 0 10px rgba(193, 155, 69, 0.4), /* Resplandor */
+    0 2px 0px rgba(0,0,0,1), /* Sombra de contorno */
+    1px 1px 2px rgba(0,0,0,0.8);
+  letter-spacing: 0.05em;
+}
+
+.leather-text {
+  color: #f4ece0; /* Color crema/pergamino para el texto secundario */
+  text-shadow: 0 1px 2px rgba(0,0,0,1);
+  font-weight: 500;
+}
+
+.leather-stats {
+  color: #ffdf91;
+  font-weight: bold;
+  text-shadow: 0 0 8px rgba(193, 155, 69, 0.3), 0 1px 2px rgba(0,0,0,1);
 }

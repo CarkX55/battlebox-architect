@@ -156,7 +156,7 @@ export default function AiConfigPanel({ onConfigReady, storageKey = DEFAULT_STOR
     : models;
 
   return (
-    <div className="p-4 bg-gradient-to-b from-[#2a2318]/95 to-[#1a1612]/95 border-2 border-grimorio-gold/30 rounded-xl backdrop-blur-sm">
+    <div className="p-6 glass-panel rounded-2xl">
       <div className="flex items-center gap-2 mb-4">
         <span className="text-lg">⚙️</span>
         <h3 className="text-sm font-cinzel text-grimorio-gold uppercase tracking-wider">
@@ -204,7 +204,7 @@ export default function AiConfigPanel({ onConfigReady, storageKey = DEFAULT_STOR
           <button
             onClick={fetchModels}
             disabled={loadingModels || !apiKey}
-            className="w-full px-3 py-2 bg-gradient-to-b from-[#c19b45]/20 to-[#8b6914]/20 border border-grimorio-gold/40 rounded-lg text-grimorio-gold text-sm font-medium hover:from-[#c19b45]/30 hover:to-[#8b6914]/30 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center gap-2"
+            className="w-full px-4 py-2 btn-magic rounded-lg flex items-center justify-center gap-2 disabled:opacity-40 disabled:scale-100"
           >
             {loadingModels ? (
               <span className="w-4 h-4 border border-grimorio-gold/30 border-t-grimorio-gold rounded-full animate-spin" />

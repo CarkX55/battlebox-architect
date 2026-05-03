@@ -17,20 +17,19 @@ const views = {
 
 function Navigation() {
   const { currentView, setCurrentView } = useAppStore();
-  
   const navItems = ['Home', 'DeckForge', 'DeckArchive', 'BattleBox', 'Community'];
   
   return (
-    <nav className="flex gap-4 p-4 bg-grimorio-dark border-b border-grimorio-gold/30">
+    <nav className="flex justify-center flex-wrap gap-4 p-4 bg-black/60 backdrop-blur-xl border-b border-magic-gold/10 sticky top-0 z-40">
       {navItems.map((item) => (
         <button
           key={item}
           onClick={() => setCurrentView(item)}
           className={cn(
-            "px-4 py-2 rounded font-cinzel transition-all duration-200",
-            currentView === item 
-              ? "bg-grimorio-gold text-grimorio-dark" 
-              : "text-grimorio-parchment hover:text-grimorio-gold"
+            "px-6 py-2 rounded-lg text-sm font-cinzel uppercase tracking-widest transition-all duration-300",
+            currentView === item
+              ? "bg-magic-gold/20 text-magic-gold border border-magic-gold/40 shadow-[0_0_20px_rgba(255,223,145,0.2)] scale-105"
+              : "text-[#f4ece0]/40 hover:text-magic-gold hover:bg-magic-gold/5"
           )}
         >
           {item}
@@ -48,9 +47,13 @@ function App() {
   
   return (
     <MotionConfig>
-      <div className="min-h-screen bg-grimorio-dark text-grimorio-parchment">
-        <header className="p-4 border-b border-grimorio-gold/20">
-          <h1 className="text-2xl text-grimorio-gold font-cinzel">La Fábrica de Ecosistemas MTG</h1>
+      <div className="min-h-screen text-[#f4ece0]">
+        <header className="p-8 bg-black/40 backdrop-blur-md border-b border-magic-gold/20 flex justify-center items-center">
+          <img 
+            src="/ASSETS/MAGIC.png" 
+            alt="Magic The Gathering" 
+            className="h-20 w-auto object-contain drop-shadow-[0_0_20px_rgba(255,223,145,0.2)] hover:scale-105 transition-transform duration-500"
+          />
         </header>
         <Navigation />
         <main className="p-4">

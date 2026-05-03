@@ -795,7 +795,7 @@ export default function BattleBox() {
 
   // ── MODO DETALLE ──
   return (
-    <div className="min-h-screen bg-grimorio-dark text-grimorio-parchment">
+    <div className="min-h-screen text-grimorio-parchment">
       <div className="print:hidden p-8">
         <div className="max-w-7xl mx-auto space-y-12">
           <div className="flex justify-between items-start flex-wrap gap-4">

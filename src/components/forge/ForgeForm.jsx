@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { cn } from '../../utils/cn';
 
 import { BATTLEBOX_ARCHETYPES, BATTLEBOX_FORMAT_NAME, MTG_TRIBES, MTG_STRATEGIES, COLORS } from '../../constants/legacyBattleBox';
+import ManaOrb from '../atoms/ManaOrb';
 
 function arraysEqual(a, b) {
   if (a.length !== b.length) return false;
@@ -112,7 +113,7 @@ export default function ForgeForm({ onSubmit, isLoading, disabled }) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-8 max-w-2xl mx-auto">
-      <div className="p-6 bg-gradient-to-b from-[#2a2318] to-[#1a1612] border-2 border-grimorio-gold/30 rounded-xl">
+      <div className="p-8 glass-panel rounded-2xl">
         <h3 className="text-xl font-cinzel text-grimorio-gold mb-6 flex items-center gap-3">
           <span className="text-2xl">⚙️</span>
           Configuración del Mazo
@@ -213,15 +214,22 @@ export default function ForgeForm({ onSubmit, isLoading, disabled }) {
                       type="button"
                       onClick={() => toggleColor(color.id)}
                       className={cn(
-                        "w-14 h-14 rounded-full border-3 flex items-center justify-center transition-all duration-300 relative",
+                        "transition-all duration-300 relative flex items-center justify-center rounded-full",
                         isSelected
-                          ? `border-grimorio-gold scale-110 shadow-[0_0_20px_rgba(193,155,69,0.6)]`
-                          : "bg-[#1a1612] border-grimorio-gold/30 hover:border-grimorio-gold/60 hover:scale-105"
+                          ? "scale-125 z-10"
+                          : "opacity-40 grayscale-[0.5] hover:opacity-100 hover:grayscale-0 hover:scale-110"
                       )}
                     >
-                      <img src={color.icon} alt={color.name} className="w-10 h-10 object-contain" />
+                      <ManaOrb 
+                        color={color.id} 
+                        size="w-14 h-14" 
+                        className={cn(
+                          "transition-shadow duration-300",
+                          isSelected && "shadow-[0_0_25px_rgba(255,255,255,0.4)]"
+                        )}
+                      />
                       {isRecommended && (
-                        <span className="absolute -top-1 -right-1 text-[10px] w-4 h-4 bg-grimorio-gold text-grimorio-dark rounded-full flex items-center justify-center font-bold shadow-md">
+                        <span className="absolute -top-1 -right-1 text-[10px] w-5 h-5 bg-grimorio-gold text-grimorio-dark rounded-full flex items-center justify-center font-bold shadow-lg border border-grimorio-dark/20 z-20">
                           ★
                         </span>
                       )}
@@ -350,15 +358,9 @@ export default function ForgeForm({ onSubmit, isLoading, disabled }) {
       <motion.button
         type="submit"
         disabled={isLoading || disabled}
-        whileHover={{ scale: disabled ? 1 : 1.02 }}
-        whileTap={{ scale: disabled ? 1 : 0.98 }}
-        className="w-full py-5 text-xl font-cinzel font-bold uppercase tracking-widest
-                   bg-gradient-to-b from-[#c19b45] to-[#8b6914] text-[#1a1612]
-                   border-4 border-[#c19b45] rounded-xl
-                   shadow-[0_8px_32px_rgba(193,155,69,0.4),inset_0_2px_0_rgba(255,255,255,0.2)]
-                   hover:shadow-[0_12px_40px_rgba(193,155,69,0.6),inset_0_2px_0_rgba(255,255,255,0.3)]
-                   transition-all duration-300
-                   disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
+        className="w-full text-2xl font-cinzel font-bold uppercase tracking-widest
+                   btn-asset
+                   disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {isLoading ? (
           <span className="flex items-center justify-center gap-3">
@@ -370,7 +372,7 @@ export default function ForgeForm({ onSubmit, isLoading, disabled }) {
             ⚠️ Selecciona un modelo
           </span>
         ) : (
-          '⚒️ Forjar Mazo con IA'
+          'Forjar Mazo Con IA'
         )}
       </motion.button>
 

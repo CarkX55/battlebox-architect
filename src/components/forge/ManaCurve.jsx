@@ -27,12 +27,12 @@ const ManaCurve = ({ deck, compact = false, isPrint = false }) => {
 
   return (
     <div className={cn(
-      isPrint ? "bg-transparent border-none p-0 pt-5" : "bg-gradient-to-b from-[#1a1612]/40 to-[#14110e]/60 border border-grimorio-gold/10 rounded-xl",
-      compact && !isPrint ? "p-2" : (!isPrint ? "p-6" : "")
+      isPrint ? "bg-transparent border-none p-0 pt-5" : "leather-panel shadow-2xl",
+      compact && !isPrint ? "p-3" : (!isPrint ? "p-6" : "")
     )}>
       {!compact && !isPrint && (
-        <h4 className="font-cinzel text-grimorio-gold text-[10px] mb-4 opacity-50 tracking-widest uppercase">
-          Distribución de Costes
+        <h4 className="font-cinzel text-[#c19b45] text-lg mb-6 flex items-center gap-2">
+          <span>📊</span> Distribución de Costes
         </h4>
       )}
       
@@ -43,38 +43,38 @@ const ManaCurve = ({ deck, compact = false, isPrint = false }) => {
             <div key={cmc} className="flex-1 flex flex-col items-center group h-full justify-end">
               <div className="relative w-full flex flex-col items-center h-full justify-end">
                 {/* Conteo siempre visible en impresión */}
-                {count > 0 && (
+                    {count > 0 && (
+                      <span className={cn(
+                        "absolute -top-6 transition-opacity font-bold leather-stats",
+                        isPrint ? "text-[6px] text-black opacity-100" : "opacity-0 group-hover:opacity-100 bg-black/90 px-2 py-0.5 rounded-md border border-[#ffdf91]/30",
+                        compact && !isPrint ? "text-[8px]" : "text-sm"
+                      )}>
+                        {count}
+                      </span>
+                    )}
+                    
+                    {/* Barra */}
+                    <div 
+                      className={cn(
+                        "w-full transition-all duration-700 ease-out",
+                        count > 0 
+                          ? (isPrint ? "bg-[#92732c] rounded-t-[0.5mm]" : "bg-gradient-to-t from-[#c19b45]/40 to-[#ffdf91] rounded-t-[2px] hover:brightness-125") 
+                          : (isPrint ? "bg-black/10 h-[0.1mm]" : "bg-white/5 h-[1px] opacity-20")
+                      )}
+                      style={{ 
+                        height: count > 0 ? `${Math.max(6, height)}%` : (isPrint ? '0.1mm' : '1px'),
+                        boxShadow: count > 0 && !isPrint ? '0 0 15px rgba(255, 223, 145, 0.2)' : 'none'
+                      }}
+                    />
+                  </div>
+                  
+                  {/* Etiqueta de CMC */}
                   <span className={cn(
-                    "absolute -top-4 transition-opacity font-bold",
-                    isPrint ? "text-[6px] text-black opacity-100" : "text-grimorio-gold opacity-0 group-hover:opacity-100 bg-black/80 px-1 rounded",
-                    compact && !isPrint ? "text-[7px]" : ""
-                  )}>
-                    {count}
+                    "mt-2 font-bold",
+                    isPrint ? "text-[6px] text-black" : (compact ? "text-[9px] text-[#ffdf91]/50" : "text-xs text-[#ffdf91]")
+                  )} style={{ textShadow: '0 2px 4px rgba(0,0,0,0.9)' }}>
+                    {cmc}
                   </span>
-                )}
-                
-                {/* Barra */}
-                <div 
-                  className={cn(
-                    "w-full transition-all duration-700 ease-out",
-                    count > 0 
-                      ? (isPrint ? "bg-[#92732c] rounded-t-[0.5mm]" : "bg-gradient-to-t from-grimorio-gold/20 to-grimorio-gold/80 rounded-t-[1px] hover:brightness-150") 
-                      : (isPrint ? "bg-black/10 h-[0.1mm]" : "bg-white/5 h-[1px] opacity-20")
-                  )}
-                  style={{ 
-                    height: count > 0 ? `${Math.max(6, height)}%` : (isPrint ? '0.1mm' : '1px'),
-                    boxShadow: count > 0 && !isPrint ? '0 0 10px rgba(193, 155, 69, 0.1)' : 'none'
-                  }}
-                />
-              </div>
-              
-              {/* Etiqueta de CMC */}
-              <span className={cn(
-                "mt-1 font-bold",
-                isPrint ? "text-[6px] text-black" : (compact ? "text-[7px] text-[#c19b45]/30" : "text-[9px] text-[#c19b45]/50")
-              )}>
-                {cmc}
-              </span>
             </div>
           );
         })}

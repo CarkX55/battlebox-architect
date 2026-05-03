@@ -16,10 +16,10 @@ function CategorySection({ title, icon, cards, onRemove, onAdd, isEditing }) {
 
   return (
     <div className="mb-8">
-      <div className="flex items-center gap-3 mb-4 pb-2 border-b border-grimorio-gold/20">
-        <span className="text-xl">{icon}</span>
-        <h3 className="text-lg font-cinzel text-grimorio-gold">{title}</h3>
-        <span className="text-sm text-grimorio-parchment/50 ml-auto">
+      <div className="flex items-center gap-3 mb-4 pb-2 border-b border-magic-gold/20">
+        <span className="text-xl drop-shadow-md">{icon}</span>
+        <h3 className="text-lg font-cinzel text-magic-gold tracking-wide">{title}</h3>
+        <span className="text-[10px] px-3 py-1 frosted-panel border-magic-gold/30 ml-auto font-bold uppercase tracking-widest text-magic-gold">
           {cards.reduce((sum, c) => sum + (c.quantity || 1), 0)} cartas
         </span>
       </div>
@@ -75,37 +75,40 @@ export default function VisualGrid({ cards, onRemoveCard, onAddCard, isEditing }
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap gap-4 p-4 bg-gradient-to-b from-[#2a2318] to-[#1a1612] border border-grimorio-gold/30 rounded-xl shadow-2xl">
-        <div className="text-center px-4">
-          <p className="text-3xl font-cinzel text-grimorio-gold">{totalCards}</p>
-          <p className="text-xs text-grimorio-parchment/60 uppercase tracking-wider">Total</p>
+      <div className="flex flex-wrap items-center justify-around gap-2 p-6 frosted-panel shadow-2xl relative overflow-hidden">
+        {/* Decoración de fondo opcional */}
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent opacity-10 pointer-events-none" />
+        
+        <div className="text-center px-4 relative z-10">
+          <p className="text-3xl font-cinzel text-magic-gold leading-none">{totalCards}</p>
+          <p className="text-[10px] text-[#f4ece0]/60 uppercase tracking-[0.2em] mt-1">Total</p>
         </div>
-        <div className="w-px bg-grimorio-gold/20" />
-        <div className="text-center px-4">
-          <p className="text-2xl font-cinzel text-white">{creatures}</p>
-          <p className="text-xs text-grimorio-parchment/60 uppercase tracking-wider">Criaturas</p>
+        <div className="w-px h-12 line-magic-gold opacity-40" />
+        <div className="text-center px-4 relative z-10">
+          <p className="text-2xl font-cinzel text-white leading-none">{creatures}</p>
+          <p className="text-[10px] text-[#f4ece0]/60 uppercase tracking-[0.2em] mt-1">Criaturas</p>
         </div>
-        <div className="w-px bg-grimorio-gold/20" />
-        <div className="text-center px-4">
-          <p className="text-2xl font-cinzel text-blue-400">{spells}</p>
-          <p className="text-xs text-grimorio-parchment/60 uppercase tracking-wider">Hechizos</p>
+        <div className="w-px h-12 line-magic-gold opacity-40" />
+        <div className="text-center px-4 relative z-10">
+          <p className="text-2xl font-cinzel text-blue-400 leading-none">{spells}</p>
+          <p className="text-[10px] text-[#f4ece0]/60 uppercase tracking-[0.2em] mt-1">Hechizos</p>
         </div>
-        <div className="w-px bg-grimorio-gold/20" />
-        <div className="text-center px-4">
-          <p className="text-2xl font-cinzel text-gray-400">{artifacts}</p>
-          <p className="text-xs text-grimorio-parchment/60 uppercase tracking-wider">Artefactos</p>
+        <div className="w-px h-12 line-magic-gold opacity-40" />
+        <div className="text-center px-4 relative z-10">
+          <p className="text-2xl font-cinzel text-gray-400 leading-none">{artifacts}</p>
+          <p className="text-[10px] text-[#f4ece0]/60 uppercase tracking-[0.2em] mt-1">Artefactos</p>
         </div>
-        <div className="w-px bg-grimorio-gold/20" />
-        <div className="text-center px-4">
-          <p className="text-2xl font-cinzel text-green-400">{lands}</p>
-          <p className="text-xs text-grimorio-parchment/60 uppercase tracking-wider">Tierras</p>
+        <div className="w-px h-12 line-magic-gold opacity-40" />
+        <div className="text-center px-4 relative z-10">
+          <p className="text-2xl font-cinzel text-green-400 leading-none">{lands}</p>
+          <p className="text-[10px] text-[#f4ece0]/60 uppercase tracking-[0.2em] mt-1">Tierras</p>
         </div>
         {totalPrice > 0 && (
           <>
-            <div className="w-px bg-grimorio-gold/20" />
-            <div className="text-center px-4">
-              <p className="text-2xl font-cinzel text-amber-500">${totalPrice.toFixed(2)}</p>
-              <p className="text-xs text-grimorio-parchment/60 uppercase tracking-wider">Mercado</p>
+            <div className="w-px h-12 line-magic-gold opacity-40" />
+            <div className="text-center px-4 relative z-10">
+              <p className="text-2xl font-cinzel text-amber-500 leading-none">${totalPrice.toFixed(2)}</p>
+              <p className="text-[10px] text-[#f4ece0]/60 uppercase tracking-[0.2em] mt-1">Mercado</p>
             </div>
           </>
         )}

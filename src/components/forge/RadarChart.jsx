@@ -5,7 +5,7 @@ export default function RadarChart({ data, size = 300 }) {
   const keys = Object.keys(data);
   const totalPoints = keys.length;
   const center = size / 2;
-  const radius = (size / 2) * 0.8;
+  const radius = (size / 2) * 0.65; // Más pequeño para que quepa todo dentro
 
   // Calculate points for the polygon
   const getPoint = (index, value) => {
@@ -24,8 +24,10 @@ export default function RadarChart({ data, size = 300 }) {
   const levels = [2, 4, 6, 8, 10];
 
   return (
-    <div className="flex flex-col items-center p-4 bg-[#1a1612] border border-grimorio-gold/20 rounded-2xl shadow-xl">
-      <h4 className="font-cinzel text-grimorio-gold text-lg mb-4">📊 Perfil del Mazo</h4>
+    <div className="flex flex-col items-center p-6 leather-panel shadow-2xl">
+      <h4 className="font-cinzel text-[#c19b45] text-lg mb-6 flex items-center gap-2">
+        <span>📊</span> Perfil del Mazo
+      </h4>
       <svg width={size} height={size} className="overflow-visible">
         {/* Background Grids */}
         {levels.map(level => {
@@ -38,8 +40,8 @@ export default function RadarChart({ data, size = 300 }) {
             <polygon
               key={level}
               points={levelPoints}
-              fill="none"
-              stroke="rgba(193, 155, 69, 0.1)"
+              fill="rgba(193, 155, 69, 0.03)"
+              stroke="rgba(255, 223, 145, 0.25)"
               strokeWidth="1"
             />
           );
@@ -55,7 +57,7 @@ export default function RadarChart({ data, size = 300 }) {
               y1={center}
               x2={center + radius * Math.cos(angle)}
               y2={center + radius * Math.sin(angle)}
-              stroke="rgba(193, 155, 69, 0.2)"
+              stroke="rgba(255, 223, 145, 0.3)"
               strokeWidth="1"
             />
           );
@@ -64,15 +66,18 @@ export default function RadarChart({ data, size = 300 }) {
         {/* Labels */}
         {keys.map((key, i) => {
           const angle = (Math.PI * 2 * i) / totalPoints - Math.PI / 2;
-          const x = center + (radius + 25) * Math.cos(angle);
-          const y = center + (radius + 20) * Math.sin(angle);
+          const x = center + (radius + 28) * Math.cos(angle);
+          const y = center + (radius + 22) * Math.sin(angle);
           return (
             <text
               key={key}
               x={x}
               y={y}
               textAnchor="middle"
-              className="fill-grimorio-parchment/70 text-[10px] font-medium uppercase tracking-tighter"
+              className="fill-[#ffffff] text-[10px] font-bold uppercase"
+              style={{ 
+                filter: 'drop-shadow(0px 2px 2px rgba(0,0,0,1))',
+              }}
             >
               {key}
             </text>
@@ -84,9 +89,9 @@ export default function RadarChart({ data, size = 300 }) {
           initial={{ opacity: 0, scale: 0.5 }}
           animate={{ opacity: 1, scale: 1 }}
           points={polygonPoints}
-          fill="rgba(193, 155, 69, 0.3)"
-          stroke="#c19b45"
-          strokeWidth="2"
+          fill="rgba(255, 223, 145, 0.35)"
+          stroke="#ffdf91"
+          strokeWidth="2.5"
           strokeLinejoin="round"
         />
         
