@@ -156,17 +156,17 @@ export default function AiConfigPanel({ onConfigReady, storageKey = DEFAULT_STOR
     : models;
 
   return (
-    <div className="p-6 glass-panel rounded-2xl">
-      <div className="flex items-center gap-2 mb-4">
+    <div className="w-full">
+      <div className="flex items-center justify-center gap-2 mb-6 w-full">
         <span className="text-lg">⚙️</span>
-        <h3 className="text-sm font-cinzel text-grimorio-gold uppercase tracking-wider">
+        <h3 className="text-sm font-cinzel text-[#ffca58] uppercase tracking-[0.2em] drop-shadow-[0_0_12px_rgba(255,202,88,0.6)]">
           Configuración de IA
         </h3>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
         <div>
-          <label className="block text-xs text-grimorio-parchment/60 mb-1 uppercase">
+          <label className="block text-xs text-[#ffca58]/90 mb-1 uppercase font-bold tracking-widest drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
             Proveedor
           </label>
           <select
@@ -174,8 +174,8 @@ export default function AiConfigPanel({ onConfigReady, storageKey = DEFAULT_STOR
             onChange={(e) => {
               handleProviderChange(e.target.value);
             }}
-            className="w-full px-3 py-2 bg-[#1a1612] border border-grimorio-gold/30 rounded-lg 
-                       text-grimorio-parchment text-sm focus:border-grimorio-gold focus:outline-none"
+            className="w-full px-3 py-2 bg-black/40 border border-magic-gold/20 rounded-lg 
+                       text-[#f4ece0] text-sm focus:border-magic-gold focus:outline-none"
           >
             {PROVIDERS.map(p => (
               <option key={p.id} value={p.id} className="bg-[#1a1612]">
@@ -186,7 +186,7 @@ export default function AiConfigPanel({ onConfigReady, storageKey = DEFAULT_STOR
         </div>
 
         <div className="md:col-span-2">
-          <label className="block text-xs text-grimorio-parchment/60 mb-1 uppercase">
+          <label className="block text-xs text-[#ffca58]/90 mb-1 uppercase font-bold tracking-widest drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
             API Key
           </label>
           <input
@@ -194,9 +194,9 @@ export default function AiConfigPanel({ onConfigReady, storageKey = DEFAULT_STOR
             value={apiKey}
             onChange={(e) => updateCurrentProvider({ apiKey: e.target.value })}
             placeholder={provider === 'gemini' ? 'Google AI API Key...' : `${PROVIDERS.find(p => p.id === provider)?.name} API Key...`}
-            className="w-full px-3 py-2 bg-[#1a1612] border border-grimorio-gold/30 rounded-lg 
-                       text-grimorio-parchment placeholder-grimorio-gold/30 text-sm
-                       focus:border-grimorio-gold focus:outline-none"
+            className="w-full px-3 py-2 bg-black/40 border border-magic-gold/20 rounded-lg 
+                       text-[#f4ece0] placeholder-magic-gold/30 text-sm
+                       focus:border-magic-gold focus:outline-none"
           />
         </div>
 
@@ -204,10 +204,10 @@ export default function AiConfigPanel({ onConfigReady, storageKey = DEFAULT_STOR
           <button
             onClick={fetchModels}
             disabled={loadingModels || !apiKey}
-            className="w-full px-4 py-2 btn-magic rounded-lg flex items-center justify-center gap-2 disabled:opacity-40 disabled:scale-100"
+            className="w-full px-4 py-2 btn-magic-glass btn-glass-blue rounded-lg flex items-center justify-center gap-2 disabled:opacity-40"
           >
             {loadingModels ? (
-              <span className="w-4 h-4 border border-grimorio-gold/30 border-t-grimorio-gold rounded-full animate-spin" />
+              <span className="w-4 h-4 border border-magic-gold/30 border-t-magic-gold rounded-full animate-spin" />
             ) : (
               <span>🔄</span>
             )}
@@ -222,7 +222,7 @@ export default function AiConfigPanel({ onConfigReady, storageKey = DEFAULT_STOR
 
       {models.length > 0 && (
         <div className="mt-3">
-          <label className="block text-xs text-grimorio-parchment/60 mb-1 uppercase">
+          <label className="block text-xs text-[#ffca58]/90 mb-1 uppercase font-bold tracking-widest drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
             Modelo Seleccionado
           </label>
           {models.length > 5 && (
@@ -239,8 +239,8 @@ export default function AiConfigPanel({ onConfigReady, storageKey = DEFAULT_STOR
           <select
             value={selectedModel}
             onChange={(e) => updateCurrentProvider({ model: e.target.value })}
-            className="w-full px-3 py-2 bg-[#1a1612] border border-grimorio-gold/30 rounded-lg 
-                       text-grimorio-parchment text-sm focus:border-grimorio-gold focus:outline-none"
+            className="w-full px-3 py-2 bg-black/40 border border-magic-gold/20 rounded-lg 
+                       text-[#f4ece0] text-sm focus:border-magic-gold focus:outline-none"
           >
             <option value="" className="bg-[#1a1612]">Selecciona un modelo...</option>
             {filteredModels.map(m => (

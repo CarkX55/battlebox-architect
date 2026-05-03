@@ -112,7 +112,7 @@ html, body {
 .btn-asset {
   border-style: solid;
   border-width: 0 80px;
-  border-image-source: url('/ASSETS/Boton1.png?v=2');
+  border-image-source: url('/ASSETS/Boton1.png');
   border-image-slice: 0 180 0 180 fill;
   height: 150px;
   background-color: transparent;
@@ -128,18 +128,32 @@ html, body {
   text-shadow: 0 3px 6px rgba(0,0,0,0.6);
 }
 
+.text-stone-engraved {
+  color: #ffca58;
+  text-shadow: 
+    0px 2px 4px rgba(0, 0, 0, 0.9), 
+    0px 0px 20px rgba(255, 202, 88, 0.6), 
+    0px 0px 5px rgba(255, 255, 255, 0.3);
+  font-family: 'Beleren', serif;
+  font-weight: bold;
+  letter-spacing: 0.1em;
+  font-size: 1.1em;
+  filter: brightness(1.2) contrast(1.1);
+  display: inline-block;
+}
+
 .btn-asset:hover {
-  border-image-source: url('/ASSETS/BotonHover.png?v=2');
+  border-image-source: url('/ASSETS/BotonHover.png');
   transform: scale(1.01);
   filter: drop-shadow(0 0 15px rgba(193, 155, 69, 0.4));
 }
 
 .btn-asset:active {
-  border-image-source: url('/ASSETS/BotonPressed.png?v=2');
+  border-image-source: url('/ASSETS/BotonPressed.png');
   transform: scale(0.98);
 }
 .parchment-scroll {
-  background-image: url('/ASSETS/PergaminoGrande.png?v=1');
+  background-image: url('/ASSETS/PergaminoGrande.png');
   background-size: 100% 100%;
   background-repeat: no-repeat;
   background-color: transparent;

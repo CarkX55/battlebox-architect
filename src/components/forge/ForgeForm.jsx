@@ -111,24 +111,32 @@ export default function ForgeForm({ onSubmit, isLoading, disabled }) {
 
   const currentArchetype = ARCHETYPES.find(a => a.value === formData.archetype);
 
+  const resetColors = () => {
+    if (currentArchetype) {
+      setFormData(prev => ({ ...prev, colores: currentArchetype.recommendedColors }));
+    }
+  };
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-8 max-w-2xl mx-auto">
-      <div className="p-8 glass-panel rounded-2xl">
-        <h3 className="text-xl font-cinzel text-grimorio-gold mb-6 flex items-center gap-3">
+    <form onSubmit={handleSubmit} className="space-y-6 max-w-4xl mx-auto">
+      <div className="w-full p-8 frosted-panel shadow-2xl">
+      <div className="flex items-center justify-center gap-3 mb-8 w-full">
           <span className="text-2xl">⚙️</span>
-          Configuración del Mazo
-        </h3>
+          <h3 className="text-2xl font-cinzel text-[#ffca58] uppercase tracking-[0.15em] drop-shadow-[0_0_15px_rgba(255,202,88,0.5)]">
+            Configuración del Mazo
+          </h3>
+        </div>
 
         <div className="space-y-6">
           <div>
-            <label className="block text-grimorio-parchment text-sm font-medium mb-2 uppercase tracking-wider">
+            <label className="block text-[#ffca58] text-sm font-bold mb-2 uppercase tracking-[0.15em] drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">
               Formato de Juego
             </label>
             <select
               value={formData.formato}
               onChange={(e) => setFormData(prev => ({ ...prev, formato: e.target.value }))}
-              className="w-full px-4 py-3 bg-[#1a1612] border-2 border-grimorio-gold/30 rounded-lg 
-                         text-grimorio-parchment focus:border-grimorio-gold focus:outline-none
+              className="w-full px-4 py-3 bg-black/40 border-2 border-magic-gold/20 rounded-lg 
+                         text-[#f4ece0] focus:border-magic-gold focus:outline-none
                          transition-all cursor-pointer mb-6"
             >
               {FORMATOS.map(f => (
@@ -138,14 +146,14 @@ export default function ForgeForm({ onSubmit, isLoading, disabled }) {
               ))}
             </select>
 
-            <label className="block text-grimorio-parchment text-sm font-medium mb-2 uppercase tracking-wider">
+            <label className="block text-[#ffca58] text-sm font-bold mb-2 uppercase tracking-[0.15em] drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">
               Arquetipo de Mazo
             </label>
             <select
               value={formData.archetype}
               onChange={(e) => handleArchetypeChange(e.target.value)}
-              className="w-full px-4 py-3 bg-[#1a1612] border-2 border-grimorio-gold/30 rounded-lg 
-                         text-grimorio-parchment focus:border-grimorio-gold focus:outline-none
+              className="w-full px-4 py-3 bg-black/40 border-2 border-magic-gold/20 rounded-lg 
+                         text-[#f4ece0] focus:border-magic-gold focus:outline-none
                          transition-all cursor-pointer"
             >
               {ARCHETYPES.map(a => (
@@ -156,24 +164,24 @@ export default function ForgeForm({ onSubmit, isLoading, disabled }) {
             </select>
 
             {currentArchetype && (
-              <div className="mt-3 p-3 bg-grimorio-gold/5 border border-grimorio-gold/20 rounded-lg">
-                <p className="text-grimorio-parchment/80 text-sm leading-relaxed">
+              <div className="mt-3 p-3 bg-white/5 border border-[#ffdf91]/20 rounded-lg">
+                <p className="text-[#f4ece0] text-sm leading-relaxed">
                   {currentArchetype.description}
                 </p>
-                <p className="text-grimorio-gold/70 text-xs mt-2 italic">
+                <p className="text-[#ffca58] text-xs mt-2 italic font-black drop-shadow-[0_0_10px_rgba(255,202,88,0.4)] uppercase tracking-widest">
                   ⚡ {currentArchetype.colorHint}
                 </p>
               </div>
             )}
 
-            <label className="block text-grimorio-parchment text-sm font-medium mt-6 mb-2 uppercase tracking-wider">
+            <label className="block text-[#ffca58] text-sm font-bold mt-6 mb-2 uppercase tracking-[0.15em] drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">
               Nivel de Potencia / Restricción
             </label>
             <select
               value={formData.rarityMode}
               onChange={(e) => setFormData(prev => ({ ...prev, rarityMode: e.target.value }))}
-              className="w-full px-4 py-3 bg-[#1a1612] border-2 border-grimorio-gold/30 rounded-lg 
-                         text-grimorio-parchment focus:border-grimorio-gold focus:outline-none
+              className="w-full px-4 py-3 bg-black/40 border-2 border-magic-gold/20 rounded-lg 
+                         text-[#f4ece0] focus:border-magic-gold focus:outline-none
                          transition-all cursor-pointer"
             >
               {RARITY_MODES.map(r => (
@@ -187,18 +195,16 @@ export default function ForgeForm({ onSubmit, isLoading, disabled }) {
           {/* Color Identity - contextual to archetype */}
           <div>
             <div className="flex items-center justify-between mb-3">
-              <label className="text-grimorio-parchment text-sm font-medium uppercase tracking-wider">
+              <label className="text-[#ffca58] text-sm font-bold uppercase tracking-[0.15em] drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">
                 Identidad de Colores <span className="text-red-500">*</span>
               </label>
               {currentArchetype && !arraysEqual(formData.colores, currentArchetype.recommendedColors) && (
                 <button
                   type="button"
-                  onClick={() => setFormData(prev => ({ ...prev, colores: currentArchetype.recommendedColors }))}
-                  className="text-[10px] px-3 py-1 bg-grimorio-gold/10 hover:bg-grimorio-gold/20 
-                             border border-grimorio-gold/30 rounded-full transition-all 
-                             text-grimorio-gold/70 hover:text-grimorio-gold uppercase tracking-widest"
+                  onClick={resetColors}
+                  className="text-[10px] text-[#ffdf91]/60 hover:text-[#ffdf91] uppercase tracking-wider flex items-center gap-1 transition-colors font-bold"
                 >
-                  ↩ Restaurar recomendados
+                  <span className="text-xs">↩</span> Restaurar Recomendados
                 </button>
               )}
             </div>
@@ -235,8 +241,8 @@ export default function ForgeForm({ onSubmit, isLoading, disabled }) {
                       )}
                     </button>
                     <span className={cn(
-                      "text-[10px] uppercase tracking-wider transition-colors",
-                      isSelected ? "text-grimorio-gold" : "text-grimorio-parchment/30"
+                      "text-[10px] uppercase tracking-widest font-bold transition-colors",
+                      isSelected ? "text-magic-gold" : "text-white/40"
                     )}>
                       {color.name}
                     </span>
@@ -255,7 +261,7 @@ export default function ForgeForm({ onSubmit, isLoading, disabled }) {
           </div>
 
           <div>
-            <label className="block text-grimorio-parchment text-sm font-medium mb-2 uppercase tracking-wider">
+            <label className="block text-[#ffca58] text-sm font-bold mb-2 uppercase tracking-[0.15em] drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">
               Tribu / Raza (opcional)
             </label>
             <select
@@ -269,8 +275,8 @@ export default function ForgeForm({ onSubmit, isLoading, disabled }) {
                   setFormData(prev => ({ ...prev, tribe: e.target.value }));
                 }
               }}
-              className="w-full px-4 py-3 bg-[#1a1612] border-2 border-grimorio-gold/30 rounded-lg 
-                         text-grimorio-parchment focus:border-grimorio-gold focus:outline-none
+              className="w-full px-4 py-3 bg-black/40 border-2 border-magic-gold/20 rounded-lg 
+                         text-[#f4ece0] focus:border-magic-gold focus:outline-none
                          transition-all cursor-pointer mb-2"
             >
               <option value="">-- Ninguna / Cualquiera --</option>
@@ -293,7 +299,7 @@ export default function ForgeForm({ onSubmit, isLoading, disabled }) {
           </div>
 
           <div>
-            <label className="block text-grimorio-parchment text-sm font-medium mb-2 uppercase tracking-wider">
+            <label className="block text-[#ffca58] text-sm font-bold mb-2 uppercase tracking-[0.15em] drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">
               Estrategia Mecánica (opcional)
             </label>
             <select
@@ -307,8 +313,8 @@ export default function ForgeForm({ onSubmit, isLoading, disabled }) {
                   setFormData(prev => ({ ...prev, strategy: e.target.value }));
                 }
               }}
-              className="w-full px-4 py-3 bg-[#1a1612] border-2 border-grimorio-gold/30 rounded-lg 
-                         text-grimorio-parchment focus:border-grimorio-gold focus:outline-none
+              className="w-full px-4 py-3 bg-black/40 border-2 border-magic-gold/20 rounded-lg 
+                         text-[#f4ece0] focus:border-magic-gold focus:outline-none
                          transition-all cursor-pointer mb-2"
             >
               <option value="">-- Ninguna --</option>
@@ -331,7 +337,7 @@ export default function ForgeForm({ onSubmit, isLoading, disabled }) {
           </div>
 
           <div>
-            <label className="block text-grimorio-parchment text-sm font-medium mb-2 uppercase tracking-wider">
+            <label className="block text-[#ffca58] text-sm font-bold mb-2 uppercase tracking-[0.15em] drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">
               Prompt Creativo / Estrategia (opcional)
             </label>
             <textarea
@@ -342,8 +348,8 @@ export default function ForgeForm({ onSubmit, isLoading, disabled }) {
               placeholder="Describe tu visión... Ej: 'Quiero un mazo de pirates voladores que controlen el cielo y roben cartas del oponente'"
               rows={5}
               className={cn(
-                "w-full px-4 py-3 bg-[#1a1612] border-2 rounded-lg text-grimorio-parchment placeholder-grimorio-gold/30",
-                "focus:border-grimorio-gold focus:outline-none transition-all resize-none border-grimorio-gold/30"
+                "w-full px-4 py-3 bg-black/40 border-2 rounded-lg text-[#f4ece0] placeholder-magic-gold/30",
+                "focus:border-magic-gold focus:outline-none transition-all resize-none border-magic-gold/20"
               )}
             />
             <div className="flex justify-end mt-2">
@@ -355,26 +361,30 @@ export default function ForgeForm({ onSubmit, isLoading, disabled }) {
         </div>
       </div>
 
-      <motion.button
-        type="submit"
-        disabled={isLoading || disabled}
-        className="w-full text-2xl font-cinzel font-bold uppercase tracking-widest
-                   btn-asset
-                   disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        {isLoading ? (
-          <span className="flex items-center justify-center gap-3">
-            <span className="w-5 h-5 border-2 border-[#1a1612]/30 border-t-[#1a1612] rounded-full animate-spin" />
-            Forjando...
-          </span>
-        ) : disabled ? (
-          <span className="flex items-center justify-center gap-2">
-            ⚠️ Selecciona un modelo
-          </span>
-        ) : (
-          'Forjar Mazo Con IA'
-        )}
-      </motion.button>
+      <div className="pt-4">
+        <motion.button
+          type="submit"
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          disabled={isLoading || disabled}
+          className="w-full btn-asset"
+        >
+          {isLoading ? (
+            <span className="flex items-center justify-center gap-3 text-stone-engraved">
+              <span className="w-5 h-5 border-2 border-[#ffca58]/30 border-t-[#ffca58] rounded-full animate-spin" />
+              Forjando...
+            </span>
+          ) : disabled ? (
+            <span className="flex items-center justify-center gap-2 text-stone-engraved opacity-60">
+              ⚠️ Selecciona un modelo
+            </span>
+          ) : (
+            <span className="text-stone-engraved">
+              Forjar Mazo Con IA
+            </span>
+          )}
+        </motion.button>
+      </div>
 
       <p className="text-center text-grimorio-gold/40 text-xs">
         * La identidad de color es obligatoria • La IA usará el prompt (si se provee) para guiar la estrategia

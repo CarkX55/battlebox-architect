@@ -219,7 +219,7 @@ export default function DeckForge() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
           >
-            <div className="max-w-2xl mx-auto mb-8">
+            <div className="max-w-2xl mx-auto mb-8 p-6 frosted-panel shadow-2xl">
               <AiConfigPanel 
                 onConfigReady={(newConfig) => {
                   setAiConfig(newConfig);
