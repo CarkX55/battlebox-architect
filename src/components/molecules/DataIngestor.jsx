@@ -58,50 +58,65 @@ export default function DataIngestor({ onComplete }) {
   }
 
   return (
-    <div className="p-6 bg-grimorio-dark border-2 border-grimorio-gold/30 rounded-lg">
-      <h2 className="text-xl text-grimorio-gold mb-4">Cargar Base de Datos</h2>
+    <div className="p-12 text-center max-w-xl mx-auto space-y-8">
+      <h2 className="text-2xl text-black/80 font-cinzel font-bold italic tracking-[0.2em] opacity-70">
+        Invocación de Registros
+      </h2>
       
       {cardCount > 0 && (
-        <p className="text-grimorio-parchment mb-4">
-          Ya tienes {cardCount.toLocaleString()} cartas cargadas.
+        <p className="text-black/50 font-serif italic text-sm border-t border-black/5 pt-4">
+          ~ {cardCount.toLocaleString()} pergaminos ya indexados en la biblioteca ~
         </p>
       )}
 
-      <div className="space-y-4">
-        <label className="block">
+      <div className="space-y-6">
+        <label className="relative cursor-pointer group block">
           <span className="sr-only">Seleccionar archivo JSON</span>
+          <div className="flex flex-col items-center gap-3">
+            <div className="px-8 py-2.5 relative overflow-hidden group
+                          bg-black/50 backdrop-blur-md border border-white/10 rounded-full
+                          text-white/40 font-cinzel text-[11px] font-bold uppercase tracking-[0.4em]
+                          hover:text-[#06b6d4] hover:bg-black/70 hover:border-[#06b6d4]/40
+                          transition-all duration-500 shadow-[0_0_20px_rgba(0,0,0,0.5)]
+                          hover:shadow-[0_0_25px_rgba(6,182,212,0.4)]"
+                 style={{
+                   backgroundImage: "url('/ASSETS/FrostedGlass.jpg')",
+                   backgroundSize: 'cover',
+                   backgroundBlendMode: 'overlay',
+                   filter: 'brightness(1.3)'
+                 }}>
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/15 to-transparent 
+                            translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000 ease-out" />
+              <span className="relative drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]">Seleccionar Manuscrito (.json)</span>
+            </div>
+          </div>
           <input
             type="file"
             accept=".json"
             onChange={handleFileUpload}
             disabled={status === 'loading'}
-            className="block w-full text-sm text-grimorio-parchment
-                       file:mr-4 file:py-2 file:px-4
-                       file:rounded-lg file:border-0
-                       file:text-sm file:font-semibold
-                       file:bg-grimorio-gold file:text-grimorio-dark
-                       hover:file:bg-grimorio-gold/80
-                       file:cursor-pointer file:transition-colors"
+            className="hidden"
           />
         </label>
 
         {status === 'loading' && (
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm text-grimorio-parchment">
-              <span>Cargando...</span>
+          <div className="space-y-3 pt-4">
+            <div className="flex justify-between text-[10px] text-black/40 uppercase tracking-[0.3em] font-bold">
+              <span>Traduciendo...</span>
               <span>{progress}%</span>
             </div>
-            <div className="h-2 bg-grimorio-gold/20 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-grimorio-gold transition-all duration-300"
-                style={{ width: `${progress}%` }}
+            <div className="h-[2px] bg-black/5 rounded-full overflow-hidden">
+              <motion.div
+                initial={{ width: 0 }}
+                animate={{ width: `${progress}%` }}
+                className="h-full bg-black/30"
               />
             </div>
           </div>
         )}
 
         {error && (
-          <p className="text-red-400 text-sm">Error: {error}</p>
+          <p className="text-red-900/60 text-xs italic font-serif">Error en la transcripción: {error}</p>
         )}
       </div>
     </div>
