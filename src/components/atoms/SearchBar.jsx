@@ -134,7 +134,7 @@ export default function SearchBar({ onSelect, placeholder = 'Buscar en el Grimor
   };
 
   return (
-    <div ref={wrapperRef} className="relative w-full max-w-2xl">
+    <div ref={wrapperRef} className="relative w-full">
       <div className="relative">
         <input
           type="text"
