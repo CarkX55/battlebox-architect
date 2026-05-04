@@ -231,9 +231,9 @@ export default function AiConfigPanel({ onConfigReady, storageKey = DEFAULT_STOR
               value={searchFilter}
               onChange={(e) => setSearchFilter(e.target.value)}
               placeholder="Buscar modelo por nombre..."
-              className="w-full px-3 py-2 mb-2 bg-[#1a1612] border border-grimorio-gold/30 rounded-lg 
-                         text-grimorio-parchment placeholder-grimorio-gold/30 text-sm
-                         focus:border-grimorio-gold focus:outline-none"
+              className="w-full px-3 py-2 mb-2 bg-black/40 border border-magic-gold/20 rounded-lg 
+                         text-[#f4ece0] placeholder-magic-gold/30 text-sm
+                         focus:border-magic-gold focus:outline-none"
             />
           )}
           <select

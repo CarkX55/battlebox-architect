@@ -52,7 +52,7 @@ function App() {
           <img 
             src="/ASSETS/MAGIC.png" 
             alt="Magic The Gathering" 
-            className="h-20 w-auto object-contain drop-shadow-[0_0_20px_rgba(255,223,145,0.2)] hover:scale-105 transition-transform duration-500"
+            className="h-20 w-auto object-contain drop-shadow-[0_0_20px_rgba(255,202,88,0.2)] hover:scale-105 transition-transform duration-500"
           />
         </header>
         <Navigation />

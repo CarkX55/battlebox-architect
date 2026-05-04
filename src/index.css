@@ -9,6 +9,43 @@
   font-style: normal;
 }
 
+/* Custom Scrollbar Dragon V12 - Textura Continua */
+*::-webkit-scrollbar {
+  width: 120px;
+  background-image: url('/ASSETS/Obsidiana.jpg');
+  background-size: cover;
+  background-attachment: local; /* Para que la textura sea sólida */
+}
+
+/* Los botones ahora son solo espacios vacíos transparentes */
+*::-webkit-scrollbar-button:single-button {
+  display: block;
+  height: 60px;
+  width: 120px;
+  background: transparent;
+}
+
+*::-webkit-scrollbar-track {
+  background-image: url('/ASSETS/ScrollbarDRAG.png');
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-color: transparent !important;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-image: url('/ASSETS/tiradorscrollbar.png');
+  background-size: 100% auto;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-color: transparent !important;
+  filter: drop-shadow(0 0 15px rgba(0,0,0,0.9));
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  filter: brightness(1.2) drop-shadow(0 0 10px rgba(255, 202, 88, 0.4));
+}
+
 html, body {
   background-color: #0a0a0a !important;
   background-image: url('/ASSETS/Obsidiana.jpg') !important;
@@ -39,26 +76,6 @@ html, body {
 .line-magic-gold {
   background: linear-gradient(90deg, transparent, rgba(255, 223, 145, 0.6), transparent);
   height: 1px;
-}
-
-/* Scrollbar Premium */
-::-webkit-scrollbar {
-  width: 10px;
-}
-
-::-webkit-scrollbar-track {
-  background: #0d0d0d;
-  border-left: 1px solid rgba(255, 223, 145, 0.1);
-}
-
-::-webkit-scrollbar-thumb {
-  background: linear-gradient(to bottom, #ffdf91, #c19b45);
-  border-radius: 5px;
-  border: 2px solid #0d0d0d;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #d4af37;
 }
 
 /* Clases de utilidad para efectos extra */
@@ -196,6 +213,7 @@ html, body {
   transform: translateY(1px);
   filter: brightness(0.6);
 }
+
 .parchment-scroll {
   background-image: url('/ASSETS/PergaminoGrande.png');
   background-size: 100% 100%;
