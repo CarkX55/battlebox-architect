@@ -1,7 +1,7 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, memo } from 'react';
 import { cn } from '../../utils/cn';
 
-const ManaCurve = ({ deck, compact = false, isPrint = false }) => {
+const ManaCurve = memo(({ deck, compact = false, isPrint = false }) => {
   const stats = useMemo(() => {
     const s = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, '6+': 0 };
     if (!deck || !Array.isArray(deck)) return s;
@@ -81,6 +81,6 @@ const ManaCurve = ({ deck, compact = false, isPrint = false }) => {
       </div>
     </div>
   );
-};
+});
 
 export default ManaCurve;

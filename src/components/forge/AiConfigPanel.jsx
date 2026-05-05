@@ -158,8 +158,8 @@ export default function AiConfigPanel({ onConfigReady, storageKey = DEFAULT_STOR
   return (
     <div className="w-full">
       <div className="flex items-center justify-center gap-2 mb-6 w-full">
-        <span className="text-lg">⚙️</span>
-        <h3 className="text-sm font-cinzel text-[#ffca58] uppercase tracking-[0.2em] drop-shadow-[0_0_12px_rgba(255,202,88,0.6)]">
+        <img src="/ASSETS/Engranaje.png" alt="Config" className="w-12 h-12 object-contain drop-shadow-[0_0_12px_rgba(255,202,88,0.5)]" />
+        <h3 className="text-sm font-cinzel text-magic-gold uppercase tracking-[0.2em]">
           Configuración de IA
         </h3>
       </div>
@@ -204,14 +204,26 @@ export default function AiConfigPanel({ onConfigReady, storageKey = DEFAULT_STOR
           <button
             onClick={fetchModels}
             disabled={loadingModels || !apiKey}
-            className="w-full px-4 py-2 btn-stone-secondary flex items-center justify-center gap-2 disabled:opacity-40"
+            className="w-full px-6 py-2 relative overflow-hidden group
+                       bg-white/10 backdrop-blur-md border border-white/20 rounded-lg
+                       text-[#ffca58] font-cinzel font-bold tracking-widest text-xs
+                       hover:bg-white/20 hover:border-white/40 hover:text-white
+                       transition-all duration-500 disabled:opacity-30 disabled:cursor-not-allowed
+                       shadow-[inset_0_1px_0_rgba(255,255,255,0.1),0_4px_12px_rgba(0,0,0,0.3)]"
           >
-            {loadingModels ? (
-              <span className="w-4 h-4 border border-[#ffca58]/30 border-t-[#ffca58] rounded-full animate-spin" />
-            ) : (
-              <span>🔄</span>
-            )}
-            <span className="hidden md:inline">Cargar</span>
+            {/* Brillo de barrido al hover */}
+            <div className="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] 
+                            bg-gradient-to-r from-transparent via-white/10 to-transparent 
+                            transition-transform duration-1000 ease-in-out" />
+            
+            <div className="relative flex items-center justify-center gap-2">
+              {loadingModels ? (
+                <span className="w-4 h-4 border-2 border-[#ffca58]/20 border-t-[#ffca58] rounded-full animate-spin" />
+              ) : (
+                <span className="group-hover:rotate-180 transition-transform duration-700">🔄</span>
+              )}
+              <span className="uppercase">Cargar</span>
+            </div>
           </button>
         </div>
       </div>

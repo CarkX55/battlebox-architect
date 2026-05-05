@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
+import { memo } from 'react';
 
-export default function RadarChart({ data, size = 300 }) {
+const RadarChart = memo(function RadarChart({ data, size = 300 }) {
   // Data structure: { Speed: 8, Control: 5, Complexity: 7, Resilience: 6, Power: 9 }
   const keys = Object.keys(data);
   const totalPoints = keys.length;
@@ -102,4 +103,6 @@ export default function RadarChart({ data, size = 300 }) {
       </svg>
     </div>
   );
-}
+});
+
+export default RadarChart;
