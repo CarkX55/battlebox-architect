@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import SearchBar from '../components/atoms/SearchBar';
+
 import DataIngestor from '../components/molecules/DataIngestor';
 import { getCardCount } from '../services/dbIngestor';
 
@@ -124,19 +124,22 @@ export default function Home() {
 
                 {/* Buscador (Ahora mide exactamente lo mismo que el título) */}
                 {!isLoaded ? (
-                  <div className="flex justify-center py-12">
-                    <div className="w-16 h-16 border-4 border-black/10 border-t-black/80 rounded-full animate-spin" />
+                  <div className="flex flex-col items-center justify-center py-12 space-y-4">
+                    <div className="w-12 h-12 border-4 border-black/10 border-t-grimorio-gold rounded-full animate-spin" />
+                    <p className="font-cinzel text-xs text-black/40 tracking-widest uppercase animate-pulse">Consultando Registros...</p>
                   </div>
                 ) : cardCount === 0 ? (
                   <div className="w-full">
-                    <DataIngestor />
+                    <DataIngestor onComplete={async () => {
+                      // Pequeño delay para que se vea el mensaje de éxito antes de cambiar
+                      setTimeout(async () => {
+                        const count = await getCardCount();
+                        setCardCount(count);
+                      }, 1500);
+                    }} />
                   </div>
                 ) : (
                   <div className="w-full space-y-20">
-                    <div className="w-full transform hover:scale-[1.01] transition-transform">
-                      <SearchBar />
-                    </div>
-                    
                     {/* Estadísticas */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-8 w-full">
                       {[

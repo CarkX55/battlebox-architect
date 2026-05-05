@@ -689,7 +689,10 @@ export default function BattleBox() {
           <div className="text-center mb-10 flex flex-col items-center gap-4">
             <h2 className="text-4xl font-cinzel text-grimorio-gold">⚖️ Laboratorio de Equilibrio</h2>
             <div className="flex gap-3 flex-wrap justify-center">
-              <button onClick={() => setShowAIConfig(!showAIConfig)} className={cn("px-4 py-2 border rounded-lg text-xs transition-all", showAIConfig ? "bg-grimorio-gold text-grimorio-dark border-grimorio-gold" : "bg-white/5 border-white/20 text-white")}>⚙️ Configurar Oráculo</button>
+              <button onClick={() => setShowAIConfig(!showAIConfig)} className={cn("px-4 py-2 border rounded-lg text-xs transition-all flex items-center gap-2", showAIConfig ? "bg-grimorio-gold text-grimorio-dark border-grimorio-gold" : "bg-white/5 border-white/20 text-white")}>
+                <img src="/ASSETS/Engranaje.png" alt="Config" className={cn("w-7 h-7 object-contain transition-all", showAIConfig ? "brightness-0" : "drop-shadow-[0_0_8px_rgba(255,202,88,0.5)]")} />
+                Configurar Oráculo
+              </button>
               <button onClick={() => setShowGuides(true)} className="px-5 py-2 bg-amber-900/30 border border-[#c19b45]/50 rounded-lg text-[#c19b45] text-xs hover:bg-amber-900/50 transition-all">📜 Guía de Bolsillo</button>
               <button 
                 onClick={handleExportMegaprompt} 
@@ -799,7 +802,7 @@ export default function BattleBox() {
       <div className="print:hidden p-8">
         <div className="max-w-7xl mx-auto space-y-12">
           <div className="flex justify-between items-start flex-wrap gap-4">
-            <div>
+            <div className="flex-1">
               <h2 className="text-5xl font-cinzel text-grimorio-gold flex items-center gap-4">
                 {isEditing ? (
                   <input 
@@ -809,49 +812,62 @@ export default function BattleBox() {
                     className="bg-black/50 border-b border-grimorio-gold/50 outline-none w-auto max-w-full focus:border-grimorio-gold"
                   />
                 ) : (
-                  activeDeck.name
+                  <>
+                    <img src="/ASSETS/iconoDeck.png" alt="Deck Icon" className="w-24 h-24 object-contain drop-shadow-[0_0_20px_rgba(255,202,88,0.3)]" />
+                    {activeDeck.name}
+                  </>
                 )}
                 <div className="flex -space-x-2">
                   {activeDeck.colors?.map(c => <ManaOrb key={c} color={c} size="w-10 h-10" />)}
                 </div>
               </h2>
-              {isEditing ? (
+              
+              {isEditing && (
                 <textarea 
-                  className="w-full bg-black/50 border border-grimorio-gold/30 rounded p-2 text-xl italic text-grimorio-parchment/80 mt-4 max-w-2xl focus:border-grimorio-gold outline-none"
+                  className="w-full bg-black/50 border border-grimorio-gold/30 rounded p-6 text-xl italic text-grimorio-parchment/80 mt-6 max-w-2xl focus:border-grimorio-gold outline-none"
                   value={activeDeck.lore || ''}
                   onChange={(e) => handleUpdateField('lore', e.target.value)}
-                  rows={2}
+                  rows={3}
                   placeholder="Descripción del mazo..."
                 />
-              ) : (
-                activeDeck.lore && <p className="text-xl italic text-grimorio-parchment/80 mt-4 max-w-2xl">{activeDeck.lore}</p>
               )}
-              <div className="flex gap-3 mt-6 flex-wrap">
-                <button onClick={() => setShowGuides(true)} className="px-5 py-2 bg-amber-900/30 border border-[#c19b45]/50 rounded-lg text-[#c19b45] text-sm hover:bg-amber-900/50 transition-all flex items-center gap-2">📜 Guía de Bolsillo</button>
-                <button 
-                  onClick={() => setIsEditing(!isEditing)} 
-                  className={cn(
-                    "px-4 py-2 border rounded-lg text-sm transition-all",
-                    isEditing ? "bg-red-500/20 border-red-500 text-red-400" : "bg-blue-500/20 border-blue-500/30 text-blue-400 hover:bg-blue-500/40"
-                  )}
-                >
-                  {isEditing ? '💾 Guardar Cambios' : '✍️ Editar Mazo'}
-                </button>
-                <button 
-                  onClick={() => setShowHandSim(true)} 
-                  className="px-4 py-2 bg-purple-500/20 border border-purple-500/30 text-purple-400 rounded-lg text-sm hover:bg-purple-500/40 transition-all"
-                >
-                  🃏 Probar Mano
-                </button>
-                <button 
-                  onClick={handleExportProxy} 
-                  className="px-4 py-2 bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 rounded-lg text-sm hover:bg-emerald-500/40 transition-all"
-                >
-                  🖨️ Lista Proxy
-                </button>
-              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2 shrink-0">
+              <button onClick={() => setShowGuides(true)} className="px-5 py-2 bg-amber-900/30 border border-[#c19b45]/50 rounded-lg text-[#c19b45] text-sm hover:bg-amber-900/50 transition-all flex items-center gap-2">📜 Guía de Bolsillo</button>
+              <button 
+                onClick={() => setShowHandSim(true)} 
+                className="px-4 py-2 bg-purple-500/20 border border-purple-500/30 text-purple-400 rounded-lg text-sm hover:bg-purple-500/40 transition-all"
+              >
+                🃏 Probar Mano
+              </button>
+              <button 
+                onClick={handleExportProxy} 
+                className="px-4 py-2 bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 rounded-lg text-sm hover:bg-emerald-500/40 transition-all"
+              >
+                🖨️ Lista Proxy
+              </button>
+              <button 
+                onClick={() => setIsEditing(!isEditing)} 
+                className={cn(
+                  "px-4 py-2 border rounded-lg text-sm transition-all",
+                  isEditing ? "bg-red-500/20 border-red-500 text-red-400" : "bg-blue-500/20 border-blue-500/30 text-blue-400 hover:bg-blue-500/40"
+                )}
+              >
+                {isEditing ? '💾 Guardar' : '✍️ Editar'}
+              </button>
             </div>
           </div>
+
+          {/* Lore fuera de la caja */}
+          {!isEditing && activeDeck.lore && (
+            <div className="w-full flex justify-center">
+              <div className="parchment-lore text-lg md:text-xl w-full max-w-5xl">
+                {activeDeck.lore}
+              </div>
+            </div>
+          )}
+
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <div className="lg:col-span-2 space-y-8">

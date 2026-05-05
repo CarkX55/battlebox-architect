@@ -211,6 +211,59 @@ export default function DeckForge() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
+      <AnimatePresence>
+        {loading && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-black/90 backdrop-blur-2xl"
+          >
+            <motion.div
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ 
+                scale: [0.95, 1.05, 0.95],
+                opacity: 1,
+              }}
+              transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+              className="relative z-10 flex flex-col items-center"
+            >
+              <img 
+                src="/ASSETS/invocando.png" 
+                alt="Invocando" 
+                className="w-80 h-80 md:w-[500px] md:h-[500px] object-contain drop-shadow-[0_0_50px_rgba(255,202,88,0.4)]"
+              />
+              
+              <div className="text-center mt-4">
+                <h2 className="text-4xl md:text-6xl font-cinzel text-magic-gold tracking-[0.4em] mb-4 drop-shadow-[0_0_15px_rgba(255,202,88,0.6)]">
+                  FORJANDO
+                </h2>
+                <div className="flex items-center justify-center gap-3">
+                  <span className="w-12 h-[1px] bg-gradient-to-r from-transparent to-magic-gold/50" />
+                  <p className="text-[#f4ece0] text-sm md:text-base uppercase tracking-[0.3em] font-medium animate-pulse">
+                    Invocando al Oráculo del Multiverso
+                  </p>
+                  <span className="w-12 h-[1px] bg-gradient-to-l from-transparent to-magic-gold/50" />
+                </div>
+              </div>
+            </motion.div>
+
+            {/* Partículas de maná (opcional, decorativo) */}
+            <div className="absolute bottom-20 flex gap-4 opacity-50">
+              {['W','U','B','R','G'].map((c, i) => (
+                <motion.div
+                  key={c}
+                  animate={{ y: [0, -10, 0], opacity: [0.3, 0.8, 0.3] }}
+                  transition={{ duration: 2, delay: i * 0.4, repeat: Infinity }}
+                >
+                  <ManaOrb color={c} size="w-8 h-8" />
+                </motion.div>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <AnimatePresence mode="wait">
         {mode === 'form' ? (
           <motion.div
@@ -244,11 +297,12 @@ export default function DeckForge() {
             animate={{ opacity: 1, scale: 1 }}
             className="mt-8"
           >
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-8 gap-6 p-8 rounded-2xl frosted-panel shadow-2xl">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-8 gap-6 p-8">
               <div className="flex-1 min-w-0">
                 <div className="flex flex-wrap items-center gap-4 mb-2">
-                  <h2 className="text-3xl md:text-4xl font-cinzel text-magic-gold tracking-wide leading-tight">
-                    📜 {aiMetadata?.deckName || 'Mazo Forjado'}
+                  <h2 className="text-3xl md:text-4xl font-cinzel text-magic-gold tracking-wide leading-tight flex items-center gap-3">
+                    <img src="/ASSETS/iconoDeck.png" alt="Deck Icon" className="w-20 h-20 object-contain drop-shadow-[0_0_15px_rgba(255,202,88,0.4)]" />
+                    {aiMetadata?.deckName || 'Mazo Forjado'}
                   </h2>
                   {lastFormData?.colores?.length > 0 && (
                     <div className="flex -space-x-2 bg-black/40 p-2 rounded-full border border-magic-gold/20 shadow-inner">
@@ -258,7 +312,7 @@ export default function DeckForge() {
                     </div>
                   )}
                 </div>
-                <p className="text-[#f4ece0]/60 text-[11px] uppercase tracking-[0.3em] font-medium pl-1">
+                <p className="text-[#f4ece0]/60 text-[11px] uppercase tracking-[0.3em] font-medium pl-1 mb-2">
                   Legacy Battle Box (Casual) • {lastFormData?.archetype}
                 </p>
               </div>
@@ -297,6 +351,14 @@ export default function DeckForge() {
                 </button>
               </div>
             </div>
+
+            {aiMetadata?.lore && (
+              <div className="mb-8 w-full flex justify-center">
+                <div className="parchment-lore text-sm md:text-base w-full max-w-4xl">
+                  {aiMetadata.lore}
+                </div>
+              </div>
+            )}
 
             {warning && (
               <div className="frosted-panel p-4 text-magic-gold text-sm flex items-center gap-3 mb-6 shadow-lg border-magic-gold/20">
