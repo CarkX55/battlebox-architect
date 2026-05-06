@@ -10,11 +10,12 @@ export const MANA_COLORS = {
 };
 
 export const COLORS = [
-  { id: 'W', name: 'Blanco', icon: '/ASSETS/manaBlanco.png', color: MANA_COLORS.W, bg: 'bg-white', border: 'border-white', text: 'text-black' },
-  { id: 'U', name: 'Azul', icon: '/ASSETS/manaAzul.png', color: MANA_COLORS.U, bg: 'bg-blue-500', border: 'border-blue-500', text: 'text-white' },
-  { id: 'B', name: 'Negro', icon: '/ASSETS/manaNegro.png', color: MANA_COLORS.B, bg: 'bg-gray-900', border: 'border-gray-700', text: 'text-white' },
-  { id: 'R', name: 'Rojo', icon: '/ASSETS/manaRojo.png', color: MANA_COLORS.R, bg: 'bg-red-500', border: 'border-red-500', text: 'text-white' },
-  { id: 'G', name: 'Verde', icon: '/ASSETS/manaVerde.png', color: MANA_COLORS.G, bg: 'bg-green-600', border: 'border-green-600', text: 'text-white' }
+  { id: 'W', name: 'Blanco', icon: '/ASSETS/manaBlanco.webp', color: MANA_COLORS.W, bg: 'bg-white', border: 'border-white', text: 'text-black' },
+  { id: 'U', name: 'Azul', icon: '/ASSETS/manaAzul.webp', color: MANA_COLORS.U, bg: 'bg-blue-500', border: 'border-blue-500', text: 'text-white' },
+  { id: 'B', name: 'Negro', icon: '/ASSETS/manaNegro.webp', color: MANA_COLORS.B, bg: 'bg-gray-900', border: 'border-gray-700', text: 'text-white' },
+  { id: 'R', name: 'Rojo', icon: '/ASSETS/manaRojo.webp', color: MANA_COLORS.R, bg: 'bg-red-500', border: 'border-red-500', text: 'text-white' },
+  { id: 'G', name: 'Verde', icon: '/ASSETS/manaVerde.webp', color: MANA_COLORS.G, bg: 'bg-green-600', border: 'border-green-600', text: 'text-white' },
+  { id: 'C', name: 'Incoloro', icon: '/ASSETS/Manaincoloro.webp', color: MANA_COLORS.C, bg: 'bg-gray-400', border: 'border-gray-400', text: 'text-black' }
 ];
 
 
@@ -73,7 +74,7 @@ export const BATTLEBOX_ARCHETYPES = [
     speed: 'Media‑lenta',
     winTurn: '8–12',
     description: 'Aceleración con tierras o hechizos para lanzar amenazas de 7+ manás.',
-    recommendedColors: ['G', 'U']
+    recommendedColors: ['G', 'U', 'C']
   },
   {
     id: 'combo',
@@ -97,7 +98,31 @@ export const BATTLEBOX_ARCHETYPES = [
     speed: 'Muy lenta',
     winTurn: '15+',
     description: 'Bloqueo progresivo con encantamientos o artefactos, gana por desgaste.',
-    recommendedColors: ['W', 'G', 'U']
+    recommendedColors: ['W', 'G', 'U', 'C']
+  },
+  {
+    id: 'legacy-eldrazi',
+    label: 'Legacy Eldrazi (Incoloro)',
+    speed: 'Rápida-Media',
+    winTurn: '5–8',
+    description: 'Amenazas masivas e incoloras que utilizan tierras de utilidad y aceleración incolora.',
+    recommendedColors: ['C']
+  },
+  {
+    id: 'mud-artifacts',
+    label: 'MUD / Mono-Brown (Artefactos)',
+    speed: 'Media',
+    winTurn: '6–9',
+    description: 'Gran mazo de artefactos, robots masivos y aceleración incolora basada en estructuras mecánicas.',
+    recommendedColors: ['C']
+  },
+  {
+    id: 'colorless-stax',
+    label: 'Stax Incoloro (Cárcel)',
+    speed: 'Muy lenta',
+    winTurn: '12+',
+    description: 'Control absoluto mediante impuestos, artefactos de bloqueo (Chalice, Lodestone) y agotamiento del rival.',
+    recommendedColors: ['C']
   }
 ];
 
@@ -120,7 +145,7 @@ export const MTG_TRIBES = [
   { id: 'angel', label: 'Ángeles', colors: ['W', 'R', 'B'], strategies: ['lifegain', 'blink', 'prison', 'reanimator'], archetypes: ['midrange', 'control-puro'] },
   { id: 'demon', label: 'Demonios', colors: ['B'], strategies: ['aristocrats', 'reanimator'], archetypes: ['midrange', 'control-puro'] },
   { id: 'dragon', label: 'Dragones', colors: ['R', 'B', 'G'], strategies: ['reanimator', 'tokens', 'blink'], archetypes: ['midrange', 'ramp-tron'] },
-  { id: 'eldrazi', label: 'Eldrazi', colors: ['W', 'U', 'B', 'R', 'G'], strategies: ['tokens', 'blink'], archetypes: ['ramp-tron', 'midrange'] },
+  { id: 'eldrazi', label: 'Eldrazi', colors: ['W', 'U', 'B', 'R', 'G', 'C'], strategies: ['tokens', 'blink'], archetypes: ['ramp-tron', 'midrange', 'legacy-eldrazi'] },
   { id: 'faerie', label: 'Hadas', colors: ['U', 'B'], strategies: ['blink', 'mill', 'prison'], archetypes: ['tempo', 'control-puro'] },
   { id: 'rogue', label: 'Pícaros (Rogues)', colors: ['U', 'B'], strategies: ['mill', 'aristocrats'], archetypes: ['tempo', 'aggro-sinergico'] },
   { id: 'pirate', label: 'Piratas', colors: ['U', 'B', 'R'], strategies: ['aristocrats', 'tokens'], archetypes: ['aggro-sinergico', 'tempo'] },
