@@ -34,7 +34,7 @@
 
 html, body {
   background-color: #0a0a0a !important;
-  background-image: url('/ASSETS/Obsidiana.jpg') !important;
+  background-image: url('/ASSETS/Obsidiana.webp') !important;
   background-attachment: fixed !important;
   background-size: cover !important;
   background-position: center !important;
@@ -124,7 +124,7 @@ html, body {
 .btn-asset {
   border-style: solid;
   border-width: 0 80px;
-  border-image-source: url('/ASSETS/Boton1.png');
+  border-image-source: url('/ASSETS/Boton1.webp');
   border-image-slice: 0 180 0 180 fill;
   height: 150px;
   background-color: transparent;
@@ -155,18 +155,18 @@ html, body {
 }
 
 .btn-asset:hover {
-  border-image-source: url('/ASSETS/BotonHover.png');
+  border-image-source: url('/ASSETS/BotonHover.webp');
   transform: scale(1.01);
   filter: drop-shadow(0 0 15px rgba(193, 155, 69, 0.4));
 }
 
 .btn-asset:active {
-  border-image-source: url('/ASSETS/BotonPressed.png');
+  border-image-source: url('/ASSETS/BotonPressed.webp');
   transform: scale(0.98);
 }
 
 .btn-stone-secondary {
-  background-image: url('/ASSETS/Obsidiana.jpg');
+  background-image: url('/ASSETS/Obsidiana.webp');
   background-size: 200%;
   background-position: center;
   border: 1px solid rgba(255, 202, 88, 0.2);
@@ -210,7 +210,7 @@ html, body {
 }
 
 .parchment-scroll {
-  background-image: url('/ASSETS/PergaminoGrande.png');
+  background-image: url('/ASSETS/PergaminoGrande.webp');
   background-size: 100% 100%;
   background-repeat: no-repeat;
   background-color: transparent;
@@ -267,7 +267,7 @@ html, body {
   content: '';
   position: absolute;
   inset: 0;
-  background: url('/ASSETS/FrostedGlass.jpg');
+  background: url('/ASSETS/FrostedGlass.webp');
   background-size: cover;
   background-position: center;
   opacity: 0.4; /* Ajusta este valor para más o menos transparencia de la textura */
@@ -348,7 +348,7 @@ html, body {
 
 /* Panel de Cuero de Dragón */
 .leather-panel {
-  background-image: linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.4)), url('/ASSETS/texturacuerodragon.jpg');
+  background-image: linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.4)), url('/ASSETS/texturacuerodragon.webp');
   background-size: cover;
   background-position: center;
   border: 2px solid #3d2b1f;
@@ -405,7 +405,7 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background-image: url('/ASSETS/PergQuemado.png');
+  background-image: url('/ASSETS/PergQuemado.webp');
   background-size: 100% 100%;
   background-repeat: no-repeat;
   filter: drop-shadow(0 15px 25px rgba(0,0,0,0.6));
