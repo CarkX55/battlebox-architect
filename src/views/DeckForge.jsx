@@ -229,7 +229,7 @@ export default function DeckForge() {
               className="relative z-10 flex flex-col items-center"
             >
               <img 
-                src="/ASSETS/invocando.png" 
+                src="/ASSETS/invocando.webp" 
                 alt="Invocando" 
                 className="w-80 h-80 md:w-[500px] md:h-[500px] object-contain drop-shadow-[0_0_50px_rgba(255,202,88,0.4)]"
               />
@@ -250,7 +250,7 @@ export default function DeckForge() {
 
             {/* Partículas de maná (opcional, decorativo) */}
             <div className="absolute bottom-20 flex gap-4 opacity-50">
-              {['W','U','B','R','G'].map((c, i) => (
+              {['W','U','B','R','G','C'].map((c, i) => (
                 <motion.div
                   key={c}
                   animate={{ y: [0, -10, 0], opacity: [0.3, 0.8, 0.3] }}
@@ -301,7 +301,7 @@ export default function DeckForge() {
               <div className="flex-1 min-w-0">
                 <div className="flex flex-wrap items-center gap-4 mb-2">
                   <h2 className="text-3xl md:text-4xl font-cinzel text-magic-gold tracking-wide leading-tight flex items-center gap-3">
-                    <img src="/ASSETS/iconoDeck.png" alt="Deck Icon" className="w-20 h-20 object-contain drop-shadow-[0_0_15px_rgba(255,202,88,0.4)]" />
+                    <img src="/ASSETS/iconoDeck.webp" alt="Deck Icon" className="w-20 h-20 object-contain drop-shadow-[0_0_15px_rgba(255,202,88,0.4)]" />
                     {aiMetadata?.deckName || 'Mazo Forjado'}
                   </h2>
                   {lastFormData?.colores?.length > 0 && (
@@ -329,9 +329,10 @@ export default function DeckForge() {
                 </button>
                 <button
                   onClick={() => setShowHandSim(true)}
-                  className="btn-magic-glass btn-glass-purple"
+                  className="btn-magic-glass btn-glass-purple flex items-center gap-2"
                 >
-                  🃏 Mano
+                  <img src="/ASSETS/ManoDragon.webp" alt="Mano" className="w-5 h-5 object-contain" />
+                  Mano
                 </button>
                 <button
                   onClick={handleArchive}
@@ -453,7 +454,8 @@ export default function DeckForge() {
                         {pocketGuide.mulligan && (
                           <div>
                             <p className="text-[11px] mb-1 flex items-center gap-2 parchment-label uppercase tracking-widest">
-                              🃏 Estrategia Mulligan
+                              <img src="/ASSETS/ManoDragon.webp" alt="Mano" className="w-4 h-4 object-contain" />
+                              Estrategia Mulligan
                             </p>
                             <p className="text-sm leading-relaxed parchment-ink">
                               {pocketGuide.mulligan}
