@@ -49,7 +49,8 @@ export default function HandSimulator({ deck, isOpen, onClose }) {
         <div className="flex flex-col md:flex-row justify-between items-center gap-6 mb-4 shrink-0">
           <div className="text-center md:text-left">
             <h2 className="text-3xl font-cinzel text-grimorio-gold flex items-center justify-center md:justify-start gap-4">
-              <span className="text-4xl">🃏</span> El Destino del Duelista
+              <img src="/ASSETS/ManoDragon.webp" alt="Mano Dragon" className="w-12 h-12 object-contain drop-shadow-[0_0_15px_rgba(255,202,88,0.4)]" />
+              El Destino del Duelista
             </h2>
             <p className="text-grimorio-gold/40 font-serif text-sm mt-1 tracking-wide italic">"Siente el peso de las cartas antes del primer conjuro."</p>
           </div>
