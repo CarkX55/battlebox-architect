@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 import DataIngestor from '../components/molecules/DataIngestor';
@@ -8,6 +8,8 @@ export default function Home() {
   const [cardCount, setCardCount] = useState(0);
   const [isLoaded, setIsLoaded] = useState(false);
   const [isScrollOpen, setIsScrollOpen] = useState(false);
+  const openSound = useRef(null);
+  const closeSound = useRef(null);
 
   useEffect(() => {
     getCardCount().then((count) => {
@@ -17,10 +19,25 @@ export default function Home() {
       console.error('Error:', err);
       setIsLoaded(true);
     });
+
+    openSound.current = new Audio('/ASSETS/audios/scroll_open.MP3');
+    closeSound.current = new Audio('/ASSETS/audios/scroll_close.MP3');
   }, []);
 
   const handleOpenScroll = () => {
+    if (openSound.current) {
+      openSound.current.currentTime = 0;
+      openSound.current.play().catch(e => console.log("Audio playback failed:", e));
+    }
     setIsScrollOpen(true);
+  };
+
+  const handleCloseScroll = () => {
+    if (closeSound.current) {
+      closeSound.current.currentTime = 0;
+      closeSound.current.play().catch(e => console.log("Audio playback failed:", e));
+    }
+    setIsScrollOpen(false);
   };
 
   return (
@@ -28,7 +45,7 @@ export default function Home() {
       {/* Contenedor Grid para evitar saltos de Layout */}
       <div className="relative w-full max-w-6xl grid grid-cols-1 grid-rows-1 items-start justify-items-center">
         <AnimatePresence>
-          {!isScrollOpen && (
+          {!isScrollOpen ? (
             <motion.div
               key="closed-scroll"
               initial={{ opacity: 0, y: 40 }}
@@ -36,7 +53,7 @@ export default function Home() {
               exit={{ 
                 opacity: 0, 
                 scale: 0.95,
-                transition: { duration: 0.4 } 
+                transition: { duration: 0.5 } 
               }}
               className="col-start-1 row-start-1 relative cursor-pointer z-20 w-full"
               onClick={handleOpenScroll}
@@ -48,46 +65,53 @@ export default function Home() {
                 className="w-full h-auto drop-shadow-[0_20px_50px_rgba(0,0,0,0.8)]"
               />
               
-              {/* Sello Rojo Estático (Reset forzado de animaciones) */}
+              {/* Sello Rojo Estático (Efecto regeneración) */}
               <motion.div
                 className="absolute top-[52%] left-1/2"
                 style={{ x: "-50%", y: "-50%" }}
-                initial={{ filter: "brightness(1)", scale: 1 }}
-                animate={{ filter: "brightness(1)", scale: 1 }}
-                whileHover={{ filter: "brightness(2)", scale: 1 }}
-                transition={{ duration: 0.3 }}
+                initial={{ opacity: 0, scale: 2, filter: "brightness(3) blur(15px)" }}
+                animate={{ opacity: 1, scale: 1, filter: "brightness(1) blur(0px)" }}
+                whileHover={{ filter: "brightness(2)", scale: 1.1 }}
+                transition={{ 
+                  delay: 1.2, 
+                  duration: 2,
+                  ease: "easeOut" 
+                }}
               >
                 <img 
                   src="/ASSETS/SelloRojo.png" 
                   alt="Sello Real" 
-                  className="w-32 h-32 drop-shadow-[0_0_20px_rgba(255,0,0,0.5)]"
+                  className="w-32 h-32 drop-shadow-[0_0_30px_rgba(255,0,0,0.8)]"
                 />
-                <div className="absolute inset-0 bg-red-600/10 blur-2xl rounded-full -z-10" />
+                <div className="absolute inset-0 bg-red-600/20 blur-3xl rounded-full -z-10" />
               </motion.div>
 
-              {/* Hint text - Intensidad aumentada para fondo obsidiana */}
+              {/* Hint text - Aparece junto al sello */}
               <motion.p
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
+                transition={{ delay: 2 }}
                 className="absolute -bottom-12 left-1/2 -translate-x-1/2 text-grimorio-gold font-cinzel text-sm tracking-widest whitespace-nowrap uppercase drop-shadow-[0_2px_10px_rgba(212,175,55,0.3)] drop-shadow-[0_4px_4px_rgba(0,0,0,1)]"
               >
                 Pulsa el sello para desenrollar
               </motion.p>
             </motion.div>
-          )}
-        </AnimatePresence>
-
-        {isScrollOpen && (
-          <motion.div
-            key="open-scroll"
-            initial={{ opacity: 0, height: 0, transformOrigin: "top" }}
-            animate={{ opacity: 1, height: "auto" }}
-            transition={{ 
-              duration: 1.5,
-              ease: [0.16, 1, 0.3, 1] // Curva suave y cinemática
-            }}
-            className="col-start-1 row-start-1 relative w-full z-10 overflow-hidden rounded-b-3xl shadow-2xl"
-          >
+          ) : (
+            <motion.div
+              key="open-scroll"
+              initial={{ opacity: 0, height: 0, transformOrigin: "top" }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ 
+                opacity: 0, 
+                height: 0,
+                transition: { duration: 2.8, ease: [0.16, 1, 0.3, 1] } 
+              }}
+              transition={{ 
+                duration: 1.5,
+                ease: [0.16, 1, 0.3, 1]
+              }}
+              className="col-start-1 row-start-1 relative w-full z-10 overflow-hidden rounded-b-3xl shadow-2xl"
+            >
             {/* Imagen del Pergamino Abierto (Base) */}
             <img 
               src="/ASSETS/PergAbierto.png" 
@@ -164,7 +188,7 @@ export default function Home() {
               </div>
 
               <button
-                onClick={() => setIsScrollOpen(false)}
+                onClick={handleCloseScroll}
                 className="mt-auto mb-4 px-8 py-2.5 relative overflow-hidden group
                            bg-black/50 backdrop-blur-md border border-white/10 rounded-full
                            text-white/40 font-cinzel text-[11px] font-bold uppercase tracking-[0.4em]
@@ -186,6 +210,7 @@ export default function Home() {
             </motion.div>
           </motion.div>
         )}
+        </AnimatePresence>
       </div>
     </div>
   );
