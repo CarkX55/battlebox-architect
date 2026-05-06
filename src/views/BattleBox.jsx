@@ -144,7 +144,7 @@ function PocketGuideCard({ deck }) {
             <Section icon="🏆" title="VICTORIA">
               <p className="text-white/70 text-[11px] leading-tight italic">{deck.condicion_victoria}</p>
             </Section>
-            <Section icon="🃏" title="MULLIGAN">
+            <Section icon={<img src="/ASSETS/ManoDragon.webp" alt="Mano" className="w-4 h-4 object-contain inline" />} title="MULLIGAN">
               <p className="text-sky-300/70 text-[11px] leading-tight italic">{deck.mulligan || 'Curva ideal.'}</p>
             </Section>
           </div>
@@ -321,7 +321,10 @@ function GuideOverlay({ decks, onClose }) {
                   )}
                   {(d.mulligan || true) && (
                     <div className="space-y-[0.5mm]">
-                      <span className="text-[#92732c] font-cinzel font-bold uppercase text-[5.5px] block">🃏 Mulligan</span>
+                      <span className="text-[#92732c] font-cinzel font-bold uppercase text-[5.5px] flex items-center gap-1 block">
+                        <img src="/ASSETS/ManoDragon.webp" alt="Mano" className="w-2 h-2 object-contain" />
+                        Mulligan
+                      </span>
                       <p className="text-[#3b82f6]/80 text-[6.5px] leading-tight italic">{d.mulligan || 'Curva ideal.'}</p>
                     </div>
                   )}
@@ -690,7 +693,7 @@ export default function BattleBox() {
             <h2 className="text-4xl font-cinzel text-grimorio-gold">⚖️ Laboratorio de Equilibrio</h2>
             <div className="flex gap-3 flex-wrap justify-center">
               <button onClick={() => setShowAIConfig(!showAIConfig)} className={cn("px-4 py-2 border rounded-lg text-xs transition-all flex items-center gap-2", showAIConfig ? "bg-grimorio-gold text-grimorio-dark border-grimorio-gold" : "bg-white/5 border-white/20 text-white")}>
-                <img src="/ASSETS/Engranaje.png" alt="Config" className={cn("w-7 h-7 object-contain transition-all", showAIConfig ? "brightness-0" : "drop-shadow-[0_0_8px_rgba(255,202,88,0.5)]")} />
+                <img src="/ASSETS/Engranaje.webp" alt="Config" className={cn("w-7 h-7 object-contain transition-all", showAIConfig ? "brightness-0" : "drop-shadow-[0_0_8px_rgba(255,202,88,0.5)]")} />
                 Configurar Oráculo
               </button>
               <button onClick={() => setShowGuides(true)} className="px-5 py-2 bg-amber-900/30 border border-[#c19b45]/50 rounded-lg text-[#c19b45] text-xs hover:bg-amber-900/50 transition-all">📜 Guía de Bolsillo</button>
@@ -813,7 +816,7 @@ export default function BattleBox() {
                   />
                 ) : (
                   <>
-                    <img src="/ASSETS/iconoDeck.png" alt="Deck Icon" className="w-24 h-24 object-contain drop-shadow-[0_0_20px_rgba(255,202,88,0.3)]" />
+                    <img src="/ASSETS/iconoDeck.webp" alt="Deck Icon" className="w-24 h-24 object-contain drop-shadow-[0_0_20px_rgba(255,202,88,0.3)]" />
                     {activeDeck.name}
                   </>
                 )}
@@ -837,9 +840,10 @@ export default function BattleBox() {
               <button onClick={() => setShowGuides(true)} className="px-5 py-2 bg-amber-900/30 border border-[#c19b45]/50 rounded-lg text-[#c19b45] text-sm hover:bg-amber-900/50 transition-all flex items-center gap-2">📜 Guía de Bolsillo</button>
               <button 
                 onClick={() => setShowHandSim(true)} 
-                className="px-4 py-2 bg-purple-500/20 border border-purple-500/30 text-purple-400 rounded-lg text-sm hover:bg-purple-500/40 transition-all"
+                className="px-4 py-2 bg-purple-500/20 border border-purple-500/30 text-purple-400 rounded-lg text-sm hover:bg-purple-500/40 transition-all flex items-center gap-2"
               >
-                🃏 Probar Mano
+                <img src="/ASSETS/ManoDragon.webp" alt="Mano" className="w-6 h-6 object-contain" />
+                Probar Mano
               </button>
               <button 
                 onClick={handleExportProxy} 
