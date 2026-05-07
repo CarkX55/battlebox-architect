@@ -158,7 +158,7 @@ export default function AiConfigPanel({ onConfigReady, storageKey = DEFAULT_STOR
   return (
     <div className="w-full">
       <div className="flex items-center justify-center gap-2 mb-6 w-full">
-        <img src="/ASSETS/Engranaje.png" alt="Config" className="w-12 h-12 object-contain drop-shadow-[0_0_12px_rgba(255,202,88,0.5)]" />
+        <img src="/ASSETS/Engranaje.webp" alt="Config" className="w-12 h-12 object-contain drop-shadow-[0_0_12px_rgba(255,202,88,0.5)]" />
         <h3 className="text-sm font-cinzel text-magic-gold uppercase tracking-[0.2em]">
           Configuración de IA
         </h3>

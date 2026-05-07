@@ -16,7 +16,7 @@ export default function ManaOrb({ color, size = 'w-6 h-6', className = '' }) {
   };
 
   const glowColor = glowColors[color] || 'rgba(255,255,255,0.2)';
-  const icon = colorData ? colorData.icon : (color === 'C' ? '/ASSETS/manaIncoloro.png' : '');
+  const icon = colorData?.icon || '';
 
   if (!icon && color !== 'C') return null;
 
@@ -28,18 +28,18 @@ export default function ManaOrb({ color, size = 'w-6 h-6', className = '' }) {
     )}>
       {/* Resplandor exterior (Glow) */}
       <div 
-        className="absolute inset-0 rounded-full opacity-40 group-hover:opacity-100 blur-[8px] transition-all duration-500 scale-110"
-        style={{ backgroundColor: glowColor, boxShadow: `0 0 12px ${glowColor}` }}
+        className="absolute inset-0 rounded-full opacity-30 group-hover:opacity-60 blur-[10px] transition-all duration-500"
+        style={{ boxShadow: `0 0 15px ${glowColor}` }}
       />
       
       {/* Cuerpo del Cristal */}
-      <div className="absolute inset-[1px] rounded-full overflow-hidden bg-black/40 backdrop-blur-sm border border-white/20 flex items-center justify-center shadow-[inset_0_0_8px_rgba(0,0,0,0.8)]">
+      <div className="absolute inset-[1px] rounded-full overflow-hidden bg-black/40 backdrop-blur-sm flex items-center justify-center shadow-[inset_0_0_8px_rgba(0,0,0,0.8)]">
         {/* Imagen del Símbolo */}
         {icon ? (
           <img 
             src={icon} 
             alt={color} 
-            className="w-[85%] h-[85%] object-contain relative z-10 drop-shadow-[0_0_2px_rgba(255,255,255,0.4)]"
+            className="w-[115%] h-[115%] max-w-none object-contain relative z-10"
           />
         ) : (
           <span className="text-white font-bold text-[10px] relative z-10">◇</span>

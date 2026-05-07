@@ -121,7 +121,7 @@ export default function ForgeForm({ onSubmit, isLoading, disabled }) {
     <form onSubmit={handleSubmit} className="space-y-6 max-w-4xl mx-auto">
       <div className="w-full p-8 frosted-panel shadow-2xl">
       <div className="flex items-center justify-center gap-3 mb-8 w-full">
-          <img src="/ASSETS/Engranaje.png" alt="Config" className="w-24 h-24 object-contain drop-shadow-[0_0_20px_rgba(255,202,88,0.5)]" />
+          <img src="/ASSETS/Engranaje.webp" alt="Config" className="w-24 h-24 object-contain drop-shadow-[0_0_20px_rgba(255,202,88,0.5)]" />
           <h3 className="text-2xl font-cinzel text-magic-gold uppercase tracking-[0.15em]">
             Configuración del Mazo
           </h3>
