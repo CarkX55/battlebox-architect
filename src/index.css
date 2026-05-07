@@ -127,7 +127,8 @@ html, body {
   border-image-source: url('/ASSETS/Boton1.webp');
   border-image-slice: 0 180 0 180 fill;
   height: 150px;
-  background-color: transparent;
+  background-color: rgba(20, 15, 10, 0.8);
+  border: 1px solid rgba(193, 155, 69, 0.3);
   color: #f4ece0;
   transition: all 0.2s ease;
   cursor: pointer;
