@@ -135,12 +135,12 @@ export default function ForgeForm({ onSubmit, isLoading, disabled }) {
             <select
               value={formData.formato}
               onChange={(e) => setFormData(prev => ({ ...prev, formato: e.target.value }))}
-              className="w-full px-4 py-3 bg-black/40 border-2 border-magic-gold/10 rounded-lg 
-                         text-[#f4ece0] focus:border-magic-gold/50 focus:outline-none
-                         transition-all cursor-pointer mb-6 backdrop-blur-md font-medium"
+              className="w-full px-4 py-3 bg-black/60 border border-white/20 rounded-lg 
+                         text-white focus:border-white/40 focus:outline-none
+                         transition-all cursor-pointer mb-6 backdrop-blur-xl font-medium"
             >
               {FORMATOS.map(f => (
-                <option key={f.value} value={f.value} className="bg-[#1a1612] text-[#f4ece0]">
+                <option key={f.value} value={f.value} className="bg-[#0a101a] text-[#f4ece0]">
                   {f.label}
                 </option>
               ))}
@@ -152,12 +152,12 @@ export default function ForgeForm({ onSubmit, isLoading, disabled }) {
             <select
               value={formData.archetype}
               onChange={(e) => handleArchetypeChange(e.target.value)}
-              className="w-full px-4 py-3 bg-black/40 border-2 border-magic-gold/10 rounded-lg 
-                         text-[#f4ece0] focus:border-magic-gold/50 focus:outline-none
-                         transition-all cursor-pointer backdrop-blur-md font-medium"
+              className="w-full px-4 py-3 bg-black/60 border border-white/20 rounded-lg 
+                         text-white focus:border-white/40 focus:outline-none
+                         transition-all cursor-pointer backdrop-blur-xl font-medium"
             >
               {ARCHETYPES.map(a => (
-                <option key={a.value} value={a.value} className="bg-[#1a1612] text-[#f4ece0]">
+                <option key={a.value} value={a.value} className="bg-[#0a101a] text-[#f4ece0]">
                   {a.label}
                 </option>
               ))}
@@ -180,12 +180,12 @@ export default function ForgeForm({ onSubmit, isLoading, disabled }) {
             <select
               value={formData.rarityMode}
               onChange={(e) => setFormData(prev => ({ ...prev, rarityMode: e.target.value }))}
-              className="w-full px-4 py-3 bg-black/40 border-2 border-magic-gold/10 rounded-lg 
-                         text-[#f4ece0] focus:border-magic-gold/50 focus:outline-none
-                         transition-all cursor-pointer backdrop-blur-md font-medium"
+              className="w-full px-4 py-3 bg-black/60 border border-white/20 rounded-lg 
+                         text-white focus:border-white/40 focus:outline-none
+                         transition-all cursor-pointer backdrop-blur-xl font-medium"
             >
               {RARITY_MODES.map(r => (
-                <option key={r.value} value={r.value} className="bg-[#1a1612] text-[#f4ece0]">
+                <option key={r.value} value={r.value} className="bg-[#0a101a] text-[#f4ece0]">
                   {r.label}
                 </option>
               ))}
@@ -277,15 +277,15 @@ export default function ForgeForm({ onSubmit, isLoading, disabled }) {
                   setFormData(prev => ({ ...prev, tribe: e.target.value }));
                 }
               }}
-              className="w-full px-4 py-3 bg-white/10 border-2 border-magic-gold/20 rounded-lg 
-                         text-[#f4ece0] focus:border-magic-gold focus:outline-none
-                         transition-all cursor-pointer mb-2 backdrop-blur-md font-medium"
+              className="w-full px-4 py-3 bg-black/60 border border-white/20 rounded-lg 
+                         text-white focus:border-white/40 focus:outline-none
+                         transition-all cursor-pointer mb-2 backdrop-blur-xl font-medium"
             >
-              <option value="" className="bg-[#1a1612]">-- Ninguna / Cualquiera --</option>
+              <option value="" className="bg-[#0a101a] text-[#f4ece0]">-- Ninguna / Cualquiera --</option>
               {availableTribes.map(t => (
-                <option key={t.id} value={t.label} className="bg-[#1a1612]">{t.label}</option>
+                <option key={t.id} value={t.label} className="bg-[#0a101a] text-[#f4ece0]">{t.label}</option>
               ))}
-              <option value="custom" className="bg-[#1a1612]">Otra (Manual)...</option>
+              <option value="custom" className="bg-[#0a101a] text-[#f4ece0]">Otra (Manual)...</option>
             </select>
             {isCustomTribe && (
               <input
@@ -293,9 +293,9 @@ export default function ForgeForm({ onSubmit, isLoading, disabled }) {
                 value={formData.tribe}
                 onChange={(e) => setFormData(prev => ({ ...prev, tribe: e.target.value }))}
                 placeholder="Escribe tu tribu manual..."
-                className="w-full px-4 py-3 bg-white/10 border-2 border-magic-gold/20 rounded-lg 
-                           text-[#f4ece0] placeholder-magic-gold/30
-                           focus:border-magic-gold focus:outline-none transition-all"
+                className="w-full px-4 py-3 bg-black/60 border border-white/20 rounded-lg 
+                           text-white placeholder-white/20
+                           focus:border-white/40 focus:outline-none transition-all"
               />
             )}
           </div>
@@ -315,15 +315,15 @@ export default function ForgeForm({ onSubmit, isLoading, disabled }) {
                   setFormData(prev => ({ ...prev, strategy: e.target.value }));
                 }
               }}
-              className="w-full px-4 py-3 bg-white/10 border-2 border-magic-gold/20 rounded-lg 
-                         text-[#f4ece0] focus:border-magic-gold focus:outline-none
-                         transition-all cursor-pointer mb-2 backdrop-blur-md font-medium"
+              className="w-full px-4 py-3 bg-black/60 border border-white/20 rounded-lg 
+                         text-white focus:border-white/40 focus:outline-none
+                         transition-all cursor-pointer mb-2 backdrop-blur-xl font-medium"
             >
-              <option value="" className="bg-[#1a1612]">-- Ninguna --</option>
+              <option value="" className="bg-[#0a101a] text-[#f4ece0]">-- Ninguna --</option>
               {availableStrategies.map(s => (
-                <option key={s.id} value={s.label} className="bg-[#1a1612]">{s.label}</option>
+                <option key={s.id} value={s.label} className="bg-[#0a101a] text-[#f4ece0]">{s.label}</option>
               ))}
-              <option value="custom" className="bg-[#1a1612]">Otra (Manual)...</option>
+              <option value="custom" className="bg-[#0a101a] text-[#f4ece0]">Otra (Manual)...</option>
             </select>
             {isCustomStrategy && (
               <input
@@ -331,9 +331,9 @@ export default function ForgeForm({ onSubmit, isLoading, disabled }) {
                 value={formData.strategy}
                 onChange={(e) => setFormData(prev => ({ ...prev, strategy: e.target.value }))}
                 placeholder="Escribe tu estrategia manual..."
-                className="w-full px-4 py-3 bg-white/10 border-2 border-magic-gold/20 rounded-lg 
-                           text-[#f4ece0] placeholder-magic-gold/30
-                           focus:border-magic-gold focus:outline-none transition-all"
+                className="w-full px-4 py-3 bg-black/60 border border-white/20 rounded-lg 
+                           text-white placeholder-white/20
+                           focus:border-white/40 focus:outline-none transition-all"
               />
             )}
           </div>
@@ -350,8 +350,8 @@ export default function ForgeForm({ onSubmit, isLoading, disabled }) {
               placeholder="Describe tu visión... Ej: 'Quiero un mazo de pirates voladores que controlen el cielo y roben cartas del oponente'"
               rows={5}
               className={cn(
-                "w-full px-4 py-3 bg-black/40 border-2 rounded-lg text-[#f4ece0] placeholder-magic-gold/20",
-                "focus:border-magic-gold/50 focus:outline-none transition-all resize-none border-magic-gold/10 backdrop-blur-md"
+                "w-full px-4 py-3 bg-black/60 border border-white/20 rounded-lg text-white placeholder-white/20",
+                "focus:border-white/40 focus:outline-none transition-all resize-none backdrop-blur-xl"
               )}
             />
             <div className="flex justify-end mt-2">

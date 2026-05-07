@@ -164,18 +164,16 @@ export default function AiConfigPanel({ onConfigReady, storageKey = DEFAULT_STOR
         </h3>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-        <div>
-          <label className="block text-xs text-[#ffca58]/90 mb-1 uppercase font-bold tracking-widest drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+        <div className="md:col-span-3">
+          <label className="block text-[10px] text-[#ffca58] mb-1 uppercase font-black tracking-[0.2em] drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
             Proveedor
           </label>
           <select
             value={provider}
-            onChange={(e) => {
-              handleProviderChange(e.target.value);
-            }}
+            onChange={(e) => handleProviderChange(e.target.value)}
             className="w-full px-3 py-2 bg-white/10 border border-magic-gold/20 rounded-lg 
-                       text-[#f4ece0] text-sm focus:border-magic-gold focus:outline-none backdrop-blur-md"
+                       text-[#f4ece0] text-xs focus:border-magic-gold focus:outline-none backdrop-blur-md"
           >
             {PROVIDERS.map(p => (
               <option key={p.id} value={p.id} className="bg-[#1a1612]">
@@ -185,42 +183,35 @@ export default function AiConfigPanel({ onConfigReady, storageKey = DEFAULT_STOR
           </select>
         </div>
 
-        <div className="md:col-span-2">
-          <label className="block text-xs text-[#ffca58]/90 mb-1 uppercase font-bold tracking-widest drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
+        <div className="md:col-span-6">
+          <label className="block text-[10px] text-[#ffca58] mb-1 uppercase font-black tracking-[0.2em] drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
             API Key
           </label>
           <input
             type="password"
             value={apiKey}
             onChange={(e) => updateCurrentProvider({ apiKey: e.target.value })}
-            placeholder={provider === 'gemini' ? 'Google AI API Key...' : `${PROVIDERS.find(p => p.id === provider)?.name} API Key...`}
+            placeholder="Introduce tu llave..."
             className="w-full px-3 py-2 bg-white/10 border border-magic-gold/20 rounded-lg 
-                       text-[#f4ece0] placeholder-magic-gold/30 text-sm
+                       text-[#f4ece0] placeholder-magic-gold/30 text-xs
                        focus:border-magic-gold focus:outline-none backdrop-blur-md"
           />
         </div>
 
-        <div className="flex items-end">
+        <div className="md:col-span-3">
           <button
             onClick={fetchModels}
             disabled={loadingModels || !apiKey}
-            className="w-full px-6 py-2 relative overflow-hidden group
+            className="w-full h-[38px] relative overflow-hidden group
                        bg-white/10 backdrop-blur-md border border-white/20 rounded-lg
-                       text-[#ffca58] font-cinzel font-bold tracking-widest text-xs
-                       hover:bg-white/20 hover:border-white/40 hover:text-white
-                       transition-all duration-500 disabled:opacity-30 disabled:cursor-not-allowed
-                       shadow-[inset_0_1px_0_rgba(255,255,255,0.1),0_4px_12px_rgba(0,0,0,0.3)]"
+                       text-[#ffca58] font-cinzel font-bold tracking-widest text-[10px]
+                       hover:bg-white/20 transition-all duration-300 disabled:opacity-30"
           >
-            {/* Brillo de barrido al hover */}
-            <div className="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] 
-                            bg-gradient-to-r from-transparent via-white/10 to-transparent 
-                            transition-transform duration-1000 ease-in-out" />
-            
             <div className="relative flex items-center justify-center gap-2">
               {loadingModels ? (
-                <span className="w-4 h-4 border-2 border-[#ffca58]/20 border-t-[#ffca58] rounded-full animate-spin" />
+                <span className="w-3 h-3 border-2 border-[#ffca58]/20 border-t-[#ffca58] rounded-full animate-spin" />
               ) : (
-                <span className="group-hover:rotate-180 transition-transform duration-700">🔄</span>
+                <span>🔄</span>
               )}
               <span className="uppercase">Cargar</span>
             </div>
