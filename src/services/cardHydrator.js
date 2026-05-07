@@ -150,16 +150,11 @@ export async function hydrateCard(card) {
 }
 
 export async function hydrateDeckCards(cards) {
-  console.log(`🚀 Hidratando ${cards.length} cartas...`);
+  console.log(`🚀 Hidratando ${cards.length} cartas en paralelo...`);
   
-  const hydrated = [];
-  
-  for (const card of cards) {
-    const hydratedCard = await hydrateCard(card);
-    hydrated.push(hydratedCard);
-  }
+  // Procesar todas las cartas en paralelo para máxima velocidad
+  const hydrated = await Promise.all(cards.map(card => hydrateCard(card)));
   
   console.log(`✅ ${hydrated.length} cartas hidratadas`);
-  
   return hydrated;
 }
