@@ -1,11 +1,15 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-import DataIngestor from '../components/molecules/DataIngestor';
+const DataIngestor = lazy(() => import('../components/molecules/DataIngestor'));
 import { getCardCount } from '../services/dbIngestor';
 
 export default function Home() {
-  const [cardCount, setCardCount] = useState(0);
+  const [cardCount, setCardCount] = useState(() => {
+    // Intentar leer de caché rápida para evitar parpadeo
+    const cached = localStorage.getItem('mtg_card_count');
+    return cached ? parseInt(cached) : 0;
+  });
   const [isLoaded, setIsLoaded] = useState(false);
   const [isScrollOpen, setIsScrollOpen] = useState(false);
   const openSound = useRef(null);
@@ -14,14 +18,20 @@ export default function Home() {
   useEffect(() => {
     getCardCount().then((count) => {
       setCardCount(count);
+      localStorage.setItem('mtg_card_count', count.toString());
       setIsLoaded(true);
     }).catch((err) => {
       console.error('Error:', err);
       setIsLoaded(true);
     });
 
-    openSound.current = new Audio('/ASSETS/audios/scroll_open.MP3');
-    closeSound.current = new Audio('/ASSETS/audios/scroll_close.MP3');
+    // Carga diferida de audios
+    const timer = setTimeout(() => {
+      openSound.current = new Audio('/ASSETS/audios/scroll_open.MP3');
+      closeSound.current = new Audio('/ASSETS/audios/scroll_close.MP3');
+    }, 1000);
+
+    return () => clearTimeout(timer);
   }, []);
 
   const handleOpenScroll = () => {
@@ -42,7 +52,6 @@ export default function Home() {
 
   return (
     <div className="flex flex-col items-center justify-start min-h-screen py-12 px-4">
-      {/* Contenedor Grid para evitar saltos de Layout */}
       <div className="relative w-full max-w-6xl grid grid-cols-1 grid-rows-1 items-start justify-items-center">
         <AnimatePresence>
           {!isScrollOpen ? (
@@ -58,14 +67,13 @@ export default function Home() {
               className="col-start-1 row-start-1 relative cursor-pointer z-20 w-full"
               onClick={handleOpenScroll}
             >
-              {/* Pergamino Enrollado (Ancho unificado) */}
               <img 
-                src="/ASSETS/pergamino.png" 
+                src="/ASSETS/pergamino.webp" 
                 alt="Pergamino Cerrado" 
                 className="w-full h-auto drop-shadow-[0_20px_50px_rgba(0,0,0,0.8)]"
+                fetchpriority="high"
               />
               
-              {/* Sello Rojo Estático (Efecto regeneración) */}
               <motion.div
                 className="absolute top-[52%] left-1/2"
                 style={{ x: "-50%", y: "-50%" }}
@@ -79,14 +87,13 @@ export default function Home() {
                 }}
               >
                 <img 
-                  src="/ASSETS/SelloRojo.png" 
+                  src="/ASSETS/SelloRojo.webp" 
                   alt="Sello Real" 
                   className="w-32 h-32 drop-shadow-[0_0_30px_rgba(255,0,0,0.8)]"
                 />
                 <div className="absolute inset-0 bg-red-600/20 blur-3xl rounded-full -z-10" />
               </motion.div>
 
-              {/* Hint text - Aparece junto al sello */}
               <motion.p
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -112,33 +119,30 @@ export default function Home() {
               }}
               className="col-start-1 row-start-1 relative w-full z-10 overflow-hidden rounded-b-3xl shadow-2xl"
             >
-            {/* Imagen del Pergamino Abierto (Base) */}
             <img 
-              src="/ASSETS/PergAbierto.png" 
+              src="/ASSETS/PergAbierto.webp" 
               alt="Pergamino Abierto" 
               className="w-full h-auto block drop-shadow-[0_40px_80px_rgba(0,0,0,0.9)]"
+              loading="lazy"
             />
 
-            {/* Contenido superpuesto - Ajustado para estar centrado visualmente */}
             <motion.div
               initial={{ opacity: 0, y: 30, scale: 0.98 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               transition={{ delay: 0.8, duration: 1.2, ease: "easeOut" }}
               className="absolute inset-0 z-10 pl-20 pr-10 pt-80 pb-24 flex flex-col items-center overflow-y-auto custom-scrollbar"
             >
-              {/* Bloque de Título y Buscador Unificado */}
               <div className="w-full max-w-2xl flex flex-col items-center text-center space-y-12">
                 
-                {/* Título (PergaQuemado) */}
                 <div className="w-full flex justify-center">
                   <img 
-                    src="/ASSETS/PergaQuemado.png" 
+                    src="/ASSETS/PergaQuemado.webp" 
                     alt="Título Quemado" 
                     className="w-full h-auto drop-shadow-[0_15px_30px_rgba(0,0,0,0.6)]"
+                    loading="lazy"
                   />
                 </div>
 
-                {/* Subtítulo y Separador */}
                 <div className="w-full">
                   <div className="h-px w-64 bg-black/20 mx-auto" />
                   <p className="text-black/80 font-serif italic text-2xl mt-4">
@@ -146,7 +150,6 @@ export default function Home() {
                   </p>
                 </div>
 
-                {/* Buscador (Ahora mide exactamente lo mismo que el título) */}
                 {!isLoaded ? (
                   <div className="flex flex-col items-center justify-center py-12 space-y-4">
                     <div className="w-12 h-12 border-4 border-black/10 border-t-grimorio-gold rounded-full animate-spin" />
@@ -154,17 +157,18 @@ export default function Home() {
                   </div>
                 ) : cardCount === 0 ? (
                   <div className="w-full">
-                    <DataIngestor onComplete={async () => {
-                      // Pequeño delay para que se vea el mensaje de éxito antes de cambiar
-                      setTimeout(async () => {
-                        const count = await getCardCount();
-                        setCardCount(count);
-                      }, 1500);
-                    }} />
+                    <Suspense fallback={<div className="animate-pulse text-black/40">Cargando Ingestor...</div>}>
+                      <DataIngestor onComplete={async () => {
+                        setTimeout(async () => {
+                          const count = await getCardCount();
+                          setCardCount(count);
+                          localStorage.setItem('mtg_card_count', count.toString());
+                        }, 1500);
+                      }} />
+                    </Suspense>
                   </div>
                 ) : (
                   <div className="w-full space-y-20">
-                    {/* Estadísticas */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-8 w-full">
                       {[
                         { label: "Cartas indexadas", value: cardCount.toLocaleString() },
@@ -196,7 +200,7 @@ export default function Home() {
                            transition-all duration-500 shadow-[0_0_20px_rgba(0,0,0,0.5)]
                            hover:shadow-[0_0_25px_rgba(220,38,38,0.5)]"
                 style={{
-                  backgroundImage: "url('/ASSETS/FrostedGlass.jpg')",
+                  backgroundImage: "url('/ASSETS/FrostedGlass.webp')",
                   backgroundSize: 'cover',
                   backgroundBlendMode: 'overlay',
                   filter: 'brightness(1.3)'

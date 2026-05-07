@@ -29,7 +29,7 @@ export default function DeckArchive() {
     <div className="max-w-5xl mx-auto py-8">
       <div className="text-center mb-10">
         <h2 className="text-4xl font-cinzel text-magic-gold mb-2 flex items-center justify-center gap-4">
-          <img src="/ASSETS/TomoHome.png" alt="Tomo" className="w-20 h-20 object-contain drop-shadow-[0_0_20px_rgba(255,202,88,0.4)]" />
+          <img src="/ASSETS/TomoHome.webp" alt="Tomo" className="w-20 h-20 object-contain drop-shadow-[0_0_20px_rgba(255,202,88,0.4)]" />
           Archivo de Mazos
         </h2>
         <p className="text-[#f4ece0]/80 font-medium">
@@ -74,7 +74,7 @@ export default function DeckArchive() {
               <div className="flex justify-between items-start mb-4">
                 <div>
                   <h3 className="text-xl font-cinzel text-magic-gold flex items-center gap-3">
-                    <img src="/ASSETS/iconoDeck.png" alt="Deck Icon" className="w-9 h-9 object-contain" />
+                    <img src="/ASSETS/iconoDeck.webp" alt="Deck Icon" className="w-9 h-9 object-contain" />
                     {deck.name}
                   </h3>
                   <div className="flex gap-2 mt-2">
