@@ -135,12 +135,12 @@ export default function ForgeForm({ onSubmit, isLoading, disabled }) {
             <select
               value={formData.formato}
               onChange={(e) => setFormData(prev => ({ ...prev, formato: e.target.value }))}
-              className="w-full px-4 py-3 bg-black/40 border-2 border-magic-gold/20 rounded-lg 
-                         text-[#f4ece0] focus:border-magic-gold focus:outline-none
-                         transition-all cursor-pointer mb-6"
+              className="w-full px-4 py-3 bg-black/40 border-2 border-magic-gold/10 rounded-lg 
+                         text-[#f4ece0] focus:border-magic-gold/50 focus:outline-none
+                         transition-all cursor-pointer mb-6 backdrop-blur-md font-medium"
             >
               {FORMATOS.map(f => (
-                <option key={f.value} value={f.value} className="bg-[#1a1612]">
+                <option key={f.value} value={f.value} className="bg-[#1a1612] text-[#f4ece0]">
                   {f.label}
                 </option>
               ))}
@@ -152,19 +152,19 @@ export default function ForgeForm({ onSubmit, isLoading, disabled }) {
             <select
               value={formData.archetype}
               onChange={(e) => handleArchetypeChange(e.target.value)}
-              className="w-full px-4 py-3 bg-black/40 border-2 border-magic-gold/20 rounded-lg 
-                         text-[#f4ece0] focus:border-magic-gold focus:outline-none
-                         transition-all cursor-pointer"
+              className="w-full px-4 py-3 bg-black/40 border-2 border-magic-gold/10 rounded-lg 
+                         text-[#f4ece0] focus:border-magic-gold/50 focus:outline-none
+                         transition-all cursor-pointer backdrop-blur-md font-medium"
             >
               {ARCHETYPES.map(a => (
-                <option key={a.value} value={a.value} className="bg-[#1a1612]">
+                <option key={a.value} value={a.value} className="bg-[#1a1612] text-[#f4ece0]">
                   {a.label}
                 </option>
               ))}
             </select>
 
             {currentArchetype && (
-              <div className="mt-3 p-3 bg-white/5 border border-[#ffdf91]/20 rounded-lg">
+              <div className="mt-3 p-3 bg-white/10 border border-[#ffdf91]/20 rounded-lg backdrop-blur-sm">
                 <p className="text-[#f4ece0] text-sm leading-relaxed">
                   {currentArchetype.description}
                 </p>
@@ -180,12 +180,12 @@ export default function ForgeForm({ onSubmit, isLoading, disabled }) {
             <select
               value={formData.rarityMode}
               onChange={(e) => setFormData(prev => ({ ...prev, rarityMode: e.target.value }))}
-              className="w-full px-4 py-3 bg-black/40 border-2 border-magic-gold/20 rounded-lg 
-                         text-[#f4ece0] focus:border-magic-gold focus:outline-none
-                         transition-all cursor-pointer"
+              className="w-full px-4 py-3 bg-black/40 border-2 border-magic-gold/10 rounded-lg 
+                         text-[#f4ece0] focus:border-magic-gold/50 focus:outline-none
+                         transition-all cursor-pointer backdrop-blur-md font-medium"
             >
               {RARITY_MODES.map(r => (
-                <option key={r.value} value={r.value} className="bg-[#1a1612]">
+                <option key={r.value} value={r.value} className="bg-[#1a1612] text-[#f4ece0]">
                   {r.label}
                 </option>
               ))}
@@ -256,7 +256,9 @@ export default function ForgeForm({ onSubmit, isLoading, disabled }) {
             </p>
 
             {errors.colores && (
-              <p className="text-[#701b1b] text-sm mt-2 text-center font-medium">⚠️ {errors.colores}</p>
+              <p className="text-[#ff4d4d] text-sm mt-3 text-center font-black animate-pulse drop-shadow-[0_0_10px_rgba(255,77,77,0.5)]">
+                ⚠️ {errors.colores}
+              </p>
             )}
           </div>
 
@@ -275,15 +277,15 @@ export default function ForgeForm({ onSubmit, isLoading, disabled }) {
                   setFormData(prev => ({ ...prev, tribe: e.target.value }));
                 }
               }}
-              className="w-full px-4 py-3 bg-black/40 border-2 border-magic-gold/20 rounded-lg 
+              className="w-full px-4 py-3 bg-white/10 border-2 border-magic-gold/20 rounded-lg 
                          text-[#f4ece0] focus:border-magic-gold focus:outline-none
-                         transition-all cursor-pointer mb-2"
+                         transition-all cursor-pointer mb-2 backdrop-blur-md font-medium"
             >
-              <option value="">-- Ninguna / Cualquiera --</option>
+              <option value="" className="bg-[#1a1612]">-- Ninguna / Cualquiera --</option>
               {availableTribes.map(t => (
-                <option key={t.id} value={t.label}>{t.label}</option>
+                <option key={t.id} value={t.label} className="bg-[#1a1612]">{t.label}</option>
               ))}
-              <option value="custom">Otra (Manual)...</option>
+              <option value="custom" className="bg-[#1a1612]">Otra (Manual)...</option>
             </select>
             {isCustomTribe && (
               <input
@@ -291,9 +293,9 @@ export default function ForgeForm({ onSubmit, isLoading, disabled }) {
                 value={formData.tribe}
                 onChange={(e) => setFormData(prev => ({ ...prev, tribe: e.target.value }))}
                 placeholder="Escribe tu tribu manual..."
-                className="w-full px-4 py-3 bg-[#1a1612] border-2 border-grimorio-gold/30 rounded-lg 
-                           text-grimorio-parchment placeholder-grimorio-gold/30
-                           focus:border-grimorio-gold focus:outline-none transition-all"
+                className="w-full px-4 py-3 bg-white/10 border-2 border-magic-gold/20 rounded-lg 
+                           text-[#f4ece0] placeholder-magic-gold/30
+                           focus:border-magic-gold focus:outline-none transition-all"
               />
             )}
           </div>
@@ -313,15 +315,15 @@ export default function ForgeForm({ onSubmit, isLoading, disabled }) {
                   setFormData(prev => ({ ...prev, strategy: e.target.value }));
                 }
               }}
-              className="w-full px-4 py-3 bg-black/40 border-2 border-magic-gold/20 rounded-lg 
+              className="w-full px-4 py-3 bg-white/10 border-2 border-magic-gold/20 rounded-lg 
                          text-[#f4ece0] focus:border-magic-gold focus:outline-none
-                         transition-all cursor-pointer mb-2"
+                         transition-all cursor-pointer mb-2 backdrop-blur-md font-medium"
             >
-              <option value="">-- Ninguna --</option>
+              <option value="" className="bg-[#1a1612]">-- Ninguna --</option>
               {availableStrategies.map(s => (
-                <option key={s.id} value={s.label}>{s.label}</option>
+                <option key={s.id} value={s.label} className="bg-[#1a1612]">{s.label}</option>
               ))}
-              <option value="custom">Otra (Manual)...</option>
+              <option value="custom" className="bg-[#1a1612]">Otra (Manual)...</option>
             </select>
             {isCustomStrategy && (
               <input
@@ -329,9 +331,9 @@ export default function ForgeForm({ onSubmit, isLoading, disabled }) {
                 value={formData.strategy}
                 onChange={(e) => setFormData(prev => ({ ...prev, strategy: e.target.value }))}
                 placeholder="Escribe tu estrategia manual..."
-                className="w-full px-4 py-3 bg-[#1a1612] border-2 border-grimorio-gold/30 rounded-lg 
-                           text-grimorio-parchment placeholder-grimorio-gold/30
-                           focus:border-grimorio-gold focus:outline-none transition-all"
+                className="w-full px-4 py-3 bg-white/10 border-2 border-magic-gold/20 rounded-lg 
+                           text-[#f4ece0] placeholder-magic-gold/30
+                           focus:border-magic-gold focus:outline-none transition-all"
               />
             )}
           </div>
@@ -348,8 +350,8 @@ export default function ForgeForm({ onSubmit, isLoading, disabled }) {
               placeholder="Describe tu visión... Ej: 'Quiero un mazo de pirates voladores que controlen el cielo y roben cartas del oponente'"
               rows={5}
               className={cn(
-                "w-full px-4 py-3 bg-black/40 border-2 rounded-lg text-[#f4ece0] placeholder-magic-gold/30",
-                "focus:border-magic-gold focus:outline-none transition-all resize-none border-magic-gold/20"
+                "w-full px-4 py-3 bg-black/40 border-2 rounded-lg text-[#f4ece0] placeholder-magic-gold/20",
+                "focus:border-magic-gold/50 focus:outline-none transition-all resize-none border-magic-gold/10 backdrop-blur-md"
               )}
             />
             <div className="flex justify-end mt-2">
@@ -361,25 +363,22 @@ export default function ForgeForm({ onSubmit, isLoading, disabled }) {
         </div>
       </div>
 
-      <div className="pt-4">
+      <div className="pt-4 flex justify-center">
         <motion.button
           type="submit"
+          onClick={handleSubmit}
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
           disabled={isLoading || disabled}
-          className="w-full btn-asset"
+          className="btn-asset"
         >
           {isLoading ? (
             <span className="flex items-center justify-center gap-3 text-stone-engraved">
               <span className="w-5 h-5 border-2 border-[#ffca58]/30 border-t-[#ffca58] rounded-full animate-spin" />
               Forjando...
             </span>
-          ) : disabled ? (
-            <span className="flex items-center justify-center gap-2 text-stone-engraved opacity-60">
-              ⚠️ Selecciona un modelo
-            </span>
           ) : (
-            <span className="text-stone-engraved">
+            <span className="text-stone-engraved uppercase tracking-[0.2em]">
               Forjar Mazo Con IA
             </span>
           )}

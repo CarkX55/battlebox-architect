@@ -174,8 +174,8 @@ export default function AiConfigPanel({ onConfigReady, storageKey = DEFAULT_STOR
             onChange={(e) => {
               handleProviderChange(e.target.value);
             }}
-            className="w-full px-3 py-2 bg-black/40 border border-magic-gold/20 rounded-lg 
-                       text-[#f4ece0] text-sm focus:border-magic-gold focus:outline-none"
+            className="w-full px-3 py-2 bg-white/10 border border-magic-gold/20 rounded-lg 
+                       text-[#f4ece0] text-sm focus:border-magic-gold focus:outline-none backdrop-blur-md"
           >
             {PROVIDERS.map(p => (
               <option key={p.id} value={p.id} className="bg-[#1a1612]">
@@ -194,9 +194,9 @@ export default function AiConfigPanel({ onConfigReady, storageKey = DEFAULT_STOR
             value={apiKey}
             onChange={(e) => updateCurrentProvider({ apiKey: e.target.value })}
             placeholder={provider === 'gemini' ? 'Google AI API Key...' : `${PROVIDERS.find(p => p.id === provider)?.name} API Key...`}
-            className="w-full px-3 py-2 bg-black/40 border border-magic-gold/20 rounded-lg 
+            className="w-full px-3 py-2 bg-white/10 border border-magic-gold/20 rounded-lg 
                        text-[#f4ece0] placeholder-magic-gold/30 text-sm
-                       focus:border-magic-gold focus:outline-none"
+                       focus:border-magic-gold focus:outline-none backdrop-blur-md"
           />
         </div>
 
@@ -229,7 +229,7 @@ export default function AiConfigPanel({ onConfigReady, storageKey = DEFAULT_STOR
       </div>
 
       {error && (
-        <p className="text-[#701b1b] text-xs mt-2">{error}</p>
+        <p className="text-[#ff4d4d] text-xs mt-2 font-bold drop-shadow-[0_0_5px_rgba(255,77,77,0.3)]">⚠️ {error}</p>
       )}
 
       {models.length > 0 && (
@@ -243,16 +243,16 @@ export default function AiConfigPanel({ onConfigReady, storageKey = DEFAULT_STOR
               value={searchFilter}
               onChange={(e) => setSearchFilter(e.target.value)}
               placeholder="Buscar modelo por nombre..."
-              className="w-full px-3 py-2 mb-2 bg-black/40 border border-magic-gold/20 rounded-lg 
+              className="w-full px-3 py-2 mb-2 bg-white/10 border border-magic-gold/20 rounded-lg 
                          text-[#f4ece0] placeholder-magic-gold/30 text-sm
-                         focus:border-magic-gold focus:outline-none"
+                         focus:border-magic-gold focus:outline-none backdrop-blur-md"
             />
           )}
           <select
             value={selectedModel}
             onChange={(e) => updateCurrentProvider({ model: e.target.value })}
-            className="w-full px-3 py-2 bg-black/40 border border-magic-gold/20 rounded-lg 
-                       text-[#f4ece0] text-sm focus:border-magic-gold focus:outline-none"
+            className="w-full px-3 py-2 bg-white/10 border border-magic-gold/20 rounded-lg 
+                       text-[#f4ece0] text-sm focus:border-magic-gold focus:outline-none backdrop-blur-md"
           >
             <option value="" className="bg-[#1a1612]">Selecciona un modelo...</option>
             {filteredModels.map(m => (

@@ -75,16 +75,18 @@ export default function Home() {
               />
               
               <motion.div
-                className="absolute top-[52%] left-1/2"
+                className="absolute top-[52%] left-1/2 cursor-pointer"
                 style={{ x: "-50%", y: "-50%" }}
                 initial={{ opacity: 0, scale: 2, filter: "brightness(3) blur(15px)" }}
                 animate={{ opacity: 1, scale: 1, filter: "brightness(1) blur(0px)" }}
-                whileHover={{ filter: "brightness(2)", scale: 1.1 }}
+                whileHover={{ scale: 1.1, filter: "brightness(1.2) drop-shadow(0 0 20px rgba(255,0,0,0.6))" }}
+                whileTap={{ scale: 0.9 }}
                 transition={{ 
-                  delay: 1.2, 
-                  duration: 2,
+                  delay: 0.5, 
+                  duration: 1,
                   ease: "easeOut" 
                 }}
+                onClick={handleOpenScroll}
               >
                 <img 
                   src="/ASSETS/SelloRojo.webp" 
