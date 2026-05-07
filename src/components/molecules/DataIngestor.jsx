@@ -105,7 +105,7 @@ export default function DataIngestor({ onComplete }) {
               />
               <div className="absolute inset-0 flex items-center justify-center">
                 <motion.img
-                  src="/ASSETS/TomoHome.png"
+                  src="/ASSETS/TomoHome.webp"
                   alt="Cargando..."
                   animate={{ 
                     scale: [1, 1.1, 1],
