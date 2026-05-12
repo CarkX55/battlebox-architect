@@ -1,21 +1,24 @@
-import { useState } from 'react';
-import { BATTLEBOX_BANLIST, COLORS } from '../constants/legacyBattleBox';
+import { useState, useMemo } from 'react';
+import { BATTLEBOX_BANLIST, COLORS, BATTLEBOX_RULES } from '../constants/legacyBattleBox';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../utils/cn';
 import ForgeForm from '../components/forge/ForgeForm';
 import ManaOrb from '../components/atoms/ManaOrb';
 import AiConfigPanel from '../components/forge/AiConfigPanel';
 import VisualGrid from '../components/battlebox/VisualGrid';
-import { getKarstenLandCount, generateManaBase } from '../services/deckCalculator';
+import { hydrateDeckCards } from '../services/cardHydrator';
 import { forgeMazo, callAI } from '../services/aiFactory';
-import { hydrateDeckCards, isLegalInLegacy } from '../services/cardHydrator';
-import { archiveDeck } from '../services/archiveService';
+import { archiveDeck, archiveDeckOnline } from '../services/archiveService';
 import CardSearch from '../components/forge/CardSearch';
 import HandSimulator from '../components/forge/HandSimulator';
 import RadarChart from '../components/forge/RadarChart';
 import ManaCurve from '../components/forge/ManaCurve';
+import { AlertTriangle, Shield, Lightbulb, Target, Scroll, PenTool, CheckCircle2, XCircle, Info, Zap } from 'lucide-react';
 
 const FORGE_STORAGE_KEY = 'mtg_ai_config_forge';
+
+// Helper para detectar tierras básicas
+const isBasicLand = (name) => ['Plains', 'Island', 'Swamp', 'Mountain', 'Forest', 'Wastes'].includes(name) || name.startsWith('Snow-Covered');
 
 export default function DeckForge() {
   const [mode, setMode] = useState('form');
@@ -36,8 +39,27 @@ export default function DeckForge() {
   const [showHandSim, setShowHandSim] = useState(false);
   const [pocketGuide, setPocketGuide] = useState(null);
   const [isGeneratingGuide, setIsGeneratingGuide] = useState(false);
+  const [cloudArchived, setCloudArchived] = useState(false);
 
-  const handleArchive = () => {
+  // --- LÓGICA DE VALIDACIÓN DE REGLAS ---
+  const stats = useMemo(() => {
+    const mainCount = renderDeck.reduce((sum, c) => sum + c.quantity, 0);
+    const sideCount = renderSideboard.reduce((sum, c) => sum + c.quantity, 0);
+    const bannedInDeck = [...renderDeck, ...renderSideboard].filter(c => BATTLEBOX_BANLIST.includes(c.name));
+    const overLimit = [...renderDeck, ...renderSideboard].filter(c => !isBasicLand(c.name) && c.quantity > BATTLEBOX_RULES.maxCopies);
+    
+    return {
+      mainCount,
+      sideCount,
+      isMainValid: mainCount >= BATTLEBOX_RULES.minMain,
+      isSideValid: sideCount === BATTLEBOX_RULES.targetSideboard,
+      banned: bannedInDeck,
+      overLimit,
+      isValid: mainCount >= BATTLEBOX_RULES.minMain && bannedInDeck.length === 0 && overLimit.length === 0
+    };
+  }, [renderDeck, renderSideboard]);
+
+  const handleArchive = async () => {
     if (!renderDeck.length) return;
     
     const deckToArchive = {
@@ -51,10 +73,33 @@ export default function DeckForge() {
       sideboard: renderSideboard
     };
 
-    const success = archiveDeck(deckToArchive);
+    const success = await archiveDeck(deckToArchive);
     if (success) {
       setArchived(true);
       setTimeout(() => setArchived(false), 3000);
+    }
+  };
+
+  const handleArchiveOnline = async () => {
+    if (!renderDeck.length) return;
+    
+    const deckToArchive = {
+      id: Date.now().toString(),
+      name: aiMetadata?.deckName || 'Mazo Sin Nombre',
+      archetype: aiMetadata?.archetype || lastFormData?.archetype,
+      colors: lastFormData?.colores,
+      format: 'Legacy Battle Box (Casual)',
+      lore: aiMetadata?.lore,
+      cards: renderDeck,
+      sideboard: renderSideboard
+    };
+
+    const success = await archiveDeckOnline(deckToArchive);
+    if (success) {
+      setCloudArchived(true);
+      setTimeout(() => setCloudArchived(false), 3000);
+    } else {
+      setWarning("⚠️ No se pudo subir a la nube. Comprueba tus credenciales de Firebase en el .env");
     }
   };
 
@@ -80,51 +125,33 @@ export default function DeckForge() {
       
       setAiMetadata(aiResult);
       
-      // Hidratar cartas (traer imágenes y metadatos de Scryfall/Cache)
       const hydratedDeck = await hydrateDeckCards(aiResult.cards);
       const hydratedSideboard = aiResult.sideboard ? await hydrateDeckCards(aiResult.sideboard) : [];
       
-      // Validación de Banlist Custom
-      const illegalCards = [...hydratedDeck, ...hydratedSideboard].filter(c => BATTLEBOX_BANLIST.includes(c.name));
-      if (illegalCards.length > 0) {
-        setWarning(`⚠️ Banlist: Se han detectado cartas no permitidas: ${illegalCards.map(c => c.name).join(', ')}. La IA ha fallado en la restricción.`);
-      }
+      // Auto-Corrección Matemática Final
+      let finalDeck = [...hydratedDeck];
+      let currentCount = finalDeck.reduce((sum, c) => sum + c.quantity, 0);
       
-      // Cálculo Inteligente y Estricto de 60 Cartas
-      const rawNonLands = [...hydratedDeck];
-      const recommendedLandsCount = getKarstenLandCount(rawNonLands);
-      const safeMinimumLands = (lastFormData?.archetype?.includes('aggro') || lastFormData?.archetype === 'tempo') ? 20 : 23;
-      
-      const finalLandsCount = Math.max(safeMinimumLands, recommendedLandsCount);
-      const maxSpellsAllowed = 60 - finalLandsCount;
-      
-      let finalSpells = [];
-      let currentSpellCount = 0;
-
-      // Poda estricta para el Main Deck (lo que no quepa se descarta para no ensuciar el Sideboard estratégico)
-      rawNonLands.forEach(card => {
-        if (currentSpellCount + card.quantity <= maxSpellsAllowed) {
-          finalSpells.push(card);
-          currentSpellCount += card.quantity;
-        } else if (currentSpellCount < maxSpellsAllowed) {
-          const spaceLeft = maxSpellsAllowed - currentSpellCount;
-          finalSpells.push({ ...card, quantity: spaceLeft });
-          currentSpellCount += spaceLeft;
+      if (currentCount !== 60) {
+        if (currentCount > 60) {
+          let excess = currentCount - 60;
+          let landsDesc = finalDeck.map((c, i) => ({...c, originalIndex: i})).filter(c => c.category === 'Land').sort((a, b) => b.quantity - a.quantity);
+          for (let land of landsDesc) {
+            if (excess > 0 && land.quantity > 1) {
+              const toRemove = Math.min(land.quantity - 1, excess);
+              finalDeck[land.originalIndex].quantity -= toRemove;
+              excess -= toRemove;
+            }
+          }
+        } else if (currentCount < 60) {
+          const missing = 60 - currentCount;
+          const lands = finalDeck.filter(c => c.category === 'Land').sort((a, b) => b.quantity - a.quantity);
+          if (lands.length > 0) {
+            const index = finalDeck.findIndex(c => c.name === lands[0].name);
+            finalDeck[index].quantity += missing;
+          }
         }
-      });
-
-      if (rawNonLands.reduce((s,c)=>s+c.quantity,0) > maxSpellsAllowed) {
-        setWarning(`📏 Poda de Precisión: He ajustado el Main Deck a exactamente 60 cartas para maximizar la consistencia con ${finalLandsCount} tierras.`);
       }
-
-      const manaBase = await generateManaBase(
-        aiResult.pipBalance,
-        finalLandsCount,
-        formData.colores,
-        'Legacy'
-      );
-      
-      const finalDeck = [...finalSpells, ...manaBase];
       
       setRenderDeck(finalDeck);
       setRenderSideboard(hydratedSideboard); 
@@ -139,21 +166,33 @@ export default function DeckForge() {
   };
 
   const handleAddCard = async (scryfallCard) => {
-    const newCard = {
-      name: scryfallCard.name,
-      type_line: scryfallCard.type_line,
-      quantity: 1,
-      category: scryfallCard.type_line.split('—')[0].trim(),
-      image_uris: scryfallCard.image_uris || scryfallCard.card_faces?.[0]?.image_uris
-    };
+    const cardName = scryfallCard.name;
     
+    // Bloqueo de Banlist
+    if (BATTLEBOX_BANLIST.includes(cardName)) {
+      setWarning(`⚠️ La carta "${cardName}" está PROHIBIDA en Legacy Casual.`);
+      return;
+    }
+
     setRenderDeck(prev => {
-      const exists = prev.find(c => c.name === newCard.name);
+      const exists = prev.find(c => c.name === cardName);
       if (exists) {
-        return prev.map(c => c.name === newCard.name ? { ...c, quantity: c.quantity + 1 } : c);
+        // Bloqueo de Copias (Regla de 4)
+        if (!isBasicLand(cardName) && exists.quantity >= BATTLEBOX_RULES.maxCopies) {
+          setWarning(`⚠️ Límite de copias alcanzado: Máximo ${BATTLEBOX_RULES.maxCopies} de "${cardName}".`);
+          return prev;
+        }
+        return prev.map(c => c.name === cardName ? { ...c, quantity: c.quantity + 1 } : c);
       }
-      return [...prev, newCard];
+      return [...prev, {
+        name: scryfallCard.name,
+        type_line: scryfallCard.type_line,
+        quantity: 1,
+        category: scryfallCard.type_line.split('—')[0].trim(),
+        image_uris: scryfallCard.image_uris || scryfallCard.card_faces?.[0]?.image_uris
+      }];
     });
+    setWarning(null);
   };
 
   const handleRemoveCard = (cardName) => {
@@ -170,40 +209,15 @@ export default function DeckForge() {
     if (!renderDeck.length) return;
     setIsGeneratingGuide(true);
     try {
-      const prompt = `Actúa como un Gran Maestro de Magic: The Gathering.
-      Has diseñado este mazo de "Legacy Battle Box" llamado "${aiMetadata?.deckName}" (${aiMetadata?.archetype}):
-      
-      MAIN DECK:
-      ${renderDeck.map(c => `${c.quantity}x ${c.name}`).join('\n')}
-      
-      SIDEBOARD ESTRATÉGICO:
-      ${renderSideboard.map(c => `${c.quantity}x ${c.name}`).join('\n')}
-      
-      ESTRATEGIA GENERAL: ${aiMetadata?.strategy}
-      
-      INFUNDE SABIDURÍA: Genera una Guía de Bolsillo de NIVEL PROFESIONAL en español:
-      1. PLAN DE ATAQUE: Explica en una frase el "Win Condition" principal y cómo llegar a él.
-      2. GUÍA DE MULLIGAN: Describe exactamente qué tipo de mano es un "Snap Keep" y qué manos son veneno para este mazo.
-      3. TRUCOS TÉCNICOS: Proporciona 3 interacciones o sinergias ocultas entre las cartas que un jugador novato podría pasar por alto.
-      
-      Responde EXCLUSIVAMENTE con un JSON puro: 
-      { "plan": "...", "mulligan": "...", "tips": "..." }`;
+      const prompt = `Guía de Bolsillo para "${aiMetadata?.deckName}" (${aiMetadata?.archetype}):
+      MAZO: ${renderDeck.map(c => `${c.quantity} ${c.name}`).join(', ')}
+      Genera JSON: { "plan": "...", "mulligan": "...", "tips": "..." }`;
 
-      const messages = [
-        { role: 'system', content: 'Eres un Gran Maestro de Magic: The Gathering, experto en el formato Legacy Battle Box.' },
-        { role: 'user', content: prompt }
-      ];
+      const messages = [{ role: 'user', content: prompt }];
       const response = await callAI(messages, aiConfig, { forceJSON: true });
-      const cleaned = response.replace(/```json/g, '').replace(/```/g, '').trim();
-      const json = JSON.parse(cleaned);
-      setPocketGuide(json);
+      setPocketGuide(JSON.parse(response.replace(/```json/g, '').replace(/```/g, '').trim()));
     } catch (err) {
-      console.error('Error infundiendo sabiduría:', err);
-      setPocketGuide({
-        plan: "Error al sintonizar con el Arquitecto. Inténtalo de nuevo.",
-        mulligan: "Mantén manos con tierras y hechizos de coste bajo.",
-        tips: "• Consulta las reglas del formato.\n• Analiza el mazo de tus oponentes.\n• Sé agresivo pero guarda respuestas."
-      });
+      console.error('Error:', err);
     } finally {
       setIsGeneratingGuide(false);
     }
@@ -217,286 +231,172 @@ export default function DeckForge() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-black/90 backdrop-blur-2xl"
+            className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-black/95 backdrop-blur-3xl"
           >
             <motion.div
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ 
-                scale: [0.95, 1.05, 0.95],
-                opacity: 1,
-              }}
-              transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-              className="relative z-10 flex flex-col items-center"
+              animate={{ scale: [0.98, 1.02, 0.98] }}
+              transition={{ duration: 3, repeat: Infinity }}
+              className="relative flex flex-col items-center"
             >
-              <img 
-                src="/ASSETS/invocando.webp" 
-                alt="Invocando" 
-                className="w-80 h-80 md:w-[500px] md:h-[500px] object-contain drop-shadow-[0_0_50px_rgba(255,202,88,0.4)]"
-              />
-              
-              <div className="text-center mt-4">
-                <h2 className="text-4xl md:text-6xl font-cinzel text-magic-gold tracking-[0.4em] mb-4 drop-shadow-[0_0_15px_rgba(255,202,88,0.6)]">
-                  FORJANDO
-                </h2>
-                <div className="flex items-center justify-center gap-3">
-                  <span className="w-12 h-[1px] bg-gradient-to-r from-transparent to-magic-gold/50" />
-                  <p className="text-[#f4ece0] text-sm md:text-base uppercase tracking-[0.3em] font-medium animate-pulse">
-                    Invocando al Oráculo del Multiverso
-                  </p>
-                  <span className="w-12 h-[1px] bg-gradient-to-l from-transparent to-magic-gold/50" />
-                </div>
-              </div>
+              <img src="/ASSETS/invocando.webp" alt="Forjando" className="w-80 h-80 object-contain drop-shadow-[0_0_50px_rgba(255,202,88,0.3)]" />
+              <h2 className="text-4xl font-cinzel text-magic-gold tracking-[0.4em] mt-8 animate-pulse">FORJANDO</h2>
             </motion.div>
-
-            {/* Partículas de maná (opcional, decorativo) */}
-            <div className="absolute bottom-20 flex gap-4 opacity-50">
-              {['W','U','B','R','G','C'].map((c, i) => (
-                <motion.div
-                  key={c}
-                  animate={{ y: [0, -10, 0], opacity: [0.3, 0.8, 0.3] }}
-                  transition={{ duration: 2, delay: i * 0.4, repeat: Infinity }}
-                >
-                  <ManaOrb color={c} size="w-8 h-8" />
-                </motion.div>
-              ))}
-            </div>
           </motion.div>
         )}
       </AnimatePresence>
 
       <AnimatePresence mode="wait">
         {mode === 'form' ? (
-          <motion.div
-            key="form"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-          >
+          <motion.div key="form" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
             <div className="max-w-2xl mx-auto mb-8 p-6 frosted-panel shadow-2xl">
               <AiConfigPanel 
-                onConfigReady={(newConfig) => {
-                  setAiConfig(newConfig);
-                  localStorage.setItem(FORGE_STORAGE_KEY, JSON.stringify(newConfig));
-                }}
+                onConfigReady={setAiConfig}
                 storageKey={FORGE_STORAGE_KEY}
               />
             </div>
-
-            <ForgeForm 
-              onSubmit={handleSubmit} 
-              isLoading={loading} 
-              error={error} 
-              aiConfig={aiConfig}
-              disabled={!aiConfig?.selectedModel || !aiConfig?.apiKey}
-            />
+            <ForgeForm onSubmit={handleSubmit} isLoading={loading} error={error} aiConfig={aiConfig} />
           </motion.div>
         ) : (
-          <motion.div
-            key="deck"
-            initial={{ opacity: 0, scale: 0.98 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="mt-8"
-          >
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-8 gap-6 p-8">
+          <motion.div key="deck" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-8">
+            {/* Header del Mazo */}
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-8 gap-6 p-8 leather-panel border-magic-gold/10 shadow-2xl">
               <div className="flex-1 min-w-0">
                 <div className="flex flex-wrap items-center gap-4 mb-2">
-                  <h2 className="text-3xl md:text-4xl font-cinzel text-magic-gold tracking-wide leading-tight flex items-center gap-3">
-                    <img src="/ASSETS/iconoDeck.webp" alt="Deck Icon" className="w-20 h-20 object-contain drop-shadow-[0_0_15px_rgba(255,202,88,0.4)]" />
+                  <h2 className="text-3xl font-cinzel text-magic-gold tracking-wide flex items-center gap-3">
+                    <img src="/ASSETS/iconoDeck.webp" alt="Deck" className="w-16 h-16 object-contain drop-shadow-[0_0_15px_rgba(255,202,88,0.3)]" />
                     {aiMetadata?.deckName || 'Mazo Forjado'}
                   </h2>
-                  {lastFormData?.colores?.length > 0 && (
-                    <div className="flex -space-x-2 bg-black/40 p-2 rounded-full border border-magic-gold/20 shadow-inner">
-                      {lastFormData.colores.map(color => (
-                        <ManaOrb key={color} color={color} size="w-12 h-12" />
-                      ))}
-                    </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-magic-gold/60 text-[10px] uppercase tracking-[0.2em] font-bold">
+                    {lastFormData?.archetype} • {stats.mainCount} CARTAS
+                  </span>
+                  {stats.isValid ? (
+                    <span className="flex items-center gap-1 text-[10px] bg-green-500/10 text-green-400 px-2 py-0.5 rounded-full border border-green-500/20 uppercase tracking-tighter">
+                      <CheckCircle2 size={12} /> Legal en Legacy Casual
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1 text-[10px] bg-red-500/10 text-red-400 px-2 py-0.5 rounded-full border border-red-500/20 uppercase tracking-tighter">
+                      <XCircle size={12} /> No cumple las reglas
+                    </span>
                   )}
                 </div>
-                <p className="text-[#f4ece0]/60 text-[11px] uppercase tracking-[0.3em] font-medium pl-1 mb-2">
-                  Legacy Battle Box (Casual) • {lastFormData?.archetype}
-                </p>
               </div>
               
-              <div className="flex flex-wrap gap-2 shrink-0">
-                <button
-                  onClick={() => setIsEditing(!isEditing)}
-                  className={cn(
-                    "btn-magic-glass btn-glass-blue",
-                    isEditing && "border-blue-500/50 bg-blue-500/10 text-blue-400 shadow-[0_0_15px_rgba(59,130,246,0.2)]"
-                  )}
-                >
-                  {isEditing ? '💾 Guardar' : '✍️ Edición'}
-                </button>
+              <div className="flex flex-wrap gap-3">
                 <button
                   onClick={() => setShowHandSim(true)}
-                  className="btn-magic-glass btn-glass-purple flex items-center gap-2"
+                  className="btn-magic-glass btn-glass-silver shadow-lg"
                 >
-                  <img src="/ASSETS/ManoDragon.webp" alt="Mano" className="w-5 h-5 object-contain" />
-                  Mano
+                  🖐️ Testear Mano
+                </button>
+                <button
+                  onClick={() => setIsEditing(!isEditing)}
+                  className={cn("btn-magic-glass", isEditing ? "btn-glass-blue border-blue-500/40" : "btn-glass-silver")}
+                >
+                  {isEditing ? '💾 Guardar Cambios' : '✍️ Editar Mazo'}
                 </button>
                 <button
                   onClick={handleArchive}
-                  disabled={archived}
-                  className={cn(
-                    "btn-magic-glass btn-glass-gold",
-                    archived && "border-green-500/50 bg-green-500/10 text-green-400"
-                  )}
+                  disabled={!stats.isValid}
+                  className={cn("btn-magic-glass btn-glass-gold shadow-lg", !stats.isValid && "opacity-50 grayscale")}
                 >
-                  {archived ? '✅ OK' : '📦 Archivar'}
+                  {archived ? '✅ Archivado' : '📦 Archivar Local'}
                 </button>
                 <button
-                  onClick={() => setMode('form')}
-                  className="btn-magic-glass btn-glass-silver"
+                  onClick={handleArchiveOnline}
+                  disabled={!stats.isValid}
+                  className={cn("btn-magic-glass btn-glass-blue shadow-lg", !stats.isValid && "opacity-50 grayscale")}
                 >
-                  ← Nuevo
+                  {cloudArchived ? '☁️ Subido' : '☁️ Subir Nube'}
                 </button>
+                <button onClick={() => setMode('form')} className="btn-magic-glass btn-glass-silver">← Nuevo</button>
               </div>
             </div>
 
-            {aiMetadata?.lore && (
-              <div className="mb-8 w-full flex justify-center">
-                <div className="parchment-lore text-sm md:text-base w-full max-w-4xl">
-                  {aiMetadata.lore}
+            {/* Alertas de Reglas */}
+            {!stats.isValid && (
+              <div className="mb-8 grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className={cn("p-4 rounded-xl border flex items-center gap-3 shadow-lg backdrop-blur-md transition-all", stats.isMainValid ? "bg-green-500/5 border-green-500/20 text-green-400" : "bg-red-500/5 border-red-500/20 text-red-400")}>
+                  {stats.isMainValid ? <CheckCircle2 size={20} /> : <AlertTriangle size={20} />}
+                  <div>
+                    <p className="text-[10px] uppercase font-bold opacity-60">Cartas Main</p>
+                    <p className="text-sm font-bold">{stats.mainCount} / 60 requeridas</p>
+                  </div>
+                </div>
+                <div className={cn("p-4 rounded-xl border flex items-center gap-3 shadow-lg backdrop-blur-md transition-all", stats.banned.length === 0 ? "bg-green-500/5 border-green-500/20 text-green-400" : "bg-red-500/5 border-red-500/20 text-red-400")}>
+                  {stats.banned.length === 0 ? <CheckCircle2 size={20} /> : <Shield size={20} />}
+                  <div>
+                    <p className="text-[10px] uppercase font-bold opacity-60">Cartas Prohibidas</p>
+                    <p className="text-sm font-bold">{stats.banned.length === 0 ? 'Limpio' : `${stats.banned.length} ilegales`}</p>
+                  </div>
+                </div>
+                <div className={cn("p-4 rounded-xl border flex items-center gap-3 shadow-lg backdrop-blur-md transition-all", stats.overLimit.length === 0 ? "bg-green-500/5 border-green-500/20 text-green-400" : "bg-red-500/5 border-red-500/20 text-red-400")}>
+                  {stats.overLimit.length === 0 ? <CheckCircle2 size={20} /> : <Info size={20} />}
+                  <div>
+                    <p className="text-[10px] uppercase font-bold opacity-60">Límite de Copias</p>
+                    <p className="text-sm font-bold">{stats.overLimit.length === 0 ? 'Correcto (máx 4)' : 'Exceso detectado'}</p>
+                  </div>
                 </div>
               </div>
             )}
 
             {warning && (
-              <div className="frosted-panel p-4 text-magic-gold text-sm flex items-center gap-3 mb-6 shadow-lg border-magic-gold/20">
-                <span className="text-xl">⚠️</span> {warning}
-              </div>
+              <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-6 p-4 bg-red-950/20 border border-red-500/30 text-red-400 text-xs rounded-xl flex items-center gap-3 shadow-2xl">
+                <AlertTriangle size={16} /> {warning}
+                <button onClick={() => setWarning(null)} className="ml-auto text-red-400/50 hover:text-red-400"><XCircle size={14} /></button>
+              </motion.div>
             )}
-
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-12">
               <div className="lg:col-span-2">
                 {isEditing && <CardSearch onAddCard={handleAddCard} />}
-                <VisualGrid 
-                  cards={renderDeck} 
-                  isEditing={isEditing} 
-                  onRemoveCard={handleRemoveCard} 
-                />
-
-                {renderSideboard.length > 0 && (
-                  <div className="mt-12">
-                    <div className="flex items-center gap-3 mb-6">
-                      <div className="w-10 h-10 rounded-xl bg-purple-500/20 flex items-center justify-center border border-purple-500/30">
-                        <span className="text-xl">🛡️</span>
-                      </div>
-                      <h2 className="text-2xl font-bold text-white tracking-tight">Sideboard Estratégico</h2>
-                    </div>
-
-                    {sideboardStrategy && (
-                      <div className="mb-6 p-6 frosted-panel border-purple-500/30 shadow-[inset_0_0_20px_rgba(168,85,247,0.1)] group">
-                        <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                          <span className="text-4xl">💡</span>
-                        </div>
-                        <h3 className="text-purple-400 font-bold mb-2 flex items-center gap-2">
-                          Guía Táctica:
-                        </h3>
-                        <p className="text-slate-300 text-sm leading-relaxed italic">
-                          {sideboardStrategy}
-                        </p>
-                      </div>
-                    )}
-
-                    <VisualGrid 
-                      cards={renderSideboard} 
-                      isEditing={isEditing} 
-                      onRemoveCard={(c) => setRenderSideboard(prev => prev.filter(p => p.name !== c.name))}
-                    />
-                  </div>
-                )}
+                <VisualGrid cards={renderDeck} isEditing={isEditing} onRemoveCard={handleRemoveCard} />
               </div>
 
               <div className="space-y-6">
-                <RadarChart data={{
-                  Velocidad: aiMetadata?.pipBalance?.R > 25 ? 9 : (aiMetadata?.pipBalance?.W > 25 ? 8 : 6),
-                  Control: aiMetadata?.pipBalance?.U > 25 ? 9 : (aiMetadata?.pipBalance?.B > 25 ? 7 : 5),
-                  Poder: 8,
-                  Complejidad: 7,
-                  Resiliencia: 6
-                }} />
-
+                <div className="leather-panel p-6 shadow-2xl">
+                  <h4 className="font-cinzel text-magic-gold text-lg mb-6 flex items-center gap-2">
+                    <Target className="w-5 h-5" /> Potencial Bélico
+                  </h4>
+                  <RadarChart data={{
+                    Velocidad: 8, Control: 7, Poder: 8, Complejidad: 7, Resiliencia: 6
+                  }} />
+                </div>
                 <ManaCurve deck={renderDeck} />
 
-                <div className="parchment-scroll">
-                  <div className="parchment-content">
-                    <h4 className="font-cinzel text-[#4a3318] text-lg mb-6 flex items-center gap-2 relative z-10 border-b border-[#4a3318]/20 pb-2">
-                      📜 Guía de Sabiduría Ancestral
-                      {!pocketGuide && !isGeneratingGuide && (
-                        <button 
-                          onClick={generateGuide}
-                          className="ml-auto text-[10px] px-3 py-1 bg-[#4a3318]/10 hover:bg-[#4a3318]/20 border border-[#4a3318]/30 rounded-full transition-all uppercase tracking-widest font-bold text-[#4a3318]"
-                        >
-                          🖋️ Descifrar Pergamino
-                        </button>
-                      )}
+                {pocketGuide && (
+                  <div className="parchment-scroll p-8 shadow-2xl">
+                    <h4 className="font-cinzel text-[#4a3318] text-lg mb-4 flex items-center gap-2 border-b border-[#4a3318]/20 pb-2">
+                      <Scroll size={24} /> Guía del Maestro
                     </h4>
-                    
-                    {isGeneratingGuide ? (
-                      <div className="space-y-4 animate-pulse">
-                        <div className="h-4 bg-[#4a3318]/10 rounded w-3/4" />
-                        <div className="h-4 bg-[#4a3318]/10 rounded w-full" />
-                        <div className="h-4 bg-[#4a3318]/10 rounded w-5/6" />
+                    <div className="space-y-4">
+                      <div>
+                        <p className="text-[10px] font-bold uppercase text-[#4a3318]/60 mb-1">Estrategia</p>
+                        <p className="text-sm text-[#4a3318] leading-relaxed italic">"{pocketGuide.plan}"</p>
                       </div>
-                    ) : pocketGuide ? (
-                      <div className="space-y-6 relative z-10">
-                        <div>
-                          <p className="text-[11px] mb-1 flex items-center gap-2 parchment-label uppercase tracking-widest">
-                            ⚔️ Plan de Ataque
-                          </p>
-                          <p className="text-sm leading-relaxed italic parchment-ink">
-                            "{pocketGuide.plan}"
-                          </p>
-                        </div>
-                        
-                        {pocketGuide.mulligan && (
-                          <div>
-                            <p className="text-[11px] mb-1 flex items-center gap-2 parchment-label uppercase tracking-widest">
-                              <img src="/ASSETS/ManoDragon.webp" alt="Mano" className="w-4 h-4 object-contain" />
-                              Estrategia Mulligan
-                            </p>
-                            <p className="text-sm leading-relaxed parchment-ink">
-                              {pocketGuide.mulligan}
-                            </p>
-                          </div>
-                        )}
-  
-                        {pocketGuide.tips && (
-                          <div>
-                            <p className="text-[11px] mb-1 flex items-center gap-2 parchment-label uppercase tracking-widest">
-                              💡 Secretos del Hechicero
-                            </p>
-                            <div className="text-sm leading-relaxed whitespace-pre-line border-l-2 border-[#4a3318]/20 pl-4 py-1 parchment-ink">
-                              {pocketGuide.tips}
-                            </div>
-                          </div>
-                        )}
+                      <div>
+                        <p className="text-[10px] font-bold uppercase text-[#4a3318]/60 mb-1">Mulligan</p>
+                        <p className="text-sm text-[#4a3318] leading-relaxed">{pocketGuide.mulligan}</p>
                       </div>
-                    ) : (
-                      <div className="text-center py-4">
-                        <p className="text-xs italic mb-4 parchment-ink opacity-60">
-                          "El conocimiento es la mejor carta en tu mano."
-                        </p>
-                        <button 
-                          onClick={generateGuide}
-                          className="text-xs px-4 py-2 bg-[#4a3318]/10 hover:bg-[#4a3318]/20 border border-[#4a3318]/30 rounded-lg transition-all text-[#4a3318] font-bold"
-                        >
-                          Descifrar Estrategia
-                        </button>
-                      </div>
-                    )}
+                    </div>
                   </div>
-                </div>
+                )}
+                
+                {!pocketGuide && (
+                  <button 
+                    onClick={generateGuide} 
+                    disabled={isGeneratingGuide}
+                    className="w-full btn-magic-glass btn-glass-gold py-4 flex items-center justify-center gap-2"
+                  >
+                    {isGeneratingGuide ? <Zap className="animate-spin" size={16} /> : <PenTool size={16} />}
+                    {isGeneratingGuide ? 'Descifrando...' : 'Generar Guía Estratégica'}
+                  </button>
+                )}
               </div>
             </div>
 
-            <HandSimulator 
-              deck={renderDeck} 
-              isOpen={showHandSim} 
-              onClose={() => setShowHandSim(false)} 
-            />
+            <HandSimulator deck={renderDeck} isOpen={showHandSim} onClose={() => setShowHandSim(false)} />
           </motion.div>
         )}
       </AnimatePresence>

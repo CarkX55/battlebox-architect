@@ -54,21 +54,27 @@ export default function DeckArchive() {
               <div 
                 onClick={() => toggleDeckSelection(deck.id)}
                 className={cn(
-                  "absolute -top-2 -right-2 w-7 h-7 rounded-full border-2 flex items-center justify-center cursor-pointer z-20 transition-all",
+                  "absolute -top-3 -right-3 w-10 h-10 rounded-full border-2 flex items-center justify-center cursor-pointer z-30 transition-all duration-300",
                   selectedDecks.includes(deck.id) 
-                    ? "bg-[#ffca58] border-black text-black scale-110 shadow-[0_0_15px_rgba(255,202,88,0.5)]" 
-                    : "bg-black/60 border-[#ffca58]/30 text-[#ffca58]/20 hover:border-[#ffca58]/60"
+                    ? "bg-black border-magic-gold text-magic-gold scale-110 shadow-[0_0_20px_rgba(255,202,88,0.6)]" 
+                    : "bg-black/90 border-magic-gold/40 text-transparent hover:border-magic-gold/80 hover:bg-black"
                 )}
               >
                 {selectedDecks.includes(deck.id) ? (
-                  <motion.span 
-                    initial={{ scale: 0 }} 
-                    animate={{ scale: 1 }}
-                    className="text-xs font-bold"
+                  <motion.div 
+                    initial={{ scale: 0, rotate: -20 }} 
+                    animate={{ scale: 1, rotate: 0 }}
+                    className="flex items-center justify-center text-magic-gold"
                   >
-                    ✓
-                  </motion.span>
-                ) : null}
+                    <svg xmlns="http://www.w3.org/validator" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                  </motion.div>
+                ) : (
+                  <span className="text-xs text-magic-gold/30 group-hover:text-magic-gold/60 transition-colors font-bold">
+                    +
+                  </span>
+                )}
               </div>
 
               <div className="flex justify-between items-start mb-4">

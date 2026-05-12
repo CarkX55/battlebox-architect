@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../../utils/cn';
 
 import { BATTLEBOX_ARCHETYPES, BATTLEBOX_FORMAT_NAME, MTG_TRIBES, MTG_STRATEGIES, COLORS } from '../../constants/legacyBattleBox';
@@ -19,14 +19,14 @@ const FORMATOS = [
 
 const RARITY_MODES = [
   { value: 'standard', label: 'Estándar (Equilibrado)' },
-  { value: 'high-power', label: 'Alta Potencia (Raras y Míticas ilimitadas)' },
+  { value: 'high-power', label: 'Poder de Legacy (Sin límites de rareza, pero Justo)' },
   { value: 'pauper', label: 'Pauper (Solo Comunes)' },
   { value: 'artisan', label: 'Artisan (Comunes e Infrecuentes)' }
 ];
 
 const ARCHETYPES = BATTLEBOX_ARCHETYPES.map(a => ({
   value: a.id,
-  label: a.label,
+  label: `${a.label} (${a.landCount} tierras)`,
   recommendedColors: a.recommendedColors,
   colorHint: `Velocidad: ${a.speed} • Victoria: Turno ${a.winTurn}`,
   description: a.description
@@ -92,6 +92,16 @@ export default function ForgeForm({ onSubmit, isLoading, disabled }) {
       (!t.archetypes || t.archetypes.includes(formData.archetype))
     );
   }, [formData.colores, formData.archetype]);
+
+  const selectedTribeInfo = useMemo(() => {
+    if (!formData.tribe || isCustomTribe) return null;
+    return MTG_TRIBES.find(t => t.label === formData.tribe);
+  }, [formData.tribe, isCustomTribe]);
+
+  const selectedStrategyInfo = useMemo(() => {
+    if (!formData.strategy || isCustomStrategy) return null;
+    return MTG_STRATEGIES.find(s => s.label === formData.strategy);
+  }, [formData.strategy, isCustomStrategy]);
 
   const availableStrategies = useMemo(() => {
     let strats = MTG_STRATEGIES.filter(s => 
@@ -298,6 +308,29 @@ export default function ForgeForm({ onSubmit, isLoading, disabled }) {
                            focus:border-white/40 focus:outline-none transition-all"
               />
             )}
+
+            <AnimatePresence>
+              {selectedTribeInfo && (
+                <motion.div 
+                  initial={{ opacity: 0, y: -10, height: 0 }}
+                  animate={{ opacity: 1, y: 0, height: 'auto' }}
+                  exit={{ opacity: 0, y: -10, height: 0 }}
+                  className="mt-3 p-3 bg-[#4ade80]/5 border border-[#4ade80]/30 rounded-lg flex items-center justify-between backdrop-blur-md overflow-hidden"
+                >
+                  <div className="flex items-center gap-2">
+                    <div className="w-1 h-8 bg-[#4ade80] rounded-full shadow-[0_0_10px_#4ade80]" />
+                    <p className="text-[#86efac] text-[10px] font-black uppercase tracking-[0.2em] drop-shadow-[0_0_5px_rgba(34,197,94,0.4)]">
+                      Sinergia de Color:
+                    </p>
+                  </div>
+                  <div className="flex gap-1.5">
+                    {selectedTribeInfo.colors.map(c => (
+                      <ManaOrb key={c} color={c} size="w-6 h-6" className="shadow-lg" />
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
 
           <div>
@@ -336,6 +369,29 @@ export default function ForgeForm({ onSubmit, isLoading, disabled }) {
                            focus:border-white/40 focus:outline-none transition-all"
               />
             )}
+
+            <AnimatePresence>
+              {selectedStrategyInfo && (
+                <motion.div 
+                  initial={{ opacity: 0, y: -10, height: 0 }}
+                  animate={{ opacity: 1, y: 0, height: 'auto' }}
+                  exit={{ opacity: 0, y: -10, height: 0 }}
+                  className="mt-3 p-3 bg-[#4ade80]/5 border border-[#4ade80]/30 rounded-lg flex items-center justify-between backdrop-blur-md overflow-hidden"
+                >
+                  <div className="flex items-center gap-2">
+                    <div className="w-1 h-8 bg-[#4ade80] rounded-full shadow-[0_0_10px_#4ade80]" />
+                    <p className="text-[#86efac] text-[10px] font-black uppercase tracking-[0.2em] drop-shadow-[0_0_5px_rgba(34,197,94,0.4)]">
+                      Colores Base:
+                    </p>
+                  </div>
+                  <div className="flex gap-1.5">
+                    {selectedStrategyInfo.colors.map(c => (
+                      <ManaOrb key={c} color={c} size="w-6 h-6" className="shadow-lg" />
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
 
           <div>

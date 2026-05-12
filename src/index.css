@@ -193,12 +193,12 @@ html, body {
   text-transform: uppercase;
   font-weight: 800;
   letter-spacing: 0.15em;
-  font-size: 9px;
-  border-radius: 4px;
+  font-size: 11px;
+  border-radius: 6px;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 1);
-  filter: brightness(0.7) contrast(1.2);
+  filter: brightness(0.8) contrast(1.2);
   overflow: hidden;
 }
 
@@ -275,7 +275,6 @@ html, body {
   background: rgba(10, 20, 40, 0.5);
   border: 1px solid rgba(255, 223, 145, 0.35);
   border-radius: 1.5rem;
-  overflow: hidden;
   box-shadow: 
     0 8px 32px 0 rgba(0, 0, 0, 0.5),
     0 0 20px rgba(66, 153, 225, 0.1);
@@ -291,6 +290,7 @@ html, body {
   opacity: 0.55;
   pointer-events: none;
   z-index: 0;
+  border-radius: inherit;
 }
 
 .frosted-panel::after {
@@ -416,21 +416,25 @@ html, body {
 
 .parchment-lore {
   position: relative;
-  display: inline-block;
-  padding: 4.5rem 6rem;
-  min-height: 250px;
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 5rem 8rem;
+  min-height: 350px;
+  aspect-ratio: 21 / 9; /* Esto evita el achatamiento, forzando la proporción ideal */
   background-image: url('/ASSETS/PergQuemado.webp');
   background-size: 100% 100%;
   background-repeat: no-repeat;
-  filter: drop-shadow(0 15px 25px rgba(0,0,0,0.6));
-  color: #f4ece0;
-  text-shadow: 0 1px 3px rgba(0,0,0,0.8);
-  line-height: 1.6;
+  filter: drop-shadow(0 15px 25px rgba(0,0,0,0.8));
+  color: #ffdf91; /* Oro Mágico para darle el toque épico */
+  text-shadow: 
+    0 2px 5px rgba(0,0,0,1),
+    0 0 20px rgba(193, 155, 69, 0.5),
+    1px 1px 0px rgba(0,0,0,0.5); /* Micro-borde para legibilidad extrema */
+  line-height: 1.8;
   text-align: center;
-  font-style: italic;
-  font-family: 'Crimson Text', serif;
-  letter-spacing: -0.01em;
+  font-family: 'Cinzel', serif; /* Restaurada Cinzel: más épica y grandiosa */
+  font-size: 1.25rem;
+  font-weight: 700; /* Letras en negrita para máxima legibilidad */
+  letter-spacing: 0.04em;
 }

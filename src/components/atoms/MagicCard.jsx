@@ -1,6 +1,7 @@
 import { useState, useEffect, memo } from 'react';
 import { motion } from 'framer-motion';
 import { cn } from '../../utils/cn';
+import { RefreshCw } from 'lucide-react';
 
 const MagicCard = memo(function MagicCard({ 
   card, 
@@ -173,10 +174,15 @@ const MagicCard = memo(function MagicCard({
         {hasFaces && (
           <button
             onClick={handleFlip}
-            className="absolute top-2 right-2 p-1.5 bg-grimorio-gold text-black rounded-full shadow-lg 
-                       hover:scale-110 active:scale-95 transition-all z-30"
+            className={cn(
+              "absolute top-2 right-2 p-2 rounded-full shadow-2xl z-50 transition-all duration-300 border",
+              isFlipped 
+                ? "bg-grimorio-gold text-black border-grimorio-gold scale-110 rotate-180 shadow-[0_0_15px_rgba(193,155,69,0.5)]" 
+                : "bg-black/60 text-grimorio-gold border-grimorio-gold/30 hover:bg-grimorio-gold/20 hover:border-grimorio-gold/60"
+            )}
+            title="Transformar Carta"
           >
-            <span className="text-xs">🔄</span>
+            <RefreshCw size={14} className={cn(isFlipped && "animate-pulse")} />
           </button>
         )}
       </div>

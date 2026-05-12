@@ -5,7 +5,7 @@ import ManaOrb from '../components/atoms/ManaOrb';
 import VisualGrid from '../components/battlebox/VisualGrid';
 import { cn } from '../utils/cn';
 import { rebalanceDecks, generateDeckTactics } from '../services/aiFactory';
-import { getArchivedDecks, updateArchivedDeck } from '../services/archiveService';
+import { getArchivedDecks, updateArchivedDeck, archiveDeckOnline } from '../services/archiveService';
 import { hydrateCard } from '../services/cardHydrator';
 import { motion, AnimatePresence } from 'framer-motion';
 import AiConfigPanel from '../components/forge/AiConfigPanel';
@@ -379,6 +379,7 @@ export default function BattleBox() {
   const [showHandSim, setShowHandSim] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
   const [showProxyModal, setShowProxyModal] = useState(false);
+  const [cloudArchived, setCloudArchived] = useState(false);
 
 
   const archivedDecks = getArchivedDecks();
@@ -476,6 +477,17 @@ export default function BattleBox() {
     setShowProxyModal(true);
   };
 
+  const handleArchiveOnline = async () => {
+    if (!activeDeck) return;
+    const success = await archiveDeckOnline(activeDeck);
+    if (success) {
+      setCloudArchived(true);
+      setTimeout(() => setCloudArchived(false), 3000);
+    } else {
+      alert("⚠️ No se pudo subir a la nube. Comprueba tus credenciales de Firebase.");
+    }
+  };
+
   const sanitizeJSON = (raw) => {
     let s = raw;
     // 1. Quitar comentarios de bloque /* ... */
@@ -570,12 +582,22 @@ export default function BattleBox() {
         prompt += `\n`;
       });
       
-      prompt += "INSTRUCTIONS FOR AI:\n";
-      prompt += "1. Analyze the power balance between these decks.\n";
-      prompt += "2. Identify any deck that might be too oppressive or too weak in this specific group.\n";
-      prompt += "3. Suggest exact card swaps (REMOVE/ADD) to improve internal balance while preserving archetype identity.\n";
-      prompt += "4. Format your response strictly as a JSON object with this structure:\n";
-      prompt += "{\n  \"analysis\": \"Your text analysis here\",\n  \"adjustments\": [\n    {\n      \"deckName\": \"Deck Name\",\n      \"reason\": \"Brief reason\",\n      \"swaps\": [{ \"remove\": \"Card Name\", \"add\": \"Card Name\", \"quantity\": 1, \"justification\": \"Why?\" }]\n    }\n  ]\n}\n";
+      prompt += "INSTRUCTIONS FOR THE DOUBLE AUDIT:\n";
+      prompt += "PHASE 1: TECHNICAL INFRASTRUCTURE\n";
+      prompt += "- Ensure each deck has 10-15 interactive cards (Removal/Counters/Discard).\n";
+      prompt += "- Check the Mana Curve: Peak should be at CMC 2. Reduce high-CMC 'clunk' if necessary.\n";
+      prompt += "- Card Advantage: Every deck MUST have engines (draw, recursion, 2-for-1s) so they don't run out of gas in top-deck mode.\n";
+      prompt += "- Consistency & Exceptions: Consolidate core cards into 4x sets to reduce variance. However, limit Legendary cards and highly SITUATIONAL 'silver bullet' cards to 1-2 copies to prevent dead hands.\n";
+      prompt += "- Fast vs Slow Balance: Slow/Control decks MUST have early interaction (CMC 1-2) to survive Fast/Aggro decks. Fast decks MUST have reach or resilience to fight through a slow deck's late game. Any deck must be able to win against any other.\n\n";
+      
+      prompt += "PHASE 2: ECOSYSTEM EQUILIBRIUM\n";
+      prompt += "- Analyze the decks as a group. No deck should have a >60% win rate against the others.\n";
+      prompt += "- Power Leveling: If a deck uses oppressive Legacy staples while others don't, downgrade them to 'fairer' potent alternatives.\n";
+      prompt += "- Interactive Balance: Ensure each deck has the tools to answer the key threats of the other decks.\n";
+      prompt += "- Meta Sideboarding: The 15-card sideboards MUST contain explicit silver bullets targeting the specific strategies of the other decks in this analysis.\n\n";
+      
+      prompt += "FORMAT: Your response must be a STRICT JSON object:\n";
+      prompt += "{\n  \"analysis\": \"Detailed diagnosis of the meta balance and technical issues found.\",\n  \"adjustments\": [\n    {\n      \"deckName\": \"Deck Name\",\n      \"reason\": \"Brief explanation of technical and meta reasons for the change\",\n      \"swaps\": [{ \"remove\": \"Card Name\", \"add\": \"Card Name\", \"quantity\": 1, \"justification\": \"Strategic reason\" }]\n    }\n  ]\n}\n";
       
       navigator.clipboard.writeText(prompt);
       setCopySuccess(true);
@@ -801,81 +823,106 @@ export default function BattleBox() {
 
   // ── MODO DETALLE ──
   return (
-    <div className="min-h-screen text-grimorio-parchment">
-      <div className="print:hidden p-8">
-        <div className="max-w-7xl mx-auto space-y-12">
-          <div className="flex justify-between items-start flex-wrap gap-4">
-            <div className="flex-1">
-              <h2 className="text-5xl font-cinzel text-grimorio-gold flex items-center gap-4">
-                {isEditing ? (
-                  <input 
-                    type="text" 
-                    value={activeDeck.name} 
-                    onChange={(e) => handleUpdateField('name', e.target.value)}
-                    className="bg-black/50 border-b border-grimorio-gold/50 outline-none w-auto max-w-full focus:border-grimorio-gold"
-                  />
-                ) : (
-                  <>
-                    <img src="/ASSETS/iconoDeck.webp" alt="Deck Icon" className="w-24 h-24 object-contain drop-shadow-[0_0_20px_rgba(255,202,88,0.3)]" />
-                    {activeDeck.name}
-                  </>
-                )}
-                <div className="flex -space-x-2">
-                  {activeDeck.colors?.map(c => <ManaOrb key={c} color={c} size="w-10 h-10" />)}
-                </div>
-              </h2>
-              
-              {isEditing && (
-                <textarea 
-                  className="w-full bg-black/50 border border-grimorio-gold/30 rounded p-6 text-xl italic text-grimorio-parchment/80 mt-6 max-w-2xl focus:border-grimorio-gold outline-none"
-                  value={activeDeck.lore || ''}
-                  onChange={(e) => handleUpdateField('lore', e.target.value)}
-                  rows={3}
-                  placeholder="Descripción del mazo..."
-                />
-              )}
+    <div className="min-h-screen text-grimorio-parchment pb-20">
+      <div className="print:hidden p-4 md:p-8">
+        <div className="max-w-7xl mx-auto space-y-16">
+          
+          {/* Cabecera Épica */}
+          <div className="flex flex-col lg:flex-row justify-between items-center lg:items-end gap-8 pb-8 border-b border-magic-gold/10">
+            <div className="flex flex-col items-center lg:items-start gap-4">
+               <div className="flex items-center gap-6">
+                 <motion.div 
+                   initial={{ rotate: -10, scale: 0.9 }}
+                   animate={{ rotate: 0, scale: 1 }}
+                   className="relative"
+                 >
+                    <div className="absolute inset-0 bg-magic-gold/20 blur-2xl rounded-full" />
+                    <img src="/ASSETS/iconoDeck.webp" alt="Deck Icon" className="w-28 h-28 md:w-36 md:h-36 object-contain relative z-10 drop-shadow-[0_0_30px_rgba(255,202,88,0.4)]" />
+                 </motion.div>
+                 
+                 <div>
+                    <div className="flex gap-2 mb-2">
+                      {activeDeck.colors?.map(c => <ManaOrb key={c} color={c} size="w-8 h-8" />)}
+                    </div>
+                    {isEditing ? (
+                      <input 
+                        type="text" 
+                        value={activeDeck.name} 
+                        onChange={(e) => handleUpdateField('name', e.target.value)}
+                        className="text-4xl md:text-6xl font-cinzel bg-black/40 border-b-2 border-magic-gold/30 outline-none w-full focus:border-magic-gold text-magic-gold py-2"
+                      />
+                    ) : (
+                      <h2 className="text-4xl md:text-6xl font-cinzel text-magic-gold tracking-tight drop-shadow-lg">
+                        {activeDeck.name}
+                      </h2>
+                    )}
+                    <p className="text-xs md:text-sm font-cinzel text-magic-gold/40 tracking-[0.4em] uppercase mt-2">
+                       {activeDeck.archetype} • LEGACY BATTLEBOX
+                    </p>
+                 </div>
+               </div>
             </div>
 
-            <div className="flex flex-wrap gap-2 shrink-0">
-              <button onClick={() => setShowGuides(true)} className="px-5 py-2 bg-amber-900/30 border border-[#c19b45]/50 rounded-lg text-[#c19b45] text-sm hover:bg-amber-900/50 transition-all flex items-center gap-2">📜 Guía de Bolsillo</button>
-              <button 
-                onClick={() => setShowHandSim(true)} 
-                className="px-4 py-2 bg-purple-500/20 border border-purple-500/30 text-purple-400 rounded-lg text-sm hover:bg-purple-500/40 transition-all flex items-center gap-2"
-              >
-                <img src="/ASSETS/ManoDragon.webp" alt="Mano" className="w-6 h-6 object-contain" />
-                Probar Mano
+            <div className="flex flex-wrap justify-center gap-3">
+              <button onClick={() => setShowGuides(true)} className="btn-magic-glass btn-glass-gold">
+                <span>📜 Guía de Bolsillo</span>
+              </button>
+              <button onClick={() => setShowHandSim(true)} className="btn-magic-glass btn-glass-purple">
+                <img src="/ASSETS/ManoDragon.webp" alt="Mano" className="w-5 h-5 object-contain" />
+                <span>Probar Mano</span>
+              </button>
+              <button onClick={handleExportProxy} className="btn-magic-glass btn-glass-blue">
+                <span>🖨️ Lista Proxy</span>
               </button>
               <button 
-                onClick={handleExportProxy} 
-                className="px-4 py-2 bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 rounded-lg text-sm hover:bg-emerald-500/40 transition-all"
+                onClick={handleArchiveOnline}
+                className={cn("btn-magic-glass btn-glass-blue shadow-lg", cloudArchived && "border-green-500/50 text-green-400 bg-green-500/10")}
               >
-                🖨️ Lista Proxy
+                <span>{cloudArchived ? '☁️ Subido' : '☁️ Subir Nube'}</span>
               </button>
               <button 
                 onClick={() => setIsEditing(!isEditing)} 
                 className={cn(
-                  "px-4 py-2 border rounded-lg text-sm transition-all",
-                  isEditing ? "bg-red-500/20 border-red-500 text-red-400" : "bg-blue-500/20 border-blue-500/30 text-blue-400 hover:bg-blue-500/40"
+                  "btn-magic-glass",
+                  isEditing ? "border-red-500/50 text-red-400 bg-red-500/10" : "btn-glass-silver"
                 )}
               >
-                {isEditing ? '💾 Guardar' : '✍️ Editar'}
+                {isEditing ? '💾 Guardar Cambios' : '✍️ Editar Mazo'}
               </button>
             </div>
           </div>
 
-          {/* Lore fuera de la caja */}
-          {!isEditing && activeDeck.lore && (
-            <div className="w-full flex justify-center">
-              <div className="parchment-lore text-lg md:text-xl w-full max-w-5xl">
-                {activeDeck.lore}
-              </div>
-            </div>
-          )}
+          {/* Lore / Narrativa */}
+          <div className="flex justify-center py-4">
+             <div className="relative group max-w-4xl w-full">
+                <div className="absolute -inset-4 bg-magic-gold/5 blur-xl rounded-[3rem] opacity-0 group-hover:opacity-100 transition-opacity" />
+                {isEditing ? (
+                   <textarea 
+                     className="w-full bg-black/60 border-2 border-magic-gold/20 rounded-3xl p-8 text-xl italic text-grimorio-parchment/90 focus:border-magic-gold outline-none min-h-[150px] font-serif shadow-2xl"
+                     value={activeDeck.lore || ''}
+                     onChange={(e) => handleUpdateField('lore', e.target.value)}
+                     placeholder="Escribe la leyenda de este mazo..."
+                   />
+                ) : (
+                   activeDeck.lore && (
+                     <div className="parchment-lore text-xl md:text-2xl leading-relaxed">
+                       {activeDeck.lore}
+                     </div>
+                   )
+                )}
+             </div>
+          </div>
 
-
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div className="lg:col-span-2 space-y-8">
-              {isEditing && <CardSearch onAddCard={handleAddCard} />}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
+            {/* Grid de Cartas (Principal) */}
+            <div className="lg:col-span-8 space-y-12">
+              {isEditing && (
+                <div className="frosted-panel p-6 border-blue-500/20">
+                  <h4 className="font-cinzel text-blue-400 text-sm mb-4 uppercase tracking-[0.2em]">Infundir nuevas cartas</h4>
+                  <CardSearch onAddCard={handleAddCard} />
+                </div>
+              )}
+              
               <VisualGrid 
                 cards={activeDeck.cards} 
                 isEditing={isEditing} 
@@ -884,34 +931,60 @@ export default function BattleBox() {
               />
             </div>
 
-            <div className="space-y-6">
-              <RadarChart data={(() => {
-                if (!activeDeck || !activeDeck.cards) return { Velocidad: 5, Control: 5, Poder: 5, Complejidad: 5, Resiliencia: 5 };
-                
-                const nonLands = activeDeck.cards.filter(c => !c.type_line?.toLowerCase().includes('land'));
-                const totalNonLands = nonLands.reduce((s, c) => s + (c.quantity || 1), 0) || 1;
-                const avgCMC = nonLands.reduce((s, c) => s + (c.mana_value || 0) * (c.quantity || 1), 0) / totalNonLands;
-                
-                const creatures = nonLands.filter(c => c.type_line?.toLowerCase().includes('creature')).reduce((s, c) => s + (c.quantity || 1), 0);
-                const spells = nonLands.filter(c => c.type_line?.toLowerCase().includes('instant') || c.type_line?.toLowerCase().includes('sorcery')).reduce((s, c) => s + (c.quantity || 1), 0);
-                const permanents = nonLands.filter(c => c.type_line?.toLowerCase().includes('enchantment') || c.type_line?.toLowerCase().includes('artifact')).reduce((s, c) => s + (c.quantity || 1), 0);
-
-                return {
-                  Velocidad: Math.max(1, Math.min(10, Math.round(11 - avgCMC * 2))),
-                  Control: Math.max(1, Math.min(10, Math.round((spells / totalNonLands) * 15))),
-                  Poder: Math.max(1, Math.min(10, Math.round((creatures / totalNonLands) * 10 + (avgCMC > 3 ? 2 : 0)))),
-                  Complejidad: Math.max(1, Math.min(10, Math.round((activeDeck.cards.length / 15) * 10))),
-                  Resiliencia: Math.max(1, Math.min(10, Math.round((permanents / totalNonLands) * 20 + 3)))
-                };
-              })()} />
-              
-              <div className="p-6 bg-black/40 border border-grimorio-gold/20 rounded-xl relative overflow-hidden">
-                <h4 className="font-cinzel text-grimorio-gold text-sm mb-6 uppercase tracking-widest">
-                  📊 Curva de Maná
+            {/* Sidebar de Análisis (Secundario) */}
+            <aside className="lg:col-span-4 space-y-8 sticky top-24">
+              <div className="leather-panel p-8 group overflow-hidden">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-magic-gold/5 blur-3xl -mr-16 -mt-16 rounded-full" />
+                <h4 className="font-cinzel text-magic-gold text-sm mb-8 uppercase tracking-[0.3em] flex items-center gap-3">
+                  <span className="w-2 h-2 rounded-full bg-magic-gold animate-pulse" />
+                  Potencial Bélico
                 </h4>
-                <ManaCurve deck={activeDeck.cards} />
+                <div className="scale-110 origin-center py-4">
+                  <RadarChart data={(() => {
+                    if (!activeDeck || !activeDeck.cards) return { Velocidad: 5, Control: 5, Poder: 5, Complejidad: 5, Resiliencia: 5 };
+                    const nonLands = activeDeck.cards.filter(c => !c.type_line?.toLowerCase().includes('land'));
+                    const totalNonLands = nonLands.reduce((s, c) => s + (c.quantity || 1), 0) || 1;
+                    const avgCMC = nonLands.reduce((s, c) => s + (c.mana_value || 0) * (c.quantity || 1), 0) / totalNonLands;
+                    const creatures = nonLands.filter(c => c.type_line?.toLowerCase().includes('creature')).reduce((s, c) => s + (c.quantity || 1), 0);
+                    const spells = nonLands.filter(c => c.type_line?.toLowerCase().includes('instant') || c.type_line?.toLowerCase().includes('sorcery')).reduce((s, c) => s + (c.quantity || 1), 0);
+                    const permanents = nonLands.filter(c => c.type_line?.toLowerCase().includes('enchantment') || c.type_line?.toLowerCase().includes('artifact')).reduce((s, c) => s + (c.quantity || 1), 0);
+
+                    return {
+                      Velocidad: Math.max(1, Math.min(10, Math.round(11 - avgCMC * 2))),
+                      Control: Math.max(1, Math.min(10, Math.round((spells / totalNonLands) * 15))),
+                      Poder: Math.max(1, Math.min(10, Math.round((creatures / totalNonLands) * 10 + (avgCMC > 3 ? 2 : 0)))),
+                      Complejidad: Math.max(1, Math.min(10, Math.round((activeDeck.cards.length / 15) * 10))),
+                      Resiliencia: Math.max(1, Math.min(10, Math.round((permanents / totalNonLands) * 20 + 3)))
+                    };
+                  })()} />
+                </div>
               </div>
-            </div>
+              
+              <div className="leather-panel p-8 group">
+                <h4 className="font-cinzel text-magic-gold text-sm mb-8 uppercase tracking-[0.3em] flex items-center gap-3">
+                  <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                  Estructura de Maná
+                </h4>
+                <div className="bg-black/40 rounded-2xl p-4 border border-white/5 shadow-inner">
+                  <ManaCurve deck={activeDeck.cards} />
+                </div>
+                <div className="mt-6 grid grid-cols-2 gap-4">
+                   <div className="p-3 bg-white/5 rounded-xl border border-white/5">
+                      <p className="text-[10px] text-white/40 uppercase tracking-widest mb-1">Tierras</p>
+                      <p className="text-xl font-cinzel text-green-400">
+                        {activeDeck.cards.filter(c => c.type_line?.includes('Land')).reduce((s,c) => s+(c.quantity||1), 0)}
+                      </p>
+                   </div>
+                   <div className="p-3 bg-white/5 rounded-xl border border-white/5">
+                      <p className="text-[10px] text-white/40 uppercase tracking-widest mb-1">CMC Medio</p>
+                      <p className="text-xl font-cinzel text-blue-400">
+                        {(activeDeck.cards.filter(c => !c.type_line?.includes('Land')).reduce((s,c) => s+(c.mana_value||0)*(c.quantity||1), 0) / 
+                         activeDeck.cards.filter(c => !c.type_line?.includes('Land')).reduce((s,c) => s+(c.quantity||1), 1)).toFixed(2)}
+                      </p>
+                   </div>
+                </div>
+              </div>
+            </aside>
           </div>
 
           <HandSimulator 

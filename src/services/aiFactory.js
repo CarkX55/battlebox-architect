@@ -14,11 +14,16 @@ POOL DE CARTAS: Todas las cartas legales en Legacy (desde Alpha hasta hoy).
 RESTRICCIÓN DE IP: EXCLUIR cartas de "Universes Beyond" (Fallout, Warhammer, Dr. Who, El Señor de los Anillos, Transformers, Spider-Man, Universus, etc.). Mantente fiel ÚNICAMENTE a la propiedad intelectual original de Magic: The Gathering. ESTA REGLA SE APLICA TANTO AL MAIN DECK COMO AL SIDEBOARD.
 IMPORTANTE: NO se aplica la banlist oficial de Legacy. Se aplica la CUSTOM BANLIST de este formato.
 
-FILOSOFÍA DEL FORMATO:
-1. INTERACTIVIDAD OBLIGATORIA: Todo mazo debe poder responder y ser respondido.
+FILOSOFÍA DEL FORMATO ("FAIR MAGIC" ESTRICTO):
+1. INTERACTIVIDAD OBLIGATORIA: Todo mazo debe poder responder y ser respondido. PROHIBIDAS las "One-Card Combos" y amenazas intocables (ej. True-Name Nemesis, Hexproof masivo, Thassa's Oracle).
 2. REGLA DEL TURNO 4: Ningún mazo puede ganar consistentemente antes del turno 4.
-3. MANÁ PAGADO: Prohibido maná gratis (moxes, rituales, tierras de 2 manas).
-4. SIN HECHIZOS GRATIS: Prohibido lanzar hechizos sin pagar su coste de maná.
+3. CERO MANÁ RÁPIDO INJUSTO: Totalmente prohibido el maná gratis y los aceleradores rotos (Moxes, Dark Ritual, Sol Ring, Ancient Tomb, City of Traitors, Grim Monolith).
+4. MECÁNICAS "ANTIDEPORTIVAS" PROHIBIDAS: No utilices cartas con las siguientes mecánicas que arruinan la diversión casual:
+   - INFECT (Infectar) / VENENO: No incluyas ninguna carta que use contadores de veneno.
+   - ANNIHILATOR (Aniquilador): No incluyas Eldrazis con Aniquilador.
+   - VICTORIAS INSTANTÁNEAS: Prohibido cualquier efecto de "gana el juego" o "el oponente pierde el juego".
+   - MANIPULACIÓN DE VIDA EXTREMA: Prohibido poner la vida a un número fijo (ej. Master of Cruelties, Sorin Markov).
+5. VICTORIAS POR SINERGIA: Los "Finishers" deben requerir sinergia, montaje en mesa o estrategia.
 
 MANUAL DE ARQUITECTURA (INFRAESTRUCTURA Y DENSIDAD):
 Eres un arquitecto. El mazo no es una suma de cartas buenas, es una máquina con "slots" matemáticos:
@@ -26,17 +31,21 @@ Eres un arquitecto. El mazo no es una suma de cartas buenas, es una máquina con
 - DENSIDAD DE INTERACCIÓN (LA REGLA 10-15): Todo mazo (especialmente Midrange y Control) DEBE incluir entre 10 y 15 cartas de interacción (Remoción, Counters, Descarte, Edictos) para sobrevivir hasta su Turno Fundamental. Un mazo sin interacción es un mazo fallido.
 - CURVA DE MANÁ (EL PICO EN 2): En Legacy, el turno 2 es el núcleo. Maximiza jugadas de coste 1 y 2. Evita amontonar cartas de coste 3. Los costes 4+ deben ser Finishers absolutos.
 
-FÓRMULA DE MANÁ KARSTEN (PROBABILIDAD Y PIPS):
-1. El sistema automático inyectará las tierras (20 a 26) basándose en la media de coste (VMP) de tus hechizos. Si eliges hechizos caros, el sistema meterá 26 tierras y reducirá tu espacio para hechizos. Mantén la curva ágil.
-2. REGLA DE TOLERANCIA DE PIPS: Tienes PROHIBIDO incluir cartas de triple coste específico (Ej: RRR, WWW) si el mazo tiene 3 o más colores. En mazos de 2 colores, solo se permiten cartas de doble coste (Ej: 1UU) si ese color es el principal. La viabilidad del maná es innegociable.
+BASE DE MANÁ (HIGH FIDELITY):
+Eres el responsable absoluto de diseñar la base de maná. No uses tierras básicas aleatorias si el mazo exige colores complejos.
+- Utiliza la proporción perfecta de Fetchlands, Shocklands, Dual Lands (si aplica) y tierras de utilidad (Wasteland, Karakas, etc.).
+- Asegura que la cantidad de tierras (usualmente 19-24) se ajuste perfectamente a la curva de maná de Karsten.
 
-REGLA CRÍTICA DE CANTIDAD (TOLERANCIA CERO A LA INCONSISTENCIA):
-- MAIN DECK: ESTÁ TOTALMENTE PROHIBIDO usar "quantity": 1 o "quantity": 2 para cartas no legendarias. Si un hechizo o criatura es parte de tu plan, DEBES poner 3 o 4 copias.
-- EXCEPCIONES: SOLO puedes usar "quantity": 1 o 2 si la carta es Legendaria (type_line contiene "Legendary"), un Finisher de muy alto coste o una "Bala de Plata".
-- SIDEBOARD: Aquí SÍ puedes usar 1-2 copias para respuestas muy específicas.
+REGLA CRÍTICA MATEMÁTICA (OBLIGATORIA):
+- MAIN DECK: El mazo DEBE tener EXACTAMENTE 60 cartas en total.
+- DIVISIÓN ESTRICTA: Tu mazo DEBE contener EXACTAMENTE {landCount} tierras (mezcla de básicas, duals, fetchlands, utilidad) y EXACTAMENTE {spellCount} hechizos/criaturas/artefactos. Si no sumas exactamente 60 con esta división, el mazo fallará.
+- CONSISTENCIA: Está prohibido usar "quantity": 1 o "quantity": 2 para cartas no legendarias clave. Si es parte de tu plan, pon 3 o 4 copias.
+- EXCEPCIONES: Usa 1 o 2 copias SOLO para cartas Legendarias, Finishers de altísimo coste o "Balas de Plata".
+- SIDEBOARD: Debe tener EXACTAMENTE 15 cartas. Aquí SÍ puedes usar 1-2 copias.
 
-RESTRICCIONES ESTRICTAS (CUSTOM BANLIST):
-Cartas prohibidas: ${BATTLEBOX_BANLIST.join(', ')}.
+❌ RESTRICCIÓN ABSOLUTA Y FATAL (CUSTOM BANLIST) ❌:
+BAJO NINGUNA CIRCUNSTANCIA, POR NINGÚN MOTIVO, puedes incluir NINGUNA de las siguientes cartas. Si incluyes tan solo una de estas cartas, el sistema colapsará y fallarás tu tarea como Arquitecto. Revisa tu lista final antes de enviarla.
+CARTAS ESTRICTAMENTE PROHIBIDAS: ${BATTLEBOX_BANLIST.join(', ')}.
 
 ESPECIFICACIONES TÉCNICAS:
 - ARQUETIPO: {archetype}
@@ -48,7 +57,7 @@ ESPECIFICACIONES TÉCNICAS:
 IDIOMA OBLIGATORIO: Todos los textos descriptivos (\`deckName\`, \`lore\`, \`strategy\`, \`mulligan\`, \`sideboard_strategy\`) DEBEN estar estrictamente escritos en ESPAÑOL con un tono inmersivo, épico y estratégico. ÚNICAMENTE los nombres de las cartas (\`name\`) deben mantenerse en Inglés exacto para su correcta búsqueda.
 
 ESTRUCTURA DEL JSON (MANDATORIO):
-Proporciona exactamente 36-38 cartas (Hechizos + Criaturas) para el Main Deck y exactamente 15 para el Sideboard.
+Proporciona EXACTAMENTE 60 cartas en total (Sumando Hechizos + Criaturas + TODAS LAS TIERRAS) para el Main Deck y exactamente 15 para el Sideboard.
 El Sideboard debe ser ESTRATÉGICO: incluye respuestas contra cementerios, artefactos, mazos muy rápidos o mazos de control extremo según las debilidades de tu arquetipo.
 
 {
@@ -77,7 +86,9 @@ export function buildDeckArchitectPrompt(params) {
     .replace(/{speed}/g, archData.speed)
     .replace(/{winTurn}/g, archData.winTurn)
     .replace(/{description}/g, archData.description)
-    .replace(/{colors}/g, colors.join('-'));
+    .replace(/{colors}/g, colors.join('-'))
+    .replace(/{landCount}/g, archData.landCount || 24)
+    .replace(/{spellCount}/g, archData.spellCount || 36);
 
   let rarityRule = '';
   switch(rarityMode) {
@@ -263,40 +274,126 @@ export async function forgeMazo(formData, aiConfig) {
     { role: 'user', content: formData.prompt }
   ];
   
-  console.log('📜 Enviando a IA...');
-  const content = await callAI(messages, aiConfig);
-  console.log('📥 Respuesta recibida');
+  console.log('📜 [PASADA 1] Enviando a IA (Borrador)...');
+  const draftContent = await callAI(messages, aiConfig);
+  console.log('📥 [PASADA 1] Borrador recibido, iniciando Inspector...');
+
+  const archData = BATTLEBOX_ARCHETYPES.find(a => a.id === archetype) || BATTLEBOX_ARCHETYPES[3];
+  const reqLands = archData.landCount || 24;
+  const reqSpells = archData.spellCount || 36;
+
+  const inspectorPrompt = `Eres un Juez Inspector Estricto. Revisa el siguiente JSON de mazo de Magic.
+Tus ÚNICAS misiones son:
+1. MATEMÁTICA ESTRICTA (MAIN DECK): El mazo DEBE tener EXACTAMENTE ${reqLands} tierras y EXACTAMENTE ${reqSpells} hechizos (sumando un total de 60 cartas). Si los hechizos ("Creature", "Instant", "Sorcery", "Artifact", "Enchantment") no suman ${reqSpells}, recorta o añade copias. Si las tierras ("Land") no suman ${reqLands}, añade o quita tierras básicas hasta cuadrar EXACTAMENTE ese número.
+2. MATEMÁTICA (SIDEBOARD): Suma el "sideboard". Si no son exactamente 15, arréglalo.
+3. FAIR MAGIC Y BANLIST: Es tu deber sagrado auditar la legalidad. Si encuentras ALGUNA de las cartas de esta lista, DEBES reemplazarla por otra justa de Legacy que cumpla el mismo rol:
+[ ${BATTLEBOX_BANLIST.join(', ')} ]
+También reemplaza CUALQUIER carta con mecánicas de Infectar, Aniquilador, "Gana el juego" o "Vida total se convierte en".
+Devuelve ÚNICAMENTE el JSON corregido con la misma estructura. No añadas texto fuera del JSON.`;
+
+  const messagesPass2 = [
+    { role: 'system', content: inspectorPrompt },
+    { role: 'user', content: draftContent }
+  ];
+
+  console.log('🔍 [PASADA 2] Enviando a Inspector de IA...');
+  const finalContent = await callAI(messagesPass2, aiConfig, { forceJSON: true });
+  console.log('📥 [PASADA 2] Mazo pulido recibido');
   
-  const result = parseArchitectResponse(content);
+  const result = parseArchitectResponse(finalContent);
   
-  const totalCards = result.cards.reduce((sum, c) => sum + c.quantity, 0);
-  console.log(`✅ ${result.cards.length} entradas, ${totalCards} copias`);
+  // --- JUEZ MATEMÁTICO EN JAVASCRIPT (EL DICTADOR FINAL) ---
+  // A veces la IA devuelve 'Lands' en vez de 'Land' o lo mezcla
+  const lands = result.cards.filter(c => 
+    c.category && (c.category.toLowerCase().includes('land') || c.category.toLowerCase().includes('tierra'))
+  );
+  const spells = result.cards.filter(c => !lands.includes(c));
   
-  // Validación flexible para Battle Box (34-42 hechizos para un mazo de 60)
-  if (totalCards < 34 || totalCards > 42) {
-    console.warn(`⚠️ Aviso: La IA generó ${totalCards} cartas. Lo ideal son ~36 para dejar espacio a tierras.`);
+  let landSum = lands.reduce((sum, c) => sum + c.quantity, 0);
+  let spellSum = spells.reduce((sum, c) => sum + c.quantity, 0);
+
+  console.log(`⚖️ [JUEZ JS] Auditando Matemáticas -> Tierras: ${landSum}/${reqLands} | Hechizos: ${spellSum}/${reqSpells}`);
+
+  // FIX SPELLS
+  if (spellSum !== reqSpells && spells.length > 0) {
+    if (spellSum > reqSpells) {
+      let diff = spellSum - reqSpells;
+      spells.sort((a, b) => b.quantity - a.quantity);
+      for (let i = 0; i < diff; i++) {
+        const target = spells.find(s => s.quantity > 1) || spells[0];
+        target.quantity -= 1;
+      }
+    } else {
+      let diff = reqSpells - spellSum;
+      spells.sort((a, b) => b.quantity - a.quantity);
+      for (let i = 0; i < diff; i++) {
+        const target = spells.find(s => s.quantity < 4) || spells[0];
+        target.quantity += 1;
+      }
+    }
   }
+
+  // FIX LANDS
+  if (landSum !== reqLands) {
+    const pips = result.pip_balance || {};
+    const bestColor = Object.keys(pips).sort((a, b) => (pips[b] || 0) - (pips[a] || 0))[0] || 'W';
+    const basicMap = { 'W': 'Plains', 'U': 'Island', 'B': 'Swamp', 'R': 'Mountain', 'G': 'Forest', 'C': 'Wastes' };
+    const basicName = basicMap[bestColor] || 'Plains';
+
+    if (landSum > reqLands && lands.length > 0) {
+      let diff = landSum - reqLands;
+      lands.sort((a, b) => b.quantity - a.quantity);
+      for (let i = 0; i < diff; i++) {
+        const target = lands.find(s => s.quantity > 1 && s.name.includes(basicMap['W']) || s.name.includes(basicMap['U']) || s.name.includes(basicMap['B']) || s.name.includes(basicMap['R']) || s.name.includes(basicMap['G'])) || lands.find(s => s.quantity > 1) || lands[0];
+        target.quantity -= 1;
+      }
+    } else {
+      let diff = reqLands - landSum;
+      let basicTarget = lands.find(l => l.name === basicName);
+      if (basicTarget) {
+        basicTarget.quantity += diff;
+      } else {
+        lands.push({ name: basicName, quantity: diff, category: 'Land' });
+      }
+    }
+  }
+
+  // Ensamblar de nuevo limpiando las cartas de cantidad 0
+  result.cards = [...spells, ...lands].filter(c => c.quantity > 0);
+  const finalTotal = result.cards.reduce((sum, c) => sum + c.quantity, 0);
+  console.log(`✅ [JUEZ JS] Resultado Forzado: ${finalTotal} cartas (Hechizos: ${spells.reduce((s, c)=>s+c.quantity,0)}, Tierras: ${lands.reduce((s, c)=>s+c.quantity,0)})`);
   
   return result;
 }
 
-const DECK_BALANCER_PROMPT = `[SISTEMA DE AUDITORÍA MTG]
-OBLIGATORIO: Respuesta en JSON puro.
+const DECK_BALANCER_PROMPT = `[SISTEMA DE DOBLE AUDITORÍA DE BATTLE BOX - HIGH FIDELITY]
 
-REGLAS MATEMÁTICAS:
-1. TARGET_SIZE = 60.
-2. AJUSTE: Si Tamaño > 60, eliminar (Tamaño - 60) cartas.
-3. COLOR_PURGE: Eliminar cualquier carta fuera de la Identidad de Color.
-4. COPIAS: Máximo 4 copias por nombre.
+Eres el Juez Supremo de un ecosistema cerrado de Magic. Tu objetivo es que estos mazos formen una "colección perfecta" donde cualquier mazo pueda ganar a cualquier otro.
 
-ESTRUCTURA JSON:
+FASE 1: AUDITORÍA TÉCNICA (INFRAESTRUCTURA)
+- CURVA: El pico DEBE estar en Turno 2. Reduce costes 3-4+ si el mazo es lento.
+- INTERACCIÓN: Cada mazo DEBE tener entre 10 y 15 cartas de interacción (Remoción, Counters, Descarte). Si falta, quita las criaturas más débiles y añade interacción eficiente de sus colores.
+- CONSISTENCIA Y EXCEPCIONES: Consolida cartas clave en 4x para que el mazo funcione siempre igual. Sin embargo, mantén en 1x o 2x las cartas Legendarias (para evitar atascos) y las cartas MUY SITUACIONALES ("balas de plata").
+- MOTORES DE VENTAJA: Todo mazo DEBE tener formas de reponer su mano (robo, filtro, recursión o 2-por-1) para no perder en el 'late-game'.
+- BALANCE LENTO VS RÁPIDO: Los mazos muy lentos DEBEN tener interacción temprana (coste 1-2) para sobrevivir a los rápidos. Los mazos rápidos DEBEN tener "alcance" o resiliencia para pelear si la partida se alarga. Cualquiera de los dos debe poder ganar el enfrentamiento.
+
+FASE 2: AUDITORÍA DE ECOSISTEMA (EQUIDAD DE PODER)
+- POWER LEVEL: Si un mazo tiene cartas "staples" de Legacy demasiado opresivas (ej. Ragavan, Mana Drain) y los otros no, rebaja el nivel de esas cartas a alternativas potentes pero justas.
+- TRIÁNGULO DE BALANCE: Asegura que el mazo AGGRO sea un reto para CONTROL, que CONTROL domine a MIDRANGE, y que MIDRANGE pueda sobrevivir a AGGRO. 
+- INTERACTIVIDAD CRUZADA: Verifica que existan respuestas para las amenazas clave de los otros mazos.
+- SIDEBOARD COMO VÁLVULA: Asegura que los banquillos de 15 cartas contengan las respuestas precisas ("silver bullets") para derrotar a las estrategias abusivas de los otros mazos analizados.
+
+REGLA DE ORO: Un mazo equilibrado es aquel que gana por habilidad del jugador, no por tener cartas infinitamente mejores que el oponente.
+
+ESTRUCTURA JSON OBLIGATORIA:
 {
-  "analysis": "Cálculo: [Total] -> [Eliminadas] -> [Final 60]",
+  "analysis": "1. Diagnóstico Técnico (Curva/Interacción). 2. Ajustes de Meta (Nivel de poder/Equidad).",
   "adjustments": [
     {
-      "deckName": "Nombre",
+      "deckName": "Nombre exacto",
+      "reason": "Por qué este mazo necesitaba ajustes",
       "swaps": [
-        { "remove": "Carta", "add": "", "quantity": X }
+        { "remove": "Carta", "add": "Carta", "quantity": X, "justification": "Explicación estratégica" }
       ]
     }
   ]
@@ -310,6 +407,8 @@ export async function rebalanceDecks(decks, aiConfig) {
 IDENTIDAD DE COLOR: ${colorCode}
 TAMAÑO ACTUAL: ${totalCount} cartas
 ARQUETIPO: ${d.archetype || 'N/A'}
+ESTRATEGIA: ${d.strategy || 'No definida'}
+SINERGIAS: ${d.sinergias_clave || 'No definidas'}
 LISTA:
 ${d.cards.map(c => `${c.quantity}x ${c.name}`).join('\n')}
 `;

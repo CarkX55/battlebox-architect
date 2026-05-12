@@ -1,5 +1,6 @@
 import React, { useMemo, memo } from 'react';
 import { cn } from '../../utils/cn';
+import { BarChart3 } from 'lucide-react';
 
 const ManaCurve = memo(({ deck, compact = false, isPrint = false }) => {
   const stats = useMemo(() => {
@@ -32,7 +33,7 @@ const ManaCurve = memo(({ deck, compact = false, isPrint = false }) => {
     )}>
       {!compact && !isPrint && (
         <h4 className="font-cinzel text-[#c19b45] text-lg mb-6 flex items-center gap-2">
-          <span>📊</span> Distribución de Costes
+          <BarChart3 className="w-5 h-5 text-[#c19b45]" /> Distribución de Costes
         </h4>
       )}
       

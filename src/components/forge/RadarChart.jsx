@@ -25,11 +25,8 @@ const RadarChart = memo(function RadarChart({ data, size = 300 }) {
   const levels = [2, 4, 6, 8, 10];
 
   return (
-    <div className="flex flex-col items-center p-6 leather-panel shadow-2xl">
-      <h4 className="font-cinzel text-[#c19b45] text-lg mb-6 flex items-center gap-2">
-        <span>📊</span> Perfil del Mazo
-      </h4>
-      <svg width={size} height={size} className="overflow-visible">
+    <div className="flex flex-col items-center justify-center w-full">
+      <svg width={size} height={size} className="overflow-visible mx-auto">
         {/* Background Grids */}
         {levels.map(level => {
           const levelPoints = keys.map((_, i) => {

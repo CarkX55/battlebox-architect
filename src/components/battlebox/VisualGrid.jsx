@@ -1,30 +1,37 @@
 import { motion } from 'framer-motion';
 import MagicCard from '../atoms/MagicCard';
+import { cn } from '../../utils/cn';
+import { Layers, Swords, Zap, Gem, Mountain, Coins, Scroll, Sparkles, User, Flame } from 'lucide-react';
 
 const CATEGORIES = {
-  Creature: { label: 'Criaturas', icon: '⚔️' },
-  Instant: { label: 'Instantáneos', icon: '⚡' },
-  Sorcery: { label: 'Conjuros', icon: '📜' },
-  Artifact: { label: 'Artefactos', icon: '💎' },
-  Enchantment: { label: 'Encantamientos', icon: '✨' },
-  Planeswalker: { label: 'Planeswalkers', icon: '🌌' },
-  Land: { label: 'Tierras', icon: '🌍' },
+  Creature: { label: 'Criaturas', icon: Swords },
+  Instant: { label: 'Instantáneos', icon: Zap },
+  Sorcery: { label: 'Conjuros', icon: Scroll },
+  Artifact: { label: 'Artefactos', icon: Gem },
+  Enchantment: { label: 'Encantamientos', icon: Sparkles },
+  Planeswalker: { label: 'Planeswalkers', icon: User },
+  Land: { label: 'Tierras', icon: Mountain },
 };
 
-function CategorySection({ title, icon, cards, onRemove, onAdd, isEditing }) {
+function CategorySection({ title, icon: Icon, cards, onRemove, onAdd, isEditing }) {
   if (cards.length === 0) return null;
 
   return (
-    <div className="mb-8">
-      <div className="flex items-center gap-3 mb-4 pb-2 border-b border-magic-gold/20">
-        <span className="text-xl drop-shadow-md">{icon}</span>
-        <h3 className="text-lg font-cinzel text-magic-gold tracking-wide">{title}</h3>
-        <span className="text-[10px] px-3 py-1 frosted-panel border-magic-gold/30 ml-auto font-bold uppercase tracking-widest text-magic-gold">
-          {cards.reduce((sum, c) => sum + (c.quantity || 1), 0)} cartas
-        </span>
+    <div className="mb-12">
+      <div className="flex items-center gap-4 mb-6 pb-2 border-b border-magic-gold/10 relative">
+        <div className="w-10 h-10 rounded-lg bg-magic-gold/5 border border-magic-gold/20 flex items-center justify-center shadow-inner text-magic-gold">
+          <Icon className="w-5 h-5" />
+        </div>
+        <h3 className="text-2xl font-cinzel text-magic-gold tracking-widest uppercase">{title}</h3>
+        <div className="ml-auto flex items-center gap-2">
+          <div className="h-px w-24 bg-gradient-to-r from-transparent to-magic-gold/20 mr-2" />
+          <span className="text-[10px] px-3 py-1 rounded-full bg-magic-gold/10 border border-magic-gold/30 font-bold uppercase tracking-[0.2em] text-magic-gold/80">
+            {cards.reduce((sum, c) => sum + (c.quantity || 1), 0)} Registros
+          </span>
+        </div>
       </div>
       
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
         {cards.map((card, idx) => (
           <MagicCard 
             key={`${card.name}-${idx}`} 
@@ -40,7 +47,6 @@ function CategorySection({ title, icon, cards, onRemove, onAdd, isEditing }) {
 }
 
 export default function VisualGrid({ cards, onRemoveCard, onAddCard, isEditing }) {
-  // Función para determinar la categoría única de una carta por prioridad
   const getPrimaryCategory = (card) => {
     const type = card.type_line || '';
     if (type.includes('Creature')) return 'Creature';
@@ -74,44 +80,26 @@ export default function VisualGrid({ cards, onRemoveCard, onAddCard, isEditing }
   }, 0);
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-around gap-2 p-6 frosted-panel shadow-2xl relative overflow-hidden">
-        {/* Decoración de fondo opcional */}
-        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent opacity-10 pointer-events-none" />
-        
-        <div className="text-center px-4 relative z-10">
-          <p className="text-3xl font-cinzel text-magic-gold leading-none">{totalCards}</p>
-          <p className="text-[10px] text-[#f4ece0]/60 uppercase tracking-[0.2em] mt-1">Total</p>
-        </div>
-        <div className="w-px h-12 line-magic-gold opacity-40" />
-        <div className="text-center px-4 relative z-10">
-          <p className="text-2xl font-cinzel text-white leading-none">{creatures}</p>
-          <p className="text-[10px] text-[#f4ece0]/60 uppercase tracking-[0.2em] mt-1">Criaturas</p>
-        </div>
-        <div className="w-px h-12 line-magic-gold opacity-40" />
-        <div className="text-center px-4 relative z-10">
-          <p className="text-2xl font-cinzel text-blue-400 leading-none">{spells}</p>
-          <p className="text-[10px] text-[#f4ece0]/60 uppercase tracking-[0.2em] mt-1">Hechizos</p>
-        </div>
-        <div className="w-px h-12 line-magic-gold opacity-40" />
-        <div className="text-center px-4 relative z-10">
-          <p className="text-2xl font-cinzel text-gray-400 leading-none">{artifacts}</p>
-          <p className="text-[10px] text-[#f4ece0]/60 uppercase tracking-[0.2em] mt-1">Artefactos</p>
-        </div>
-        <div className="w-px h-12 line-magic-gold opacity-40" />
-        <div className="text-center px-4 relative z-10">
-          <p className="text-2xl font-cinzel text-green-400 leading-none">{lands}</p>
-          <p className="text-[10px] text-[#f4ece0]/60 uppercase tracking-[0.2em] mt-1">Tierras</p>
-        </div>
-        {totalPrice > 0 && (
-          <>
-            <div className="w-px h-12 line-magic-gold opacity-40" />
-            <div className="text-center px-4 relative z-10">
-              <p className="text-2xl font-cinzel text-amber-500 leading-none">${totalPrice.toFixed(2)}</p>
-              <p className="text-[10px] text-[#f4ece0]/60 uppercase tracking-[0.2em] mt-1">Mercado</p>
+    <div className="space-y-12">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        {[
+          { label: 'Total', value: totalCards, color: 'text-magic-gold', icon: Layers },
+          { label: 'Criaturas', value: creatures, color: 'text-red-400', icon: Swords },
+          { label: 'Hechizos', value: spells, color: 'text-blue-400', icon: Zap },
+          { label: 'Artefactos', value: artifacts, color: 'text-gray-300', icon: Gem },
+          { label: 'Tierras', value: lands, color: 'text-green-400', icon: Mountain },
+          { label: 'Valor', value: `$${totalPrice.toFixed(0)}`, color: 'text-amber-400', icon: Coins }
+        ].map((stat, i) => {
+          const Icon = stat.icon;
+          return (
+            <div key={i} className="bg-black/60 border border-magic-gold/20 rounded-2xl p-5 flex flex-col items-center justify-center group hover:border-magic-gold/50 hover:bg-black/80 transition-all duration-500 shadow-xl relative overflow-hidden">
+               <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+               <Icon className={cn("w-5 h-5 mb-2 opacity-50 group-hover:opacity-100 transition-all duration-300 group-hover:scale-110", stat.color)} />
+               <p className={cn("text-3xl font-cinzel leading-none drop-shadow-md relative z-10", stat.color)}>{stat.value}</p>
+               <p className="text-[10px] text-white/50 uppercase tracking-[0.25em] mt-3 font-bold relative z-10">{stat.label}</p>
             </div>
-          </>
-        )}
+          );
+        })}
       </div>
 
       <div className="space-y-2">
