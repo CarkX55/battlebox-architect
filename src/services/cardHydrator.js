@@ -1,5 +1,5 @@
 const DB_NAME = 'mtg_cards_db';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE_NAME = 'cards';
 
 let db = null;
@@ -18,7 +18,11 @@ async function openDB() {
     
     request.onupgradeneeded = (event) => {
       const database = event.target.result;
-      if (!database.objectStoreNames.contains(STORE_NAME)) {
+      if (event.oldVersion < 1) {
+        database.createObjectStore(STORE_NAME, { keyPath: 'name' });
+      } else {
+        // DB_VERSION incremented, delete old and recreate
+        database.deleteObjectStore(STORE_NAME);
         database.createObjectStore(STORE_NAME, { keyPath: 'name' });
       }
     };
@@ -50,12 +54,10 @@ export async function getCardFromDB(name) {
 async function fetchCardFromScryfall(cardName) {
   let cleanName = cardName.replace(/^\d+x\s+/, '').trim();
   
-  // Arreglar cartas dobles que vengan con un solo /
   if (cleanName.includes('/') && !cleanName.includes('//')) {
     cleanName = cleanName.replace(/\s*\/\s*/g, ' // ');
   }
   
-  // Buscar la carta exacta, omitiendo Universes Beyond y cartas de Arena
   const searchQuery = `!"${cleanName}" -is:ub -is:digital`;
   const url = `https://api.scryfall.com/cards/search?q=${encodeURIComponent(searchQuery)}`;
   
@@ -63,7 +65,6 @@ async function fetchCardFromScryfall(cardName) {
     let data;
     const response = await fetch(url);
     if (!response.ok) {
-      // Fallback al endpoint exacto normal si falla la búsqueda estricta
       const fallbackUrl = `https://api.scryfall.com/cards/named?exact=${encodeURIComponent(cleanName)}`;
       const fallbackResponse = await fetch(fallbackUrl);
       if (!fallbackResponse.ok) return null;
@@ -77,8 +78,12 @@ async function fetchCardFromScryfall(cardName) {
     const card = {
       name: data.name,
       type_line: data.type_line,
+      rarity: data.rarity || 'common',
       oracle_text: data.oracle_text || '',
       mana_value: data.cmc || 0,
+      mana_cost: data.mana_cost || data.card_faces?.[0]?.mana_cost || '',
+      color_identity: data.color_identity || [],
+      produced_mana: data.produced_mana || [],
       category: categorizeCard(data.type_line, data.oracle_text),
       legalities: data.legalities || {},
       prices: data.prices || {},

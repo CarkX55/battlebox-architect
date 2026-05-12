@@ -10,8 +10,10 @@
   },
   "dependencies": {
     "clsx": "^2.1.0",
+    "firebase": "^12.13.0",
     "flexsearch": "^0.8.212",
     "framer-motion": "^11.0.0",
+    "lucide-react": "^1.14.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "tailwind-merge": "^2.2.0",

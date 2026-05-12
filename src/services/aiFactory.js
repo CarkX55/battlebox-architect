@@ -421,3 +421,68 @@ ${d.cards.map(c => `${c.quantity}x ${c.name}`).join('\n')}
 
   return await callAI(messages, aiConfig, { forceJSON: true, maxTokens: 8000 });
 }
+
+export async function suggestCards(deck, aiConfig, aiMetadata = {}) {
+  let totalCmc = 0;
+  let spellCount = 0;
+  
+  deck.forEach(card => {
+    const type = (card.type_line || card.type || '').toLowerCase();
+    if (type.includes('land')) return;
+    const rawCmc = card.mana_value !== undefined ? card.mana_value : (card.cmc !== undefined ? card.cmc : card.cost);
+    const cmc = Number(rawCmc || 0);
+    const qty = Number(card.quantity || 1);
+    totalCmc += (cmc * qty);
+    spellCount += qty;
+  });
+
+  const avgCmc = spellCount > 0 ? (totalCmc / spellCount).toFixed(2) : 0;
+  const arch = aiMetadata.archetype || 'Desconocido';
+  
+  const deckList = deck.map(c => `${c.quantity}x ${c.name}`).join('\n');
+  const systemPrompt = `Eres un asesor experto en Magic (Legacy Casual).
+El usuario te dará la lista actual de su mazo. Tu tarea es sugerir EXACTAMENTE 3 intercambios (swaps) que mejorarían drásticamente la sinergia, la curva de maná o la interacción del mazo.
+
+CONTEXTO ACTUAL DEL MAZO:
+- Arquetipo: ${arch}
+- Coste de Maná Promedio (Hechizos): ${avgCmc}
+*Si la curva actual es muy alta para el arquetipo (ej. >2.2 en Aggro, >2.8 en Midrange, >3.2 en Control), tus sugerencias DEBEN enfocarse en reducir el coste eliminando cartas pesadas e insertando cartas eficientes de coste bajo. Si es muy baja, sugiere mayor impacto.*
+
+RESTRICCIONES:
+- Deben ser del color adecuado para el mazo.
+- NO sugieras cartas de esta lista de prohibidas: ${BATTLEBOX_BANLIST.join(', ')}
+- Mantén el "reason" muy corto y estratégico (español).
+- El campo "cut" debe ser el nombre exacto de una carta de bajo impacto que YA EXISTA en el mazo actual y que deba ser eliminada para hacerle hueco a "name".
+
+Responde EXCLUSIVAMENTE con este JSON:
+{
+  "suggestions": [
+    {
+      "name": "Nombre Exacto Nueva",
+      "cut": "Nombre Exacto A Quitar",
+      "reason": "Explicación táctica corta del intercambio."
+    }
+  ]
+}`;
+
+  const messages = [
+    { role: 'system', content: systemPrompt },
+    { role: 'user', content: `Mazo actual:\n${deckList}` }
+  ];
+
+  console.log('🔮 Solicitando sugerencias al Oráculo...');
+  const response = await callAI(messages, aiConfig, { forceJSON: true });
+
+  
+  try {
+    const jsonBlock = response.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/);
+    if (jsonBlock) return JSON.parse(jsonBlock[1]).suggestions;
+    const first = response.indexOf('{');
+    const last = response.lastIndexOf('}');
+    if (first !== -1 && last > first) return JSON.parse(response.substring(first, last + 1)).suggestions;
+    return [];
+  } catch (e) {
+    console.error('Error parseando sugerencias:', e);
+    return [];
+  }
+}

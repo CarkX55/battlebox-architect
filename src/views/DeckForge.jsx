@@ -7,13 +7,14 @@ import ManaOrb from '../components/atoms/ManaOrb';
 import AiConfigPanel from '../components/forge/AiConfigPanel';
 import VisualGrid from '../components/battlebox/VisualGrid';
 import { hydrateDeckCards } from '../services/cardHydrator';
-import { forgeMazo, callAI } from '../services/aiFactory';
+import { forgeMazo, callAI, suggestCards } from '../services/aiFactory';
 import { archiveDeck, archiveDeckOnline } from '../services/archiveService';
 import CardSearch from '../components/forge/CardSearch';
 import HandSimulator from '../components/forge/HandSimulator';
+import { PowerLevelMeter } from '../components/forge/PowerLevelMeter';
 import RadarChart from '../components/forge/RadarChart';
 import ManaCurve from '../components/forge/ManaCurve';
-import { AlertTriangle, Shield, Lightbulb, Target, Scroll, PenTool, CheckCircle2, XCircle, Info, Zap } from 'lucide-react';
+import { AlertTriangle, Shield, Lightbulb, Target, Scroll, PenTool, CheckCircle2, XCircle, Info, Zap, Sparkles } from 'lucide-react';
 
 const FORGE_STORAGE_KEY = 'mtg_ai_config_forge';
 
@@ -40,6 +41,17 @@ export default function DeckForge() {
   const [pocketGuide, setPocketGuide] = useState(null);
   const [isGeneratingGuide, setIsGeneratingGuide] = useState(false);
   const [cloudArchived, setCloudArchived] = useState(false);
+  const [cardSuggestions, setCardSuggestions] = useState(null);
+  const [isSuggesting, setIsSuggesting] = useState(false);
+  const [hoveredCard, setHoveredCard] = useState(null);
+  const [hoverPos, setHoverPos] = useState({ x: 0, y: 0 });
+  const [applyingSwap, setApplyingSwap] = useState(null);
+
+  const handleCardHover = (e, name) => {
+    setHoveredCard(name);
+    setHoverPos({ x: e.clientX, y: e.clientY });
+  };
+  const handleCardLeave = () => setHoveredCard(null);
 
   // --- LÓGICA DE VALIDACIÓN DE REGLAS ---
   const stats = useMemo(() => {
@@ -188,8 +200,13 @@ export default function DeckForge() {
         name: scryfallCard.name,
         type_line: scryfallCard.type_line,
         quantity: 1,
+        rarity: scryfallCard.rarity || 'common',
         category: scryfallCard.type_line.split('—')[0].trim(),
-        image_uris: scryfallCard.image_uris || scryfallCard.card_faces?.[0]?.image_uris
+        image_uris: scryfallCard.image_uris || scryfallCard.card_faces?.[0]?.image_uris,
+        mana_cost: scryfallCard.mana_cost || scryfallCard.card_faces?.[0]?.mana_cost || '',
+        mana_value: scryfallCard.cmc || 0,
+        color_identity: scryfallCard.color_identity || [],
+        produced_mana: scryfallCard.produced_mana || []
       }];
     });
     setWarning(null);
@@ -223,7 +240,52 @@ export default function DeckForge() {
     }
   };
 
+  const handleSuggestCards = async () => {
+    if (!aiConfig) {
+      setWarning('Activa el Panel de Configuración IA primero para pedir consejo al Oráculo.');
+      return;
+    }
+    setIsSuggesting(true);
+    setCardSuggestions(null);
+    try {
+      const suggestions = await suggestCards(renderDeck, aiConfig, aiMetadata);
+      setCardSuggestions(suggestions);
+    } catch (e) {
+      setWarning('El Oráculo falló al visualizar el futuro.');
+    } finally {
+      setIsSuggesting(false);
+    }
+  };
+
+  const executeSwap = async (sug, index) => {
+    setApplyingSwap(index);
+    try {
+      // 1. Fetch la carta nueva desde Scryfall para obtener imagen y type_line
+      const res = await fetch(`https://api.scryfall.com/cards/named?exact=${encodeURIComponent(sug.name)}`);
+      if (!res.ok) {
+        setWarning(`❌ No se encontró "${sug.name}" en la base de datos de Scryfall. Quizás el Oráculo se equivocó de nombre.`);
+        setApplyingSwap(null);
+        return;
+      }
+      const scryfallCard = await res.json();
+
+      // 2. Ejecutar el swap en el estado
+      if (sug.cut) {
+        handleRemoveCard(sug.cut);
+      }
+      await handleAddCard(scryfallCard);
+
+      // 3. Limpiar esta sugerencia de la lista
+      setCardSuggestions(prev => prev.filter((_, i) => i !== index));
+    } catch (e) {
+      setWarning(`Error aplicando el cambio: ${e.message}`);
+    } finally {
+      setApplyingSwap(null);
+    }
+  };
+
   return (
+
     <div className="max-w-7xl mx-auto px-4 py-8">
       <AnimatePresence>
         {loading && (
@@ -280,6 +342,7 @@ export default function DeckForge() {
                       <XCircle size={12} /> No cumple las reglas
                     </span>
                   )}
+                  <PowerLevelMeter deck={renderDeck} />
                 </div>
               </div>
               
@@ -350,8 +413,74 @@ export default function DeckForge() {
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-12">
               <div className="lg:col-span-2">
-                {isEditing && <CardSearch onAddCard={handleAddCard} />}
-                <VisualGrid cards={renderDeck} isEditing={isEditing} onRemoveCard={handleRemoveCard} />
+                {isEditing && (
+                  <div className="mb-6 space-y-4">
+                    <CardSearch onAddCard={handleAddCard} />
+                    
+                    {/* El Oráculo de Sinergias */}
+                    <div className="p-4 rounded-xl border border-green-500/30 bg-black/50 backdrop-blur-md shadow-lg relative overflow-hidden">
+                      <div className="absolute top-0 right-0 w-32 h-32 bg-green-500/10 blur-3xl -z-10 rounded-full" />
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="font-cinzel text-green-400 flex items-center gap-2">
+                          <Sparkles size={18} /> El Oráculo de Sinergias
+                        </h4>
+                        <button 
+                          onClick={handleSuggestCards}
+                          disabled={isSuggesting}
+                          className="btn-magic-glass py-1 px-3 text-xs bg-green-900/40 border-green-500/50 hover:bg-green-800/60"
+                        >
+                          {isSuggesting ? 'Consultando...' : 'Pedir Consejo'}
+                        </button>
+                      </div>
+                      
+                      <AnimatePresence>
+                        {cardSuggestions && (
+                          <motion.div 
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className="space-y-2 mt-4"
+                          >
+                            {cardSuggestions.map((sug, idx) => (
+                              <div key={idx} className="p-3 bg-black/40 border border-white/10 rounded-lg flex flex-col gap-2">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                  <div className="flex items-center gap-3 flex-1">
+                                    <span 
+                                      className="font-bold text-green-400 text-sm flex items-center gap-1 cursor-pointer hover:underline"
+                                      onMouseMove={(e) => handleCardHover(e, sug.name)}
+                                      onMouseLeave={handleCardLeave}
+                                    >
+                                      <Sparkles size={12}/> IN: {sug.name}
+                                    </span>
+                                    {sug.cut && (
+                                      <span 
+                                        className="font-bold text-red-400/80 text-sm flex items-center gap-1 cursor-pointer hover:underline"
+                                        onMouseMove={(e) => handleCardHover(e, sug.cut)}
+                                        onMouseLeave={handleCardLeave}
+                                      >
+                                        <XCircle size={12}/> OUT: {sug.cut}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <button
+                                    onClick={() => executeSwap(sug, idx)}
+                                    disabled={applyingSwap === idx}
+                                    className="px-3 py-1 bg-[#D4AF37]/10 hover:bg-[#D4AF37]/20 border border-[#D4AF37]/30 text-[#D4AF37] rounded font-cinzel text-xs flex items-center justify-center min-w-[120px] transition-all"
+                                  >
+                                    {applyingSwap === idx ? 'Aplicando...' : 'Aplicar Cambio'}
+                                  </button>
+                                </div>
+
+                                <span className="text-xs text-gray-300 italic border-l-2 border-green-500/30 pl-2">"{sug.reason}"</span>
+                              </div>
+                            ))}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  </div>
+                )}
+                <VisualGrid cards={renderDeck} isEditing={isEditing} onRemoveCard={handleRemoveCard} onAddCard={(name) => handleAddCard({ name })} />
               </div>
 
               <div className="space-y-6">
@@ -363,7 +492,7 @@ export default function DeckForge() {
                     Velocidad: 8, Control: 7, Poder: 8, Complejidad: 7, Resiliencia: 6
                   }} />
                 </div>
-                <ManaCurve deck={renderDeck} />
+                <ManaCurve deck={renderDeck} archetype={aiMetadata?.archetype} />
 
                 {pocketGuide && (
                   <div className="parchment-scroll p-8 shadow-2xl">
@@ -397,6 +526,29 @@ export default function DeckForge() {
             </div>
 
             <HandSimulator deck={renderDeck} isOpen={showHandSim} onClose={() => setShowHandSim(false)} />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Floating Card Preview for Oracle */}
+      <AnimatePresence>
+        {hoveredCard && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="fixed z-[999] pointer-events-none rounded-xl overflow-hidden shadow-2xl border border-[#D4AF37]/40 bg-black/80 backdrop-blur-md"
+            style={{ 
+              left: hoverPos.x + 20, 
+              top: Math.min(hoverPos.y - 150, window.innerHeight - 360) 
+            }}
+          >
+            <img 
+              src={`https://api.scryfall.com/cards/named?exact=${encodeURIComponent(hoveredCard)}&format=image`}
+              alt={hoveredCard}
+              className="w-[240px] h-auto rounded-xl shadow-2xl"
+              onError={(e) => e.target.style.display = 'none'}
+            />
           </motion.div>
         )}
       </AnimatePresence>
