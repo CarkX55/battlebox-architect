@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { getCommunityDecks } from '../services/archiveService';
+import { getCommunityDecks, deleteCommunityDeck } from '../services/archiveService';
+import { Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../utils/cn';
 import { useAppStore } from '../store/useAppStore';
@@ -19,6 +20,17 @@ export default function Community() {
     };
     fetchDecks();
   }, []);
+
+  const handleDelete = async (id) => {
+    if (window.confirm("¿Estás seguro de que quieres borrar este mazo de la comunidad? Esta acción no se puede deshacer.")) {
+      const success = await deleteCommunityDeck(id);
+      if (success) {
+        setDecks(decks.filter(deck => deck.id !== id));
+      } else {
+        alert("Hubo un error al borrar el mazo de la comunidad.");
+      }
+    }
+  };
 
   return (
     <div className="max-w-5xl mx-auto py-8">
@@ -61,6 +73,13 @@ export default function Community() {
                       </span>
                     </div>
                   </div>
+                  <button
+                    onClick={() => handleDelete(deck.id)}
+                    className="p-2 text-red-500/50 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all"
+                    title="Borrar de la nube"
+                  >
+                    <Trash2 size={18} />
+                  </button>
                 </div>
 
                 {deck.lore && (

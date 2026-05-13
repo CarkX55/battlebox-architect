@@ -49,7 +49,6 @@ export const archiveDeckOnline = async (deckData) => {
   }
 };
 
-// Recupera mazos de la nube (Comunidad)
 export const getCommunityDecks = async () => {
   try {
     if (!isFirebaseConfigured()) return [];
@@ -66,6 +65,18 @@ export const getCommunityDecks = async () => {
     return [];
   }
 };
+
+export const deleteCommunityDeck = async (id) => {
+  try {
+    if (!isFirebaseConfigured()) return false;
+    await deleteDoc(doc(db, 'community_decks', id));
+    return true;
+  } catch (error) {
+    console.error('Error deleting community deck:', error);
+    return false;
+  }
+};
+
 
 export const getArchivedDecks = () => {
   try {

@@ -59,7 +59,7 @@ export const PowerLevelMeter = ({ deck, className }) => {
       icon = Swords;
     }
 
-    return { score, text, color, icon };
+    return { score, text, color, icon, rareCount, mythicCount, avgCmc: avgCmc.toFixed(2) };
   }, [deck]);
 
   if (!powerLevel.score) return null;
@@ -67,7 +67,7 @@ export const PowerLevelMeter = ({ deck, className }) => {
   const Icon = powerLevel.icon;
 
   return (
-    <div className={cn("flex items-center gap-3 bg-black/40 border border-white/5 px-3 py-1.5 rounded-lg shadow-inner", className)}>
+    <div className={cn("group relative flex items-center gap-3 bg-black/40 border border-white/5 px-3 py-1.5 rounded-lg shadow-inner", className)}>
       <div className={cn("p-1.5 rounded-md bg-black/50 border border-white/10", powerLevel.color)}>
         <Icon size={16} />
       </div>
@@ -92,6 +92,33 @@ export const PowerLevelMeter = ({ deck, className }) => {
           </span>
         </div>
       </div>
+
+      {/* Tooltip Detalle */}
+      <div className="absolute top-full left-0 mt-2 w-72 p-4 bg-[#1a1612] border border-magic-gold/30 rounded-xl shadow-[0_20px_50px_rgba(0,0,0,0.8)] 
+                      opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-[999] backdrop-blur-2xl pointer-events-none">
+        <h5 className="font-cinzel text-magic-gold text-[11px] tracking-widest mb-3 border-b border-magic-gold/10 pb-2 uppercase">
+          Análisis del Oráculo
+        </h5>
+        <div className="space-y-2 text-xs">
+          <div className="flex justify-between items-center text-white/60">
+            <span>Raras / Míticas:</span>
+            <span className="text-white font-mono">{powerLevel.rareCount} / {powerLevel.mythicCount}</span>
+          </div>
+          <div className="flex justify-between items-center text-white/60">
+            <span>CMC Promedio:</span>
+            <span className="text-white font-mono">{powerLevel.avgCmc}</span>
+          </div>
+          <div className="pt-2 border-t border-white/5 mt-2">
+            <p className="text-[11px] text-magic-gold/80 italic leading-tight">
+              {powerLevel.score >= 9 ? "Este mazo contiene amenazas de alto impacto y una curva muy eficiente." :
+               powerLevel.score >= 7 ? "Mazo optimizado con buena sinergia y curva equilibrada." :
+               "Mazo casual, ideal para partidas temáticas y equilibradas."}
+            </p>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
+
+

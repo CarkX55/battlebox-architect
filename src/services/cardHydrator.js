@@ -1,5 +1,5 @@
 const DB_NAME = 'mtg_cards_db';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const STORE_NAME = 'cards';
 
 let db = null;
@@ -87,13 +87,15 @@ async function fetchCardFromScryfall(cardName) {
       category: categorizeCard(data.type_line, data.oracle_text),
       legalities: data.legalities || {},
       prices: data.prices || {},
+      card_faces: data.card_faces || null,
       image_uris: data.image_uris ? {
         normal: data.image_uris.normal,
         large: data.image_uris.large,
         small: data.image_uris.small
       } : data.card_faces?.[0]?.image_uris ? {
         normal: data.card_faces[0].image_uris.normal,
-        large: data.card_faces[0].image_uris.large
+        large: data.card_faces[0].image_uris.large,
+        small: data.card_faces[0].image_uris.small
       } : null
     };
     

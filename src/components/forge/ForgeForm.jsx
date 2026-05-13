@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../../utils/cn';
 
@@ -32,7 +32,7 @@ const ARCHETYPES = BATTLEBOX_ARCHETYPES.map(a => ({
   description: a.description
 }));
 
-export default function ForgeForm({ onSubmit, isLoading, disabled }) {
+export default function ForgeForm({ onSubmit, isLoading, disabled, error }) {
   const [formData, setFormData] = useState({
     formato: 'legacy-battlebox',
     rarityMode: 'standard',
@@ -86,9 +86,15 @@ export default function ForgeForm({ onSubmit, isLoading, disabled }) {
     }
   };
 
+  const satisfiesPrimaryColor = (item, selectedColors) => {
+    if (!item.primaryColor) return true;
+    const required = Array.isArray(item.primaryColor) ? item.primaryColor : [item.primaryColor];
+    return required.every(c => selectedColors.includes(c));
+  };
+
   const availableTribes = useMemo(() => {
     return MTG_TRIBES.filter(t => 
-      t.colors.some(c => formData.colores.includes(c)) && 
+      satisfiesPrimaryColor(t, formData.colores) &&
       (!t.archetypes || t.archetypes.includes(formData.archetype))
     );
   }, [formData.colores, formData.archetype]);
@@ -105,7 +111,7 @@ export default function ForgeForm({ onSubmit, isLoading, disabled }) {
 
   const availableStrategies = useMemo(() => {
     let strats = MTG_STRATEGIES.filter(s => 
-      s.colors.some(c => formData.colores.includes(c)) &&
+      satisfiesPrimaryColor(s, formData.colores) &&
       (!s.archetypes || s.archetypes.includes(formData.archetype))
     );
     
@@ -118,6 +124,15 @@ export default function ForgeForm({ onSubmit, isLoading, disabled }) {
     
     return strats;
   }, [formData.colores, formData.archetype, formData.tribe, isCustomTribe]);
+
+  useEffect(() => {
+    if (formData.strategy && !isCustomStrategy) {
+      const isValid = availableStrategies.some(s => s.label === formData.strategy);
+      if (!isValid) {
+        setFormData(prev => ({ ...prev, strategy: '' }));
+      }
+    }
+  }, [availableStrategies, formData.strategy, isCustomStrategy]);
 
   const currentArchetype = ARCHETYPES.find(a => a.value === formData.archetype);
 
@@ -136,6 +151,20 @@ export default function ForgeForm({ onSubmit, isLoading, disabled }) {
             Configuración del Mazo
           </h3>
         </div>
+
+        {error && (
+          <motion.div 
+            initial={{ opacity: 0, y: -10 }} 
+            animate={{ opacity: 1, y: 0 }} 
+            className="mb-8 p-4 bg-red-950/40 border-l-4 border-red-500 rounded-r-lg text-red-200 text-sm shadow-xl flex items-start gap-3 backdrop-blur-md"
+          >
+            <span className="text-xl">⚠️</span>
+            <div>
+              <p className="font-bold text-red-400 mb-1">El Oráculo ha fallado</p>
+              <p className="text-red-200/80">{error}</p>
+            </div>
+          </motion.div>
+        )}
 
         <div className="space-y-6">
           <div>

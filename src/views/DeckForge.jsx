@@ -46,6 +46,7 @@ export default function DeckForge() {
   const [hoveredCard, setHoveredCard] = useState(null);
   const [hoverPos, setHoverPos] = useState({ x: 0, y: 0 });
   const [applyingSwap, setApplyingSwap] = useState(null);
+  const [forgePhase, setForgePhase] = useState(null);
 
   const handleCardHover = (e, name) => {
     setHoveredCard(name);
@@ -125,11 +126,16 @@ export default function DeckForge() {
     setLoading(true);
     setError(null);
     setWarning(null);
+    setForgePhase(null);
     
     try {
       console.log('🔥 Forjando mazo Legacy Battle Box...');
       
-      const aiResult = await forgeMazo(formData, aiConfig);
+      const onProgress = (phase, message) => {
+        setForgePhase({ phase, message });
+      };
+      
+      const aiResult = await forgeMazo(formData, aiConfig, onProgress);
       
       if (!aiResult.cards || aiResult.cards.length === 0) {
         throw new Error('La IA no devolvió cartas válidas. Intenta de nuevo.');
@@ -137,6 +143,7 @@ export default function DeckForge() {
       
       setAiMetadata(aiResult);
       
+      setForgePhase({ phase: 'hydrate', message: '🎴 Cargando imágenes de las cartas...' });
       const hydratedDeck = await hydrateDeckCards(aiResult.cards);
       const hydratedSideboard = aiResult.sideboard ? await hydrateDeckCards(aiResult.sideboard) : [];
       
@@ -168,16 +175,24 @@ export default function DeckForge() {
       setRenderDeck(finalDeck);
       setRenderSideboard(hydratedSideboard); 
       setSideboardStrategy(aiResult.sideboard_strategy || '');
+      
+      // Mostrar warning si el Juez corrigió cartas de la banlist
+      if (aiResult.banlistSwaps && aiResult.banlistSwaps.length > 0) {
+        const swapText = aiResult.banlistSwaps.map(s => `${s.original} → ${s.replacement}`).join(', ');
+        setWarning(`⚖️ El Juez corrigió ${aiResult.banlistSwaps.length} carta(s) prohibida(s): ${swapText}`);
+      }
+      
       setMode('deck');
     } catch (err) {
       console.error('❌ Error forjando:', err);
       setError(err.message || 'Error en la conexión con el Oráculo');
     } finally {
       setLoading(false);
+      setForgePhase(null);
     }
   };
 
-  const handleAddCard = async (scryfallCard) => {
+  const handleAddCard = async (scryfallCard, qtyToAdd = 1) => {
     const cardName = scryfallCard.name;
     
     // Bloqueo de Banlist
@@ -186,20 +201,22 @@ export default function DeckForge() {
       return;
     }
 
+    let warningToSet = null;
+
     setRenderDeck(prev => {
       const exists = prev.find(c => c.name === cardName);
       if (exists) {
         // Bloqueo de Copias (Regla de 4)
-        if (!isBasicLand(cardName) && exists.quantity >= BATTLEBOX_RULES.maxCopies) {
-          setWarning(`⚠️ Límite de copias alcanzado: Máximo ${BATTLEBOX_RULES.maxCopies} de "${cardName}".`);
-          return prev;
+        if (!isBasicLand(cardName) && exists.quantity + qtyToAdd > BATTLEBOX_RULES.maxCopies) {
+          warningToSet = `⚠️ Límite de copias alcanzado: Máximo ${BATTLEBOX_RULES.maxCopies} de "${cardName}".`;
+          return prev.map(c => c.name === cardName ? { ...c, quantity: BATTLEBOX_RULES.maxCopies } : c);
         }
-        return prev.map(c => c.name === cardName ? { ...c, quantity: c.quantity + 1 } : c);
+        return prev.map(c => c.name === cardName ? { ...c, quantity: c.quantity + qtyToAdd } : c);
       }
       return [...prev, {
         name: scryfallCard.name,
         type_line: scryfallCard.type_line,
-        quantity: 1,
+        quantity: qtyToAdd,
         rarity: scryfallCard.rarity || 'common',
         category: scryfallCard.type_line.split('—')[0].trim(),
         image_uris: scryfallCard.image_uris || scryfallCard.card_faces?.[0]?.image_uris,
@@ -209,14 +226,15 @@ export default function DeckForge() {
         produced_mana: scryfallCard.produced_mana || []
       }];
     });
-    setWarning(null);
+    
+    setWarning(warningToSet);
   };
 
-  const handleRemoveCard = (cardName) => {
+  const handleRemoveCard = (cardName, qtyToRemove = 1) => {
     setRenderDeck(prev => {
       const card = prev.find(c => c.name === cardName);
-      if (card && card.quantity > 1) {
-        return prev.map(c => c.name === cardName ? { ...c, quantity: c.quantity - 1 } : c);
+      if (card && card.quantity > qtyToRemove) {
+        return prev.map(c => c.name === cardName ? { ...c, quantity: c.quantity - qtyToRemove } : c);
       }
       return prev.filter(c => c.name !== cardName);
     });
@@ -248,7 +266,7 @@ export default function DeckForge() {
     setIsSuggesting(true);
     setCardSuggestions(null);
     try {
-      const suggestions = await suggestCards(renderDeck, aiConfig, aiMetadata);
+      const suggestions = await suggestCards(renderDeck, aiConfig, aiMetadata, lastFormData);
       setCardSuggestions(suggestions);
     } catch (e) {
       setWarning('El Oráculo falló al visualizar el futuro.');
@@ -260,6 +278,7 @@ export default function DeckForge() {
   const executeSwap = async (sug, index) => {
     setApplyingSwap(index);
     try {
+      const qty = sug.quantity || 1;
       // 1. Fetch la carta nueva desde Scryfall para obtener imagen y type_line
       const res = await fetch(`https://api.scryfall.com/cards/named?exact=${encodeURIComponent(sug.name)}`);
       if (!res.ok) {
@@ -271,9 +290,9 @@ export default function DeckForge() {
 
       // 2. Ejecutar el swap en el estado
       if (sug.cut) {
-        handleRemoveCard(sug.cut);
+        handleRemoveCard(sug.cut, qty);
       }
-      await handleAddCard(scryfallCard);
+      await handleAddCard(scryfallCard, qty);
 
       // 3. Limpiar esta sugerencia de la lista
       setCardSuggestions(prev => prev.filter((_, i) => i !== index));
@@ -302,6 +321,28 @@ export default function DeckForge() {
             >
               <img src="/ASSETS/invocando.webp" alt="Forjando" className="w-80 h-80 object-contain drop-shadow-[0_0_50px_rgba(255,202,88,0.3)]" />
               <h2 className="text-4xl font-cinzel text-magic-gold tracking-[0.4em] mt-8 animate-pulse">FORJANDO</h2>
+              {forgePhase && (
+                <div className="mt-6 flex flex-col items-center gap-3">
+                  <p className="text-magic-gold/70 text-sm tracking-wider animate-pulse font-medium">
+                    {forgePhase.message}
+                  </p>
+                  <div className="flex gap-3 mt-2">
+                    {['strategist', 'assembler', 'judge'].map((step, i) => (
+                      <div key={step} className={`w-3 h-3 rounded-full transition-all duration-500 ${
+                        forgePhase.phase === step ? 'bg-magic-gold scale-125 shadow-[0_0_12px_rgba(255,202,88,0.6)]' :
+                        ['strategist', 'assembler', 'judge'].indexOf(forgePhase.phase) > i ? 'bg-green-500/60' :
+                        forgePhase.phase === 'hydrate' ? 'bg-green-500/60' :
+                        'bg-white/20'
+                      }`} />
+                    ))}
+                  </div>
+                  <div className="flex gap-8 text-[9px] uppercase tracking-[0.15em] text-white/30 font-bold mt-1">
+                    <span className={forgePhase.phase === 'strategist' ? 'text-magic-gold' : ''}>Estrategia</span>
+                    <span className={forgePhase.phase === 'assembler' ? 'text-magic-gold' : ''}>Ensamblar</span>
+                    <span className={forgePhase.phase === 'judge' ? 'text-magic-gold' : ''}>Auditar</span>
+                  </div>
+                </div>
+              )}
             </motion.div>
           </motion.div>
         )}
@@ -378,31 +419,63 @@ export default function DeckForge() {
             </div>
 
             {/* Alertas de Reglas */}
-            {!stats.isValid && (
-              <div className="mb-8 grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className={cn("p-4 rounded-xl border flex items-center gap-3 shadow-lg backdrop-blur-md transition-all", stats.isMainValid ? "bg-green-500/5 border-green-500/20 text-green-400" : "bg-red-500/5 border-red-500/20 text-red-400")}>
-                  {stats.isMainValid ? <CheckCircle2 size={20} /> : <AlertTriangle size={20} />}
-                  <div>
-                    <p className="text-[10px] uppercase font-bold opacity-60">Cartas Main</p>
-                    <p className="text-sm font-bold">{stats.mainCount} / 60 requeridas</p>
-                  </div>
+            <div className="mb-8 grid grid-cols-1 md:grid-cols-3 gap-4 relative z-[100]">
+              {/* Cartas Main */}
+              <div className={cn("group relative hover:z-[100] p-4 rounded-xl border flex items-center gap-3 shadow-lg backdrop-blur-md transition-all cursor-help", stats.isMainValid ? "bg-green-500/5 border-green-500/20 text-green-400" : "bg-red-500/5 border-red-500/20 text-red-400")}>
+                {stats.isMainValid ? <CheckCircle2 size={20} /> : <AlertTriangle size={20} />}
+                <div>
+                  <p className="text-[10px] uppercase font-bold opacity-60">Cartas Main</p>
+                  <p className="text-sm font-bold">{stats.mainCount} / 60 requeridas</p>
                 </div>
-                <div className={cn("p-4 rounded-xl border flex items-center gap-3 shadow-lg backdrop-blur-md transition-all", stats.banned.length === 0 ? "bg-green-500/5 border-green-500/20 text-green-400" : "bg-red-500/5 border-red-500/20 text-red-400")}>
-                  {stats.banned.length === 0 ? <CheckCircle2 size={20} /> : <Shield size={20} />}
-                  <div>
-                    <p className="text-[10px] uppercase font-bold opacity-60">Cartas Prohibidas</p>
-                    <p className="text-sm font-bold">{stats.banned.length === 0 ? 'Limpio' : `${stats.banned.length} ilegales`}</p>
+                {!stats.isMainValid && (
+                  <div className="absolute top-full left-0 mt-2 w-72 p-4 bg-[#1a1612] border border-red-500/40 rounded-xl shadow-[0_20px_50px_rgba(0,0,0,0.8)] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-[999] text-[11px] backdrop-blur-2xl pointer-events-none">
+                    <p className="text-red-400 font-bold mb-2 flex items-center gap-2">
+                      <AlertTriangle size={12} /> Diferencia detectada:
+                    </p>
+                    <p className="text-white/80 leading-relaxed">El mazo tiene {stats.mainCount} cartas. Debe tener exactamente 60 para ser legal en Legacy Battle Box.</p>
                   </div>
-                </div>
-                <div className={cn("p-4 rounded-xl border flex items-center gap-3 shadow-lg backdrop-blur-md transition-all", stats.overLimit.length === 0 ? "bg-green-500/5 border-green-500/20 text-green-400" : "bg-red-500/5 border-red-500/20 text-red-400")}>
-                  {stats.overLimit.length === 0 ? <CheckCircle2 size={20} /> : <Info size={20} />}
-                  <div>
-                    <p className="text-[10px] uppercase font-bold opacity-60">Límite de Copias</p>
-                    <p className="text-sm font-bold">{stats.overLimit.length === 0 ? 'Correcto (máx 4)' : 'Exceso detectado'}</p>
-                  </div>
-                </div>
+                )}
               </div>
-            )}
+
+              {/* Cartas Prohibidas */}
+              <div className={cn("group relative hover:z-[100] p-4 rounded-xl border flex items-center gap-3 shadow-lg backdrop-blur-md transition-all cursor-help", stats.banned.length === 0 ? "bg-green-500/5 border-green-500/20 text-green-400" : "bg-red-500/5 border-red-500/20 text-red-400")}>
+                {stats.banned.length === 0 ? <CheckCircle2 size={20} /> : <Shield size={20} />}
+                <div>
+                  <p className="text-[10px] uppercase font-bold opacity-60">Cartas Prohibidas</p>
+                  <p className="text-sm font-bold">{stats.banned.length === 0 ? 'Limpio' : `${stats.banned.length} ilegales`}</p>
+                </div>
+                {stats.banned.length > 0 && (
+                  <div className="absolute top-full left-0 mt-2 w-72 p-4 bg-[#1a1612] border border-red-500/40 rounded-xl shadow-[0_20px_50px_rgba(0,0,0,0.8)] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-[999] text-[11px] backdrop-blur-2xl pointer-events-none">
+                    <p className="text-red-400 font-bold mb-2 flex items-center gap-2">
+                      <Shield size={12} /> Cartas en Banlist:
+                    </p>
+                    <ul className="list-disc pl-5 text-white/80 space-y-1">
+                      {[...new Set(stats.banned.map(c => c.name))].map(name => <li key={name}>{name}</li>)}
+                    </ul>
+                  </div>
+                )}
+              </div>
+
+              {/* Límite de Copias */}
+              <div className={cn("group relative hover:z-[100] p-4 rounded-xl border flex items-center gap-3 shadow-lg backdrop-blur-md transition-all cursor-help", stats.overLimit.length === 0 ? "bg-green-500/5 border-green-500/20 text-green-400" : "bg-red-500/5 border-red-500/20 text-red-400")}>
+                {stats.overLimit.length === 0 ? <CheckCircle2 size={20} /> : <Info size={20} />}
+                <div>
+                  <p className="text-[10px] uppercase font-bold opacity-60">Límite de Copias</p>
+                  <p className="text-sm font-bold">{stats.overLimit.length === 0 ? 'Correcto (máx 4)' : 'Exceso detectado'}</p>
+                </div>
+                {stats.overLimit.length > 0 && (
+                  <div className="absolute top-full left-0 mt-2 w-72 p-4 bg-[#1a1612] border border-red-500/40 rounded-xl shadow-[0_20px_50px_rgba(0,0,0,0.8)] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-[999] text-[11px] backdrop-blur-2xl pointer-events-none">
+                    <p className="text-red-400 font-bold mb-2 flex items-center gap-2">
+                      <Info size={12} /> Exceso de copias (>4):
+                    </p>
+                    <ul className="list-disc pl-5 text-white/80 space-y-1">
+                      {stats.overLimit.map(c => <li key={c.name}>{c.name} ({c.quantity} copias)</li>)}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            </div>
+
 
             {warning && (
               <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-6 p-4 bg-red-950/20 border border-red-500/30 text-red-400 text-xs rounded-xl flex items-center gap-3 shadow-2xl">
@@ -450,7 +523,7 @@ export default function DeckForge() {
                                       onMouseMove={(e) => handleCardHover(e, sug.name)}
                                       onMouseLeave={handleCardLeave}
                                     >
-                                      <Sparkles size={12}/> IN: {sug.name}
+                                      <Sparkles size={12}/> +{sug.quantity || 1} {sug.name}
                                     </span>
                                     {sug.cut && (
                                       <span 
@@ -458,7 +531,7 @@ export default function DeckForge() {
                                         onMouseMove={(e) => handleCardHover(e, sug.cut)}
                                         onMouseLeave={handleCardLeave}
                                       >
-                                        <XCircle size={12}/> OUT: {sug.cut}
+                                        <XCircle size={12}/> -{sug.quantity || 1} {sug.cut}
                                       </span>
                                     )}
                                   </div>

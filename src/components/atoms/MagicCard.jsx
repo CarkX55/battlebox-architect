@@ -57,21 +57,21 @@ const MagicCard = memo(function MagicCard({
       });
   }, [card.name]);
 
-  const hasFaces = scryfallData?.card_faces && 
-                   scryfallData.card_faces.length > 1 && 
-                   scryfallData.card_faces[0].image_uris;
+  const cardData = scryfallData || card;
+  const hasFaces = cardData?.card_faces && 
+                   cardData.card_faces.length > 1 && 
+                   cardData.card_faces[0].image_uris;
   
   // Estrategia Progresiva: 'small' por defecto, 'normal' al pasar el ratón
   const getImageUrl = (highRes = false) => {
-    const uris = scryfallData || card;
     const faceIndex = isFlipped ? 1 : 0;
     
-    if (hasFaces && scryfallData.card_faces[faceIndex].image_uris) {
-      const faceUris = scryfallData.card_faces[faceIndex].image_uris;
+    if (hasFaces && cardData.card_faces[faceIndex].image_uris) {
+      const faceUris = cardData.card_faces[faceIndex].image_uris;
       return highRes ? (faceUris.normal || faceUris.large) : (faceUris.small || faceUris.normal);
     }
     
-    const baseUris = uris.image_uris;
+    const baseUris = cardData.image_uris;
     if (!baseUris) return null;
     return highRes ? (baseUris.normal || baseUris.large) : (baseUris.small || baseUris.normal);
   };
