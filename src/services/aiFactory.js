@@ -175,7 +175,7 @@ export function buildStrategistMathPrompt(params) {
 
 export async function callAI(messages, config, options = {}) {
   const { provider, apiKey, selectedModel, baseUrl } = config;
-  const { forceJSON = false, maxTokens = 8000 } = options;
+  const { forceJSON = false, maxTokens = 8000, onRetry = null } = options;
   const systemMessage = messages.find(m => m.role === 'system');
   const userMessage = messages.find(m => m.role === 'user');
 
@@ -217,9 +217,9 @@ export async function callAI(messages, config, options = {}) {
     };
   }
 
-  // --- RETRY CON BACKOFF EXPONENCIAL (para rate limits / "high demand") ---
-  const MAX_RETRIES = 3;
-  const BASE_DELAY = 4000; // 4 segundos base
+  // --- RETRY CON BACKOFF EXPONENCIAL AGRESIVO (para APIs gratuitas con "high demand") ---
+  const MAX_RETRIES = 5; 
+  const BASE_DELAY = 8000; // 8 segundos base para dar tiempo a que el modelo se libere
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     console.log(`🤖 Llamando a ${provider}/${selectedModel} (JSON: ${forceJSON}, tokens: ${maxTokens})${attempt > 0 ? ` [Reintento ${attempt}/${MAX_RETRIES}]` : ''}`);
@@ -232,11 +232,23 @@ export async function callAI(messages, config, options = {}) {
 
     if (!response.ok) {
       const errorText = await response.text();
-      const isRetryable = [429, 500, 503].includes(response.status) || errorText.toLowerCase().includes('high demand') || errorText.toLowerCase().includes('overloaded') || errorText.toLowerCase().includes('resource exhausted');
+      const isRetryable = [429, 500, 503, 504].includes(response.status) || 
+                         errorText.toLowerCase().includes('high demand') || 
+                         errorText.toLowerCase().includes('overloaded') || 
+                         errorText.toLowerCase().includes('resource exhausted') ||
+                         errorText.toLowerCase().includes('quota');
       
       if (isRetryable && attempt < MAX_RETRIES) {
-        const delay = BASE_DELAY * Math.pow(2, attempt); // 4s, 8s, 16s
-        console.warn(`⏳ ${provider} respondió ${response.status} (rate limit/high demand). Esperando ${delay/1000}s antes de reintentar...`);
+        // Backoff exponencial + Jitter (variación aleatoria) para evitar colisiones
+        const jitter = Math.random() * 2000;
+        const delay = (BASE_DELAY * Math.pow(2, attempt)) + jitter;
+        
+        const retryMsg = `⚠️ [Intento ${attempt+1}] ${provider} saturado (${response.status}). Reintentando en ${Math.round(delay/1000)}s...`;
+        console.warn(retryMsg);
+        
+        // Notificar al llamador para que pueda actualizar la UI
+        if (onRetry) onRetry(attempt + 1, delay, response.status);
+
         await new Promise(r => setTimeout(r, delay));
         continue;
       }
@@ -405,12 +417,16 @@ export async function forgeMazo(formData, aiConfig, onProgress = () => {}) {
   const masterPlan = await callAI([
     { role: 'system', content: strategistPrompt },
     { role: 'user', content: 'Investiga las mejores cartas y planifica las cantidades exactas ahora.' }
-  ], aiConfig, { forceJSON: false, maxTokens: 4000 });
+  ], aiConfig, { 
+    forceJSON: false, 
+    maxTokens: 4000,
+    onRetry: (num, wait, status) => onProgress('strategist', `⚠️ API Ocupada (${status}). Reintento ${num}/5 en ${Math.round(wait/1000)}s...`)
+  });
   console.log('📋 [PASO 1/3] Plan estratégico-matemático recibido:', masterPlan.substring(0, 120) + '...');
 
-  // ⏳ Pausa de cortesía para APIs gratuitas (evitar rate limit)
-  console.log('⏳ Pausa de cortesía (3s) para evitar rate limit...');
-  await new Promise(r => setTimeout(r, 3000));
+  // ⏳ Pausa de cortesía prolongada para APIs gratuitas (evitar rate limit de TPM)
+  console.log('⏳ Pausa de seguridad (8s) para liberar cuota de tokens...');
+  await new Promise(r => setTimeout(r, 8000));
 
   // ═══════════════════════════════════════════════════════════════
   // PASO 2: EL ENSAMBLADOR — Genera el JSON final
@@ -422,7 +438,11 @@ export async function forgeMazo(formData, aiConfig, onProgress = () => {}) {
   const finalContent = await callAI([
     { role: 'system', content: assemblerPrompt },
     { role: 'user', content: `El Estratega-Matemático ha preparado este plan con cartas y cantidades exactas:\n\n${masterPlan}\n\nConvierte este plan EXACTO a formato JSON. Respeta las cantidades. Main deck = 60 cartas, Sideboard = 15 cartas.` }
-  ], aiConfig, { forceJSON: true, maxTokens: 8000 });
+  ], aiConfig, { 
+    forceJSON: true, 
+    maxTokens: 6000,
+    onRetry: (num, wait, status) => onProgress('assembler', `⚠️ API Saturada (${status}). Reintento ${num}/5 en ${Math.round(wait/1000)}s...`)
+  });
   console.log('📥 [PASO 2/3] JSON de mazo recibido');
 
   const result = parseArchitectResponse(finalContent);
