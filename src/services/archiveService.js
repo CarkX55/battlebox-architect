@@ -36,7 +36,6 @@ export const archiveDeckOnline = async (deckData) => {
     }
 
     const newEntry = {
-      id: Date.now().toString(),
       timestamp: new Date().toISOString(),
       ...deckData
     };
@@ -57,7 +56,7 @@ export const getCommunityDecks = async () => {
     const querySnapshot = await getDocs(q);
     const decks = [];
     querySnapshot.forEach((doc) => {
-      decks.push({ id: doc.id, ...doc.data() });
+      decks.push({ ...doc.data(), id: doc.id });
     });
     return decks;
   } catch (error) {
