@@ -25,3 +25,10 @@ dist-ssr
 
 # Vercel
 .vercel
+
+# Database and Temp Files
+database/
+test.json
+test2.json
+*.json.tmp
+.env
