@@ -1,4 +1,4 @@
-export const BATTLEBOX_FORMAT_NAME = "Legacy Battle Box (Casual)";
+﻿﻿export const BATTLEBOX_FORMAT_NAME = "Legacy Battle Box (Casual)";
 
 export const MANA_COLORS = {
   W: '#f8f6d8',
@@ -64,7 +64,7 @@ export const BATTLEBOX_BANLIST = [
 // Tabla de sustitución automática: si el Juez JS detecta una carta prohibida,
 // la reemplaza por esta alternativa legal del mismo rol/color.
 export const BANLIST_SUBSTITUTIONS = {
-  // Maná rápido → rocks/ramp lentos
+  // Maná rápido â†’ rocks/ramp lentos
   "Sol Ring": "Mind Stone", "Mana Crypt": "Arcane Signet", "Mox Diamond": "Fellwar Stone",
   "Chrome Mox": "Coldsteel Heart", "Mox Opal": "Springleaf Drum",
   "Ancient Tomb": "Castle Locthwain", "City of Traitors": "Ghost Quarter",
@@ -74,19 +74,19 @@ export const BANLIST_SUBSTITUTIONS = {
   "Mana Vault": "Thran Dynamo", "Grim Monolith": "Hedron Archive",
   "Lotus Petal": "Chromatic Star", "Lion's Eye Diamond": "Chromatic Sphere",
   "Channel": "Cultivate", "Mishra's Workshop": "Darksteel Citadel",
-  // Counters/remoción gratuita → versiones de pago
+  // Counters/remoción gratuita â†’ versiones de pago
   "Force of Will": "Counterspell", "Pact of Negation": "Negate",
   "Force of Negation": "Dovin's Veto", "Mental Misstep": "Spell Snare",
   "Solitude": "Swords to Plowshares", "Fury": "Anger of the Gods",
   "Endurance": "Scavenging Ooze", "Grief": "Thoughtseize",
   "Subtlety": "Brainstorm", "Daze": "Mana Leak", "Invigorate": "Giant Growth",
-  // Lock pieces → versiones justas
+  // Lock pieces â†’ versiones justas
   "Chalice of the Void": "Pithing Needle", "Trinisphere": "Damping Sphere",
   "Blood Moon": "Alpine Moon", "Magus of the Moon": "Harsh Mentor",
   "Back to Basics": "Spreading Seas", "Winter Orb": "Aven Mindcensor",
   "Stasis": "Propaganda", "Static Orb": "Ghostly Prison",
   "Ensnaring Bridge": "Meekstone", "Strip Mine": "Ghost Quarter",
-  // Opresores → alternativas potentes pero justas
+  // Opresores â†’ alternativas potentes pero justas
   "Griselbrand": "Rune-Scarred Demon", "Oko, Thief of Crowns": "Teferi, Hero of Dominaria",
   "Uro, Titan of Nature's Wrath": "Coiling Oracle", "Ragavan, Nimble Pilferer": "Goblin Guide",
   "Wrenn and Six": "Sylvan Library", "Necropotence": "Phyrexian Arena",
@@ -117,7 +117,7 @@ export const BATTLEBOX_ARCHETYPES = [
     id: 'aggro-puro',
     label: 'Aggro Puro (Burn, Zoo)',
     speed: 'Muy rápida',
-    winTurn: '4–5',
+    winTurn: '4â€“5',
     description: 'Criaturas baratas y daño directo, máxima eficiencia de maná desde el turno 1.',
     recommendedColors: ['R', 'W', 'G'],
     landCount: 21,
@@ -127,7 +127,7 @@ export const BATTLEBOX_ARCHETYPES = [
     id: 'aggro-sinergico',
     label: 'Aggro Sinérgico (Tribal)',
     speed: 'Rápida',
-    winTurn: '5–6',
+    winTurn: '5â€“6',
     description: 'Aceleración basada en criaturas, acumulación de ventaja tribal, overrun.',
     recommendedColors: ['G', 'U', 'W'],
     landCount: 22,
@@ -136,9 +136,9 @@ export const BATTLEBOX_ARCHETYPES = [
   {
     id: 'tempo',
     label: 'Tempo',
-    speed: 'Media‑rápida',
-    winTurn: '6–8',
-    description: 'Amenaza temprana (1–2 manás) protegida con interrupción barata (contrahechizos de pago).',
+    speed: 'Mediaâ€‘rápida',
+    winTurn: '6â€“8',
+    description: 'Amenaza temprana (1â€“2 manás) protegida con interrupción barata (contrahechizos de pago).',
     recommendedColors: ['U', 'R', 'B'],
     landCount: 19,
     spellCount: 41
@@ -147,8 +147,8 @@ export const BATTLEBOX_ARCHETYPES = [
     id: 'midrange',
     label: 'Midrange',
     speed: 'Media',
-    winTurn: '8–10',
-    description: 'Criaturas eficientes de coste 2–4, ventaja de cartas, disrupción de mano y removal de calidad.',
+    winTurn: '8â€“10',
+    description: 'Criaturas eficientes de coste 2â€“4, ventaja de cartas, disrupción de mano y removal de calidad.',
     recommendedColors: ['B', 'G', 'W', 'R'],
     landCount: 24,
     spellCount: 36
@@ -156,8 +156,8 @@ export const BATTLEBOX_ARCHETYPES = [
   {
     id: 'ramp-tron',
     label: 'Ramp / Tron',
-    speed: 'Media‑lenta',
-    winTurn: '8–12',
+    speed: 'Mediaâ€‘lenta',
+    winTurn: '8â€“12',
     description: 'Aceleración con tierras o hechizos para lanzar amenazas de 7+ manás.',
     recommendedColors: ['G', 'U', 'C'],
     landCount: 26,
@@ -167,7 +167,7 @@ export const BATTLEBOX_ARCHETYPES = [
     id: 'combo',
     label: 'Combo (Interactivo)',
     speed: 'Media (con pico)',
-    winTurn: '6–8',
+    winTurn: '6â€“8',
     description: 'Combinación de 3+ cartas, frágil a removal/counters. No gana antes del turno 4.',
     recommendedColors: ['U', 'B', 'R', 'G'],
     landCount: 22,
@@ -177,7 +177,7 @@ export const BATTLEBOX_ARCHETYPES = [
     id: 'control',
     label: 'Control',
     speed: 'Lenta',
-    winTurn: '12–20',
+    winTurn: '12â€“20',
     description: 'Contrahechizos pagables, limpiamesas, ventaja de cartas y una amenaza imparable al final.',
     recommendedColors: ['U', 'W', 'B'],
     landCount: 26,
@@ -197,7 +197,7 @@ export const BATTLEBOX_ARCHETYPES = [
     id: 'legacy-eldrazi',
     label: 'Legacy Eldrazi (Incoloro)',
     speed: 'Rápida-Media',
-    winTurn: '5–8',
+    winTurn: '5â€“8',
     description: 'Amenazas masivas e incoloras que utilizan tierras de utilidad y aceleración incolora.',
     recommendedColors: ['C'],
     landCount: 24,
@@ -207,7 +207,7 @@ export const BATTLEBOX_ARCHETYPES = [
     id: 'mud-artifacts',
     label: 'MUD / Mono-Brown (Artefactos)',
     speed: 'Media',
-    winTurn: '6–9',
+    winTurn: '6â€“9',
     description: 'Gran mazo de artefactos, robots masivos y aceleración incolora basada en estructuras mecánicas.',
     recommendedColors: ['C'],
     landCount: 25,
@@ -234,47 +234,98 @@ export const BATTLEBOX_RULES = {
 };
 
 export const MTG_TRIBES = [
-  // --- TRIBUS CLÁSICAS ---
-  { id: 'human', label: 'Humanos', colors: ['W', 'U', 'B', 'R', 'G'], primaryColor: 'W', strategies: ['tokens', 'aristocrats', 'prision', 'voltron', 'lifegain'], archetypes: ['aggro-sinergico', 'midrange'] },
-  { id: 'elf', label: 'Elfos', colors: ['G', 'B', 'W'], primaryColor: 'G', strategies: ['tokens', 'lifegain', 'aristocrats'], archetypes: ['aggro-sinergico', 'combo', 'ramp-tron'] },
-  { id: 'goblin', label: 'Goblins', colors: ['R', 'B', 'G'], primaryColor: 'R', strategies: ['tokens', 'aristocrats'], archetypes: ['aggro-puro', 'aggro-sinergico', 'combo'] },
-  { id: 'merfolk', label: 'Tritones (Merfolk)', colors: ['U', 'G'], primaryColor: 'U', strategies: ['blink', 'tokens'], archetypes: ['aggro-sinergico', 'tempo'] },
-  { id: 'zombie', label: 'Zombies', colors: ['B', 'U'], primaryColor: 'B', strategies: ['aristocrats', 'reanimator', 'madness', 'mill', 'tokens'], archetypes: ['aggro-sinergico', 'midrange', 'combo'] },
-  { id: 'vampire', label: 'Vampiros', colors: ['B', 'R', 'W'], primaryColor: 'B', strategies: ['aristocrats', 'lifegain', 'madness', 'reanimator'], archetypes: ['aggro-sinergico', 'midrange'] },
-  { id: 'spirit', label: 'Espíritus', colors: ['W', 'U'], primaryColor: ['W', 'U'], strategies: ['blink', 'prision', 'tokens'], archetypes: ['tempo', 'control'] },
-  { id: 'angel', label: 'Ángeles', colors: ['W', 'R', 'B'], primaryColor: 'W', strategies: ['lifegain', 'blink', 'prision', 'reanimator'], archetypes: ['midrange', 'control'] },
-  { id: 'demon', label: 'Demonios', colors: ['B'], primaryColor: 'B', strategies: ['aristocrats', 'reanimator'], archetypes: ['midrange', 'control'] },
-  { id: 'dragon', label: 'Dragones', colors: ['R', 'B', 'G'], primaryColor: 'R', strategies: ['reanimator', 'tokens', 'blink'], archetypes: ['midrange', 'ramp-tron'] },
-  { id: 'eldrazi', label: 'Eldrazi', colors: ['W', 'U', 'B', 'R', 'G', 'C'], primaryColor: 'C', strategies: ['tokens', 'blink'], archetypes: ['ramp-tron', 'midrange', 'legacy-eldrazi'] },
-  { id: 'faerie', label: 'Hadas', colors: ['U', 'B'], primaryColor: 'U', strategies: ['blink', 'mill', 'prision'], archetypes: ['tempo', 'control'] },
-  { id: 'rogue', label: 'Pícaros (Rogues)', colors: ['U', 'B'], primaryColor: ['U', 'B'], strategies: ['mill', 'aristocrats'], archetypes: ['tempo', 'aggro-sinergico'] },
-  { id: 'pirate', label: 'Piratas', colors: ['U', 'B', 'R'], primaryColor: 'R', strategies: ['aristocrats', 'tokens'], archetypes: ['aggro-sinergico', 'tempo'] },
-  { id: 'dinosaur', label: 'Dinosaurios', colors: ['R', 'G', 'W'], primaryColor: 'G', strategies: ['landfall', 'tokens'], archetypes: ['midrange', 'ramp-tron'] },
-  { id: 'cat', label: 'Gatos', colors: ['W', 'G'], primaryColor: 'W', strategies: ['lifegain', 'voltron', 'tokens'], archetypes: ['aggro-sinergico', 'midrange'] },
-  { id: 'knight', label: 'Caballeros', colors: ['W', 'B', 'R'], primaryColor: 'W', strategies: ['voltron', 'tokens', 'aristocrats'], archetypes: ['aggro-sinergico', 'midrange'] },
-  { id: 'wizard', label: 'Magos (Wizards)', colors: ['U', 'R', 'B'], primaryColor: 'U', strategies: ['spellslinger', 'blink', 'mill'], archetypes: ['tempo', 'control', 'combo'] },
-  { id: 'soldier', label: 'Soldados', colors: ['W', 'U'], primaryColor: 'W', strategies: ['tokens', 'prision', 'voltron'], archetypes: ['aggro-puro', 'aggro-sinergico'] },
-  { id: 'sliver', label: 'Slivers', colors: ['W', 'U', 'B', 'R', 'G'], primaryColor: ['W', 'U', 'B', 'R', 'G'], strategies: ['tokens', 'voltron'], archetypes: ['aggro-sinergico', 'combo'] },
-  { id: 'ninja', label: 'Ninjas', colors: ['U', 'B'], primaryColor: ['U', 'B'], strategies: ['tempo', 'blink'], archetypes: ['tempo', 'aggro-sinergico'] },
-  { id: 'rat', label: 'Ratas', colors: ['B'], primaryColor: 'B', strategies: ['aristocrats', 'tokens', 'madness'], archetypes: ['aggro-sinergico', 'midrange'] },
-  { id: 'bird', label: 'Aves', colors: ['W', 'U'], primaryColor: ['W', 'U'], strategies: ['blink', 'tokens'], archetypes: ['tempo', 'aggro-sinergico'] },
-  { id: 'snake', label: 'Serpientes', colors: ['G', 'U'], primaryColor: 'G', strategies: ['tokens', 'lifegain'], archetypes: ['midrange', 'aggro-sinergico'] },
-  { id: 'dwarf', label: 'Enanos', colors: ['R', 'W'], primaryColor: 'R', strategies: ['vehicles', 'tokens'], archetypes: ['aggro-sinergico', 'midrange'] },
-  { id: 'warrior', label: 'Guerreros', colors: ['R', 'G', 'W'], primaryColor: ['R', 'G'], strategies: ['voltron', 'tokens'], archetypes: ['aggro-puro', 'aggro-sinergico'] },
-  { id: 'scarecrow', label: 'Espantapájaros', colors: ['W', 'U', 'B', 'R', 'G'], primaryColor: ['W', 'U', 'B', 'R', 'G'], strategies: ['blink', 'midrange'], archetypes: ['midrange', 'control'] },
-  { id: 'myr', label: 'Myr', colors: ['C'], primaryColor: 'C', strategies: ['tokens', 'ramp-tron'], archetypes: ['ramp-tron', 'aggro-sinergico'] },
-  { id: 'naga', label: 'Nagas (Serpientes)', colors: ['G', 'U', 'B'], primaryColor: ['G', 'U'], strategies: ['delirium', 'spellslinger', 'tokens', 'landfall', 'madness'], archetypes: ['midrange', 'control', 'aggro-sinergico'] },
+  // ═══════════════════════════════════════════
+  // TRIBUS CLÁSICAS (Razas fundamentales de MTG)
+  // ═══════════════════════════════════════════
+  { id: 'human', label: 'Humanos', category: 'clasica', colors: ['W', 'U', 'B', 'R', 'G'], primaryColor: 'W', strategies: ['tokens', 'aristocrats', 'prision', 'voltron', 'lifegain'], archetypes: ['aggro-sinergico', 'midrange'] },
+  { id: 'elf', label: 'Elfos', category: 'clasica', colors: ['G', 'B', 'W'], primaryColor: 'G', strategies: ['tokens', 'lifegain', 'aristocrats'], archetypes: ['aggro-sinergico', 'combo', 'ramp-tron'] },
+  { id: 'goblin', label: 'Goblins', category: 'clasica', colors: ['R', 'B', 'G'], primaryColor: 'R', strategies: ['tokens', 'aristocrats'], archetypes: ['aggro-puro', 'aggro-sinergico', 'combo'] },
+  { id: 'merfolk', label: 'Tritones (Merfolk)', category: 'clasica', colors: ['U', 'G'], primaryColor: 'U', strategies: ['blink', 'tokens'], archetypes: ['aggro-sinergico', 'tempo'] },
+  { id: 'zombie', label: 'Zombies', category: 'clasica', colors: ['B', 'U'], primaryColor: 'B', strategies: ['aristocrats', 'reanimator', 'madness', 'mill', 'tokens'], archetypes: ['aggro-sinergico', 'midrange', 'combo'] },
+  { id: 'vampire', label: 'Vampiros', category: 'clasica', colors: ['B', 'R', 'W'], primaryColor: 'B', strategies: ['aristocrats', 'lifegain', 'madness', 'reanimator'], archetypes: ['aggro-sinergico', 'midrange'] },
+  { id: 'spirit', label: 'Espíritus', category: 'clasica', colors: ['W', 'U'], primaryColor: ['W', 'U'], strategies: ['blink', 'prision', 'tokens'], archetypes: ['tempo', 'control'] },
+  { id: 'soldier', label: 'Soldados', category: 'clasica', colors: ['W', 'U'], primaryColor: 'W', strategies: ['tokens', 'prision', 'voltron'], archetypes: ['aggro-puro', 'aggro-sinergico'] },
+  { id: 'knight', label: 'Caballeros', category: 'clasica', colors: ['W', 'B', 'R'], primaryColor: 'W', strategies: ['voltron', 'tokens', 'aristocrats'], archetypes: ['aggro-sinergico', 'midrange'] },
+  { id: 'warrior', label: 'Guerreros', category: 'clasica', colors: ['R', 'G', 'W'], primaryColor: ['R', 'G'], strategies: ['voltron', 'tokens'], archetypes: ['aggro-puro', 'aggro-sinergico'] },
+  { id: 'dwarf', label: 'Enanos', category: 'clasica', colors: ['R', 'W'], primaryColor: 'R', strategies: ['vehicles', 'tokens'], archetypes: ['aggro-sinergico', 'midrange'] },
+  { id: 'cat', label: 'Gatos', category: 'clasica', colors: ['W', 'G'], primaryColor: 'W', strategies: ['lifegain', 'voltron', 'tokens'], archetypes: ['aggro-sinergico', 'midrange'] },
+  { id: 'dog', label: 'Perros / Canes', category: 'clasica', colors: ['W', 'R', 'G'], primaryColor: 'W', strategies: ['tokens', 'lifegain', 'voltron'], archetypes: ['aggro-sinergico', 'midrange'] },
+  { id: 'bird', label: 'Aves', category: 'clasica', colors: ['W', 'U'], primaryColor: ['W', 'U'], strategies: ['blink', 'tokens'], archetypes: ['tempo', 'aggro-sinergico'] },
+  { id: 'rat', label: 'Ratas', category: 'clasica', colors: ['B'], primaryColor: 'B', strategies: ['aristocrats', 'tokens', 'madness'], archetypes: ['aggro-sinergico', 'midrange'] },
+  { id: 'snake', label: 'Serpientes', category: 'clasica', colors: ['G', 'U'], primaryColor: 'G', strategies: ['tokens', 'lifegain'], archetypes: ['midrange', 'aggro-sinergico'] },
+  { id: 'naga', label: 'Nagas', category: 'clasica', colors: ['G', 'U', 'B'], primaryColor: ['G', 'U'], strategies: ['delirium', 'spellslinger', 'tokens', 'landfall', 'madness'], archetypes: ['midrange', 'control', 'aggro-sinergico'] },
 
-  // --- ALIANZAS Y SINDICATOS (BATCHING) ---
-  { id: 'outlaws', label: '⚖️ Forajidos (Asesinos, Mercenarios, Piratas, Pícaros, Brujos)', colors: ['B', 'R', 'U'], primaryColor: 'B', strategies: ['aristocrats', 'tempo', 'tokens', 'madness'], archetypes: ['aggro-sinergico', 'tempo', 'midrange'] },
-  { id: 'party', label: '🎲 Grupo de Aventura (Clérigo, Pícaro, Guerrero, Mago)', colors: ['W', 'U', 'B', 'R', 'G'], primaryColor: ['W', 'U', 'B', 'R'], strategies: ['midrange', 'tempo', 'aggro-sinergico', 'blink'], archetypes: ['midrange', 'tempo'] },
-  { id: 'human_army', label: '⚔️ Ejército (Humanos, Soldados, Caballeros)', colors: ['W', 'R'], primaryColor: 'W', strategies: ['tokens', 'voltron', 'heroic'], archetypes: ['aggro-sinergico', 'aggro-puro', 'midrange'] },
-  { id: 'goblin_horde', label: '🔥 Horda (Goblins, Orcos, Ogros)', colors: ['R', 'B'], primaryColor: 'R', strategies: ['tokens', 'aristocrats', 'aggro-puro'], archetypes: ['aggro-puro', 'aggro-sinergico'] },
-  { id: 'elf_druid', label: '🌿 Naturaleza (Elfos, Druidas, Elementales, Chamanes)', colors: ['G', 'R', 'U'], primaryColor: 'G', strategies: ['tokens', 'ramp-tron', 'landfall'], archetypes: ['aggro-sinergico', 'ramp-tron', 'combo'] },
-  { id: 'sea_monsters', label: '🌊 Terrores Marinos (Tritones, Krakens, Leviatanes, Pulpos)', colors: ['U', 'G'], primaryColor: 'U', strategies: ['tempo', 'ramp-tron', 'blink'], archetypes: ['tempo', 'ramp-tron', 'control'] },
-  { id: 'undead_scourge', label: '💀 Plaga (Zombies, Esqueletos, Horrores)', colors: ['B', 'U'], primaryColor: 'B', strategies: ['aristocrats', 'reanimator', 'mill', 'delirium'], archetypes: ['midrange', 'combo', 'control'] },
-  { id: 'constructs', label: '⚙️ Maquinaria Viviente (Myr, Golem, Constructos)', colors: ['C', 'U', 'R'], primaryColor: 'C', strategies: ['tokens', 'ramp-tron', 'vehicles'], archetypes: ['mud-artifacts', 'legacy-eldrazi', 'midrange'] }
+  // ═══════════════════════════════════════════
+  // VOCACIONES (Clases y profesiones)
+  // ═══════════════════════════════════════════
+  { id: 'wizard', label: 'Magos (Wizards)', category: 'vocacion', colors: ['U', 'R', 'B'], primaryColor: 'U', strategies: ['spellslinger', 'blink', 'mill'], archetypes: ['tempo', 'control', 'combo'] },
+  { id: 'cleric', label: 'Clérigos', category: 'vocacion', colors: ['W', 'B'], primaryColor: 'W', strategies: ['lifegain', 'aristocrats', 'reanimator'], archetypes: ['midrange', 'combo'] },
+  { id: 'rogue', label: 'Pícaros (Rogues)', category: 'vocacion', colors: ['U', 'B'], primaryColor: ['U', 'B'], strategies: ['mill', 'aristocrats'], archetypes: ['tempo', 'aggro-sinergico'] },
+  { id: 'shaman', label: 'Chamanes', category: 'vocacion', colors: ['G', 'R', 'B'], primaryColor: 'G', strategies: ['tokens', 'landfall', 'aristocrats'], archetypes: ['aggro-sinergico', 'midrange', 'combo'] },
+  { id: 'druid', label: 'Druidas', category: 'vocacion', colors: ['G', 'W'], primaryColor: 'G', strategies: ['tokens', 'landfall', 'lifegain'], archetypes: ['ramp-tron', 'midrange', 'combo'] },
+  { id: 'monk', label: 'Monjes', category: 'vocacion', colors: ['W', 'U', 'R'], primaryColor: 'W', strategies: ['spellslinger', 'heroic', 'voltron'], archetypes: ['aggro-puro', 'tempo'] },
+  { id: 'assassin', label: 'Asesinos', category: 'vocacion', colors: ['B', 'U', 'R'], primaryColor: 'B', strategies: ['aristocrats', 'madness', 'delirium'], archetypes: ['tempo', 'aggro-sinergico', 'midrange'] },
+  { id: 'ninja', label: 'Ninjas', category: 'vocacion', colors: ['U', 'B'], primaryColor: ['U', 'B'], strategies: ['tempo', 'blink'], archetypes: ['tempo', 'aggro-sinergico'] },
+  { id: 'pirate', label: 'Piratas', category: 'vocacion', colors: ['U', 'B', 'R'], primaryColor: 'R', strategies: ['aristocrats', 'tokens'], archetypes: ['aggro-sinergico', 'tempo'] },
+
+  // ═══════════════════════════════════════════
+  // MONSTRUOS Y BESTIAS ICÓNICAS
+  // ═══════════════════════════════════════════
+  { id: 'angel', label: 'Ángeles', category: 'monstruo', colors: ['W', 'R', 'B'], primaryColor: 'W', strategies: ['lifegain', 'blink', 'prision', 'reanimator'], archetypes: ['midrange', 'control'] },
+  { id: 'demon', label: 'Demonios', category: 'monstruo', colors: ['B'], primaryColor: 'B', strategies: ['aristocrats', 'reanimator'], archetypes: ['midrange', 'control'] },
+  { id: 'dragon', label: 'Dragones', category: 'monstruo', colors: ['R', 'B', 'G'], primaryColor: 'R', strategies: ['reanimator', 'tokens', 'blink'], archetypes: ['midrange', 'ramp-tron'] },
+  { id: 'dinosaur', label: 'Dinosaurios', category: 'monstruo', colors: ['R', 'G', 'W'], primaryColor: 'G', strategies: ['landfall', 'tokens'], archetypes: ['midrange', 'ramp-tron'] },
+  { id: 'hydra', label: 'Hidras', category: 'monstruo', colors: ['G', 'R'], primaryColor: 'G', strategies: ['landfall', 'lifegain'], archetypes: ['midrange', 'ramp-tron'] },
+  { id: 'sphinx', label: 'Esfinges', category: 'monstruo', colors: ['U', 'W'], primaryColor: 'U', strategies: ['blink', 'mill', 'prision'], archetypes: ['control', 'midrange'] },
+  { id: 'phoenix', label: 'Fénix', category: 'monstruo', colors: ['R', 'U'], primaryColor: 'R', strategies: ['spellslinger', 'madness', 'reanimator'], archetypes: ['aggro-puro', 'tempo', 'combo'] },
+  { id: 'giant', label: 'Gigantes', category: 'monstruo', colors: ['R', 'W', 'U'], primaryColor: 'R', strategies: ['voltron', 'blink'], archetypes: ['midrange', 'ramp-tron'] },
+  { id: 'beast', label: 'Bestias', category: 'monstruo', colors: ['G', 'R'], primaryColor: 'G', strategies: ['landfall', 'tokens'], archetypes: ['midrange', 'ramp-tron', 'aggro-sinergico'] },
+  { id: 'elemental', label: 'Elementales', category: 'monstruo', colors: ['R', 'G', 'U', 'W', 'B'], primaryColor: ['R', 'G'], strategies: ['landfall', 'blink', 'tokens', 'reanimator'], archetypes: ['midrange', 'aggro-sinergico', 'combo'] },
+  { id: 'werewolf', label: 'Lobos / Licántropos', category: 'monstruo', colors: ['R', 'G'], primaryColor: ['R', 'G'], strategies: ['voltron', 'tokens'], archetypes: ['aggro-puro', 'aggro-sinergico', 'midrange'] },
+  { id: 'minotaur', label: 'Minotauros', category: 'monstruo', colors: ['R', 'B'], primaryColor: 'R', strategies: ['madness', 'aristocrats', 'tokens'], archetypes: ['aggro-puro', 'aggro-sinergico'] },
+  { id: 'horror', label: 'Horrores', category: 'monstruo', colors: ['B', 'U', 'R'], primaryColor: 'B', strategies: ['reanimator', 'mill', 'delirium', 'madness'], archetypes: ['midrange', 'control', 'combo'] },
+  { id: 'insect', label: 'Insectos', category: 'monstruo', colors: ['G', 'B'], primaryColor: 'G', strategies: ['tokens', 'delirium', 'aristocrats'], archetypes: ['aggro-sinergico', 'midrange'] },
+  { id: 'treefolk', label: 'Ents / Treefolk', category: 'monstruo', colors: ['G', 'W', 'B'], primaryColor: 'G', strategies: ['lifegain', 'landfall', 'tokens'], archetypes: ['midrange', 'ramp-tron'] },
+  { id: 'fungus', label: 'Hongos / Saprolings', category: 'monstruo', colors: ['G', 'B'], primaryColor: 'G', strategies: ['tokens', 'aristocrats', 'lifegain'], archetypes: ['aggro-sinergico', 'midrange', 'combo'] },
+
+  // ═══════════════════════════════════════════
+  // EXÓTICAS Y ESPECIALES
+  // ═══════════════════════════════════════════
+  { id: 'eldrazi', label: 'Eldrazi', category: 'exotica', colors: ['W', 'U', 'B', 'R', 'G', 'C'], primaryColor: 'C', strategies: ['tokens', 'blink'], archetypes: ['ramp-tron', 'midrange', 'legacy-eldrazi'] },
+  { id: 'faerie', label: 'Hadas', category: 'exotica', colors: ['U', 'B'], primaryColor: 'U', strategies: ['blink', 'mill', 'prision'], archetypes: ['tempo', 'control'] },
+  { id: 'sliver', label: 'Slivers', category: 'exotica', colors: ['W', 'U', 'B', 'R', 'G'], primaryColor: ['W', 'U', 'B', 'R', 'G'], strategies: ['tokens', 'voltron'], archetypes: ['aggro-sinergico', 'combo'] },
+  { id: 'scarecrow', label: 'Espantapájaros', category: 'exotica', colors: ['W', 'U', 'B', 'R', 'G'], primaryColor: ['W', 'U', 'B', 'R', 'G'], strategies: ['blink', 'midrange'], archetypes: ['midrange', 'control'] },
+  { id: 'myr', label: 'Myr', category: 'exotica', colors: ['C'], primaryColor: 'C', strategies: ['tokens', 'ramp-tron'], archetypes: ['ramp-tron', 'aggro-sinergico'] },
+
+  // ═══════════════════════════════════════════
+  // ALIANZAS Y MEZCLAS TEMÁTICAS
+  // ═══════════════════════════════════════════
+  { id: 'outlaws', label: '⚖️ Forajidos (Asesinos, Mercenarios, Piratas, Pícaros, Brujos)', category: 'alianza', colors: ['B', 'R', 'U'], primaryColor: 'B', strategies: ['aristocrats', 'tempo', 'tokens', 'madness'], archetypes: ['aggro-sinergico', 'tempo', 'midrange'] },
+  { id: 'party', label: '🎲 Grupo de Aventura (Clérigo, Pícaro, Guerrero, Mago)', category: 'alianza', colors: ['W', 'U', 'B', 'R', 'G'], primaryColor: ['W', 'U', 'B', 'R'], strategies: ['midrange', 'tempo', 'aggro-sinergico', 'blink'], archetypes: ['midrange', 'tempo'] },
+  { id: 'human_army', label: '⚔️ Ejército (Humanos, Soldados, Caballeros)', category: 'alianza', colors: ['W', 'R'], primaryColor: 'W', strategies: ['tokens', 'voltron', 'heroic'], archetypes: ['aggro-sinergico', 'aggro-puro', 'midrange'] },
+  { id: 'goblin_horde', label: '🔥 Horda (Goblins, Orcos, Ogros)', category: 'alianza', colors: ['R', 'B'], primaryColor: 'R', strategies: ['tokens', 'aristocrats', 'aggro-puro'], archetypes: ['aggro-puro', 'aggro-sinergico'] },
+  { id: 'elf_druid', label: '🌿 Naturaleza (Elfos, Druidas, Elementales, Chamanes)', category: 'alianza', colors: ['G', 'R', 'U'], primaryColor: 'G', strategies: ['tokens', 'ramp-tron', 'landfall'], archetypes: ['aggro-sinergico', 'ramp-tron', 'combo'] },
+  { id: 'sea_monsters', label: '🌊 Terrores Marinos (Tritones, Krakens, Leviatanes, Pulpos)', category: 'alianza', colors: ['U', 'G'], primaryColor: 'U', strategies: ['tempo', 'ramp-tron', 'blink'], archetypes: ['tempo', 'ramp-tron', 'control'] },
+  { id: 'undead_scourge', label: '💀 Plaga (Zombies, Esqueletos, Horrores)', category: 'alianza', colors: ['B', 'U'], primaryColor: 'B', strategies: ['aristocrats', 'reanimator', 'mill', 'delirium'], archetypes: ['midrange', 'combo', 'control'] },
+  { id: 'constructs', label: '⚙️ Maquinaria Viviente (Myr, Golem, Constructos)', category: 'alianza', colors: ['C', 'U', 'R'], primaryColor: 'C', strategies: ['tokens', 'ramp-tron', 'vehicles'], archetypes: ['mud-artifacts', 'legacy-eldrazi', 'midrange'] },
+  { id: 'coven', label: '🔮 Cónclave Místico (Magos, Brujos, Chamanes, Druidas)', category: 'alianza', colors: ['U', 'G', 'B', 'R'], primaryColor: ['U', 'G'], strategies: ['spellslinger', 'tokens', 'landfall', 'aristocrats'], archetypes: ['midrange', 'control', 'combo'] },
+  { id: 'nobility', label: '👑 Corte de Nobleza (Humanos, Caballeros, Ángeles)', category: 'alianza', colors: ['W', 'B', 'R'], primaryColor: 'W', strategies: ['lifegain', 'voltron', 'tokens', 'prision'], archetypes: ['midrange', 'control'] },
+  { id: 'apex_predators', label: '🦖 Depredadores del Ápice (Dinosaurios, Bestias, Hidras)', category: 'alianza', colors: ['G', 'R', 'W'], primaryColor: 'G', strategies: ['landfall', 'tokens', 'lifegain'], archetypes: ['midrange', 'ramp-tron'] },
+  { id: 'the_swarm', label: '🪲 El Enjambre (Insectos, Ratas, Hongos, Arañas)', category: 'alianza', colors: ['G', 'B'], primaryColor: ['G', 'B'], strategies: ['tokens', 'aristocrats', 'delirium'], archetypes: ['aggro-sinergico', 'midrange', 'combo'] },
+  { id: 'ethereal', label: '👻 Seres Etéreos (Espíritus, Hadas, Ilusiones)', category: 'alianza', colors: ['U', 'W', 'B'], primaryColor: ['U', 'W'], strategies: ['blink', 'tempo', 'mill', 'prision'], archetypes: ['tempo', 'control'] },
+  { id: 'brute_force', label: '💪 Fuerza Bruta (Gigantes, Minotauros, Ogros, Trolls)', category: 'alianza', colors: ['R', 'G', 'B'], primaryColor: 'R', strategies: ['voltron', 'madness', 'tokens'], archetypes: ['aggro-puro', 'aggro-sinergico', 'midrange'] },
+  { id: 'dark_cult', label: '🩸 Culto del Inframundo (Demonios, Horrores, Pesadillas)', category: 'alianza', colors: ['B', 'R'], primaryColor: 'B', strategies: ['aristocrats', 'reanimator', 'madness', 'delirium'], archetypes: ['midrange', 'control', 'combo'] },
+  { id: 'treasure_seekers', label: '💰 Buscadores de Tesoros (Pícaros, Piratas, Artificieros)', category: 'alianza', colors: ['U', 'B', 'R'], primaryColor: ['U', 'R'], strategies: ['aristocrats', 'tempo', 'tokens'], archetypes: ['aggro-sinergico', 'tempo', 'midrange'] }
 ];
+
+// Category labels for UI optgroups
+export const TRIBE_CATEGORIES = {
+  clasica: '🏛️ Razas Clásicas',
+  vocacion: '⚔️ Vocaciones y Clases',
+  monstruo: '🐉 Monstruos y Bestias',
+  exotica: '✨ Exóticas y Especiales',
+  alianza: '🤝 Alianzas y Mezclas Temáticas'
+};
 
 export const MTG_STRATEGIES = [
   { 

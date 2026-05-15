@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../../utils/cn';
 
-import { BATTLEBOX_ARCHETYPES, BATTLEBOX_FORMAT_NAME, MTG_TRIBES, MTG_STRATEGIES, COLORS } from '../../constants/legacyBattleBox';
+import { BATTLEBOX_ARCHETYPES, BATTLEBOX_FORMAT_NAME, MTG_TRIBES, MTG_STRATEGIES, TRIBE_CATEGORIES, COLORS } from '../../constants/legacyBattleBox';
 import ManaOrb from '../atoms/ManaOrb';
 
 function arraysEqual(a, b) {
@@ -35,7 +35,7 @@ const ARCHETYPES = BATTLEBOX_ARCHETYPES.map(a => ({
 export default function ForgeForm({ onSubmit, isLoading, disabled, error }) {
   const [formData, setFormData] = useState({
     formato: 'legacy-battlebox',
-    rarityMode: 'standard',
+    rarityMode: 'high-power',
     archetype: 'midrange',
     colores: ['B', 'G', 'W'],
     tribe: '',
@@ -94,10 +94,22 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error }) {
 
   const availableTribes = useMemo(() => {
     return MTG_TRIBES.filter(t => 
-      satisfiesPrimaryColor(t, formData.colores) &&
       (!t.archetypes || t.archetypes.includes(formData.archetype))
     );
-  }, [formData.colores, formData.archetype]);
+  }, [formData.archetype]);
+
+  // Group available tribes by category for optgroup rendering
+  const groupedTribes = useMemo(() => {
+    const categoryOrder = ['clasica', 'vocacion', 'monstruo', 'exotica', 'alianza'];
+    const groups = {};
+    for (const cat of categoryOrder) {
+      const tribesInCat = availableTribes.filter(t => t.category === cat);
+      if (tribesInCat.length > 0) {
+        groups[cat] = tribesInCat;
+      }
+    }
+    return groups;
+  }, [availableTribes]);
 
   const selectedTribeInfo = useMemo(() => {
     if (!formData.tribe || isCustomTribe) return null;
@@ -313,7 +325,17 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error }) {
                   setFormData(prev => ({ ...prev, tribe: '' }));
                 } else {
                   setIsCustomTribe(false);
-                  setFormData(prev => ({ ...prev, tribe: e.target.value }));
+                  const selectedLabel = e.target.value;
+                  const tribeData = MTG_TRIBES.find(t => t.label === selectedLabel);
+                  if (tribeData && selectedLabel) {
+                    // Auto-adjust colors to the tribe's colors
+                    const newColors = Array.isArray(tribeData.primaryColor)
+                      ? [...tribeData.primaryColor]
+                      : tribeData.colors.slice(0, 3);
+                    setFormData(prev => ({ ...prev, tribe: selectedLabel, colores: newColors }));
+                  } else {
+                    setFormData(prev => ({ ...prev, tribe: selectedLabel }));
+                  }
                 }
               }}
               className="w-full px-4 py-3 bg-black/60 border border-white/20 rounded-lg 
@@ -321,8 +343,12 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error }) {
                          transition-all cursor-pointer mb-2 backdrop-blur-xl font-medium"
             >
               <option value="" className="bg-[#0a101a] text-[#f4ece0]">-- Ninguna / Cualquiera --</option>
-              {availableTribes.map(t => (
-                <option key={t.id} value={t.label} className="bg-[#0a101a] text-[#f4ece0]">{t.label}</option>
+              {Object.entries(groupedTribes).map(([catKey, tribes]) => (
+                <optgroup key={catKey} label={TRIBE_CATEGORIES[catKey] || catKey} className="bg-[#0a101a] text-[#f4ece0] font-bold">
+                  {tribes.map(t => (
+                    <option key={t.id} value={t.label} className="bg-[#0a101a] text-[#f4ece0] font-normal">{t.label}</option>
+                  ))}
+                </optgroup>
               ))}
               <option value="custom" className="bg-[#0a101a] text-[#f4ece0]">Otra (Manual)...</option>
             </select>
