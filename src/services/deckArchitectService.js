@@ -507,18 +507,22 @@ const getMaxAllowedCopies = (cardName, category, cmc, ragPool = []) => {
     const isLegendary = typeLine.includes("legendary") || isPlaneswalker;
     const cardCmc = poolCard?.mana_value ?? cmc ?? 0;
 
-    // Límite estricto para cartas legendarias
+    // Límite Pro Tour para cartas legendarias:
+    // - CMC ≤ 3 (Bowmasters, Thalia, Ragavan): 4 copias — son motores clave que se maximizan
+    // - CMC 4 (Sheoldred, Jace TMS): 3 copias — alta presencia pero riesgo de mano cargada
+    // - CMC 5+ (Teferi Hero, Koma): 2 copias — finishers que no quieres en multiples early
     if (isLegendary) {
-        if (cardCmc >= 4) return 2; // Caminantes o leyendas pesadas (ej: Teferi de coste 5, Jace de coste 4): max 2 copias
-        return 3; // Leyendas baratas (ej: Thalia, Vendilion Clique): max 3 copias
+        if (cardCmc >= 5) return 2;
+        if (cardCmc >= 4) return 3;
+        return 4; // Leyendas baratas son motores Pro Tour a 4x
     }
 
-    // Límite para cartas no legendarias pesadas
+    // Límite Pro Tour para cartas no legendarias pesadas
     if (cardCmc >= 5) {
-        return 2; // Amenazas pesadas no legendarias (ej: Shark Typhoon): max 2 copias para no atascar
+        return 3; // Amenazas pesadas no legendarias (ej: Shark Typhoon, Force of Negation): max 3 copias
     }
     if (cardCmc >= 4) {
-        return 3; // Hechizos fuertes no legendarios de coste 4 (ej: Supreme Verdict, Cryptic Command): max 3 copias
+        return 4; // Hechizos fuertes no legendarios de coste 4 (ej: Supreme Verdict, Cryptic Command): max 4 copias
     }
 
     // Cantrips e interactores de bajo coste son excelentes para llevar 4 copias
@@ -1030,7 +1034,8 @@ export function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ragPool 
             const isCheatable = cheatableKeywords.some(kw => nameLower.includes(kw)) ||
                 (strategyId === 'reanimator' && c.role === "reanimation_creature_targets") ||
                 (strategyId === 'ramp' && c.cmc >= 6) ||
-                (c.role && (c.role.includes("finisher") || c.role.includes("win_con") || c.role.includes("top_end")));
+                (c.role && (c.role.includes("finisher") || c.role.includes("win_con") || c.role.includes("top_end"))) ||
+                (isControl && c.category === 'Creature'); // Control legitima criaturas CMC≥5 como finishers (Koma, Hullbreaker, Toxrill)
 
             if (!isCheatable) {
                 const primaryColor = getCardColorFromPool(c.name)[0] || "B";
@@ -1153,8 +1158,10 @@ export function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ragPool 
                 }
             }
 
-            // Inyectar amenazas genéricas solo si no hay amenazas previas (y si no es tribal)
-            if (toAddThreats > 0 && !hasTribe) {
+            // Pro Tour Fix: Solo inyectar amenazas genéricas si el mazo tiene menos de 4 amenazas únicas
+            // Si ya tiene suficiente variedad de amenazas, es mejor subir copias de las existentes
+            const uniqueThreatsInDeck = cards.filter(c => c.category !== 'Land' && clasificarSpell(c) === 'Threat');
+            if (toAddThreats > 0 && uniqueThreatsInDeck.length < 4 && !hasTribe) {
                 let threatName = "Tarmogoyf";
                 if (colors.has("B")) threatName = "Orcish Bowmasters";
                 else if (colors.has("R")) threatName = "Monastery Swiftspear";
@@ -1162,6 +1169,17 @@ export function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ragPool 
                 else if (colors.has("U")) threatName = "Delver of Secrets";
 
                 cards = inyectarCartaDirecta(cards, { name: threatName, quantity: toAddThreats, category: "Creature", cmc: 2, role: "threat" });
+            } else if (toAddThreats > 0) {
+                // Subir copias de amenazas existentes a 4x en vez de inyectar genéricas fuera de sinergia
+                for (let thr of uniqueThreatsInDeck) {
+                    if (toAddThreats <= 0) break;
+                    const canAdd = 4 - thr.quantity;
+                    if (canAdd > 0) {
+                        const add = Math.min(canAdd, toAddThreats);
+                        thr.quantity += add;
+                        toAddThreats -= add;
+                    }
+                }
             }
         }
     }
@@ -1580,6 +1598,7 @@ REGLAS DE ACERADO ESTRATÉGICO Y EVALUACIÓN:
 7. RESTRICCIÓN ABSOLUTA DE RAREZA GLOBAL:
    - ${rarityText}
 8. ASIGNACIÓN RIGUROSA DE ROLES: Cada carta devuelta debe tener un campo 'role' que coincida exactamente con las claves del plano: ${Object.keys(blueprint.roles).join(', ')}. No te inventes nuevos nombres de roles.
+9. REGLA DE CONSISTENCIA PRO TOUR (CRÍTICA): Los mazos competitivos maximizan la consistencia. Debes priorizar 4 copias de las cartas clave del mazo y 3 copias de las cartas de soporte sólido. Un mazo Pro Tour típico tiene entre 9 y 12 cartas únicas no-tierra con 3-4 copias cada una. NUNCA generes listas con 15+ cartas únicas a 1-2 copias; eso produce mazos inconsistentes de nivel draft, no de torneo. Si un rol pide 8 copias, usa 2 cartas a 4x, NO 4 cartas a 2x ni 8 cartas a 1x.
 `;
 
    // 2. Construir el Prompt con el "ADN" inyectado y el Plano
