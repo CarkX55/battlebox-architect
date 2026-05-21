@@ -66,7 +66,7 @@ export default function Community() {
                     </h3>
                     <div className="flex gap-2 mt-2">
                       <span className="text-[10px] px-2 py-0.5 bg-[#22c55e]/30 text-[#86efac] border border-[#4ade80]/50 rounded uppercase font-bold tracking-wider shadow-[0_0_15px_rgba(34,197,94,0.2)]">
-                        {deck.format || 'Legacy Battle Box (Casual)'}
+                        {deck.format || 'Modern Battle Box (Casual)'}
                       </span>
                       <span className="text-[10px] px-2 py-0.5 bg-magic-gold/10 text-magic-gold border border-magic-gold/30 rounded uppercase font-bold tracking-wider">
                         {deck.archetype}

@@ -13,7 +13,7 @@ export default function CardSearch({ onAddCard }) {
   const [flipStates, setFlipStates] = useState({}); // { cardId: 0 o 1 }
   
   // Filtros Avanzados
-  const [isLegacyOnly, setIsLegacyOnly] = useState(true);
+  const [isModernOnly, setIsModernOnly] = useState(true);
   const [selectedType, setSelectedType] = useState(''); // creature, instant, sorcery, etc.
   const [selectedColors, setSelectedColors] = useState([]); // W, U, B, R, G, C
   const [showFilters, setShowFilters] = useState(false);
@@ -62,7 +62,7 @@ export default function CardSearch({ onAddCard }) {
       try {
         let scryfallQuery = query || '';
         
-        if (isLegacyOnly) scryfallQuery += ' f:legacy';
+        if (isModernOnly) scryfallQuery += ' f:modern';
         if (selectedType) scryfallQuery += ` t:${selectedType}`;
         
         if (selectedColors.length > 0) {
@@ -91,7 +91,7 @@ export default function CardSearch({ onAddCard }) {
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [query, isLegacyOnly, selectedType, selectedColors]);
+  }, [query, isModernOnly, selectedType, selectedColors]);
 
   const isBanned = (cardName) => BATTLEBOX_BANLIST.includes(cardName);
   
@@ -199,19 +199,19 @@ export default function CardSearch({ onAddCard }) {
                 
                 <label className="flex items-center gap-2 cursor-pointer group">
                   <div 
-                    onClick={() => setIsLegacyOnly(!isLegacyOnly)}
+                    onClick={() => setIsModernOnly(!isModernOnly)}
                     className={cn(
                       "w-10 h-5 rounded-full relative transition-all duration-300",
-                      isLegacyOnly ? "bg-green-500/40 border-green-500/50" : "bg-gray-800 border-gray-700"
+                      isModernOnly ? "bg-green-500/40 border-green-500/50" : "bg-gray-800 border-gray-700"
                     )}
                   >
                     <div className={cn(
                       "absolute top-1 w-3 h-3 rounded-full transition-all duration-300",
-                      isLegacyOnly ? "left-6 bg-green-400" : "left-1 bg-gray-500"
+                      isModernOnly ? "left-6 bg-green-400" : "left-1 bg-gray-500"
                     )} />
                   </div>
                   <span className="text-[10px] font-bold text-magic-gold/60 uppercase tracking-widest group-hover:text-magic-gold transition-colors">
-                    Solo Legacy
+                    Solo Modern
                   </span>
                 </label>
               </div>
@@ -343,7 +343,7 @@ export default function CardSearch({ onAddCard }) {
                 <div className="absolute inset-0 bg-red-950/40 backdrop-blur-[2px] flex flex-col items-center justify-center p-6 text-center border-4 border-red-600/50">
                   <ShieldAlert size={60} className="text-red-500 mb-4 animate-pulse" />
                   <h3 className="font-cinzel text-2xl font-bold text-white mb-2 shadow-black text-shadow-lg">CARTA PROHIBIDA</h3>
-                  <p className="text-red-200 text-xs font-bold uppercase tracking-widest">No permitida en Legacy Casual</p>
+                  <p className="text-red-200 text-xs font-bold uppercase tracking-widest">No permitida en Modern Casual</p>
                 </div>
               )}
               {hoveredCard.card_faces && (

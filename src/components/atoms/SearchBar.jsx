@@ -10,13 +10,13 @@ const RARITY_COLORS = {
   common: 'text-gray-400',
 };
 
-function CardPreview({ card }) {
-  const isLegacyLegal = isLegalInLegacy(card);
+function CardPreview({ card, format = 'MODERN' }) {
+  const isLegal = isLegalInLegacy(card, format);
   
   return (
     <div className={cn(
       "w-full px-4 py-3 flex items-center gap-4 text-left hover:bg-grimorio-gold/10 transition-all border-b border-grimorio-gold/10 last:border-b-0 group",
-      !isLegacyLegal && "opacity-70 grayscale-[0.5]"
+      !isLegal && "opacity-70 grayscale-[0.5]"
     )}>
       <div className="relative w-14 h-20 rounded-lg overflow-hidden shadow-lg border-2 border-grimorio-gold/30 flex-shrink-0">
         {card.image_uris?.normal ? (
@@ -26,7 +26,7 @@ function CardPreview({ card }) {
             <span className="text-grimorio-gold text-xs">SIN IMAGEN</span>
           </div>
         )}
-        {!isLegacyLegal && (
+        {!isLegal && (
           <div className="absolute inset-0 bg-red-900/40 flex items-center justify-center">
             <span className="text-white font-bold text-[10px] rotate-[-45deg] border border-white px-1">BANNED</span>
           </div>
@@ -38,9 +38,9 @@ function CardPreview({ card }) {
           <p className="text-grimorio-parchment font-semibold text-lg truncate group-hover:text-grimorio-gold transition-colors">
             {card.name}
           </p>
-          {!isLegacyLegal && (
+          {!isLegal && (
             <span className="text-[10px] bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded border border-red-500/30 font-bold uppercase tracking-tighter">
-              Legacy Banned
+              {format.charAt(0) + format.slice(1).toLowerCase()} Banned
             </span>
           )}
           {card.mana_value !== undefined && (
@@ -88,7 +88,7 @@ function CardPreview({ card }) {
   );
 }
 
-export default function SearchBar({ onSelect, placeholder = 'Buscar en el Grimorio...' }) {
+export default function SearchBar({ onSelect, placeholder = 'Buscar en el Grimorio...', selectedFormat = 'MODERN' }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -114,7 +114,7 @@ export default function SearchBar({ onSelect, placeholder = 'Buscar en el Grimor
     const timer = setTimeout(async () => {
       setIsSearching(true);
       try {
-        const hits = await searchCards(query, 8);
+        const hits = await searchCards(query, 8, selectedFormat);
         setResults(hits);
         setShowResults(true);
       } catch (err) {
@@ -125,7 +125,7 @@ export default function SearchBar({ onSelect, placeholder = 'Buscar en el Grimor
     }, 50);
 
     return () => clearTimeout(timer);
-  }, [query]);
+  }, [query, selectedFormat]);
 
   const handleSelect = (card) => {
     if (onSelect) onSelect(card);
@@ -176,7 +176,7 @@ export default function SearchBar({ onSelect, placeholder = 'Buscar en el Grimor
                 onClick={() => handleSelect(card)}
                 className="w-full"
               >
-                <CardPreview card={card} />
+                <CardPreview card={card} format={selectedFormat} />
               </button>
             ))}
           </div>

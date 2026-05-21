@@ -565,8 +565,8 @@ export default function BattleBox() {
     const decksToBalance = archivedDecks.filter(d => selectedDecks.includes(d.id));
 
     const handleExportMegaprompt = () => {
-      let prompt = "OBJECTIVE: CALIBRATE AND BALANCE THE FOLLOWING MTG LEGACY DECKS\n\n";
-      prompt += "CONTEXT: These decks belong to a Battle Box project designed for high-fidelity Legacy play. The goal is to ensure a balanced meta where each deck has clear win conditions and technical complexity while maintaining a cohesive power level.\n\n";
+      let prompt = "OBJECTIVE: CALIBRATE AND BALANCE THE FOLLOWING MTG MODERN DECKS\n\n";
+      prompt += "CONTEXT: These decks belong to a Battle Box project designed for high-fidelity Modern play. The goal is to ensure a balanced meta where each deck has clear win conditions and technical complexity while maintaining a cohesive power level.\n\n";
       
       decksToBalance.forEach((deck, idx) => {
         prompt += `--- DECK ${idx + 1}: ${deck.name} ---\n`;
@@ -592,7 +592,7 @@ export default function BattleBox() {
       
       prompt += "PHASE 2: ECOSYSTEM EQUILIBRIUM\n";
       prompt += "- Analyze the decks as a group. No deck should have a >60% win rate against the others.\n";
-      prompt += "- Power Leveling: If a deck uses oppressive Legacy staples while others don't, downgrade them to 'fairer' potent alternatives.\n";
+      prompt += "- Power Leveling: If a deck uses oppressive Modern staples while others don't, downgrade them to 'fairer' potent alternatives.\n";
       prompt += "- Interactive Balance: Ensure each deck has the tools to answer the key threats of the other decks.\n";
       prompt += "- Meta Sideboarding: The 15-card sideboards MUST contain explicit silver bullets targeting the specific strategies of the other decks in this analysis.\n\n";
       
@@ -857,7 +857,7 @@ export default function BattleBox() {
                       </h2>
                     )}
                     <p className="text-xs md:text-sm font-cinzel text-magic-gold/40 tracking-[0.4em] uppercase mt-2">
-                       {activeDeck.archetype} • LEGACY BATTLEBOX
+                       {activeDeck.archetype} • MODERN BATTLEBOX
                     </p>
                  </div>
                </div>

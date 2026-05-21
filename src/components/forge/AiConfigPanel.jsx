@@ -8,6 +8,13 @@ const PROVIDERS = [
   { id: 'openai', name: 'OpenAI', icon: '🧠', baseUrl: 'https://api.openai.com/v1' },
 ];
 
+const RARITY_MODES = [
+  { value: 'standard', label: 'Estándar (Equilibrado)' },
+  { value: 'high-power', label: 'Poder de Legacy (Sin límites de rareza, pero Justo)' },
+  { value: 'pauper', label: 'Pauper (Solo Comunes)' },
+  { value: 'artisan', label: 'Artisan (Comunes e Infrecuentes)' }
+];
+
 const DEFAULT_STORAGE_KEY = 'mtg_forge_ai_config';
 
 export default function AiConfigPanel({ onConfigReady, storageKey = DEFAULT_STORAGE_KEY }) {
@@ -16,6 +23,7 @@ export default function AiConfigPanel({ onConfigReady, storageKey = DEFAULT_STOR
   const [loadingModels, setLoadingModels] = useState(false);
   const [error, setError] = useState('');
   const [searchFilter, setSearchFilter] = useState('');
+  const [rarityMode, setRarityMode] = useState('high-power');
   
   // Mapa maestro: { openrouter: { apiKey, model }, gemini: { ... } }
   const [providerKeys, setProviderKeys] = useState({});
@@ -38,25 +46,26 @@ export default function AiConfigPanel({ onConfigReady, storageKey = DEFAULT_STOR
           setProviderKeys({ [config.provider || 'openrouter']: { apiKey: config.apiKey, model: config.selectedModel || '' } });
         }
         setProvider(config.provider || 'openrouter');
+        setRarityMode(config.rarityMode || 'high-power');
       } catch (e) {}
     }
   }, [storageKey]);
 
   // Guardar en localStorage y notificar al padre
-  const persist = (newProvider, newKeys) => {
+  const persist = (newProvider, newKeys, newRarityMode = rarityMode) => {
     const providerInfo = PROVIDERS.find(p => p.id === newProvider);
     const config = {
       provider: newProvider,
       apiKey: newKeys[newProvider]?.apiKey || '',
       selectedModel: newKeys[newProvider]?.model || '',
       baseUrl: providerInfo?.baseUrl,
+      rarityMode: newRarityMode,
       keys: newKeys
     };
     localStorage.setItem(storageKey, JSON.stringify(config));
     
-    if (config.apiKey && config.selectedModel) {
-      onConfigReady?.(config);
-    }
+    // Notificar al padre siempre
+    onConfigReady?.(config);
   };
 
   const updateCurrentProvider = (updates) => {
@@ -68,6 +77,11 @@ export default function AiConfigPanel({ onConfigReady, storageKey = DEFAULT_STOR
       persist(provider, next);
       return next;
     });
+  };
+
+  const handleRarityChange = (newMode) => {
+    setRarityMode(newMode);
+    persist(provider, providerKeys, newMode);
   };
 
   const handleProviderChange = (newProvider) => {
@@ -254,6 +268,30 @@ export default function AiConfigPanel({ onConfigReady, storageKey = DEFAULT_STOR
           </select>
         </div>
       )}
+
+      <div className="mt-4 p-4 rounded-lg bg-black/40 border border-magic-gold/10 shadow-inner">
+        <label className="block text-[10px] text-[#ffca58] mb-1.5 uppercase font-black tracking-[0.2em] drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
+          🛡️ MODO DE RAREZA (RESTRICCIÓN GLOBAL)
+        </label>
+        <select
+          value={rarityMode}
+          onChange={(e) => handleRarityChange(e.target.value)}
+          className="w-full px-3 py-2 bg-white/5 border border-magic-gold/20 rounded-lg 
+                     text-[#f4ece0] text-xs focus:border-magic-gold focus:outline-none backdrop-blur-md cursor-pointer"
+        >
+          {RARITY_MODES.map(r => (
+            <option key={r.value} value={r.value} className="bg-[#1a1612] text-[#f4ece0]">
+              {r.label}
+            </option>
+          ))}
+        </select>
+        <p className="text-[10px] text-[#f4ece0]/40 mt-1.5 font-sans leading-relaxed">
+          {rarityMode === 'pauper' && "⚠️ Pauper activado: El Oráculo y el Juez de Estado forzarán exclusivamente cartas Comunes. Cualquier carta que infrinja esta rareza será purgada y transmutada en una Isla Básica de seguridad."}
+          {rarityMode === 'artisan' && "⚠️ Artisan activado: El Oráculo y el Juez de Estado forzarán exclusivamente cartas Comunes e Infrecuentes. Rarezas superiores serán purgadas y transmutadas."}
+          {rarityMode === 'high-power' && "⚡ Poder de Legacy: Acceso total a cartas raras y míticas sin restricción de rareza, manteniendo la balanza de Battle Box."}
+          {rarityMode === 'standard' && "⚖️ Estándar: Equilibrio casual equilibrado general."}
+        </p>
+      </div>
     </div>
   );
 }

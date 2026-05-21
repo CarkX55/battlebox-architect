@@ -17,6 +17,7 @@ const MagicCard = memo(function MagicCard({
   const [loadError, setLoadError] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [highResLoaded, setHighResLoaded] = useState(false);
+  const [meldData, setMeldData] = useState(null);
   
   useEffect(() => {
     if (card.image_uris?.small || card.image_uris?.normal) {
@@ -48,6 +49,15 @@ const MagicCard = memo(function MagicCard({
       })
       .then(data => {
         setScryfallData(data);
+        if (data.layout === 'meld' && data.all_parts) {
+          const meldPart = data.all_parts.find(p => p.component === 'meld_result');
+          if (meldPart && meldPart.uri) {
+            fetch(meldPart.uri)
+              .then(r => r.json())
+              .then(m => setMeldData(m))
+              .catch(() => console.warn("Failed to load meld result"));
+          }
+        }
       })
       .catch(() => {
         setLoadError(true);
@@ -58,20 +68,23 @@ const MagicCard = memo(function MagicCard({
   }, [card.name]);
 
   const cardData = scryfallData || card;
-  const hasFaces = cardData?.card_faces && 
-                   cardData.card_faces.length > 1 && 
-                   cardData.card_faces[0].image_uris;
+  const isMeld = cardData?.layout === 'meld' && !!meldData;
+  const hasFaces = (cardData?.card_faces && cardData.card_faces.length > 1) || isMeld;
   
   // Estrategia Progresiva: 'small' por defecto, 'normal' al pasar el ratón
   const getImageUrl = (highRes = false) => {
-    const faceIndex = isFlipped ? 1 : 0;
+    if (isFlipped && isMeld && meldData?.image_uris) {
+      return highRes ? (meldData.image_uris.normal || meldData.image_uris.large) : (meldData.image_uris.small || meldData.image_uris.normal);
+    }
     
-    if (hasFaces && cardData.card_faces[faceIndex].image_uris) {
+    const faceIndex = isFlipped && !isMeld ? 1 : 0;
+    
+    if (hasFaces && !isMeld && cardData.card_faces[faceIndex]?.image_uris) {
       const faceUris = cardData.card_faces[faceIndex].image_uris;
       return highRes ? (faceUris.normal || faceUris.large) : (faceUris.small || faceUris.normal);
     }
     
-    const baseUris = cardData.image_uris;
+    const baseUris = cardData?.image_uris;
     if (!baseUris) return null;
     return highRes ? (baseUris.normal || baseUris.large) : (baseUris.small || baseUris.normal);
   };
@@ -170,22 +183,22 @@ const MagicCard = memo(function MagicCard({
             {card.quantity}x
           </div>
         )}
-
-        {hasFaces && (
-          <button
-            onClick={handleFlip}
-            className={cn(
-              "absolute top-2 right-2 p-2 rounded-full shadow-2xl z-50 transition-all duration-300 border",
-              isFlipped 
-                ? "bg-grimorio-gold text-black border-grimorio-gold scale-110 rotate-180 shadow-[0_0_15px_rgba(193,155,69,0.5)]" 
-                : "bg-black/60 text-grimorio-gold border-grimorio-gold/30 hover:bg-grimorio-gold/20 hover:border-grimorio-gold/60"
-            )}
-            title="Transformar Carta"
-          >
-            <RefreshCw size={14} className={cn(isFlipped && "animate-pulse")} />
-          </button>
-        )}
       </div>
+
+      {hasFaces && (
+        <button
+          onClick={handleFlip}
+          className={cn(
+            "absolute -bottom-3 left-1/2 -translate-x-1/2 p-2 rounded-full shadow-[0_4px_15px_rgba(0,0,0,0.8)] z-50 transition-all duration-300 border-2",
+            isFlipped 
+              ? "bg-magic-gold text-black border-magic-gold shadow-[0_0_20px_rgba(255,202,88,0.6)]" 
+              : "bg-[#1a1612] text-magic-gold border-magic-gold/50 hover:bg-[#2a241e] hover:border-magic-gold hover:shadow-[0_0_15px_rgba(255,202,88,0.3)]"
+          )}
+          title="Transformar Carta"
+        >
+          <RefreshCw size={14} className={cn("transition-transform duration-500", isFlipped && "rotate-180")} />
+        </button>
+      )}
     </motion.div>
   );
 });

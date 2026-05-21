@@ -148,12 +148,12 @@ export default function DataIngestor({ onComplete }) {
               </h3>
               <div className="flex items-center gap-4 justify-center">
                 <div className="h-px w-12 bg-grimorio-gold/20" />
-                <span className="text-2xl font-cinzel text-black font-black">
+                <span className="text-2xl font-cinzel text-magic-gold font-black drop-shadow-[0_0_8px_rgba(255,202,88,0.5)]">
                   {status === 'parsing' ? '...' : `${progress}%`}
                 </span>
                 <div className="h-px w-12 bg-grimorio-gold/20" />
               </div>
-              <p className="text-black/40 font-serif italic text-xs max-w-[200px] mx-auto">
+              <p className="text-[#f4ece0]/60 font-serif italic text-xs max-w-[200px] mx-auto">
                 {status === 'parsing' 
                   ? 'Desencriptando lenguajes antiguos y preparando la tinta arcana...'
                   : 'Organizando las energías arcanas de los archivos Scryfall...'}
@@ -167,27 +167,27 @@ export default function DataIngestor({ onComplete }) {
             animate={{ opacity: 1 }}
             className="space-y-8"
           >
-            <h2 className="text-3xl text-black font-cinzel font-black tracking-[0.2em] uppercase drop-shadow-sm">
+            <h2 className="text-3xl text-magic-gold font-cinzel font-black tracking-[0.2em] uppercase drop-shadow-[0_0_12px_rgba(255,202,88,0.4)]">
               Invocación de Archivos
             </h2>
             
-            <p className="text-black/60 font-serif italic text-lg leading-relaxed">
+            <p className="text-[#f4ece0]/70 font-serif italic text-lg leading-relaxed">
               La biblioteca está vacía. Para comenzar la arquitectura, debemos alimentar el grimorio con los registros de Scryfall.
             </p>
 
-            <div className="relative group">
+            <div className="relative group mt-6">
               <div className="absolute -inset-1 bg-gradient-to-r from-grimorio-gold/0 via-grimorio-gold/30 to-grimorio-gold/0 blur opacity-0 group-hover:opacity-100 transition duration-1000 group-hover:duration-200"></div>
               
-              <label className="relative flex flex-col items-center justify-center w-full h-48 border-2 border-dashed border-black/10 rounded-3xl cursor-pointer hover:bg-black/5 transition-all duration-500 overflow-hidden group">
+              <label className="relative flex flex-col items-center justify-center w-full h-48 border-2 border-dashed border-magic-gold/30 rounded-3xl cursor-pointer bg-black/20 hover:bg-black/40 hover:border-magic-gold/60 transition-all duration-500 overflow-hidden group">
                 <div className="flex flex-col items-center justify-center pt-5 pb-6 space-y-4">
-                  <div className="w-12 h-12 bg-black/5 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform duration-500">
-                    <svg className="w-6 h-6 text-black/40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="w-12 h-12 bg-magic-gold/10 border border-magic-gold/20 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform duration-500 shadow-[0_0_15px_rgba(255,202,88,0.2)]">
+                    <svg className="w-6 h-6 text-magic-gold" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                     </svg>
                   </div>
                   <div className="text-center">
-                    <p className="text-sm text-black font-cinzel font-bold tracking-widest uppercase">Entregar Manuscrito</p>
-                    <p className="text-[10px] text-black/40 font-serif italic mt-1">Formato Scryfall Default Cards (.json)</p>
+                    <p className="text-sm text-magic-gold font-cinzel font-bold tracking-widest uppercase">Entregar Manuscrito</p>
+                    <p className="text-[10px] text-[#f4ece0]/50 font-serif italic mt-1">Formato Scryfall Default Cards (.json)</p>
                   </div>
                 </div>
                 <input

@@ -8,6 +8,7 @@ const BattleBox = lazy(() => import('./views/BattleBox'));
 const Community = lazy(() => import('./views/Community'));
 const DeckForge = lazy(() => import('./views/DeckForge'));
 const DeckArchive = lazy(() => import('./views/DeckArchive'));
+const Admin = lazy(() => import('./views/AdminPanel'));
 
 const views = {
   Home,
@@ -15,11 +16,12 @@ const views = {
   DeckArchive,
   BattleBox,
   Community,
+  Admin,
 };
 
 function Navigation() {
   const { currentView, setCurrentView } = useAppStore();
-  const navItems = ['Home', 'DeckForge', 'DeckArchive', 'BattleBox', 'Community'];
+  const navItems = ['Home', 'DeckForge', 'DeckArchive', 'BattleBox', 'Community', 'Admin'];
   
   return (
     <nav className="flex justify-center flex-wrap gap-4 p-4 bg-black/60 backdrop-blur-xl border-b border-magic-gold/10 sticky top-0 z-40">

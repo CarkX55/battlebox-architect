@@ -82,7 +82,7 @@ export async function ingestScryfallData(jsonFile, onProgress) {
   return { saved: totalSaved };
 }
 
-export async function searchCards(query, limit = 20) {
+export async function searchCards(query, limit = 20, format = 'MODERN') {
   const database = await openDB();
   const tx = database.transaction(STORE_NAME, 'readonly');
   const store = tx.objectStore(STORE_NAME);
@@ -90,6 +90,7 @@ export async function searchCards(query, limit = 20) {
   
   const startTime = performance.now();
   const lowerQuery = query.toLowerCase();
+  const formatKey = format.toLowerCase();
   
   return new Promise((resolve, reject) => {
     const results = [];
@@ -99,13 +100,14 @@ export async function searchCards(query, limit = 20) {
       const cursor = event.target.result;
       if (cursor && results.length < limit * 3) {
         const name = cursor.value.name?.toLowerCase() || '';
-        if (name.includes(lowerQuery)) {
+        const isLegal = cursor.value.legalities && cursor.value.legalities[formatKey] === 'legal';
+        if (name.includes(lowerQuery) && isLegal) {
           results.push(cursor.value);
         }
         cursor.continue();
       } else {
         const latency = performance.now() - startTime;
-        console.log(`⚡ [IDB Search] "${query}" → ${results.length} resultados en ${latency.toFixed(2)}ms`);
+        console.log(`⚡ [IDB Search - ${format}] "${query}" → ${results.length} resultados en ${latency.toFixed(2)}ms`);
         
         if (results.length > 0) {
           const sample = results[0];
@@ -133,5 +135,31 @@ export async function getCardCount() {
     const request = store.count();
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
+  });
+}
+
+export async function getAllCards() {
+  const database = await openDB();
+  const tx = database.transaction(STORE_NAME, 'readonly');
+  const store = tx.objectStore(STORE_NAME);
+  
+  return new Promise((resolve, reject) => {
+    const request = store.getAll();
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+export async function clearScryfallData() {
+  const database = await openDB();
+  const tx = database.transaction(STORE_NAME, 'readwrite');
+  const store = tx.objectStore(STORE_NAME);
+  store.clear();
+  return new Promise((resolve, reject) => {
+    tx.oncomplete = () => {
+      console.log('🧹 [DB Ingestor] Base de datos de cartas limpiada correctamente.');
+      resolve();
+    };
+    tx.onerror = () => reject(tx.error);
   });
 }
