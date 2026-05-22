@@ -296,10 +296,10 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
   // 1. DYNAMIC CONFIGURATION OF KEY UTILITY / COMBOS OF LANDS
   
   // A. ELDRAZI TRON (Urza Lands Suite)
-  if (tribe === 'eldrazi' || strategy === 'prison' || formColors.includes('C') || formColors.length === 0) {
+  if (tribe === 'eldrazi' || strategy === 'prison' || (formColors.includes('C') && actualColors.length === 0) || formColors.length === 0) {
     const tronSuite = [
       { name: "Urza's Tower", quantity: 4, type_line: "Land — Urza's Tower" },
-      { name: "Urza's Power", quantity: 4, type_line: "Land — Urza's Power" },
+      { name: "Urza's Power Plant", quantity: 4, type_line: "Land — Urza's Power Plant" },
       { name: "Urza's Mine", quantity: 4, type_line: "Land — Urza's Mine" },
       { name: "Eldrazi Temple", quantity: 4, type_line: "Land — Eldrazi" },
       { name: "Wastes", quantity: 2, type_line: "Basic Land — Wastes" }
@@ -556,6 +556,19 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
     { name: 'Zagoth Triome', colors: ['U', 'B', 'G'] }
   ].filter(land => !BATTLEBOX_BANLIST.includes(land.name));
 
+  const painLands = [
+    { name: 'Underground River', colors: ['U', 'B'] },
+    { name: 'Shivan Reef', colors: ['U', 'R'] },
+    { name: 'Llanowar Wastes', colors: ['B', 'G'] },
+    { name: 'Brushland', colors: ['G', 'W'] },
+    { name: 'Adarkar Wastes', colors: ['W', 'U'] },
+    { name: 'Sulfurous Springs', colors: ['B', 'R'] },
+    { name: 'Karplusan Forest', colors: ['R', 'G'] },
+    { name: 'Battlefield Forge', colors: ['R', 'W'] },
+    { name: 'Caves of Koilos', colors: ['W', 'B'] },
+    { name: 'Yavimaya Coast', colors: ['G', 'U'] }
+  ].filter(land => !BATTLEBOX_BANLIST.includes(land.name));
+
   if (isMulticolor) {
     if (format === 'LEGACY') {
       // --- LEGACY MULTICOLOR SUITE (Duals Originales + Fetches + Wastelands) ---
@@ -739,6 +752,24 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
         }
       }
     }
+
+    // Inyectar Painlands si el mazo requiere explícitamente maná incoloro ('C')
+    if (formColors.includes('C')) {
+      const validPains = painLands.filter(p => p.colors.every(c => actualColors.includes(c)));
+      validPains.forEach(pain => {
+        const quantity = 4;
+        if (remainingLands >= quantity) {
+          manaBase.push({
+            name: pain.name,
+            quantity: quantity,
+            category: 'Land',
+            type_line: 'Land — Pain',
+            color_identity: pain.colors
+          });
+          remainingLands -= quantity;
+        }
+      });
+    }
   } else if (actualColors.length === 1) {
     // === MONO-COLOR UTILITY LANDS ===
     const monoColor = actualColors[0];
@@ -790,6 +821,21 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
         remainingLands -= land.qty;
       }
     });
+
+    // Si es monocolor pero también requiere incoloro explícitamente ('C')
+    if (formColors.includes('C')) {
+      const painMatch = painLands.find(p => p.colors.includes(monoColor));
+      if (painMatch && remainingLands >= 4) {
+        manaBase.push({
+          name: painMatch.name,
+          quantity: 4,
+          category: 'Land',
+          type_line: 'Land — Pain',
+          color_identity: painMatch.colors
+        });
+        remainingLands -= 4;
+      }
+    }
   }
 
   // 3. BASIC LANDS (Based on Pip Balance)

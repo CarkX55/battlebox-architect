@@ -1562,9 +1562,46 @@ export function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ragPool 
     const genericCandidates = ["Relic of Progenitus", "Damping Sphere", "Pithing Needle", "Tormod's Crypt", "Surgical Extraction", "Engineered Explosives", "Chalice of the Void"];
     sideCandidates = [...new Set([...sideCandidates, ...genericCandidates])];
 
-    // Asegurar 15 cartas
     let sideboard = [];
     let sideCount = 0;
+
+    // Detectar "Colores Huérfanos" (Pedido por el usuario, pero sin tierras generadas en Maindeck porque la IA no escogió cartas de ese color)
+    const maindeckLands = cards.filter(c => c.category === 'Land');
+    const orphanColors = [];
+    colors.forEach(col => {
+        if (col === 'C' || col === '') return;
+        const hasSource = maindeckLands.some(l => l.color_identity && l.color_identity.includes(col));
+        if (!hasSource) orphanColors.push(col);
+    });
+
+    if (orphanColors.length > 0) {
+        const shockMap = {
+            'UW': 'Hallowed Fountain', 'BW': 'Godless Shrine', 'RW': 'Sacred Foundry', 'GW': 'Temple Garden',
+            'BU': 'Watery Grave', 'RU': 'Steam Vents', 'GU': 'Breeding Pool', 'BR': 'Blood Crypt',
+            'BG': 'Overgrown Tomb', 'GR': 'Stomping Ground'
+        };
+        const mainColors = Array.from(colors).filter(c => !orphanColors.includes(c) && c !== 'C' && c !== '');
+        const mainColor = mainColors.length > 0 ? mainColors[0] : 'W';
+        
+        orphanColors.forEach(col => {
+            if (sideCount >= 13) return; // Dejar espacio para al menos algunas cartas de odio
+            const pairKey = [mainColor, col].sort().join('');
+            const landName = shockMap[pairKey] || "City of Brass";
+            sideboard.push({
+                name: landName,
+                quantity: 2,
+                category: "Land",
+                type_line: "Land — Sideboard Fixer",
+                cmc: 0,
+                color_identity: [mainColor, col]
+            });
+            sideCount += 2;
+            const logOrphan = `[DIMENSIÓN J] Color Huérfano Detectado (${col}). Inyectando 2x ${landName} en Banquillo.`;
+            console.log(logOrphan);
+            if (addLog) addLog(logOrphan);
+        });
+    }
+
     let candIdx = 0;
     let loopProtect = 0;
     while (sideCount < 15 && loopProtect < 1000) {
@@ -1590,19 +1627,62 @@ export function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ragPool 
         candIdx += 1;
     }
 
-    // Sideboard Strategy Description
-    let sideboard_strategy = `Guía Táctica de Banquilleo Modern Pro Tour:\n`;
-    sideboard.forEach(card => {
-        if (card.name === "Rest in Peace" || card.name === "Leyline of the Void") {
-            sideboard_strategy += `- Contra Graveyard (Living End, Reanimator): Banquear +${card.quantity}x ${card.name} quitando interacciones lentas.\n`;
-        } else if (card.name === "Stony Silence" || card.name === "Force of Vigor" || card.name === "Collector Ouphe") {
-            sideboard_strategy += `- Contra Artifacts/Scales (Affinity, Tron): Banquear +${card.quantity}x ${card.name}.\n`;
-        } else if (card.name === "Blood Moon" || card.name === "Alpine Moon") {
-            sideboard_strategy += `- Contra Big Mana (Tron, Amulet Titan): Banquear +${card.quantity}x ${card.name} para anular bases codiciosas.\n`;
-        } else if (card.name === "Veil of Summer" || card.name === "Surge of Salvation") {
-            sideboard_strategy += `- Contra Control/Disrupción (Midrange/Control): Banquear +${card.quantity}x ${card.name} para proteger nuestras piezas clave.\n`;
-        } else {
-            sideboard_strategy += `- Matchups Interactivos: Banquear +${card.quantity}x ${card.name} para optimizar curvas de remoción/contrahechizos.\n`;
+    // Sideboard Strategy Description: Per-Matchup Pip Simulation
+    let sideboard_strategy = `Guía Táctica de Banquilleo Modern Pro Tour (Simulación de Pips por Matchup):\n`;
+    
+    const colorForCard = {};
+    Object.keys(sideboardHatePool).forEach(col => {
+        sideboardHatePool[col].forEach(cardName => { colorForCard[cardName] = col; });
+    });
+    genericCandidates.forEach(name => { colorForCard[name] = 'C'; });
+
+    const matchups = {
+        "Graveyard (Living End, Reanimator)": ["Rest in Peace", "Leyline of the Void", "Relic of Progenitus", "Tormod's Crypt", "Surgical Extraction"],
+        "Artifacts/Scales (Affinity, Tron)": ["Stony Silence", "Force of Vigor", "Collector Ouphe", "Smash to Smithereens", "Haywire Mite"],
+        "Big Mana (Tron, Amulet Titan)": ["Blood Moon", "Alpine Moon", "Damping Sphere"],
+        "Control/Disrupción (Midrange/Control)": ["Veil of Summer", "Surge of Salvation", "Chalice of the Void"],
+        "Interactivo (Aggro, Tempo)": ["Path to Exile", "Spell Pierce", "Aether Gust", "Mystical Dispute", "Hurkyl's Recall", "Collective Brutality", "Fatal Push", "Roiling Vortex", "Thoughtseize", "Engineered Explosives", "Pithing Needle"]
+    };
+
+    const sideboardLands = sideboard.filter(c => c.category === "Land");
+
+    Object.keys(matchups).forEach(matchupName => {
+        const relevantCardNames = matchups[matchupName];
+        const cardsIN = sideboard.filter(c => relevantCardNames.includes(c.name));
+        
+        if (cardsIN.length > 0) {
+            let inString = cardsIN.map(c => `+${c.quantity}x ${c.name}`).join(", ");
+            let requiredColors = new Set();
+            cardsIN.forEach(c => {
+                const col = colorForCard[c.name];
+                if (col && col !== 'C') requiredColors.add(col);
+            });
+
+            let landsToSubIn = [];
+            let totalLandsToSubOut = 0;
+            requiredColors.forEach(col => {
+                if (orphanColors.includes(col)) {
+                    // Find the sideboard lands that provide this orphan color
+                    sideboardLands.forEach(l => {
+                        if (l.color_identity && l.color_identity.includes(col)) {
+                            landsToSubIn.push(`+${l.quantity}x ${l.name}`);
+                            totalLandsToSubOut += l.quantity;
+                        }
+                    });
+                }
+            });
+
+            // Remove duplicates from landsToSubIn (in case multiple hate cards of same orphan color)
+            landsToSubIn = [...new Set(landsToSubIn)];
+
+            const spellsCountOut = cardsIN.reduce((sum, c) => sum + c.quantity, 0);
+
+            if (landsToSubIn.length > 0) {
+                inString += `, ` + landsToSubIn.join(", ");
+                sideboard_strategy += `- Contra ${matchupName}:\n  IN: ${inString}\n  OUT: -${spellsCountOut}x cartas lentas del main, -${totalLandsToSubOut}x Tierras Básicas (Reajuste de Pips simulado para el splash).\n`;
+            } else {
+                sideboard_strategy += `- Contra ${matchupName}:\n  IN: ${inString}\n  OUT: -${spellsCountOut}x cartas lentas/ineficaces.\n`;
+            }
         }
     });
 
