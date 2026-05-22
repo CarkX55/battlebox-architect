@@ -1165,9 +1165,9 @@ export function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ragPool 
     let totalSpellsQty = nonLands.reduce((sum, c) => sum + c.quantity, 0);
 
     let targetThreatPct = 0.55;
-    if (isControl) targetThreatPct = hasTribe ? 0.35 : 0.25;
+    if (isControl) targetThreatPct = hasTribe ? 0.30 : 0.15; // Control decks only need ~5-6 finishers (15%)
     else if (isAggro) targetThreatPct = 0.75;
-    else if (isTempo) targetThreatPct = 0.40;
+    else if (isTempo) targetThreatPct = 0.45;
 
     let threatsQty = nonLands.filter(c => clasificarSpell(c) === 'Threat').reduce((sum, c) => sum + c.quantity, 0);
     let answersQty = totalSpellsQty - threatsQty;
@@ -1899,11 +1899,12 @@ Eres un Diseñador de Mazos de Magic: The Gathering de nivel Pro Tour.
 Analiza la lista de hechizos actual y sugiere hasta 3 reemplazos quirúrgicos e inteligentes para elevar el nivel de poder del mazo, pulir sinergias cojas y eliminar redundancias subóptimas.
 
 REGLAS ESTRATÉGICAS:
-1. Reemplaza únicamente cartas subóptimas o redundantes por verdaderos staples competitivos o cartas que encajen mejor con el arquetipo. Inspecciona rigurosamente la 'Meta' (%) y la 'Sinergia' (Score) de las cartas del RAG Pool para elegir únicamente las opciones estadísticamente dominantes.
+1. Reemplaza únicamente cartas subóptimas o redundantes por verdaderos staples competitivos o cartas que encajen mejor con el arquetipo. Inspecciona rigurosamente la 'Meta' (%) y la 'Sinergia' (Score) de las cartas del RAG Pool para elegir opciones estadísticamente dominantes.
 2. Cada reemplazo propuesto sustituirá copias de la carta a eliminar por copias de la carta inyectada de forma equilibrada.
 3. Asegura que la carta a inyectar respete los colores de identidad del mazo: [ ${baseIdent_ColorStr} ].
 4. Si la tribu requerida es [ ${tribeLabel} ], prioriza que los reemplazos de criaturas pertenezcan a esa tribu.
-5. Fundamenta estratégicamente tus reemplazos (campo 'reason') basándote en la eficiencia de maná y las métricas de presencia en torneos de la nueva carta.
+5. RESPETA LA CURVA DE MANÁ: Un reemplazo no debe alterar drásticamente la curva. Si reemplazas un "finisher" de coste 5-7, la nueva carta DEBE ser también un finisher de alto impacto (coste 4+). No reemplaces win-conditions pesadas por criaturas baratas de tempo.
+6. Fundamenta estratégicamente tus reemplazos (campo 'reason') basándote en la eficiencia de maná y las métricas de presencia en torneos de la nueva carta.
 `;
 
   const currentSpellsText = sanitizedFinals_ArraySpells.map(s => `- ${s.quantity}x ${s.name} (CMC: ${s.cmc}, Rol original: ${s.role})`).join('\n');
