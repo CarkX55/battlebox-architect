@@ -109,12 +109,24 @@ export async function findFuzzyMatchInDB(cardName) {
   const allKeys = await getAllCardNamesFromDB();
   let bestMatch = null;
   let bestScore = 0;
+  let iterations = 0;
   
   for (const key of allKeys) {
+    iterations++;
+    // Yield to main thread every 1000 items so React can render (prevents UI freeze)
+    if (iterations % 1000 === 0) {
+      await new Promise(resolve => setTimeout(resolve, 0));
+    }
+
     const keyLower = key.toLowerCase();
     
     if (keyLower === target) {
       return key;
+    }
+    
+    // Optimization: skip Levenshtein if length difference is too large to achieve 85% similarity
+    if (Math.abs(target.length - keyLower.length) > Math.max(target.length, keyLower.length) * 0.2) {
+      continue;
     }
     
     const score = getSimilarity(target, keyLower);
@@ -142,19 +154,29 @@ async function fetchCardFromScryfall(cardName) {
   const searchQuery = `!"${cleanName}" -is:ub -is:digital -is:split -is:adventure`; 
   const url = `https://api.scryfall.com/cards/search?q=${encodeURIComponent(searchQuery)}`;
   
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 seconds timeout
+
   try {
     let data;
-    const response = await fetch(url);
+    const response = await fetch(url, { signal: controller.signal });
     if (!response.ok) {
       const fallbackUrl = `https://api.scryfall.com/cards/named?exact=${encodeURIComponent(cleanName)}`;
-      const fallbackResponse = await fetch(fallbackUrl);
-      if (!fallbackResponse.ok) return null;
+      const fallbackResponse = await fetch(fallbackUrl, { signal: controller.signal });
+      if (!fallbackResponse.ok) {
+        clearTimeout(timeoutId);
+        return null;
+      }
       data = await fallbackResponse.json();
     } else {
       const json = await response.json();
-      if (!json.data || json.data.length === 0) return null;
+      if (!json.data || json.data.length === 0) {
+        clearTimeout(timeoutId);
+        return null;
+      }
       data = json.data[0];
     }
+    clearTimeout(timeoutId);
     
     const card = {
       name: data.name,
@@ -285,11 +307,24 @@ export async function hydrateCard(card, rarityMode = 'high-power') {
   };
 }
 
-export async function hydrateDeckCards(cards, rarityMode = 'high-power') {
+export async function hydrateDeckCards(cards, rarityModeOrProgress, onProgressCb) {
+  let rarityMode = 'high-power';
+  let onProgress = onProgressCb;
+  
+  if (typeof rarityModeOrProgress === 'function') {
+    onProgress = rarityModeOrProgress;
+  } else if (typeof rarityModeOrProgress === 'string') {
+    rarityMode = rarityModeOrProgress;
+  }
+
   console.log(`🚀 Hidratando ${cards.length} cartas con control de tasa de Scryfall...`);
   
   const hydrated = [];
+  let current = 0;
   for (const card of cards) {
+    current++;
+    if (onProgress) onProgress(current, cards.length);
+
     const cached = await getCardFromDB(card.name);
     let isCached = !!cached;
     
@@ -305,8 +340,8 @@ export async function hydrateDeckCards(cards, rarityMode = 'high-power') {
     }
     
     if (!isCached) {
-      // Si no está en caché local, espaciamos la petición 80ms para cumplir con el rate limit de Scryfall
-      await new Promise(resolve => setTimeout(resolve, 80));
+      // Si no está en caché local, espaciamos la petición 100ms para cumplir con el rate limit de Scryfall de manera conservadora
+      await new Promise(resolve => setTimeout(resolve, 100));
     }
     const result = await hydrateCard(card, rarityMode);
     hydrated.push(result);

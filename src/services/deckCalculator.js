@@ -473,8 +473,12 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
     }
   }
 
-  // 2. MODERN SHOCK LANDS
-  const modernShocks = [
+  // 2. DETECCIÓN DE FORMATO Y GENERACIÓN DE DUAL LANDS PROFESIONALES
+  const format = (formData?.format || 'MODERN').toUpperCase();
+  console.log(`[MANABASE GENERATOR] Generando base de maná profesional para formato: ${format}`);
+
+  // Base de datos de dual lands por formato
+  const shockLands = [
     { name: 'Watery Grave', colors: ['U', 'B'] },
     { name: 'Steam Vents', colors: ['U', 'R'] },
     { name: 'Overgrown Tomb', colors: ['B', 'G'] },
@@ -500,38 +504,290 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
     { name: 'Misty Rainforest', colors: ['G', 'U'] }
   ].filter(land => !BATTLEBOX_BANLIST.includes(land.name));
 
-  if (isMulticolor) {
-    const validShocks = modernShocks.filter(d => d.colors.every(c => actualColors.includes(c)));
-    validShocks.forEach(shock => {
-      const hasReq = shock.colors.some(c => karstenRequirements[c]);
-      const quantity = (actualColors.length === 2 || hasReq) ? 4 : 2;
-      if (remainingLands >= quantity) {
-        manaBase.push({
-          name: shock.name,
-          quantity: quantity,
-          category: 'Land',
-          type_line: 'Land — Shock',
-          color_identity: shock.colors
-        });
-        remainingLands -= quantity;
-      }
-    });
+  const legacyDuals = [
+    { name: 'Underground Sea', colors: ['U', 'B'] },
+    { name: 'Volcanic Island', colors: ['U', 'R'] },
+    { name: 'Bayou', colors: ['B', 'G'] },
+    { name: 'Savannah', colors: ['G', 'W'] },
+    { name: 'Tundra', colors: ['W', 'U'] },
+    { name: 'Badlands', colors: ['B', 'R'] },
+    { name: 'Taiga', colors: ['R', 'G'] },
+    { name: 'Scrubland', colors: ['W', 'B'] },
+    { name: 'Plateau', colors: ['R', 'W'] },
+    { name: 'Tropical Island', colors: ['G', 'U'] }
+  ].filter(land => !BATTLEBOX_BANLIST.includes(land.name));
 
-    const validFetches = fetchLands.filter(f => f.colors.every(c => actualColors.includes(c)));
-    let fetchesAllocated = 0;
-    validFetches.forEach(fetch => {
-      const hasReq = fetch.colors.some(c => karstenRequirements[c]);
-      const quantity = (actualColors.length === 2 || hasReq) ? 4 : 3;
-      if (remainingLands >= quantity && fetchesAllocated < 8) {
+  const fastLands = [
+    { name: 'Darkslick Shores', colors: ['U', 'B'] },
+    { name: 'Spirebluff Canal', colors: ['U', 'R'] },
+    { name: 'Blooming Marsh', colors: ['B', 'G'] },
+    { name: 'Razorverge Thicket', colors: ['G', 'W'] },
+    { name: 'Seachrome Coast', colors: ['W', 'U'] },
+    { name: 'Blackcleave Cliffs', colors: ['B', 'R'] },
+    { name: 'Copperline Gorge', colors: ['R', 'G'] },
+    { name: 'Inspiring Vantage', colors: ['R', 'W'] },
+    { name: 'Concealed Courtyard', colors: ['W', 'B'] },
+    { name: 'Botanical Sanctum', colors: ['G', 'U'] }
+  ].filter(land => !BATTLEBOX_BANLIST.includes(land.name));
+
+  const slowLands = [
+    { name: 'Shipwreck Marsh', colors: ['U', 'B'] },
+    { name: 'Stormcarved Coast', colors: ['U', 'R'] },
+    { name: 'Deathcap Glade', colors: ['B', 'G'] },
+    { name: 'Overgrown Farmland', colors: ['G', 'W'] },
+    { name: 'Deserted Beach', colors: ['W', 'U'] },
+    { name: 'Haunted Ridge', colors: ['B', 'R'] },
+    { name: 'Rockfall Vale', colors: ['R', 'G'] },
+    { name: 'Sundown Pass', colors: ['R', 'W'] },
+    { name: 'Shattered Sanctuary', colors: ['W', 'B'] },
+    { name: 'Dreamroot Cascade', colors: ['G', 'U'] }
+  ].filter(land => !BATTLEBOX_BANLIST.includes(land.name));
+
+  const triomes = [
+    { name: 'Raffine\'s Tower', colors: ['W', 'U', 'B'] },
+    { name: 'Xander\'s Lounge', colors: ['U', 'B', 'R'] },
+    { name: 'Ziatora\'s Proving Ground', colors: ['B', 'R', 'G'] },
+    { name: 'Jetmir\'s Garden', colors: ['R', 'G', 'W'] },
+    { name: 'Spara\'s Headquarters', colors: ['G', 'W', 'U'] },
+    { name: 'Indatha Triome', colors: ['W', 'B', 'G'] },
+    { name: 'Ketria Triome', colors: ['U', 'R', 'G'] },
+    { name: 'Raugrin Triome', colors: ['U', 'R', 'W'] },
+    { name: 'Savai Triome', colors: ['W', 'B', 'R'] },
+    { name: 'Zagoth Triome', colors: ['U', 'B', 'G'] }
+  ].filter(land => !BATTLEBOX_BANLIST.includes(land.name));
+
+  if (isMulticolor) {
+    if (format === 'LEGACY') {
+      // --- LEGACY MULTICOLOR SUITE (Duals Originales + Fetches + Wastelands) ---
+      const validDuals = legacyDuals.filter(d => d.colors.every(c => actualColors.includes(c)));
+      validDuals.forEach(dual => {
+        const hasReq = dual.colors.some(c => karstenRequirements[c]);
+        const quantity = (actualColors.length === 2 || hasReq) ? 4 : 2;
+        if (remainingLands >= quantity) {
+          manaBase.push({
+            name: dual.name,
+            quantity: quantity,
+            category: 'Land',
+            type_line: 'Land — Original Dual',
+            color_identity: dual.colors
+          });
+          remainingLands -= quantity;
+        }
+      });
+
+      const validFetches = fetchLands.filter(f => f.colors.every(c => actualColors.includes(c)));
+      let fetchesAllocated = 0;
+      validFetches.forEach(fetch => {
+        const hasReq = fetch.colors.some(c => karstenRequirements[c]);
+        const quantity = (actualColors.length === 2 || hasReq) ? 4 : 3;
+        if (remainingLands >= quantity && fetchesAllocated < 8) {
+          manaBase.push({
+            name: fetch.name,
+            quantity: quantity,
+            category: 'Land',
+            type_line: 'Land — Fetch',
+            color_identity: fetch.colors
+          });
+          remainingLands -= quantity;
+          fetchesAllocated += quantity;
+        }
+      });
+
+      // Wasteland opcional en Legacy si es una estrategia agresiva/midrange/taxes/tempo
+      if (['aggro', 'midrange', 'tempo', 'taxes'].includes(archetype) || ['aggro', 'midrange', 'prison'].includes(strategy)) {
+        const qtyWasteland = Math.min(remainingLands, 3);
+        if (qtyWasteland > 0 && !BATTLEBOX_BANLIST.includes('Wasteland')) {
+          manaBase.push({
+            name: 'Wasteland',
+            quantity: qtyWasteland,
+            category: 'Land',
+            type_line: 'Land',
+            color_identity: []
+          });
+          remainingLands -= qtyWasteland;
+        }
+      }
+    } 
+    else if (format === 'PIONEER') {
+      // --- PIONEER MULTICOLOR SUITE (Shocks + Fastlands + Slowlands - ¡ESTRICTAMENTE SIN FETCHES!) ---
+      const validShocks = shockLands.filter(d => d.colors.every(c => actualColors.includes(c)));
+      validShocks.forEach(shock => {
+        const hasReq = shock.colors.some(c => karstenRequirements[c]);
+        const quantity = (actualColors.length === 2 || hasReq) ? 4 : 2;
+        if (remainingLands >= quantity) {
+          manaBase.push({
+            name: shock.name,
+            quantity: quantity,
+            category: 'Land',
+            type_line: 'Land — Shock',
+            color_identity: shock.colors
+          });
+          remainingLands -= quantity;
+        }
+      });
+
+      const validFast = fastLands.filter(f => f.colors.every(c => actualColors.includes(c)));
+      validFast.forEach(fast => {
+        const quantity = (archetype === 'aggro') ? 4 : 2;
+        if (remainingLands >= quantity) {
+          manaBase.push({
+            name: fast.name,
+            quantity: quantity,
+            category: 'Land',
+            type_line: 'Land — Fast',
+            color_identity: fast.colors
+          });
+          remainingLands -= quantity;
+        }
+      });
+
+      const validSlow = slowLands.filter(s => s.colors.every(c => actualColors.includes(c)));
+      validSlow.forEach(slow => {
+        const quantity = (archetype === 'control' || archetype === 'midrange') ? 4 : 2;
+        if (remainingLands >= quantity) {
+          manaBase.push({
+            name: slow.name,
+            quantity: quantity,
+            category: 'Land',
+            type_line: 'Land — Slow',
+            color_identity: slow.colors
+          });
+          remainingLands -= quantity;
+        }
+      });
+    } 
+    else if (format === 'STANDARD') {
+      // --- STANDARD MULTICOLOR SUITE (Fastlands + Slowlands) ---
+      const validFast = fastLands.filter(f => f.colors.every(c => actualColors.includes(c)));
+      validFast.forEach(fast => {
+        const quantity = 4;
+        if (remainingLands >= quantity) {
+          manaBase.push({
+            name: fast.name,
+            quantity: quantity,
+            category: 'Land',
+            type_line: 'Land — Fast',
+            color_identity: fast.colors
+          });
+          remainingLands -= quantity;
+        }
+      });
+
+      const validSlow = slowLands.filter(s => s.colors.every(c => actualColors.includes(c)));
+      validSlow.forEach(slow => {
+        const quantity = (archetype === 'control' || archetype === 'midrange') ? 4 : 2;
+        if (remainingLands >= quantity) {
+          manaBase.push({
+            name: slow.name,
+            quantity: quantity,
+            category: 'Land',
+            type_line: 'Land — Slow',
+            color_identity: slow.colors
+          });
+          remainingLands -= quantity;
+        }
+      });
+    } 
+    else {
+      // --- MODERN MULTICOLOR SUITE (Shocklands + Fetches + Triomas para 3+ colores) ---
+      const validShocks = shockLands.filter(d => d.colors.every(c => actualColors.includes(c)));
+      validShocks.forEach(shock => {
+        const hasReq = shock.colors.some(c => karstenRequirements[c]);
+        const quantity = (actualColors.length === 2 || hasReq) ? 4 : 2;
+        if (remainingLands >= quantity) {
+          manaBase.push({
+            name: shock.name,
+            quantity: quantity,
+            category: 'Land',
+            type_line: 'Land — Shock',
+            color_identity: shock.colors
+          });
+          remainingLands -= quantity;
+        }
+      });
+
+      const validFetches = fetchLands.filter(f => f.colors.every(c => actualColors.includes(c)));
+      let fetchesAllocated = 0;
+      validFetches.forEach(fetch => {
+        const hasReq = fetch.colors.some(c => karstenRequirements[c]);
+        const quantity = (actualColors.length === 2 || hasReq) ? 4 : 3;
+        if (remainingLands >= quantity && fetchesAllocated < 8) {
+          manaBase.push({
+            name: fetch.name,
+            quantity: quantity,
+            category: 'Land',
+            type_line: 'Land — Fetch',
+            color_identity: fetch.colors
+          });
+          remainingLands -= quantity;
+          fetchesAllocated += quantity;
+        }
+      });
+
+      // Si tiene 3+ colores, inyectar 1 Trioma coincidente (muy Pro-Tour Modern)
+      if (actualColors.length >= 3 && remainingLands >= 1) {
+        const validTriome = triomes.find(t => t.colors.every(c => actualColors.includes(c)));
+        if (validTriome) {
+          manaBase.push({
+            name: validTriome.name,
+            quantity: 1,
+            category: 'Land',
+            type_line: 'Land — Triome',
+            color_identity: validTriome.colors
+          });
+          remainingLands--;
+        }
+      }
+    }
+  } else if (actualColors.length === 1) {
+    // === MONO-COLOR UTILITY LANDS ===
+    const monoColor = actualColors[0];
+    const monoLands = {
+      'W': [
+        { name: "Castle Ardenvale", qty: 2, type: "Land" },
+        { name: "Eiganjo, Seat of the Empire", qty: 1, type: "Legendary Land" },
+        { name: "Cave of the Frost Dragon", qty: 2, type: "Land — Cave" },
+        { name: "Mutavault", qty: 2, type: "Land" }
+      ],
+      'U': [
+        { name: "Castle Vantress", qty: 2, type: "Land" },
+        { name: "Otawara, Soaring City", qty: 1, type: "Legendary Land" },
+        { name: "Hall of Storm Giants", qty: 2, type: "Land — Cave" },
+        { name: "Mutavault", qty: 2, type: "Land" }
+      ],
+      'B': [
+        { name: "Castle Locthwain", qty: 2, type: "Land" },
+        { name: "Takenuma, Abandoned Mire", qty: 1, type: "Legendary Land" },
+        { name: "Hive of the Eye Tyrant", qty: 2, type: "Land — Cave" },
+        { name: "Urborg, Tomb of Yawgmoth", qty: 1, type: "Legendary Land" },
+        { name: "Mutavault", qty: 2, type: "Land" }
+      ],
+      'R': [
+        { name: "Castle Embereth", qty: 2, type: "Land" },
+        { name: "Sokenzan, Crucible of Defiance", qty: 1, type: "Legendary Land" },
+        { name: "Den of the Bugbear", qty: 2, type: "Land — Cave" },
+        { name: "Ramunap Ruins", qty: 2, type: "Land" },
+        { name: "Mutavault", qty: 2, type: "Land" }
+      ],
+      'G': [
+        { name: "Castle Garenbrig", qty: 2, type: "Land" },
+        { name: "Boseiju, Who Endures", qty: 1, type: "Legendary Land" },
+        { name: "Lair of the Hydra", qty: 2, type: "Land — Cave" },
+        { name: "Nykthos, Shrine to Nyx", qty: 2, type: "Legendary Land" }
+      ]
+    };
+    
+    const landsToInject = monoLands[monoColor] || [];
+    landsToInject.forEach(land => {
+      if (remainingLands >= land.qty) {
         manaBase.push({
-          name: fetch.name,
-          quantity: quantity,
+          name: land.name,
+          quantity: land.qty,
           category: 'Land',
-          type_line: 'Land — Fetch',
-          color_identity: fetch.colors
+          type_line: land.type,
+          color_identity: [monoColor]
         });
-        remainingLands -= quantity;
-        fetchesAllocated += quantity;
+        remainingLands -= land.qty;
       }
     });
   }

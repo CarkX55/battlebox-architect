@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../../utils/cn';
-import { Sparkles, Swords, Shield, Zap, Flame, Crown, BookOpen, Search, Check, Plus, AlertCircle, Wand2, Compass, PlusCircle, MinusCircle, Scroll } from 'lucide-react';
+import { Sparkles, Swords, Shield, Zap, Flame, Crown, BookOpen, Search, Check, Plus, AlertCircle, Wand2, Compass, PlusCircle, MinusCircle, Scroll, TrendingUp } from 'lucide-react';
 
 import { BATTLEBOX_ARCHETYPES, getBattleBoxFormatName, BATTLEBOX_FORMAT_NAME, MTG_TRIBES, MTG_STRATEGIES, TRIBE_CATEGORIES, COLORS } from '../../constants/legacyBattleBox';
 import ManaOrb from '../atoms/ManaOrb';
@@ -57,10 +57,24 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
     colores: [],
     tribe: '',
     strategy: '',
+    curveProfile: 'balanced',
     prompt: '',
     mustInclude: '',
     customBanlist: '',
   });
+
+  const CURVE_PROFILES = [
+    { id: 'blitz', label: 'Blitz', icon: '🔥', desc: 'Ultra-baja. Burn, Prowess', avgCmc: '1.4–1.8' },
+    { id: 'aggressive', label: 'Agresiva', icon: '⚡', desc: 'Tempo, Tribal Aggro', avgCmc: '1.8–2.2' },
+    { id: 'balanced', label: 'Equilibrada', icon: '⚔️', desc: 'Midrange, Blink, Aristocrats', avgCmc: '2.2–2.8' },
+    { id: 'heavy', label: 'Pesada', icon: '🛡️', desc: 'Control, Ramp, Reanimator', avgCmc: '2.8–3.5' }
+  ];
+
+  const ARCHETYPE_DEFAULT_CURVE = {
+    aggro: 'aggressive', tempo: 'aggressive', midrange: 'balanced',
+    control: 'heavy', combo: 'balanced', prison: 'heavy',
+    'legacy-eldrazi': 'heavy'
+  };
 
   const [isCustomTribe, setIsCustomTribe] = useState(false);
   const [isCustomStrategy, setIsCustomStrategy] = useState(false);
@@ -85,7 +99,8 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
       archetype: val,
       tribe: '',
       strategy: '',
-      colores: arch?.recommendedColors || []
+      colores: prev.colores.length > 0 ? prev.colores : (arch?.recommendedColors || []),
+      curveProfile: ARCHETYPE_DEFAULT_CURVE[val] || 'balanced'
     }));
     setIsCustomTribe(false);
     setIsCustomStrategy(false);
@@ -684,13 +699,9 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                               key={tribe.id}
                               type="button"
                               onClick={() => {
-                                const newColors = Array.isArray(tribe.primaryColor)
-                                  ? [...tribe.primaryColor]
-                                  : tribe.colors.slice(0, 3);
                                 setFormData(prev => ({
                                   ...prev,
-                                  tribe: tribe.label,
-                                  colores: newColors
+                                  tribe: tribe.label
                                 }));
                               }}
                               className={cn(
@@ -829,6 +840,8 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                   )}
                 </div>
               </div>
+
+              {/* Curve Profile Selector Removed as per user request */}
 
               {/* Navigation buttons */}
               <div className="flex justify-between pt-4 border-t border-white/10">

@@ -7,13 +7,17 @@ import { loadMetaFromDB } from './mtgtop8Service.js';
 
 /**
  * Escanea el texto y type_line de la carta en busca de palabras clave.
+ * Asume que text ya está en minúsculas para mayor rendimiento.
  */
-const countKeywords = (text, keywords) => {
-  if (!text) return 0;
-  const lowerText = text.toLowerCase();
-  return keywords.reduce((count, kw) => {
-    return count + (lowerText.includes(kw.toLowerCase()) ? 1 : 0);
-  }, 0);
+const countKeywords = (lowerText, keywordsLower) => {
+  if (!lowerText) return 0;
+  let count = 0;
+  for (let i = 0; i < keywordsLower.length; i++) {
+    if (lowerText.includes(keywordsLower[i])) {
+      count++;
+    }
+  }
+  return count;
 };
 
 const FORMAT_STAPLES = {
@@ -114,8 +118,39 @@ export const buildCardPool = async (formData) => {
  
   let creaturesPool = [];
   let spellsPool = [];
+
+  // Pre-calcular arrays en minúsculas para countKeywords
+  const blueprintBoostLower = (blueprint.ragModifiers?.boost || []).map(k => k.toLowerCase());
+  const blueprintPenaltyLower = (blueprint.ragModifiers?.penalty || []).map(k => k.toLowerCase());
+  const urKeywords = ['instant', 'sorcery', 'prowess', 'magecraft', 'draw', 'damage'].map(k => k.toLowerCase());
+  const bgKeywords = ['graveyard', 'dredge', 'delirium', 'return from your graveyard', 'deathtouch', 'destroy'].map(k => k.toLowerCase());
+  const wuKeywords = ['exile', 'return to its owner\'s hand', 'enters the battlefield', 'flying', 'flash'].map(k => k.toLowerCase());
+  const brKeywords = ['sacrifice', 'discard', 'spectacle', 'madness', 'graveyard', 'loses life'].map(k => k.toLowerCase());
+  const guKeywords = ['flash', 'draw a card', 'counter', 'proliferate', 'landfall', 'kicker'].map(k => k.toLowerCase());
+  const wgKeywords = ['token', 'enchantment', 'aura', 'populate', 'convoke', 'counter'].map(k => k.toLowerCase());
+  const wrKeywords = ['equipment', 'double strike', 'attack', 'valiant', 'red creature', 'white creature'].map(k => k.toLowerCase());
+  const wbKeywords = ['lifelink', 'gain life', 'drain', 'sacrifice', 'loses life', 'exile target'].map(k => k.toLowerCase());
+  const ubKeywords = ['graveyard', 'draw', 'counter', 'mill', 'surveil', 'flash'].map(k => k.toLowerCase());
+  const rgKeywords = ['haste', 'trample', 'power 4 or greater', 'riot', 'fight'].map(k => k.toLowerCase());
+  const taxKeywords = [
+    'costs', 'unless', 'pay', 'additional cost', 'more to cast', 'tax', 
+    'can\'t cast', 'can\'t attack', 'can\'t block', 'can\'t search', 'can\'t library',
+    'limit', 'instead', 'only one', 'skip', 'doesn\'t untap', 'exile', 'graveyard',
+    'enters the battlefield tapped', 'no more than', 'ghostly prison',
+    'damping', 'deafening', 'rule of law', 'canonist', 'sentinel', 'thalia', 'magistrate'
+  ].map(k => k.toLowerCase());
+  const controlKeywords = ['counter target', 'destroy all', 'exile target', 'draw', 'planeswalker', 'flash', 'sweeper', 'board wipe'].map(k => k.toLowerCase());
+  const aggroKeywords = ['haste', 'trample', 'prowess', 'damage to', 'deals damage', 'gets +', 'combat', 'attack'].map(k => k.toLowerCase());
+  const comboKeywords = ['search', 'library', 'tutor', 'add', 'mana', 'infinite', 'win the game', 'return from your graveyard'].map(k => k.toLowerCase());
+  const tempoKeywords = ['flash', 'flying', 'counter target', 'return to its owner\'s hand', 'cantrip', 'draw a card', 'scry'].map(k => k.toLowerCase());
+  const strategyDataKeywordsLower = (strategyData?.keywords || []).map(k => k.toLowerCase());
+  const strategyIdKeywordsLower = strategyId.split('-').map(k => k.toLowerCase());
  
   for (let i = 0; i < allCards.length; i++) {
+    // Liberar hilo principal cada 1000 iteraciones
+    if (i % 1000 === 0) {
+      await new Promise(resolve => setTimeout(resolve, 0));
+    }
     const card = allCards[i];
  
     // 1. FILTROS ESTRICTOS (HARD FILTERS)
@@ -218,71 +253,53 @@ export const buildCardPool = async (formData) => {
     }
 
     if (blueprint.ragModifiers) {
-      score += countKeywords(oracleText, blueprint.ragModifiers.boost) * 5;
-      score += countKeywords(typeLine, blueprint.ragModifiers.boost) * 5;
-      score -= countKeywords(oracleText, blueprint.ragModifiers.penalty) * 10;
+      score += countKeywords(oracleText, blueprintBoostLower) * 5;
+      score += countKeywords(typeLine, blueprintBoostLower) * 5;
+      score -= countKeywords(oracleText, blueprintPenaltyLower) * 10;
     }
 
     const isCreature = typeLine.includes('creature');
 
     // === MULTIDIMENSIONAL GUILD / COLOR-PAIR SYNERGY SCORING ===
-    // 1. Izzet (U/R) - Spellslinger & Tempo
     if (allowedColors.includes('U') && allowedColors.includes('R')) {
-      score += countKeywords(oracleText, ['instant', 'sorcery', 'prowess', 'magecraft', 'draw', 'damage']) * 8;
+      score += countKeywords(oracleText, urKeywords) * 8;
     }
-    // 2. Golgari (B/G) - Dredge & Graveyard Midrange
     if (allowedColors.includes('B') && allowedColors.includes('G')) {
-      score += countKeywords(oracleText, ['graveyard', 'dredge', 'delirium', 'return from your graveyard', 'deathtouch', 'destroy']) * 8;
+      score += countKeywords(oracleText, bgKeywords) * 8;
     }
-    // 3. Azorius (W/U) - Blink, Tempo & Control
     if (allowedColors.includes('W') && allowedColors.includes('U')) {
-      score += countKeywords(oracleText, ['exile', 'return to its owner\'s hand', 'enters the battlefield', 'flying', 'flash']) * 8;
+      score += countKeywords(oracleText, wuKeywords) * 8;
     }
-    // 4. Rakdos (B/R) - Aristocrats, Burn & Madness
     if (allowedColors.includes('B') && allowedColors.includes('R')) {
-      score += countKeywords(oracleText, ['sacrifice', 'discard', 'spectacle', 'madness', 'graveyard', 'loses life']) * 8;
+      score += countKeywords(oracleText, brKeywords) * 8;
     }
-    // 5. Simic (G/U) - Flash, Tempo, +1/+1 Counters & Landfall
     if (allowedColors.includes('G') && allowedColors.includes('U')) {
-      score += countKeywords(oracleText, ['flash', 'draw a card', 'counter', 'proliferate', 'landfall', 'kicker']) * 8;
+      score += countKeywords(oracleText, guKeywords) * 8;
     }
-    // 6. Selesnya (W/G) - Tokens & Enchantress
     if (allowedColors.includes('W') && allowedColors.includes('G')) {
-      score += countKeywords(oracleText, ['token', 'enchantment', 'aura', 'populate', 'convoke', 'counter']) * 8;
+      score += countKeywords(oracleText, wgKeywords) * 8;
     }
-    // 7. Boros (W/R) - Equipment, Aggro & Combat Tricks
     if (allowedColors.includes('W') && allowedColors.includes('R')) {
-      score += countKeywords(oracleText, ['equipment', 'double strike', 'attack', 'valiant', 'red creature', 'white creature']) * 8;
+      score += countKeywords(oracleText, wrKeywords) * 8;
     }
-    // 8. Orzhov (W/B) - Aristocrats, Lifegain & Drain
     if (allowedColors.includes('W') && allowedColors.includes('B')) {
-      score += countKeywords(oracleText, ['lifelink', 'gain life', 'drain', 'sacrifice', 'loses life', 'exile target']) * 8;
+      score += countKeywords(oracleText, wbKeywords) * 8;
     }
-    // 9. Dimir (U/B) - Control, Tempo & Mill
     if (allowedColors.includes('U') && allowedColors.includes('B')) {
-      score += countKeywords(oracleText, ['graveyard', 'draw', 'counter', 'mill', 'surveil', 'flash']) * 8;
+      score += countKeywords(oracleText, ubKeywords) * 8;
     }
-    // 10. Gruul (R/G) - Stompy, Haste, Midrange
     if (allowedColors.includes('R') && allowedColors.includes('G')) {
-      score += countKeywords(oracleText, ['haste', 'trample', 'power 4 or greater', 'riot', 'fight']) * 8;
+      score += countKeywords(oracleText, rgKeywords) * 8;
     }
     // === ARCHETYPE ESSENCE BOOST ===
     if (formData.archetype === 'prison') {
-      const taxKeywords = [
-        'costs', 'unless', 'pay', 'additional cost', 'more to cast', 'tax', 
-        'can\'t cast', 'can\'t attack', 'can\'t block', 'can\'t search', 'can\'t library',
-        'limit', 'instead', 'only one', 'skip', 'doesn\'t untap', 'exile', 'graveyard',
-        'enters the battlefield tapped', 'no more than', 'ghostly prison',
-        'damping', 'deafening', 'rule of law', 'canonist', 'sentinel', 'thalia', 'magistrate'
-      ];
-      const matches = countKeywords(oracleText, taxKeywords) + countKeywords(card.name.toLowerCase(), taxKeywords);
+      const matches = countKeywords(oracleText, taxKeywords) + countKeywords(cardNameLower, taxKeywords);
       if (matches > 0) {
         score += 55; // Potente base para superar el bono tribal puro
         score += matches * 15;
       }
     } else if (formData.archetype === 'control') {
-      const controlKeywords = ['counter target', 'destroy all', 'exile target', 'draw', 'planeswalker', 'flash', 'sweeper', 'board wipe'];
-      const matches = countKeywords(oracleText, controlKeywords) + countKeywords(card.name.toLowerCase(), controlKeywords);
+      const matches = countKeywords(oracleText, controlKeywords) + countKeywords(cardNameLower, controlKeywords);
       if (matches > 0) {
         score += 45;
         score += matches * 12;
@@ -298,22 +315,19 @@ export const buildCardPool = async (formData) => {
         score += 60; // Gran empuje para que encabecen el pool RAG
       }
     } else if (formData.archetype === 'aggro') {
-      const aggroKeywords = ['haste', 'trample', 'prowess', 'damage to', 'deals damage', 'gets +', 'combat', 'attack'];
-      const matches = countKeywords(oracleText, aggroKeywords) + countKeywords(card.name.toLowerCase(), aggroKeywords);
+      const matches = countKeywords(oracleText, aggroKeywords) + countKeywords(cardNameLower, aggroKeywords);
       if (matches > 0) {
         score += 35;
         score += matches * 8;
       }
     } else if (formData.archetype === 'combo') {
-      const comboKeywords = ['search', 'library', 'tutor', 'add', 'mana', 'infinite', 'win the game', 'return from your graveyard'];
-      const matches = countKeywords(oracleText, comboKeywords) + countKeywords(card.name.toLowerCase(), comboKeywords);
+      const matches = countKeywords(oracleText, comboKeywords) + countKeywords(cardNameLower, comboKeywords);
       if (matches > 0) {
         score += 45;
         score += matches * 12;
       }
     } else if (formData.archetype === 'tempo') {
-      const tempoKeywords = ['flash', 'flying', 'counter target', 'return to its owner\'s hand', 'cantrip', 'draw a card', 'scry'];
-      const matches = countKeywords(oracleText, tempoKeywords) + countKeywords(card.name.toLowerCase(), tempoKeywords);
+      const matches = countKeywords(oracleText, tempoKeywords) + countKeywords(cardNameLower, tempoKeywords);
       if (matches > 0) {
         score += 45;
         score += matches * 12;
@@ -369,14 +383,13 @@ export const buildCardPool = async (formData) => {
 
     // Bonus por Estrategia
     if (strategyData && strategyData.keywords) {
-      const matches = countKeywords(oracleText, strategyData.keywords) + countKeywords(typeLine, strategyData.keywords);
+      const matches = countKeywords(oracleText, strategyDataKeywordsLower) + countKeywords(typeLine, strategyDataKeywordsLower);
       score += matches * 12;
       if (matches > 0 && strategyId === 'reanimator') {
         score += 25;
       }
     } else if (strategyData) {
-      const strategyKeywords = strategyId.split('-');
-      score += countKeywords(oracleText, strategyKeywords) * 5;
+      score += countKeywords(oracleText, strategyIdKeywordsLower) * 5;
     }
 
     // Penalizamos cartas inútiles sin texto si no son criaturas grandes

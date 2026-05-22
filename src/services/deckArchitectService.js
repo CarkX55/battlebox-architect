@@ -80,28 +80,28 @@ export function parseCustomBanlistString(inputStr) {
 const GEMINI_NONLAND_SCHEMA = {
   type: "OBJECT",
   properties: {
-    deckName: { type: "STRING", description: "Titulo épico para la gloria del mazo!" },
+    deckName: { type: "STRING", description: "A concise, thematic name for the deck." },
     archetype: { type: "STRING" },
     strategy: { type: "STRING" },
     technical_metrics: {
         type: "OBJECT",
         properties: {
-             land_target: { type: "NUMBER", description: "Meta matemática de Tierras (Ej. 20, 22, 24 según agresividad de curva)" },
+             land_target: { type: "NUMBER", description: "Mathematical target for lands (e.g., 20, 22, 24 depending on curve aggressiveness)" },
              pips_balance: {
                 type: "OBJECT",
-                description: "Proporciones puras exigidas de Pips en costes maná -> Ej. B: 20, W:0, U:10, R:5, G:0",
+                description: "Proportion of mana pips required -> E.g., B: 20, W:0, U:10, R:5, G:0",
                 properties: { "W": {type:"NUMBER"}, "U": {type:"NUMBER"}, "B": {type:"NUMBER"}, "R": {type:"NUMBER"}, "G": {type:"NUMBER"} }
              }
         }
     },
     spells: {
       type: "ARRAY",
-      description: "RELLENAR AQUÍ LOS HECHIZOS (Conjuros, Criaturas...). 0 TIERAS AQUÍ. Usa CARTAS OFICIALES SCYRFALL en INGLÉS.",
+      description: "ARRAY OF SPELLS (Creatures, Sorceries, etc). 0 LANDS HERE. Use OFFICIAL SCRYFALL ENGLISH NAMES ONLY.",
       items: {
         type: "OBJECT",
         properties: {
           name: { type: "STRING" },
-          quantity: { type: "NUMBER", description: "Limitadas máximo 4 copias, mínimo 1." },
+          quantity: { type: "NUMBER", description: "Min 1, Max 4 copies." },
           category: { type: "STRING", description: "Elige entre: Spell, Creature, Sorcery, Instant, Artifact, Enchantment, Planeswalker." },
           cmc: { type: "NUMBER" },
           role: { type: "STRING", description: "Rol estratégico: Debe coincidir exactamente con uno de los roles definidos en el PLANO de construcción." }
@@ -984,6 +984,90 @@ export function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ragPool 
         return c;
     });
 
+    // 0.7. ESTRICTO CONTROL DE IDENTIDAD DE COLOR (PRO TOUR DIMENSIÓN C)
+    if (colors.size > 0) {
+        const logColorStart = `[JUEZ COLOR] Validando identidad de color de los hechizos contra: [${Array.from(colors).join(", ")}]`;
+        console.log(logColorStart);
+        if (addLog) addLog(logColorStart);
+
+        cards = cards.map(c => {
+            if (c.category === 'Land') return c;
+
+            // Determinar colores
+            const cardColors = getCardColorFromPool(c.name);
+            const isColorless = cardColors.length === 0;
+            
+            // Si la carta tiene colores, verificar que todos estén en allowed colors
+            const hasOffColor = !isColorless && cardColors.some(col => !colors.has(col));
+            
+            // También comprobar si la carta no está en el RAG pool y no está en nuestra lista de staples conocidos de este color
+            const inPool = ragPool.some(p => p.name.toLowerCase() === c.name.toLowerCase());
+            const isKnownStaple = obtenerColorDeCarta(c.name) !== null;
+            
+            // Si no está en el RAG pool y no es un staple conocido, es una posible alucinación fuera de color.
+            // Para evitar falsos positivos con cartas incoloras o de utilidad genérica, permitimos cartas si no tienen color conocido.
+            const isInvalid = hasOffColor || (!inPool && !isKnownStaple && !isColorless);
+
+            if (isInvalid) {
+                const isCreature = c.category === 'Creature';
+                
+                // Buscar reemplazo en el RAG pool que coincida con el tipo (Criatura/Hechizo)
+                const replacementPool = ragPool.filter(poolCard => {
+                    const poolCardIsCreature = (poolCard.type_line || '').toLowerCase().includes('creature');
+                    return poolCardIsCreature === isCreature && poolCard.name.toLowerCase() !== c.name.toLowerCase();
+                });
+                
+                // Ordenar por cercanía de CMC y score RAG
+                replacementPool.sort((a, b) => {
+                    const diffA = Math.abs((a.mana_value || 0) - c.cmc);
+                    const diffB = Math.abs((b.mana_value || 0) - c.cmc);
+                    if (diffA !== diffB) return diffA - diffB;
+                    return (b.score || 0) - (a.score || 0);
+                });
+                
+                let replacementName = "";
+                let repCmc = c.cmc;
+                let repCat = c.category;
+                
+                if (replacementPool.length > 0) {
+                    const repCard = replacementPool[0];
+                    replacementName = repCard.name;
+                    repCmc = repCard.mana_value || c.cmc;
+                    repCat = repCard.type_line ? repCard.type_line.split('—')[0].trim() : c.category;
+                } else {
+                    // Fallbacks directos si el pool RAG está vacío o no coincide
+                    if (isCreature) {
+                        if (colors.has("W")) { replacementName = "Esper Sentinel"; repCmc = 1; repCat = "Creature"; }
+                        else if (colors.has("R")) { replacementName = "Ragavan, Nimble Pilferer"; repCmc = 1; repCat = "Creature"; }
+                        else if (colors.has("B")) { replacementName = "Orcish Bowmasters"; repCmc = 2; repCat = "Creature"; }
+                        else if (colors.has("G")) { replacementName = "Tarmogoyf"; repCmc = 2; repCat = "Creature"; }
+                        else if (colors.has("U")) { replacementName = "Delver of Secrets"; repCmc = 1; repCat = "Creature"; }
+                        else { replacementName = "Steel Overseer"; repCmc = 2; repCat = "Creature"; }
+                    } else {
+                        if (colors.has("W")) { replacementName = "Prismatic Ending"; repCmc = 1; repCat = "Sorcery"; }
+                        else if (colors.has("R")) { replacementName = "Lightning Bolt"; repCmc = 1; repCat = "Instant"; }
+                        else if (colors.has("B")) { replacementName = "Thoughtseize"; repCmc = 1; repCat = "Sorcery"; }
+                        else if (colors.has("G")) { replacementName = "Veil of Summer"; repCmc = 1; repCat = "Instant"; }
+                        else if (colors.has("U")) { replacementName = "Preordain"; repCmc = 1; repCat = "Sorcery"; }
+                        else { replacementName = "Relic of Progenitus"; repCmc = 1; repCat = "Artifact"; }
+                    }
+                }
+                
+                const logMsgColors = `⚠️ [JUEZ COLOR] Interceptada carta inválida/off-color "${c.name}" (Colores conocidos: [${cardColors.join(",")}]). Transmutando a "${replacementName}" (${repCat}, CMC ${repCmc})`;
+                console.warn(logMsgColors);
+                if (addLog) addLog(logMsgColors);
+                
+                return {
+                    ...c,
+                    name: replacementName,
+                    cmc: repCmc,
+                    category: repCat
+                };
+            }
+            return c;
+        });
+    }
+
     // === DIMENSIÓN K: EVOKE PITCH MATH ===
     const evokeElementals = {
         "grief": { color: "B", fallbacks: ["Thoughtseize", "Fatal Push"] },
@@ -1065,12 +1149,15 @@ export function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ragPool 
 
     // === DIMENSIÓN B: THREAT-TO-ANSWER RATIOS ===
     const clasificarSpell = (c) => {
+        const role = (c.role || '').toLowerCase();
+        if (role.includes('threat') || role.includes('win_con') || role.includes('finisher')) return 'Threat';
+        if (role.includes('removal') || role.includes('counterspell') || role.includes('board_wipe') || role.includes('interaction') || role.includes('answer') || role.includes('draw') || role.includes('cantrip') || role.includes('utility')) return 'Answer';
+        
         const cat = c.category;
         const name = c.name.toLowerCase();
-        const role = c.role || '';
         if (cat === 'Creature' || cat === 'Planeswalker') return 'Threat';
-        if (role.includes('threat') || role.includes('win_con') || role.includes('finisher')) return 'Threat';
         if (name.includes("colossus hammer") || name.includes("kaldra compleat") || name.includes("batterskull") || name.includes("shark typhoon")) return 'Threat';
+        
         return 'Answer';
     };
 
@@ -1101,7 +1188,8 @@ export function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ragPool 
 
             for (let thr of threatsToReduce) {
                 if (toReplace <= 0) break;
-                const reduce = Math.min(thr.quantity - 1, toReplace);
+                // Allow reducing to 0 to avoid loose 1-off cards
+                const reduce = Math.min(thr.quantity, toReplace);
                 thr.quantity -= reduce;
                 toReplace -= reduce;
             }
@@ -1138,7 +1226,8 @@ export function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ragPool 
 
             for (let ans of answersToReduce) {
                 if (toReplace <= 0) break;
-                const reduce = Math.min(ans.quantity - 1, toReplace);
+                // Allow reducing to 0 to avoid loose 1-off cards
+                const reduce = Math.min(ans.quantity, toReplace);
                 ans.quantity -= reduce;
                 toReplace -= reduce;
             }
@@ -1197,7 +1286,7 @@ export function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ragPool 
             let needed = gap;
             for (let c of nonEs) {
                 if (needed <= 0) break;
-                const take = Math.min(c.quantity - 1, needed);
+                const take = Math.min(c.quantity, needed);
                 c.quantity -= take;
                 needed -= take;
             }
@@ -1220,7 +1309,7 @@ export function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ragPool 
             let needed = 4 - engineCount;
             for (let c of nonEs) {
                 if (needed <= 0) break;
-                const take = Math.min(c.quantity - 1, needed);
+                const take = Math.min(c.quantity, needed);
                 c.quantity -= take;
                 needed -= take;
             }
@@ -1247,7 +1336,7 @@ export function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ragPool 
             let needed = 4 - protCount;
             for (let c of nonEs) {
                 if (needed <= 0) break;
-                const take = Math.min(c.quantity - 1, needed);
+                const take = Math.min(c.quantity, needed);
                 c.quantity -= take;
                 needed -= take;
             }
@@ -1468,19 +1557,22 @@ export function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ragPool 
             sideboardHatePool[col].forEach(name => sideCandidates.push(name));
         }
     });
-    if (sideCandidates.length === 0) {
-        sideCandidates = ["Spell Pierce", "Relic of Progenitus", "Damping Sphere", "Pithing Needle"];
-    }
+
+    // Fix: Asegurar suficientes cartas en candidates para no generar infinite loop y permitir playsets
+    const genericCandidates = ["Relic of Progenitus", "Damping Sphere", "Pithing Needle", "Tormod's Crypt", "Surgical Extraction", "Engineered Explosives", "Chalice of the Void"];
+    sideCandidates = [...new Set([...sideCandidates, ...genericCandidates])];
 
     // Asegurar 15 cartas
     let sideboard = [];
     let sideCount = 0;
     let candIdx = 0;
-    while (sideCount < 15) {
+    let loopProtect = 0;
+    while (sideCount < 15 && loopProtect < 1000) {
+        loopProtect++;
         const cardName = sideCandidates[candIdx % sideCandidates.length];
         const existing = sideboard.find(c => c.name === cardName);
         if (existing) {
-            if (existing.quantity < 3) {
+            if (existing.quantity < 4) { // Permitir playset de sideboard
                 existing.quantity += 1;
                 sideCount += 1;
             }
@@ -1521,6 +1613,7 @@ export function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ragPool 
     // Final unique deduplication
     const uniqueCards = [];
     cards.forEach(c => {
+        if (c.quantity <= 0) return; // Cleanup cards that were fully removed
         const existing = uniqueCards.find(uc => uc.name.toLowerCase() === c.name.toLowerCase());
         if (existing) {
             const isBasic = ["plains", "island", "swamp", "mountain", "forest", "wastes", "llanura", "isla", "pantano", "montaña", "bosque", "yermo"].includes(c.name.toLowerCase());
@@ -1573,56 +1666,95 @@ export async function forgeMazoPerfecto(formData, aiConfig, onProgress = () => {
    
    let baseIdent_ColorStr = (formData.colores && formData.colores.length>0) ? formData.colores.join(",") : "B,R"; 
 
-   // STRICT_INSTRUCTIONS_PROMPT dinámico con Taxonomía de Criaturas y el Plano
-    const rarityConstraints = {
-      pauper: "RESTRICCIÓN ABSOLUTA DE RAREZA: Solo usa cartas de rareza 'common' (comunes). Bajo ninguna circunstancia uses infrecuentes, raras o míticas.",
-      artisan: "RESTRICCIÓN ABSOLUTA DE RAREZA: Solo usa cartas de rareza 'common' (comunes) o 'uncommon' (infrecuentes). Bajo ninguna circunstancia uses raras o míticas.",
-      'high-power': "SIN RESTRICCIÓN DE RAREZA: Tienes total libertad para usar las versiones y cartas más potentes disponibles en raras, míticas, infrecuentes y comunes.",
-      standard: "RESTRICCIÓN DE RAREZA ESTÁNDAR: Enfoque equilibrado general."
-    };
-    const activeRarityMode = formData.rarityMode || (aiConfig && aiConfig.rarityMode) || 'high-power';
-    const rarityText = rarityConstraints[activeRarityMode] || rarityConstraints['high-power'];
+   // Curve Profile Logic
+   const curveProfile = formData.curveProfile || 'balanced';
+   const curveInstructions = {
+     blitz: "CURVE DISTRIBUTION TARGET (Blitz): 60% of spell copies at CMC 1, 30% at CMC 2, 10% at CMC 3+. Prioritize ultra-cheap, aggressive spells. Avoid CMC >= 4.",
+     aggressive: "CURVE DISTRIBUTION TARGET (Aggressive): 35% of spell copies at CMC 1, 40% at CMC 2, 20% at CMC 3, 5% at CMC 4+. Prioritize cheap, efficient spells. Avoid CMC >= 5.",
+     balanced: "CURVE DISTRIBUTION TARGET (Balanced): 20% of spell copies at CMC 1, 30% at CMC 2, 25% at CMC 3, 15% at CMC 4, 10% at CMC 5+. Maintain a solid mid-game presence.",
+     heavy: "CURVE DISTRIBUTION TARGET (Heavy): 10% of spell copies at CMC 1, 20% at CMC 2, 25% at CMC 3, 25% at CMC 4, 20% at CMC 5+. Focus on high-impact late-game spells."
+   };
+   const curveInstructionText = curveInstructions[curveProfile] || curveInstructions.balanced;
 
-    const STRICT_INSTRUCTIONS_PROMPT = `
-Eres un Ingeniero y Diseñador de Mazos de Magic: The Gathering de nivel Pro Tour.
-Tu única e inamovible tarea es rellenar con precisión quirúrgica el siguiente PLANO DE ROLES Y CANTIDADES ESTRATÉGICAS:
+   // === LOG 1: BLUEPRINT ACTIVADO ===
+   const logBlueprint = `═══ BLUEPRINT ═══\nPlano: ${formData.archetype} + ${strategyId}\n` + 
+     Object.entries(blueprint.roles).map(([k, v]) => `  → ${k}: ${v} copias`).join('\n') +
+     `\n  → Total hechizos: ${blueprint.totalSpells} | Curva: ${curveProfile}`;
+   addLog(logBlueprint);
+   console.log(logBlueprint);
+
+   // === LOG 2: RAG POOL SUMMARY ===
+   const top10 = ragResult.pool.slice(0, 10).map((c, i) => `  ${i+1}. ${c.name} (CMC:${c.mana_value}, Score:${c.score})`).join('\n');
+   const cmcDist = ragResult.pool.reduce((acc, c) => {
+      const cmc = Math.min(Math.floor(c.mana_value || 0), 5);
+      acc[cmc] = (acc[cmc] || 0) + 1;
+      return acc;
+   }, {});
+   const logRag = `═══ RAG POOL (Top 10) ═══\n${top10}\n  Distribución: CMC1→${cmcDist[1]||0} | CMC2→${cmcDist[2]||0} | CMC3→${cmcDist[3]||0} | CMC4→${cmcDist[4]||0} | CMC5+→${cmcDist[5]||0}`;
+   addLog(logRag);
+   console.log(logRag);
+
+   const rarityConstraints = {
+     pauper: "ABSOLUTE RARITY RESTRICTION: Only use 'common' rarity cards. Under no circumstances use uncommons, rares, or mythics.",
+     artisan: "ABSOLUTE RARITY RESTRICTION: Only use 'common' or 'uncommon' rarity cards. Under no circumstances use rares or mythics.",
+     'high-power': "NO RARITY RESTRICTION: You have total freedom to use the most powerful cards available, including rares and mythics.",
+     standard: "STANDARD RARITY RESTRICTION: Balanced approach."
+   };
+   const activeRarityMode = formData.rarityMode || (aiConfig && aiConfig.rarityMode) || 'high-power';
+   const rarityText = rarityConstraints[activeRarityMode] || rarityConstraints['high-power'];
+
+   const STRICT_INSTRUCTIONS_PROMPT = `
+You are a Pro Tour-level Magic: The Gathering deck engineer. Your task is to fill a ROLE BLUEPRINT with competitively optimal card selections.
+
+BLUEPRINT TO FILL:
 ${JSON.stringify(blueprint.roles)}
+Total spell copies required: ${blueprint.totalSpells}
 
-REGLAS DE ACERADO ESTRATÉGICO Y EVALUACIÓN:
-1. EVALUACIÓN PIEZA A PIEZA DEL POOL: Evalúa concienzudamente las cartas del "RAG CARD POOL OBLIGATORIO" una a una. Selecciona las cartas de mayor potencia individual, eficiencia en maná y perfecta sinergia competitiva para cada rol específico.
-2. CUBRIMIENTO EXACTO DEL PLANO: Debes generar exactamente la cantidad de copias especificadas para cada rol en el plano. La suma de las copias (quantity) de todos los hechizos devueltos DEBE ser exactamente de ${blueprint.totalSpells} copias.
-3. EXCLUSIÓN DE LA CATEGORÍA CRIATURA EN DETERMINADOS ROLES: Cualquier rol cuyo nombre contenga 'creature' o 'targets' (ej. 'reanimation_creature_targets', 'core_creatures', 'sac_fodder_creatures', 'prowess_creatures', 'etb_value_creatures', 'landfall_creatures') DEBE ser asignado exclusivamente a cartas de tipo criatura (category: 'Creature'). Bajo ninguna circunstancia uses Encantamientos, Conjuros o Sagas en estos roles.
-4. REGLA ESPECIAL DE FINISHERS PARA CONTROL: En un mazo de arquetipo Control ('control'), el rol 'finishers' DEBE llenarse con amenazas inevitables de fin de partida (win conditions) de alto impacto. Está estrictamente permitido y recomendado incluir Caminantes de Planos (Planeswalkers) como 'Teferi, Hero of Dominaria' o 'Jace, the Mind Sculptor', o encantamientos con gran valor de combate como 'Shark Typhoon'. EVITA categóricamente usar criaturas ligeras de flash/tempo de bajo coste (como 'Spell Queller' o 'Vendilion Clique') en el rol 'finishers' de Control puro, ya que pertenecen más bien al rol de interacción o soporte.
-5. COHERENCIA TRIBAL: Si se ha especificado la Tribu [${tribeLabel}], toda criatura incluida debe pertenecer a dicha tribu (${tribeSubtypes}).
-6. NO METAS CARTAS DE RELLENO (FILLER). SI TE SOBRA ESPACIO, AÑADE MÁS 'interaction' O 'enablers'.
-7. RESTRICCIÓN ABSOLUTA DE RAREZA GLOBAL:
-   - ${rarityText}
-8. ASIGNACIÓN RIGUROSA DE ROLES: Cada carta devuelta debe tener un campo 'role' que coincida exactamente con las claves del plano: ${Object.keys(blueprint.roles).join(', ')}. No te inventes nuevos nombres de roles.
-9. REGLA DE CONSISTENCIA PRO TOUR (CRÍTICA): Los mazos competitivos maximizan la consistencia. Debes priorizar 4 copias de las cartas clave del mazo y 3 copias de las cartas de soporte sólido. Un mazo Pro Tour típico tiene entre 9 y 12 cartas únicas no-tierra con 3-4 copias cada una. NUNCA generes listas con 15+ cartas únicas a 1-2 copias; eso produce mazos inconsistentes de nivel draft, no de torneo. Si un rol pide 8 copias, usa 2 cartas a 4x, NO 4 cartas a 2x ni 8 cartas a 1x.
+RULES (follow strictly, in order of priority):
+
+1. CARD SELECTION: Choose cards exclusively from the RAG CARD POOL provided below. Select cards with the highest individual power level, mana efficiency, and synergy with the deck's strategy. Every card must be a real, official MTG card with its correct English Scryfall name.
+
+2. EXACT COPY COUNT: The sum of all spell quantities must equal exactly ${blueprint.totalSpells}. No more, no less.
+
+3. PRO TOUR CONSISTENCY: Competitive decks maximize consistency. Use 4 copies of key cards and 3 copies of strong support cards. A typical Pro Tour deck runs 9-12 unique non-land spells at 3-4 copies each. NEVER produce lists with 15+ unique cards at 1-2 copies. If a role requires 8 copies, use 2 cards at 4x, NOT 4 cards at 2x.
+
+4. CREATURE ROLE ENFORCEMENT: Any role containing "creature" or "targets" in its name (e.g., "prowess_creatures", "reanimation_creature_targets") must be filled exclusively with cards of category "Creature". Never assign Enchantments, Sorceries, or Sagas to creature roles.
+
+5. CONTROL FINISHERS: In Control archetypes, the "finishers" role must contain high-impact win conditions: Planeswalkers (Teferi, Jace), powerful enchantments (Shark Typhoon), or resilient creatures (Murktide Regent). Do NOT use cheap flash creatures (Spell Queller, Vendilion Clique) as finishers.
+
+6. TRIBAL COHERENCE: If a tribe is specified, every creature must belong to that tribe's subtypes.
+
+7. ROLE ASSIGNMENT: Every card's "role" field must exactly match one of the blueprint keys: ${Object.keys(blueprint.roles).join(', ')}. Do not invent new role names.
+
+8. COLOR IDENTITY: Use ONLY cards whose color identity is within [${baseIdent_ColorStr}]. Do not include cards with colors outside this identity.
+
+9. RARITY: ${rarityText}
+
+10. CURVE DISTRIBUTION: ${curveInstructionText}
+
+11. NO FILLER: Do not include generic low-synergy cards. If space remains, add more interaction or enablers that directly support the deck's game plan.
 `;
 
-   // 2. Construir el Prompt con el "ADN" inyectado y el Plano
    const contextGen_Prompt = `
-      CONFIGURACIÓN Y PLANO ACTIVO DE ROLES:
-      - Arquetipo (${archetypeObj.label || 'No declarado'}): ${archetypeObj.description || 'Equilibrio de juego.'}
-      - Estrategia (${strategyObj.label || 'Ninguna'}): ${strategyObj.mechanics || 'Armonizado a Staples eficientes.'}
-      - Raza/Tribu requerida: ${tribeLabel} (Subtipos oficiales Scryfall permitidos: ${tribeSubtypes})
-      - ADN ESTRATÉGICO: ${dnaData.prioridad}
-      - ESTILO: ${dnaData.estilo}
-      - REGLA DE ORO DEL ADN: ${dnaData.regla_de_oro}
-      - RESTRICCIÓN DE RAREZA REQUERIDA: ${rarityText}
-      - PLANO A LLENAR: ${JSON.stringify(blueprint.roles)}
-      
-      === RAG CARD POOL OBLIGATORIO (BASE DE DATOS FILTRADA) ===
-      DEBES ELEGIR PRINCIPALMENTE DE ESTA LISTA DE CARTAS PRE-FILTRADAS:
-      ${poolText}
-      ==========================================================
-      
-      REGLAS DE ORO DE CONSTRUCCIÓN:
-      1. Si es Reanimator, las criaturas objetivo Coste 6+ (reanimation_creature_targets) DEBEN ser verdaderos monstruos de categoría 'Creature'. No uses Sagas ni Encantamientos.
-      2. Las criaturas Coste 1-3 NO son relleno, son MOTORES (Enablers). Si no cumplen la "Regla de Oro de Sinergia", NO las incluyas.
-      3. EXIGENCIA VITAL COLOR IMPRESCINDIBLE Y DE OBLIGACIÓN RIGUROSA (EN ENGLISH Scryfall Only!) -> COLORES BASE MENCIONADOS [ ${baseIdent_ColorStr} ] ; OBLIGADA DISTRIBUCION COSTE: La Suma Turnos/Curvas Cost1 y 2 Superando en 4 times Cantidades Frente cartas Cmc+5 pesadas!.
-   `; 
+DECK CONFIGURATION:
+- Archetype: ${archetypeObj.label || 'Midrange'} — ${archetypeObj.description || 'Balanced strategy'}
+- Strategy: ${strategyObj.label || 'General'} — ${strategyObj.mechanics || 'Efficient staples'}
+- Tribe: ${tribeLabel} (Scryfall subtypes: ${tribeSubtypes})
+- Colors: [${baseIdent_ColorStr}]
+- Curve Profile: ${curveProfile}
+
+STRATEGIC DNA:
+- Priority: ${dnaData.prioridad}
+- Style: ${dnaData.estilo}
+- Golden Rule: ${dnaData.regla_de_oro}
+
+=== RAG CARD POOL (MANDATORY SOURCE) ===
+Select cards primarily from this pre-filtered competitive pool:
+${poolText}
+========================================
+
+${formData.prompt ? `ADDITIONAL USER INSTRUCTIONS:\n${formData.prompt}` : ''}
+`; 
   
   addLog("Llamando a la API de Gemini con responseSchema...");
   onProgress('assembler', '🤖 Invocando Gemini para diseño del mazo...');
@@ -1655,6 +1787,11 @@ REGLAS DE ACERADO ESTRATÉGICO Y EVALUACIÓN:
   let validResultsStruct = typeof genResponseRawJson_Object === 'string' ? cleanAndParseJSON(genResponseRawJson_Object) : genResponseRawJson_Object; 
   let finalSpellsArr = validResultsStruct.spells || []; 
   let metricsPIPsStruct  = validResultsStruct.technical_metrics?.pips_balance || { B: 15 , R: 10 }; 
+
+  // === LOG 3: GEMINI RAW (Sanitized) ===
+  const logGemini = `═══ GEMINI RAW (Non-Lands) ═══\n${finalSpellsArr.map(s => `  ${s.quantity}x ${s.name} [${s.role}]`).join('\n')}`;
+  addLog(logGemini);
+  console.log(logGemini); 
   
   // 3. CAZA ACTIVA EXCLUSIVA JAVASCRIPT: PROTECCIÓN DE UX + FILTRO BANLIST BATTLEBOX + REGLAS DE LA CASA.
    const banlistSwaps = [];
@@ -1745,6 +1882,13 @@ REGLAS DE ACERADO ESTRATÉGICO Y EVALUACIÓN:
            sanitizedFinals_ArraySpells.push(mustCard);
        }
    }
+
+   // === LOG 4: JUEZ DELTA (Banlist & Must-Include) ===
+   const logDelta = `═══ JUEZ DELTA ═══\n` +
+     (banlistSwaps.length > 0 ? `  Swaps Banlist:\n${banlistSwaps.map(s => `    - ${s.original} → ${s.replacement}`).join('\n')}\n` : '  Swaps Banlist: Ninguno\n') +
+     (resolvedMustInclude.length > 0 ? `  Must-Includes inyectados/ajustados:\n${resolvedMustInclude.map(s => `    - ${s.quantity}x ${s.name}`).join('\n')}` : '  Must-Includes: Ninguno');
+   addLog(logDelta);
+   console.log(logDelta);
 
   // 3.5. PRO TOUR FINE-TUNING COACH (Refinamiento rápido con timeout estricto de 20s)
   onProgress('assembler', '🏅 Pro Tour Coach optimizando sinergias (máx 20s)...');
@@ -1852,6 +1996,12 @@ Sujeta tu análisis de swaps bajo el esquema JSON requerido. Devuelve hasta 3 sw
   const metricalTargetLnd = calculatePerfectLandCount(sanitizedFinals_ArraySpells, formData);
   let maxRequired = 60 - metricalTargetLnd;
   let countAct = sanitizedFinals_ArraySpells.reduce( (acc , b) => acc+(b.quantity || 1), 0 ); 
+  
+  // === LOG 5: BALANCE (Target vs Actual) ===
+  const logBalance = `═══ BALANCE JS ═══\n  Hechizos Generados: ${countAct} (Requeridos: ${maxRequired})\n  Tierras Meta (Karsten): ${metricalTargetLnd}\n  Diferencial a corregir: ${maxRequired - countAct}`;
+  addLog(logBalance);
+  console.log(logBalance);
+  
   addLog(`Suma inicial de copias de hechizos: ${countAct}. Ecuación Frank Karsten determinó tierras meta: ${metricalTargetLnd}, hechizos requeridos: ${maxRequired}.`);
 
   if(countAct !== maxRequired && maxRequired > 0) {  
@@ -1872,6 +2022,11 @@ Sujeta tu análisis de swaps bajo el esquema JSON requerido. Devuelve hasta 3 sw
   // Llamada pura base interna Matemática: Se genera en fracción mileseg exactitud!
   addLog(`Generando lands con pipBalance: ${JSON.stringify(metricsPIPsStruct)} y total lands: ${metricalTargetLnd}`);
   const finalCalculated_RealJsBaseLandsArraysInjectionObjListReady_FromDecCalc =  await generateManaBase(metricsPIPsStruct ,  metricalTargetLnd , validCurrentGenUsedStrPipKeysBaseArrayDetected , formData, sanitizedFinals_ArraySpells );
+
+  // === LOG 6: KARSTEN MATH (Lands) ===
+  const logKarsten = `═══ KARSTEN MATH (Tierras inyectadas) ═══\n  Pips Base: ${JSON.stringify(metricsPIPsStruct)}\n${finalCalculated_RealJsBaseLandsArraysInjectionObjListReady_FromDecCalc.map(l => `  ${l.quantity}x ${l.name}`).join('\n')}`;
+  addLog(logKarsten);
+  console.log(logKarsten);
 
   // Final Merging y devolver Listo Frontend Render!! 
   validResultsStruct.cards= [ ...sanitizedFinals_ArraySpells , ...finalCalculated_RealJsBaseLandsArraysInjectionObjListReady_FromDecCalc ];

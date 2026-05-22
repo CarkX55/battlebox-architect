@@ -725,15 +725,30 @@ export default function DeckForge() {
         ) : (
           <motion.div key="deck" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-8">
             {/* Header del Mazo */}
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-8 gap-6 p-8 leather-panel border-magic-gold/10 shadow-2xl">
-              <div className="flex-1 min-w-0">
-                <div className="flex flex-wrap items-center gap-4 mb-2">
-                  <h2 className="text-3xl font-cinzel text-magic-gold tracking-wide flex items-center gap-3">
-                    <img src="/ASSETS/iconoDeck.webp" alt="Deck" className="w-16 h-16 object-contain drop-shadow-[0_0_15px_rgba(255,202,88,0.3)]" />
-                    {aiMetadata?.deckName || 'Mazo Forjado'}
-                  </h2>
+            <div className="flex flex-col 2xl:flex-row justify-between items-start mb-8 gap-6 p-8 leather-panel border-magic-gold/10 shadow-2xl relative z-10">
+              <div className="flex flex-col gap-4 w-full 2xl:w-auto flex-1">
+                <div className="flex items-start sm:items-center gap-4">
+                  <img src="/ASSETS/iconoDeck.webp" alt="Deck" className="w-16 h-16 sm:w-20 sm:h-20 object-contain drop-shadow-[0_0_15px_rgba(255,202,88,0.3)] shrink-0" />
+                  <div className="flex flex-col gap-2">
+                    <h2 className="text-3xl sm:text-4xl font-cinzel text-magic-gold tracking-wide leading-tight">
+                      {aiMetadata?.deckName || 'Mazo Forjado'}
+                    </h2>
+                    <div className="flex items-center gap-2">
+                      {lastFormData?.colores?.map(c => {
+                        const iconPath = {
+                          'W': '/ASSETS/manaBlanco.webp',
+                          'U': '/ASSETS/manaAzul.webp',
+                          'B': '/ASSETS/manaNegro.webp',
+                          'R': '/ASSETS/manaRojo.webp',
+                          'G': '/ASSETS/manaVerde.webp',
+                          'C': '/ASSETS/Manaincoloro.webp'
+                        }[c];
+                        return iconPath ? <img key={c} src={iconPath} alt={c} className="w-6 h-6 sm:w-8 sm:h-8 object-contain drop-shadow-md" title={c} /> : null;
+                      })}
+                    </div>
+                  </div>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3 mt-2">
                   <span className="text-magic-gold/60 text-[10px] uppercase tracking-[0.2em] font-bold">
                     {lastFormData?.archetype} • {stats.mainCount} CARTAS
                   </span>
@@ -750,7 +765,7 @@ export default function DeckForge() {
                 </div>
               </div>
               
-              <div className="flex flex-wrap gap-3">
+              <div className="flex flex-wrap items-center justify-start 2xl:justify-end gap-3 w-full 2xl:w-auto mt-4 2xl:mt-0">
                 {lastGenerationLogs && (
                   <button
                     onClick={() => {
