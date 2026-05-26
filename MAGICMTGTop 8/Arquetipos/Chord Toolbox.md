@@ -1,0 +1,66 @@
+---
+archetype: "Chord Toolbox"
+---
+# Arquetipo: Chord Toolbox
+
+Este arquetipo competitivo agrupa las siguientes listas de torneo:
+- [[Chord Toolbox (MODERN)]]
+- [[Chord Toolbox (MODERN)]]
+- [[Chord Toolbox (MODERN)]]
+- [[Chord Toolbox (MODERN)]]
+
+### Frecuencia de uso de cartas en este arquetipo:
+- [[Chord of Calling]] (Promedio: 4 copias)
+- [[Birthing Ritual]] (Promedio: 4 copias)
+- [[Verdant Catacombs]] (Promedio: 4 copias)
+- [[Cauldron Familiar]] (Promedio: 3 copias)
+- [[Gilded Goose]] (Promedio: 3 copias)
+- [[Samwise Gamgee]] (Promedio: 3 copias)
+- [[Orcish Bowmasters]] (Promedio: 3 copias)
+- [[Windswept Heath]] (Promedio: 3 copias)
+- [[Carrion Feeder]] (Promedio: 2 copias)
+- [[Young Wolf]] (Promedio: 2 copias)
+- [[Yawgmoth, Thran Physician]] (Promedio: 2 copias)
+- [[Witherbloom Charm]] (Promedio: 2 copias)
+- [[Boseiju, Who Endures]] (Promedio: 2 copias)
+- [[Overgrown Tomb]] (Promedio: 2 copias)
+- [[Forest]] (Promedio: 2 copias)
+- [[Badgermole Cub]] (Promedio: 1 copias)
+- [[Moseo, Vein's New Dean]] (Promedio: 1 copias)
+- [[Abhorrent Oculus]] (Promedio: 1 copias)
+- [[Endurance]] (Promedio: 1 copias)
+- [[Haywire Mite]] (Promedio: 1 copias)
+- [[Sylvan Safekeeper]] (Promedio: 1 copias)
+- [[Viscera Seer]] (Promedio: 1 copias)
+- [[Dryad Arbor]] (Promedio: 1 copias)
+- [[Temple Garden]] (Promedio: 1 copias)
+- [[Breeding Pool]] (Promedio: 1 copias)
+- [[Godless Shrine]] (Promedio: 1 copias)
+- [[Lush Portico]] (Promedio: 1 copias)
+- [[Underground Mortuary]] (Promedio: 1 copias)
+- [[Malevolent Rumble]] (Promedio: 1 copias)
+- [[Swamp]] (Promedio: 1 copias)
+- [[Wall of Roots]] (Promedio: 1 copias)
+- [[Delighted Halfling]] (Promedio: 1 copias)
+- [[Twilight Mire]] (Promedio: 1 copias)
+- [[Blooming Marsh]] (Promedio: 1 copias)
+- [[Marionette Apprentice]] (Promedio: 1 copias)
+- [[Bartolom� del Presidio]] (Promedio: 0 copias)
+- [[Wooded Foothills]] (Promedio: 0 copias)
+- [[Nurturing Peatland]] (Promedio: 0 copias)
+- [[Birds of Paradise]] (Promedio: 0 copias)
+- [[Pendelhaven]] (Promedio: 0 copias)
+- [[Urborg, Tomb of Yawgmoth]] (Promedio: 0 copias)
+- [[Hapatra, Vizier of Poisons]] (Promedio: 0 copias)
+- [[Grist, the Hunger Tide]] (Promedio: 0 copias)
+- [[Ignoble Hierarch]] (Promedio: 0 copias)
+- [[Blood Artist]] (Promedio: 0 copias)
+- [[Yavimaya, Cradle of Growth]] (Promedio: 0 copias)
+- [[Takenuma, Abandoned Mire]] (Promedio: 0 copias)
+- [[Geralf's Messenger]] (Promedio: 0 copias)
+- [[Prosperous Innkeeper]] (Promedio: 0 copias)
+- [[Sephiroth, Fabled SOLDIER]] (Promedio: 0 copias)
+- [[Agatha's Soul Cauldron]] (Promedio: 0 copias)
+- [[Strangleroot Geist]] (Promedio: 0 copias)
+- [[Ruthless Lawbringer]] (Promedio: 0 copias)
+- [[Misty Rainforest]] (Promedio: 0 copias)

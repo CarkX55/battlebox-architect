@@ -1,0 +1,95 @@
+---
+archetype: "Izzet Prowess"
+---
+# Arquetipo: Izzet Prowess
+
+Este arquetipo competitivo agrupa las siguientes listas de torneo:
+- [[Izzet Prowess (MODERN)]]
+- [[Izzet Prowess (MODERN)]]
+- [[Izzet Prowess (STANDARD)]]
+- [[Izzet Prowess (STANDARD)]]
+- [[Izzet Prowess (STANDARD)]]
+- [[Izzet Prowess (STANDARD)]]
+- [[Izzet Prowess (STANDARD)]]
+- [[Izzet Prowess (STANDARD)]]
+- [[Izzet Prowess (STANDARD)]]
+- [[Izzet Prowess (STANDARD)]]
+- [[Izzet Prowess (STANDARD)]]
+- [[Izzet Prowess (STANDARD)]]
+- [[Izzet Prowess (STANDARD)]]
+- [[Izzet Prowess (STANDARD)]]
+- [[Izzet Prowess (STANDARD)]]
+- [[Izzet Prowess (STANDARD)]]
+- [[Izzet Prowess (STANDARD)]]
+- [[Izzet Prowess (STANDARD)]]
+- [[Izzet Prowess (STANDARD)]]
+- [[Izzet Prowess (STANDARD)]]
+- [[Izzet Prowess (STANDARD)]]
+- [[Izzet Prowess (STANDARD)]]
+- [[Izzet Prowess (STANDARD)]]
+- [[Izzet Prowess (STANDARD)]]
+- [[Izzet Prowess (STANDARD)]]
+- [[Izzet Prowess (STANDARD)]]
+- [[Izzet Prowess (STANDARD)]]
+- [[Izzet Prowess (STANDARD)]]
+- [[Izzet Prowess (STANDARD)]]
+- [[Izzet Prowess (STANDARD)]]
+- [[Izzet Prowess (STANDARD)]]
+- [[Izzet Prowess (STANDARD)]]
+- [[Izzet Prowess (STANDARD)]]
+
+### Frecuencia de uso de cartas en este arquetipo:
+- [[Island]] (Promedio: 6 copias)
+- [[Slickshot Show-Off]] (Promedio: 4 copias)
+- [[Steam Vents]] (Promedio: 4 copias)
+- [[Burst Lightning]] (Promedio: 4 copias)
+- [[Opt]] (Promedio: 4 copias)
+- [[Boomerang Basics]] (Promedio: 4 copias)
+- [[Flow State]] (Promedio: 4 copias)
+- [[Sleight of Hand]] (Promedio: 4 copias)
+- [[Stormchaser's Talent]] (Promedio: 4 copias)
+- [[Riverpyre Verge]] (Promedio: 4 copias)
+- [[Spirebluff Canal]] (Promedio: 4 copias)
+- [[Eddymurk Crab]] (Promedio: 2 copias)
+- [[Get Out]] (Promedio: 1 copias)
+- [[Impractical Joke]] (Promedio: 1 copias)
+- [[Roaring Furnace / Steaming Sauna]] (Promedio: 1 copias)
+- [[Multiversal Passage]] (Promedio: 1 copias)
+- [[Stormcarved Coast]] (Promedio: 1 copias)
+- [[Colorstorm Stallion]] (Promedio: 1 copias)
+- [[Secret Identity]] (Promedio: 1 copias)
+- [[Elusive Otter]] (Promedio: 1 copias)
+- [[Violent Urge]] (Promedio: 0 copias)
+- [[Monastery Swiftspear]] (Promedio: 0 copias)
+- [[Dragon's Rage Channeler]] (Promedio: 0 copias)
+- [[Cori-Steel Cutter]] (Promedio: 0 copias)
+- [[Mishra's Bauble]] (Promedio: 0 copias)
+- [[Expressive Iteration]] (Promedio: 0 copias)
+- [[Preordain]] (Promedio: 0 copias)
+- [[Lightning Bolt]] (Promedio: 0 copias)
+- [[Lava Dart]] (Promedio: 0 copias)
+- [[Mutagenic Growth]] (Promedio: 0 copias)
+- [[Mountain]] (Promedio: 0 copias)
+- [[Thundering Falls]] (Promedio: 0 copias)
+- [[Fiery Islet]] (Promedio: 0 copias)
+- [[Scalding Tarn]] (Promedio: 0 copias)
+- [[Wooded Foothills]] (Promedio: 0 copias)
+- [[Bloodstained Mire]] (Promedio: 0 copias)
+- [[Arid Mesa]] (Promedio: 0 copias)
+- [[Prismari Charm]] (Promedio: 0 copias)
+- [[Stock Up]] (Promedio: 0 copias)
+- [[Great Hall of the Biblioplex]] (Promedio: 0 copias)
+- [[Valley Floodcaller]] (Promedio: 0 copias)
+- [[Spell Pierce]] (Promedio: 0 copias)
+- [[Bounce Off]] (Promedio: 0 copias)
+- [[Wild Ride]] (Promedio: 0 copias)
+- [[Drake Hatcher]] (Promedio: 0 copias)
+- [[Vibrant Outburst]] (Promedio: 0 copias)
+- [[Into the Flood Maw]] (Promedio: 0 copias)
+- [[Octopus Form]] (Promedio: 0 copias)
+- [[Traumatic Critique]] (Promedio: 0 copias)
+- [[Willowrush Verge]] (Promedio: 0 copias)
+- [[Breeding Pool]] (Promedio: 0 copias)
+- [[Ancestral Anger]] (Promedio: 0 copias)
+- [[Plasma Bolt]] (Promedio: 0 copias)
+- [[Spell Snare]] (Promedio: 0 copias)

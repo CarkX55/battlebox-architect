@@ -4,6 +4,26 @@ import { MTG_TRIBES, MTG_STRATEGIES, PARASITIC_RULES } from '../constants/legacy
 import { getAllCards } from './dbIngestor.js';
 import { loadMetaFromDB } from './mtgtop8Service.js';
 
+let cachedObsidianGraph = null;
+
+/**
+ * Carga el Grafo Semántico pre-compilado de Obsidian de forma dinámica en el navegador.
+ * Proporciona un mecanismo ultra-seguro con fallback si el JSON no existe o falla.
+ */
+const loadObsidianGraph = async () => {
+  if (cachedObsidianGraph) return cachedObsidianGraph;
+  try {
+    const response = await fetch('/data/synergy_graph.json');
+    if (response.ok) {
+      cachedObsidianGraph = await response.json();
+      console.log(`📊 [Obsidian RAG] Grafo semántico cargado con éxito. Compilado el: ${new Date(cachedObsidianGraph.compileDate).toLocaleString()}`);
+      return cachedObsidianGraph;
+    }
+  } catch (err) {
+    console.warn(`⚠️ [Obsidian RAG] No se pudo cargar el grafo semántico (/data/synergy_graph.json). Usando fallbacks competitivos estándar.`);
+  }
+  return null;
+};
 
 /**
  * Escanea el texto y type_line de la carta en busca de palabras clave.
@@ -92,6 +112,9 @@ const FORMAT_STAPLES = {
 export const buildCardPool = async (formData) => {
   const allCards = await getAllCards();
   const blueprint = getBlueprint(formData.archetype);
+  
+  // Cargar Grafo Semántico pre-compilado de Obsidian
+  const obsidianGraph = await loadObsidianGraph();
   
   // Obtener el formato seleccionado para legalidad dinámica
   const selectedFormat = (formData.format || 'MODERN').toUpperCase();
@@ -228,7 +251,44 @@ export const buildCardPool = async (formData) => {
           const isDork = cmc <= 2 && oracleText.includes('add ');
           const isGiantPayoff = cmc >= 6;
           
-          if (!isDork && !isGiantPayoff) {
+          let isStrategicEnabler = false;
+          
+          // Excepción genérica universal basada en keywords de la estrategia activa (estilo Scryfall)
+          if (strategyData && strategyData.keywords && cmc <= 4) {
+            const strategyKeywordsLower = strategyData.keywords.map(k => k.toLowerCase());
+            // Coincidencia con keywords en texto u oracle
+            const hasKeywordMatch = strategyKeywordsLower.some(kw => 
+              oracleText.includes(kw) || 
+              cardNameLower.includes(kw)
+            );
+            
+            // Sinergia implícita de cementerio/descarte para reanimadores
+            const isGraveyardSynergy = (strategyId === 'reanimator' || strategyId === 'graveyard') && (
+              oracleText.includes('discard') || 
+              oracleText.includes('mill') || 
+              oracleText.includes('surveil') ||
+              oracleText.includes('graveyard') ||
+              ['grief', 'stitcher\'s supplier', 'putrid imp', 'bloodtithe harvester', 'seasoned pyromancer', 'kroxa, titan of death\'s hunger', 'priest of fell rites'].includes(cardNameLower)
+            );
+
+            if (hasKeywordMatch || isGraveyardSynergy) {
+              isStrategicEnabler = true;
+            }
+          }
+          
+          // Staples interactivos de coste <= 3 para arquetipos interactivos (Midrange / Control / Tempo)
+          let isInteractiveStaple = false;
+          if (['midrange', 'control', 'tempo'].includes(formData.archetype) && cmc <= 3) {
+            const activeStaples = FORMAT_STAPLES[selectedFormat] || FORMAT_STAPLES.MODERN;
+            if (
+              activeStaples.has(cardNameLower) || 
+              ['orcish bowmasters', 'dauthi voidwalker', 'grief', 'ragavan, nimble pilferer', 'kroxa, titan of death\'s hunger', 'bloodtithe harvester', 'deep-cavern bat', 'preacher of the schism', 'dark confidant'].includes(cardNameLower)
+            ) {
+              isInteractiveStaple = true;
+            }
+          }
+
+          if (!isDork && !isGiantPayoff && !isStrategicEnabler && !isInteractiveStaple) {
             // Rechazamos bichos de utilidad de coste medio que diluyan la tribu (ej. Emeritus en Elfos Ramp)
             continue; 
           }
@@ -256,6 +316,78 @@ export const buildCardPool = async (formData) => {
     } else {
       if (stapleWeight > 0) {
         score += stapleWeight;
+      }
+    }
+
+    // A.1) Grafo Semántico de Obsidian: Coocurrencias y Etiquetas Mecánicas
+    if (obsidianGraph) {
+      if (obsidianGraph.cards && obsidianGraph.cards[cardNameLower]) {
+        const graphCard = obsidianGraph.cards[cardNameLower];
+
+        // Sinergias del Grafo Competitivo (MTGTop8)
+        if (graphCard.synergies && graphCard.synergies.length > 0) {
+          graphCard.synergies.forEach(syn => {
+            if (!syn || !syn.name) return;
+            const synNameLower = syn.name.toLowerCase();
+            const coeff = syn.coeff || 0.5;
+
+            let hasGraphMatch = false;
+            if (formData.mustInclude) {
+              const mustIncludes = formData.mustInclude.toLowerCase();
+              if (mustIncludes.includes(synNameLower)) hasGraphMatch = true;
+            }
+
+            const archetypePillars = {
+              reanimator: ["grief", "reanimate", "troll of khazad-dum", "entomb"],
+              aristocrats: ["yawgmoth, thran physician", "young wolf", "blood artist"],
+              spellslinger: ["murktide regent", "arclight phoenix", "lightning bolt", "consider"],
+              blink: ["solitude", "ephemerate", "teferi, time raveler"],
+              prison: ["chalice of the void", "blood moon", "trinisphere"],
+              control: ["teferi, hero of dominaria", "the wandering emperor", "supreme verdict"]
+            };
+            const pillars = archetypePillars[strategyId] || [];
+            if (pillars.map(p => p.toLowerCase()).includes(synNameLower)) {
+              hasGraphMatch = true;
+            }
+
+            if (hasGraphMatch) {
+              const graphSynergyBonus = Math.round(coeff * 80);
+              score += graphSynergyBonus;
+            }
+          });
+        }
+
+        // Etiquetas Mecánicas de Scryfall Tagger (Obsidian-linked)
+        if (graphCard.tags && graphCard.tags.length > 0) {
+          graphCard.tags.forEach(t => {
+            const cleanTag = t.replace('tag:', '').toLowerCase();
+            let isAlignedTag = false;
+
+            if (strategyId === 'reanimator' && (cleanTag.includes('reanimat') || cleanTag.includes('mill') || cleanTag.includes('discard'))) {
+              isAlignedTag = true;
+            } else if (strategyId === 'aristocrats' && (cleanTag.includes('sacrifice') || cleanTag.includes('life-drain') || cleanTag.includes('vampire') || cleanTag.includes('zombie'))) {
+              isAlignedTag = true;
+            } else if (strategyId === 'spellslinger' && (cleanTag.includes('spellslinger') || cleanTag.includes('cantrip') || cleanTag.includes('dragon') || cleanTag.includes('prowess'))) {
+              isAlignedTag = true;
+            }
+
+            if (isAlignedTag) {
+              score += 90; // Sinergia mecánica abstracta
+            }
+          });
+        }
+      }
+
+      // Recomendación de Arquetipo
+      if (obsidianGraph.archetypes) {
+        const archKey = formData.archetype.toLowerCase();
+        if (obsidianGraph.archetypes[archKey]) {
+          const archInfo = obsidianGraph.archetypes[archKey];
+          const recCard = archInfo.cards.find(c => c.name.toLowerCase() === cardNameLower);
+          if (recCard) {
+            score += 50 + (recCard.avgQuantity * 10);
+          }
+        }
       }
     }
 
@@ -455,12 +587,41 @@ export const buildCardPool = async (formData) => {
       });
     }
 
-    // Bonus por Estrategia
+    // === CALIBRACIÓN ESTRATÉGICA GENÉRICA (UNIVERSAL STRATEGY BOOST) ===
     if (strategyData && strategyData.keywords) {
-      const matches = countKeywords(oracleText, strategyDataKeywordsLower) + countKeywords(typeLine, strategyDataKeywordsLower);
-      score += matches * 12;
-      if (matches > 0 && strategyId === 'reanimator') {
-        score += 25;
+      const strategyKeywordsLower = strategyData.keywords.map(k => k.toLowerCase());
+      
+      // Comprobar si el nombre de la carta coincide exactamente o contiene alguno de los keywords
+      const isKeyStrategyCard = strategyKeywordsLower.some(kw => cardNameLower === kw || cardNameLower.includes(kw));
+      
+      // Comprobar coincidencia en texto u oracle
+      const textMatches = countKeywords(oracleText, strategyKeywordsLower) + countKeywords(typeLine, strategyKeywordsLower);
+      
+      if (isKeyStrategyCard) {
+        score += 170; // Super-impulso para asegurar que entre en el RAG pool de cabeza
+      } else if (textMatches > 0) {
+        score += 40 + (textMatches * 15);
+      }
+
+      // Calibraciones específicas de alta fidelidad por estrategia para complementar el impulso genérico:
+      if (strategyId === 'reanimator') {
+        const isReanimatorEnabler = ['faithless looting', 'entomb', 'careful study', 'cathartic reunion', 'thrill of possibility', 'bitter reunion', 'collector\'s vault', 'stitcher\'s supplier', 'putrid imp', 'bloodtithe harvester', 'seasoned pyromancer', 'kroxa, titan of death\'s hunger', 'grief', 'troll of khazad-dum', 'olivia\'s dragoon', 'rakdos headliner'].includes(cardNameLower);
+        if (isReanimatorEnabler) {
+          score += 150; // Gran empuje para enablers esenciales
+        }
+        if (isCreature && card.mana_value >= 6) {
+          score += 65; // Empuje adicional a payoffs gigantescos para reanimar
+        }
+      } else if (strategyId === 'aristocrats') {
+        const isAristocratsCore = ['blood artist', 'zulaport cutthroat', 'cruel celebrant', 'bastion of remembrance', 'viscera seer', 'yawgmoth, thran physician', 'yawgmoth', 'woe strider', 'goblin bombardment', 'carrion feeder', 'plumb the forbidden', 'bloodghast', 'reassembling skeleton', 'young wolf'].includes(cardNameLower);
+        if (isAristocratsCore) {
+          score += 130;
+        }
+      } else if (strategyId === 'spellslinger') {
+        const isSpellslingerCore = ['murktide regent', 'arclight phoenix', 'young pyromancer', 'third path iconoclast', 'ledger shredder', 'dragon\'s rage channeler', 'monastery swiftspear', 'slickshot show-off', 'brainstorm', 'ponder', 'preordain', 'consider', 'opt'].includes(cardNameLower);
+        if (isSpellslingerCore) {
+          score += 130;
+        }
       }
     } else if (strategyData) {
       score += countKeywords(oracleText, strategyIdKeywordsLower) * 5;

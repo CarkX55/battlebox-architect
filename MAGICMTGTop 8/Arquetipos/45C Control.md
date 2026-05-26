@@ -1,0 +1,67 @@
+---
+archetype: "4/5C Control"
+---
+# Arquetipo: 4/5C Control
+
+Este arquetipo competitivo agrupa las siguientes listas de torneo:
+- [[4/5C Control (STANDARD)]]
+- [[4/5C Control (STANDARD)]]
+- [[4/5C Control (STANDARD)]]
+- [[4/5C Control (STANDARD)]]
+- [[4/5C Control (STANDARD)]]
+- [[4/5C Control (STANDARD)]]
+- [[4/5C Control (STANDARD)]]
+- [[4/5C Control (STANDARD)]]
+
+### Frecuencia de uso de cartas en este arquetipo:
+- [[Tablet of Discovery]] (Promedio: 4 copias)
+- [[Jeskai Revelation]] (Promedio: 4 copias)
+- [[Stock Up]] (Promedio: 4 copias)
+- [[Great Hall of the Biblioplex]] (Promedio: 4 copias)
+- [[Consult the Star Charts]] (Promedio: 3 copias)
+- [[Inevitable Defeat]] (Promedio: 3 copias)
+- [[Steam Vents]] (Promedio: 3 copias)
+- [[Flashback]] (Promedio: 2 copias)
+- [[Sear]] (Promedio: 2 copias)
+- [[Hallowed Fountain]] (Promedio: 2 copias)
+- [[Mistrise Village]] (Promedio: 2 copias)
+- [[Sacred Foundry]] (Promedio: 2 copias)
+- [[Shattered Sanctum]] (Promedio: 2 copias)
+- [[Stormcarved Coast]] (Promedio: 2 copias)
+- [[Get Lost]] (Promedio: 1 copias)
+- [[Abrade]] (Promedio: 1 copias)
+- [[Fire Magic]] (Promedio: 1 copias)
+- [[Firebending Lesson]] (Promedio: 1 copias)
+- [[Lightning Helix]] (Promedio: 1 copias)
+- [[Negate]] (Promedio: 1 copias)
+- [[Three Steps Ahead]] (Promedio: 1 copias)
+- [[Day of Judgment]] (Promedio: 1 copias)
+- [[Pyroclasm]] (Promedio: 1 copias)
+- [[Cori Mountain Monastery]] (Promedio: 1 copias)
+- [[Elegant Parlor]] (Promedio: 1 copias)
+- [[Gloomlake Verge]] (Promedio: 1 copias)
+- [[Godless Shrine]] (Promedio: 1 copias)
+- [[Multiversal Passage]] (Promedio: 1 copias)
+- [[Sundown Pass]] (Promedio: 1 copias)
+- [[Watery Grave]] (Promedio: 1 copias)
+- [[No More Lies]] (Promedio: 1 copias)
+- [[Plains]] (Promedio: 1 copias)
+- [[Erode]] (Promedio: 1 copias)
+- [[Riverpyre Verge]] (Promedio: 1 copias)
+- [[Floodfarm Verge]] (Promedio: 1 copias)
+- [[Thunder Magic]] (Promedio: 1 copias)
+- [[Ill-Timed Explosion]] (Promedio: 0 copias)
+- [[Meticulous Archive]] (Promedio: 0 copias)
+- [[Mountain]] (Promedio: 0 copias)
+- [[North Wind Avatar]] (Promedio: 0 copias)
+- [[Sunbillow Verge]] (Promedio: 0 copias)
+- [[Swallowed by Leviathan]] (Promedio: 0 copias)
+- [[Together as One]] (Promedio: 0 copias)
+- [[Pest Control]] (Promedio: 0 copias)
+- [[Thundering Falls]] (Promedio: 0 copias)
+- [[Starting Town]] (Promedio: 0 copias)
+- [[Spell Pierce]] (Promedio: 0 copias)
+- [[Impractical Joke]] (Promedio: 0 copias)
+- [[Abandon Attachments]] (Promedio: 0 copias)
+- [[Petrified Hamlet]] (Promedio: 0 copias)
+- [[Traumatic Critique]] (Promedio: 0 copias)

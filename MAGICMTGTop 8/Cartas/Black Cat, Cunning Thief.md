@@ -1,0 +1,37 @@
+---
+title: "Black Cat, Cunning Thief"
+type: "spell"
+cmc: 2
+synergies:
+  - name: "[[Deceit]]"
+    coeff: 1
+  - name: "[[Superior Spider-Man]]"
+    coeff: 1
+  - name: "[[Emeritus of Ideation]]"
+    coeff: 1
+  - name: "[[Wistfulness]]"
+    coeff: 1
+  - name: "[[Ancient Cornucopia]]"
+    coeff: 1
+  - name: "[[Rakshasa's Bargain]]"
+    coeff: 1
+  - name: "[[Quandrix Charm]]"
+    coeff: 1
+  - name: "[[Requiting Hex]]"
+    coeff: 1
+---
+# Black Cat, Cunning Thief
+
+- **Tipo:** Spell
+- **Sinergias Top 8:**
+  - [[Deceit]] (Fuerza: 100%)
+  - [[Superior Spider-Man]] (Fuerza: 100%)
+  - [[Emeritus of Ideation]] (Fuerza: 100%)
+  - [[Wistfulness]] (Fuerza: 100%)
+  - [[Ancient Cornucopia]] (Fuerza: 100%)
+  - [[Rakshasa's Bargain]] (Fuerza: 100%)
+  - [[Quandrix Charm]] (Fuerza: 100%)
+  - [[Requiting Hex]] (Fuerza: 100%)
+
+---
+*Ficha de conocimiento competitiva generada automáticamente por BattleBox RAG.*

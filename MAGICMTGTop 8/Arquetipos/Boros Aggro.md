@@ -1,0 +1,63 @@
+---
+archetype: "Boros Aggro"
+---
+# Arquetipo: Boros Aggro
+
+Este arquetipo competitivo agrupa las siguientes listas de torneo:
+- [[Boros Aggro (MODERN)]]
+- [[Boros Aggro (MODERN)]]
+- [[Boros Aggro (MODERN)]]
+- [[Boros Aggro (MODERN)]]
+- [[Boros Aggro (STANDARD)]]
+
+### Frecuencia de uso de cartas en este arquetipo:
+- [[Ajani, Nacatl Pariah]] (Promedio: 3 copias)
+- [[Guide of Souls]] (Promedio: 3 copias)
+- [[Ocelot Pride]] (Promedio: 3 copias)
+- [[Ragavan, Nimble Pilferer]] (Promedio: 3 copias)
+- [[Galvanic Discharge]] (Promedio: 3 copias)
+- [[Arid Mesa]] (Promedio: 3 copias)
+- [[Flooded Strand]] (Promedio: 3 copias)
+- [[Marsh Flats]] (Promedio: 3 copias)
+- [[Sacred Foundry]] (Promedio: 3 copias)
+- [[Seasoned Pyromancer]] (Promedio: 2 copias)
+- [[Voice of Victory]] (Promedio: 2 copias)
+- [[Fable of the Mirror-Breaker]] (Promedio: 2 copias)
+- [[Thraben Charm]] (Promedio: 2 copias)
+- [[Goblin Bombardment]] (Promedio: 2 copias)
+- [[Elegant Parlor]] (Promedio: 2 copias)
+- [[Plains]] (Promedio: 2 copias)
+- [[Mountain]] (Promedio: 2 copias)
+- [[Phlage, Titan of Fire's Fury]] (Promedio: 1 copias)
+- [[The Legend of Roku]] (Promedio: 1 copias)
+- [[Blood Moon]] (Promedio: 1 copias)
+- [[Arena of Glory]] (Promedio: 1 copias)
+- [[Dalkovan Encampment]] (Promedio: 1 copias)
+- [[Mana Tithe]] (Promedio: 1 copias)
+- [[Ranger-Captain of Eos]] (Promedio: 1 copias)
+- [[Windswept Heath]] (Promedio: 1 copias)
+- [[Magmatic Hellkite]] (Promedio: 1 copias)
+- [[Nova Hellkite]] (Promedio: 1 copias)
+- [[Clarion Conqueror]] (Promedio: 1 copias)
+- [[Momo, Friendly Flier]] (Promedio: 1 copias)
+- [[Sarkhan, Dragon Ascendant]] (Promedio: 1 copias)
+- [[Burst Lightning]] (Promedio: 1 copias)
+- [[Sunbillow Verge]] (Promedio: 1 copias)
+- [[Cavern of Souls]] (Promedio: 1 copias)
+- [[Inspiring Vantage]] (Promedio: 1 copias)
+- [[Maelstrom of the Spirit Dragon]] (Promedio: 1 copias)
+- [[Boromir, Warden of the Tower]] (Promedio: 0 copias)
+- [[Solitude]] (Promedio: 0 copias)
+- [[Static Prison]] (Promedio: 0 copias)
+- [[Phelia, Exuberant Shepherd]] (Promedio: 0 copias)
+- [[Dragonhawk, Fate's Tempest]] (Promedio: 0 copias)
+- [[Lorehold, the Historian]] (Promedio: 0 copias)
+- [[Purging Stormbrood]] (Promedio: 0 copias)
+- [[Twinflame Tyrant]] (Promedio: 0 copias)
+- [[Get Lost]] (Promedio: 0 copias)
+- [[Spectacular Tactics]] (Promedio: 0 copias)
+- [[Boros Charm]] (Promedio: 0 copias)
+- [[Daydream]] (Promedio: 0 copias)
+- [[Practiced Offense]] (Promedio: 0 copias)
+- [[Multiversal Passage]] (Promedio: 0 copias)
+- [[Sundown Pass]] (Promedio: 0 copias)

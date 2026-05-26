@@ -2104,6 +2104,103 @@ export function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ragPool 
         sideboard_strategy
     };
 }
+const CRITICAL_SYNERGY_RULES = {
+  reanimator: {
+    name: "Reanimator (Persist / Goryo's)",
+    rules: [
+      "Si el mazo contiene cartas de reanimación baratas (como Unearth o Claim // Fame), éstas SOLO pueden revivir criaturas de coste 3 o menos. Asegúrate de tener criaturas útiles de coste <= 3 en el mazo principal (ej. Priest of Fell Rites, Stitcher's Supplier, etc.).",
+      "Si el mazo tiene criaturas gigantes de coste 5+ o legendarias (como Archon of Cruelty, Kokusho, o demonios grandes) para reanimar, DEBES usar hechizos de reanimación sin restricciones de coste, tales como: Persist (solo criaturas no legendarias), Exhume, Animate Dead, Necromancy, Late to Dinner, o Unburial Rites. NUNCA uses Unearth o Claim // Fame si tus únicos objetivos de reanimación son criaturas gigantes.",
+      "Para que la reanimación funcione, DEBES incluir descartadores eficientes en los primeros turnos (Faithless Looting, Cathartic Reunion, Thrill of Possibility, Bitter Reunion, Collector's Vault) para enviar las amenazas al cementerio antes de revivirlas."
+    ]
+  },
+  aristocrats: {
+    name: "Aristocrats (Yawgmoth Sacrifice)",
+    rules: [
+      "Debes mantener un equilibrio de 3 componentes clave: 1. Criaturas sacrificables/fichas (carrion feeder, gravecrawler, reassembling skeleton, bloodghast); 2. Motores de sacrificio sin coste de maná (Viscera Seer, Yawgmoth, Woe Strider, Goblin Bombardment, Carrion Feeder); 3. Beneficiadores de muerte/drenaje (Blood Artist, Zulaport Cutthroat, Cruel Celebrant, Bastion of Remembrance).",
+      "No incluyas motores de sacrificio si no tienes generadores de fichas/criaturas recurrentes, ni drenadores si no tienes cómo sacrificar de forma gratuita."
+    ]
+  },
+  voltron: {
+    name: "Voltron (Hammer Time)",
+    rules: [
+      "Si incluyes Colossus Hammer u otros equipamientos masivos con costes de equipar altísimos, es obligatorio incluir cartas que los equipen gratis (Sigarda's Aid, Puresteel Paladin) o criaturas que se equipen solas (Kazuul's Toll Collector, Kemba's Outfitter). De lo contrario, los equipamientos serán inservibles."
+    ]
+  },
+  tron: {
+    name: "Big Mana (Tron)",
+    rules: [
+      "Si incluyes amenazas incoloras gigantes de coste 6+ (Karn Liberated, Wurmcoil Engine, Ulamog), la base de tierras debe incluir obligatoriamente el trío de Urza (Urza's Mine, Urza's Power Plant, Urza's Tower) y cartas de búsqueda/estabilización (Expedition Map, Sylvan Scrying, Ancient Stirrings)."
+    ]
+  },
+  spellslinger: {
+    name: "Spellslinger (Prowess & Murktide)",
+    rules: [
+      "Mantén un alto número de instantáneos y conjuros baratos (coste 1-2) para disparar Prowess y alimentar el cementerio para Murktide Regent. Evita criaturas lentas que no se beneficien de lanzar hechizos."
+    ]
+  },
+  blink: {
+    name: "Blink / Flicker (Ephemerate Sinergia)",
+    rules: [
+      "Asegúrate de que tus criaturas tengan potentes efectos al entrar al campo de batalla (ETB) como Stonehorn Dignitary, Coiling Oracle, Eternal Witness, Mulldrifter. No pongas hechizos de parpadeo (Ephemerate, Soulherder) si tus criaturas solo tienen habilidades estáticas."
+    ]
+  }
+};
+
+function getStrategySynergyPrompt(strategyId) {
+  const normalized = (strategyId || '').toLowerCase();
+  const ruleObj = CRITICAL_SYNERGY_RULES[normalized];
+  if (!ruleObj) return "";
+  
+  return `
+=== CRITICAL MECHANICAL SYNERGY RULES FOR ${ruleObj.name.toUpperCase()} ===
+${ruleObj.rules.map((r, i) => `${i + 1}. ${r}`).join('\n')}
+==========================================================================
+`;
+}
+
+function performMechanicalAuditory(deckSpells, strategyId) {
+  const normalized = (strategyId || '').toLowerCase();
+  let alerts = [];
+  
+  if (normalized === 'reanimator') {
+    const hasRestrictiveReanimators = deckSpells.some(s => ['unearth', 'claim // fame', 'claim/fame', 'claim'].includes(s.name.toLowerCase()));
+    const giantCreatures = deckSpells.filter(s => s.category === 'Creature' && s.cmc >= 4);
+    const hasGeneralReanimators = deckSpells.some(s => ['persist', 'exhume', 'animate dead', 'necromancy', 'unburial rites', 'late to dinner', 'goryo\'s vengeance', 'dread return'].includes(s.name.toLowerCase()));
+    
+    if (hasRestrictiveReanimators && giantCreatures.length > 0 && !hasGeneralReanimators) {
+      alerts.push(`CRITICAL WARNING: El mazo tiene criaturas gigantes para reanimar (como ${giantCreatures.slice(0, 2).map(c => c.name).join(', ')}) pero solo tiene hechizos de reanimación restrictivos de coste bajo (como Unearth). ¡ESTO ES INCOMPATIBLE! Debes usar 'swaps' para reemplazar los hechizos restrictivos por hechizos de reanimación universales como: Persist, Exhume, Animate Dead, Necromancy, o Late to Dinner.`);
+    }
+    
+    const discardOutlets = deckSpells.filter(s => ['faithless looting', 'cathartic reunion', 'thrill of possibility', 'bitter reunion', 'collector\'s vault', 'stitcher\'s supplier', 'putrid imp'].includes(s.name.toLowerCase()));
+    if (discardOutlets.length === 0) {
+      alerts.push(`WARNING: El mazo es de tipo Reanimator pero no contiene suficientes facilitadores para descartar cartas en el cementerio (como Faithless Looting o Cathartic Reunion). Debes añadir al menos 4 descartadores eficientes.`);
+    }
+  } else if (normalized === 'aristocrats') {
+    const sacrificeOutlets = deckSpells.filter(s => ['viscera seer', 'yawgmoth, thran physician', 'yawgmoth', 'woe strider', 'goblin bombardment', 'carrion feeder'].includes(s.name.toLowerCase()));
+    const fodder = deckSpells.filter(s => ['bloodghast', 'reassembling skeleton', 'gravecrawler', 'carrion feeder'].includes(s.name.toLowerCase()) || s.name.toLowerCase().includes('token') || s.name.toLowerCase().includes('sliver'));
+    const payoff = deckSpells.filter(s => ['blood artist', 'zulaport cutthroat', 'cruel celebrant', 'bastion of remembrance'].includes(s.name.toLowerCase()));
+    
+    if (sacrificeOutlets.length === 0 && payoff.length > 0) {
+      alerts.push(`WARNING: Mazo Aristocrat detectado con drenadores de vidas pero sin motores de sacrificio gratuitos (como Viscera Seer o Yawgmoth). Añade motores de sacrificio gratis.`);
+    }
+  } else if (normalized === 'voltron') {
+    const hasHammer = deckSpells.some(s => s.name.toLowerCase() === 'colossus hammer');
+    const hasCheats = deckSpells.some(s => ['sigarda\'s aid', 'puresteel paladin', 'stoneforge mystic', 'kemba\'s outfitter'].includes(s.name.toLowerCase()));
+    if (hasHammer && !hasCheats) {
+      alerts.push(`CRITICAL WARNING: El mazo tiene 'Colossus Hammer' pero carece de facilitadores de equipamiento gratuito (como Sigarda's Aid o Puresteel Paladin). Reemplaza cartas para incluirlos o remueve el martillo.`);
+    }
+  }
+  
+  if (alerts.length > 0) {
+    return `
+=== PROGRAMMATIC MECHANICAL AUDIT ALERTS ===
+${alerts.map(a => `[ALERTA DE SEGURIDAD] ${a}`).join('\n')}
+=============================================
+`;
+  }
+  return "";
+}
+
 export async function forgeMazoPerfecto(formData, aiConfig, onProgress = () => {}) {
    const logs = [];
    const addLog = (msg) => {
@@ -2152,6 +2249,8 @@ Diseña el plano estructural perfecto y a medida para este mazo.
 - Tribe: ${tribeLabel} (Subtypes: ${tribeSubtypes})
 - Colors: [${baseIdent_ColorStr}]
 - Curve: ${curveProfile}
+
+${getStrategySynergyPrompt(strategyId)}
 
 Define las cantidades exactas de cartas para cada rol estratégico clave en una estructura basada en objetos. Cada rol DEBE detallar:
 - name: Nombre corto descriptivo del rol (ej: "early_interaction", "core_tribal_lords", "premium_finisher").
@@ -2228,6 +2327,8 @@ La suma de las cantidades de todos los roles debe ser exactamente igual a totalS
   BLUEPRINT TO FILL:
   ${JSON.stringify(blueprint.roles, null, 2)}
   Total spell copies required: ${blueprint.totalSpells}
+
+  ${getStrategySynergyPrompt(strategyId)}
 
   RULES (follow strictly, in order of priority):
 
@@ -2459,15 +2560,20 @@ La suma de las cantidades de todos los roles debe ser exactamente igual a totalS
       onProgress('assembler', '⚖️ Juez Supremo corrigiendo matemáticas y redundancias (máx 25s)...');
       addLog("Iniciando auditoría del Juez Supremo (timeout: 25s)...");
 
+      const mechanicalAlerts = performMechanicalAuditory(sanitizedFinals_ArraySpells, strategyId);
+
       const judgeSystemPrompt = `
 Eres el Juez Supremo del Pro Tour de Magic: The Gathering.
 Tu trabajo es arreglar cualquier error matemático del constructor previo y eliminar redundancias funcionales perjudiciales.
+
+${getStrategySynergyPrompt(strategyId)}
+${mechanicalAlerts}
 
 REGLAS ESTRATÉGICAS:
 1. EL MAZO DEBE TENER EXACTAMENTE ${maxRequired} CARTAS EN TOTAL. Actualmente tiene ${countAct} cartas. Te faltan o sobran ${gap} cartas.
 2. Si te faltan cartas (gap > 0), añade EXACTAMENTE esa cantidad usando el esquema 'additions'. Prioriza staples verdaderos del RAG pool.
 3. Si te sobran cartas (gap < 0), indica en 'swaps' que reemplazas copias de una carta por nada (borrado).
-4. REDUNDANCIA FUNCIONAL: Revisa meticulosamente las funciones. Si el mazo tiene 8 elfos que dan maná, o 12 hechizos de removal de coste 1, o 8 encantamientos de coste 3 que hacen lo mismo, usa 'swaps' para diversificar (ej. cambiar 4x Gemhide Sliver por 4x Muscle Sliver).
+4. REDUNDANCIA FUNCIONAL Y COHERENCIA MECÁNICA: Revisa meticulosamente las sinergias. Si el mazo tiene hechizos de reanimación incompatibles con las criaturas grandes (por ejemplo, Unearth para criaturas de coste > 3), DEBES usar 'swaps' para reemplazar esos hechizos (ej. cambiar Unearth por Persist, Late to Dinner o Exhume) o cambiar las criaturas por criaturas elegibles de coste <=3.
 5. RESPETA LA IDENTIDAD: Manten los colores requeridos [ ${baseIdent_ColorStr} ] y la tribu [ ${tribeLabel} ].
 `;
 

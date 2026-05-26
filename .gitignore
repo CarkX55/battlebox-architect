@@ -32,3 +32,14 @@ test.json
 test2.json
 *.json.tmp
 .env
+
+# Scratch files
+scratch/
+scratch_*
+*.pyc
+__pycache__/
+
+# Obsidian Local Settings
+.obsidian/
+*/.obsidian/
+**/workspace.json
