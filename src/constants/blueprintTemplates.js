@@ -152,6 +152,31 @@ export const BLUEPRINTS = {
       boost: ['costs more', 'can\'t attack', 'can\'t cast', 'tax', 'artifact', 'enchantment'],
       penalty: ['haste', 'trample']
     }
+  },
+
+  ramp: {
+    id: 'ramp',
+    deckSize: 60,
+    lands: { total: 25 },
+    spells: {
+      total: 35,
+      distribution: {
+        ramp_spells: { min: 10, max: 14 }, // Aceleradores (dorks, rocks, ramp lands)
+        payoffs: { min: 6, max: 10 }, // Amenazas gigantes (CMC 5+)
+        utility_interaction: { min: 8, max: 12 }, // Interacción y cantrips
+        card_advantage: { min: 4, max: 8 } // Robo y motores
+      },
+      curve: {
+        mv1: { min: 8, max: 12 },
+        mv2: { min: 8, max: 12 },
+        mv3: { min: 4, max: 8 },
+        mv4_plus: { min: 8, max: 12 } // Alto número de costes altos
+      }
+    },
+    ragModifiers: {
+      boost: ['search your library for a land card', 'add', 'mana', 'put onto the battlefield', 'trample', 'vigilance', 'reach'],
+      penalty: []
+    }
   }
 };
 

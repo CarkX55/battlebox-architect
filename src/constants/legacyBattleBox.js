@@ -254,6 +254,16 @@ export const BATTLEBOX_ARCHETYPES = [
     recommendedColors: ['W', 'C', 'U', 'R'],
     landCount: 25,
     spellCount: 35
+  },
+  {
+    id: 'ramp',
+    label: 'Ramp (Tron / Titan / Green Devotion)',
+    speed: 'Media-lenta',
+    winTurn: '6-8',
+    description: 'Acelera el desarrollo de maná utilizando dorks, rocks y hechizos de búsqueda de tierras para lanzar amenazas masivas de coste 5+ en turnos tempranos.',
+    recommendedColors: ['G', 'C', 'U', 'R', 'B'],
+    landCount: 25,
+    spellCount: 35
   }
 ];
 
@@ -268,7 +278,7 @@ export const BATTLEBOX_RULES = {
 export const MTG_TRIBES = [
   // TRIBUS CLÁSICAS
   { id: 'human', label: 'Humanos', category: 'clasica', colors: ['W', 'U', 'B', 'R', 'G'], primaryColor: 'W', strategies: ['tokens', 'voltron'], archetypes: ['aggro', 'midrange', 'combo', 'prison'], subtypes: ['human'] },
-  { id: 'elf', label: 'Elfos', category: 'clasica', colors: ['G', 'B', 'W'], primaryColor: 'G', strategies: ['tokens', 'combo'], archetypes: ['aggro', 'midrange', 'combo'], subtypes: ['elf'] },
+  { id: 'elf', label: 'Elfos', category: 'clasica', colors: ['G', 'B', 'W'], primaryColor: 'G', strategies: ['tokens', 'combo'], archetypes: ['aggro', 'midrange', 'combo', 'ramp'], subtypes: ['elf'] },
   { id: 'goblin', label: 'Goblins', category: 'clasica', colors: ['R', 'B', 'G'], primaryColor: 'R', strategies: ['tokens', 'aristocrats'], archetypes: ['aggro', 'midrange'], subtypes: ['goblin'] },
   { id: 'merfolk', label: 'Tritones (Merfolk)', category: 'clasica', colors: ['U', 'G'], primaryColor: 'U', strategies: ['blink', 'tokens'], archetypes: ['aggro', 'tempo', 'midrange'], subtypes: ['merfolk'] },
   { id: 'zombie', label: 'Zombies', category: 'clasica', colors: ['B', 'U'], primaryColor: 'B', strategies: ['aristocrats', 'reanimator', 'tokens'], archetypes: ['aggro', 'midrange', 'combo'], subtypes: ['zombie'] },
@@ -282,7 +292,7 @@ export const MTG_TRIBES = [
   { id: 'cleric', label: 'Clérigos', category: 'vocacion', colors: ['W', 'B'], primaryColor: 'W', strategies: ['lifegain', 'aristocrats', 'reanimator'], archetypes: ['aggro', 'midrange', 'combo', 'prison'], subtypes: ['cleric'] },
   { id: 'rogue', label: 'Pícaros (Rogues)', category: 'vocacion', colors: ['U', 'B'], primaryColor: ['U', 'B'], strategies: ['aristocrats'], archetypes: ['aggro', 'tempo', 'midrange', 'combo'], subtypes: ['rogue'] },
   { id: 'shaman', label: 'Chamanes', category: 'vocacion', colors: ['G', 'R', 'B'], primaryColor: 'G', strategies: ['tokens', 'landfall'], archetypes: ['midrange', 'combo'], subtypes: ['shaman'] },
-  { id: 'druid', label: 'Druidas', category: 'vocacion', colors: ['G', 'W'], primaryColor: 'G', strategies: ['tokens', 'landfall'], archetypes: ['midrange', 'combo'], subtypes: ['druid'] },
+  { id: 'druid', label: 'Druidas', category: 'vocacion', colors: ['G', 'W'], primaryColor: 'G', strategies: ['tokens', 'landfall'], archetypes: ['midrange', 'combo', 'ramp'], subtypes: ['druid'] },
   { id: 'ninja', label: 'Ninjas', category: 'vocacion', colors: ['U', 'B'], primaryColor: ['U', 'B'], strategies: ['tempo', 'blink'], archetypes: ['tempo', 'midrange'], subtypes: ['ninja'] },
 
   // MONSTRUOS
@@ -290,24 +300,24 @@ export const MTG_TRIBES = [
   { id: 'demon', label: 'Demonios', category: 'monstruo', colors: ['B'], primaryColor: 'B', strategies: ['aristocrats', 'reanimator'], archetypes: ['midrange', 'combo'], subtypes: ['demon'] },
   { id: 'dragon', label: 'Dragones', category: 'monstruo', colors: ['R', 'B', 'G'], primaryColor: 'R', strategies: ['reanimator', 'tokens'], archetypes: ['midrange', 'combo'], subtypes: ['dragon'] },
   { id: 'dinosaur', label: 'Dinosaurios', category: 'monstruo', colors: ['R', 'G', 'W'], primaryColor: 'G', strategies: ['landfall', 'tokens'], archetypes: ['aggro', 'midrange', 'combo'], subtypes: ['dinosaur'] },
-  { id: 'elemental', label: 'Elementales', category: 'monstruo', colors: ['R', 'G', 'U', 'W', 'B'], primaryColor: ['R', 'G'], strategies: ['landfall', 'blink', 'reanimator'], archetypes: ['aggro', 'midrange', 'combo'], subtypes: ['elemental'] },
+  { id: 'elemental', label: 'Elementales', category: 'monstruo', colors: ['R', 'G', 'U', 'W', 'B'], primaryColor: ['R', 'G'], strategies: ['landfall', 'blink', 'reanimator'], archetypes: ['aggro', 'midrange', 'combo', 'ramp'], subtypes: ['elemental'] },
 
   // EXÓTICAS
-  { id: 'eldrazi', label: 'Eldrazi (Eldrazi Tron / Aggro)', category: 'exotica', colors: ['W', 'U', 'B', 'R', 'G', 'C'], primaryColor: 'C', strategies: ['tokens', 'blink'], archetypes: ['aggro', 'midrange', 'prison'], subtypes: ['eldrazi'] },
+  { id: 'eldrazi', label: 'Eldrazi (Eldrazi Tron / Aggro)', category: 'exotica', colors: ['W', 'U', 'B', 'R', 'G', 'C'], primaryColor: 'C', strategies: ['tokens', 'blink'], archetypes: ['aggro', 'midrange', 'prison', 'ramp'], subtypes: ['eldrazi'] },
   { id: 'faerie', label: 'Hadas (Faeries)', category: 'exotica', colors: ['U', 'B'], primaryColor: 'U', strategies: ['blink', 'tempo'], archetypes: ['tempo', 'midrange', 'control'], subtypes: ['faerie', 'fairy'] },
   { id: 'constructs', label: 'Constructos & Myr (Affinity)', category: 'exotica', colors: ['C', 'U', 'R', 'W'], primaryColor: 'C', strategies: ['tokens', 'vehicles'], archetypes: ['aggro', 'midrange', 'combo', 'prison'], subtypes: ['construct', 'myr', 'golem', 'thopter'] },
-  { id: 'sliver-5c', label: 'Slivers (Pentacolor 5C)', category: 'exotica', colors: ['W', 'U', 'B', 'R', 'G'], primaryColor: ['W', 'U', 'B', 'R', 'G'], strategies: ['tokens', 'combo'], archetypes: ['aggro', 'midrange'], subtypes: ['sliver'] },
-  { id: 'sliver-bant', label: 'Slivers (Bant/Naya Base)', category: 'exotica', colors: ['W', 'U', 'G', 'R'], primaryColor: ['G', 'W'], strategies: ['tokens', 'combo'], archetypes: ['aggro', 'midrange'], subtypes: ['sliver'] },
+  { id: 'sliver-5c', label: 'Slivers (Pentacolor 5C)', category: 'exotica', colors: ['W', 'U', 'B', 'R', 'G'], primaryColor: ['W', 'U', 'B', 'R', 'G'], strategies: ['tokens', 'combo'], archetypes: ['aggro', 'midrange', 'combo', 'tempo'], subtypes: ['sliver'] },
+  { id: 'sliver-bant', label: 'Slivers (Bant/Naya Base)', category: 'exotica', colors: ['W', 'U', 'G', 'R'], primaryColor: ['G', 'W'], strategies: ['tokens', 'combo'], archetypes: ['aggro', 'midrange', 'combo', 'tempo'], subtypes: ['sliver'] },
 
   // ALIANZAS Y MEZCLAS TEMÁTICAS
   { id: 'outlaws', label: '⚖️ Forajidos (Asesinos, Mercenarios, Piratas, Pícaros)', category: 'alianza', colors: ['B', 'R', 'U'], primaryColor: 'B', strategies: ['aristocrats', 'tempo', 'tokens'], archetypes: ['aggro', 'tempo', 'midrange'], subtypes: ['assassin', 'mercenary', 'pirate', 'rogue', 'warlock'] },
   { id: 'party', label: '🎲 Grupo de Aventura (Clérigo, Pícaro, Guerrero, Mago)', category: 'alianza', colors: ['W', 'U', 'B', 'R', 'G'], primaryColor: ['W', 'U', 'B', 'R'], strategies: ['midrange', 'tempo', 'aggro', 'blink'], archetypes: ['midrange'], subtypes: ['cleric', 'rogue', 'warrior', 'wizard'] },
   { id: 'human_army', label: '⚔️ Ejército (Humanos, Soldados, Caballeros)', category: 'alianza', colors: ['W', 'R'], primaryColor: 'W', strategies: ['tokens', 'voltron'], archetypes: ['aggro', 'midrange', 'prison'], subtypes: ['human', 'soldier', 'knight'] },
   { id: 'goblin_horde', label: '🔥 Horda (Goblins, Orcos, Ogros)', category: 'alianza', colors: ['R', 'B'], primaryColor: 'R', strategies: ['tokens', 'aristocrats'], archetypes: ['aggro', 'midrange'], subtypes: ['goblin', 'orc', 'ogre'] },
-  { id: 'elf_druid', label: '🌿 Naturaleza (Elfos, Druidas, Elementales)', category: 'alianza', colors: ['G', 'R', 'U'], primaryColor: 'G', strategies: ['tokens', 'landfall'], archetypes: ['midrange', 'combo'], subtypes: ['elf', 'druid', 'elemental'] },
+  { id: 'elf_druid', label: '🌿 Naturaleza (Elfos, Druidas, Elementales)', category: 'alianza', colors: ['G', 'R', 'U'], primaryColor: 'G', strategies: ['tokens', 'landfall'], archetypes: ['midrange', 'combo', 'ramp'], subtypes: ['elf', 'druid', 'elemental'] },
   { id: 'sea_monsters', label: '🌊 Terrores Marinos (Tritones, Krakens, Leviatanes)', category: 'alianza', colors: ['U', 'G'], primaryColor: 'U', strategies: ['tempo', 'combo', 'blink'], archetypes: ['tempo', 'midrange', 'combo', 'control'], subtypes: ['merfolk', 'kraken', 'leviathan', 'octopus', 'serpent'] },
   { id: 'undead_scourge', label: '💀 Plaga (Zombies, Esqueletos, Horrores)', category: 'alianza', colors: ['B', 'U'], primaryColor: 'B', strategies: ['aristocrats', 'reanimator', 'graveyard'], archetypes: ['midrange', 'combo', 'control'], subtypes: ['zombie', 'skeleton', 'horror', 'vampire', 'shade'] },
-  { id: 'apex_predators', label: '🦖 Depredadores del Ápice (Dinosaurios, Bestias, Hidras)', category: 'alianza', colors: ['G', 'R', 'W'], primaryColor: 'G', strategies: ['landfall', 'tokens', 'lifegain'], archetypes: ['midrange'], subtypes: ['dinosaur', 'beast', 'hydra', 'wurm', 'dragon'] },
+  { id: 'apex_predators', label: '🦖 Depredadores del Ápice (Dinosaurios, Bestias, Hidras)', category: 'alianza', colors: ['G', 'R', 'W'], primaryColor: 'G', strategies: ['landfall', 'tokens', 'lifegain'], archetypes: ['midrange', 'ramp'], subtypes: ['dinosaur', 'beast', 'hydra', 'wurm', 'dragon'] },
   { id: 'sliver', label: 'Slivers (Fectidios Sinérgicos)', category: 'exotica', colors: ['W', 'U', 'B', 'R', 'G'], primaryColor: ['W', 'U', 'B', 'R', 'G'], strategies: ['tokens', 'voltron'], archetypes: ['aggro', 'midrange', 'combo'], subtypes: ['sliver'] }
 ];
 
@@ -420,6 +430,15 @@ export const MTG_STRATEGIES = [
     keywords: ['equipped creature', 'enchanted creature', 'equipment', 'aura', 'colossus hammer', 'sigarda\'s aid', 'puresteel paladin']
   },
   { 
+    id: 'tron', 
+    label: 'Big Mana (Tron, Eldrazi & Titans)', 
+    colors: ['G', 'C', 'R', 'U'], 
+    primaryColor: ['G', 'C'],
+    archetypes: ['ramp', 'combo', 'midrange'],
+    mechanics: 'Ensambla el trío de tierras de Urza o acelera masivamente en los primeros turnos para encadenar Eldrazis legendarios o Titanes devastadores.',
+    keywords: ["urza's", 'power plant', 'mine', 'tower', 'expedition map', 'sylvan scrying', 'ancient stirrings', 'chromatic star', 'chromatic sphere', 'karn', 'wurmcoil', 'ulamog', 'titan']
+  },
+  { 
     id: 'vehicles', 
     label: 'Vehículos (Copter & Crew)', 
     colors: ['R', 'W', 'U'], 
@@ -429,3 +448,156 @@ export const MTG_STRATEGIES = [
     keywords: ['crew', 'vehicle', 'smuggler\'s copter', 'heart of kiran', 'pilot']
   }
 ];
+
+// --- MOTOR CENTRALIZADO DE REGLAS PARASITARIAS (PODA PROACTIVA Y VALIDACIÓN) ---
+export const PARASITIC_RULES = [
+  {
+    id: 'sliver',
+    regex: /\bsliver\b/i,
+    allowed: (formData) => {
+      const tribe = (formData.tribe || '').toLowerCase();
+      return tribe.includes('sliver');
+    },
+    message: 'requiere soporte de la tribu de Slivers'
+  },
+  {
+    id: 'energy',
+    regex: /\{e\}|energy counter/i,
+    allowed: (formData) => false,
+    message: 'requiere soporte de la mecánica de Energía'
+  },
+  {
+    id: 'infect_poison',
+    regex: /\binfect\b|\bpoison counter\b|\btoxic\b/i,
+    allowed: (formData) => false,
+    message: 'requiere soporte de la mecánica de Infección/Poison/Toxic'
+  },
+  {
+    id: 'artifact_strict',
+    regex: /as an additional cost to cast this spell, sacrifice an artifact|if you control an artifact|metalcraft|whenever an artifact enters|whenever you cast an artifact/i,
+    allowed: (formData) => {
+      const strat = (formData.strategy || '').toLowerCase();
+      const tribe = (formData.tribe || '').toLowerCase();
+      return strat.includes('vehicles') || strat.includes('affinity') || tribe.includes('construct') || tribe.includes('myr') || strat.includes('tron') || strat.includes('aristocrats');
+    },
+    message: 'requiere soporte dedicado de Artefactos'
+  },
+  {
+    id: 'aura_strict',
+    regex: /enchant creature|enchanted creature|whenever you cast an aura|aura/i,
+    allowed: (formData) => {
+      const strat = (formData.strategy || '').toLowerCase();
+      return strat.includes('enchantress') || strat.includes('voltron') || strat.includes('aura');
+    },
+    message: 'requiere soporte dedicado de Auras o Encantamientos'
+  },
+  {
+    id: 'elf_support',
+    regex: /\bother elves\b|\banother elf\b|\belf you control\b/i,
+    allowed: (formData) => {
+      const tribe = (formData.tribe || '').toLowerCase();
+      return tribe.includes('elf') || tribe.includes('nature');
+    },
+    message: 'requiere soporte de la tribu de Elfos'
+  },
+  {
+    id: 'goblin_support',
+    regex: /\bother goblins\b|\banother goblin\b|\bgoblin you control\b/i,
+    allowed: (formData) => {
+      const tribe = (formData.tribe || '').toLowerCase();
+      return tribe.includes('goblin') || tribe.includes('horde');
+    },
+    message: 'requiere soporte de la tribu de Goblins'
+  },
+  {
+    id: 'merfolk_support',
+    regex: /\bother merfolk\b|\banother merfolk\b|\bmerfolk you control\b/i,
+    allowed: (formData) => {
+      const tribe = (formData.tribe || '').toLowerCase();
+      return tribe.includes('merfolk') || tribe.includes('sea_monsters');
+    },
+    message: 'requiere soporte de la tribu de Merfolks'
+  },
+  {
+    id: 'zombie_support',
+    regex: /\bother zombies\b|\banother zombie\b|\bzombie you control\b/i,
+    allowed: (formData) => {
+      const tribe = (formData.tribe || '').toLowerCase();
+      return tribe.includes('zombie') || tribe.includes('undead');
+    },
+    message: 'requiere soporte de la tribu de Zombies'
+  },
+  {
+    id: 'vampire_support',
+    regex: /\bother vampires\b|\banother vampire\b|\bvampire you control\b/i,
+    allowed: (formData) => {
+      const tribe = (formData.tribe || '').toLowerCase();
+      return tribe.includes('vampire') || tribe.includes('undead');
+    },
+    message: 'requiere soporte de la tribu de Vampiros'
+  },
+  {
+    id: 'human_support',
+    regex: /\bother humans\b|\banother human\b|\bhuman you control\b/i,
+    allowed: (formData) => {
+      const tribe = (formData.tribe || '').toLowerCase();
+      return tribe.includes('human') || tribe.includes('army') || tribe.includes('party');
+    },
+    message: 'requiere soporte de la tribu de Humanos'
+  },
+  {
+    id: 'spirit_support',
+    regex: /\bother spirits\b|\banother spirit\b|\bspirit you control\b/i,
+    allowed: (formData) => {
+      const tribe = (formData.tribe || '').toLowerCase();
+      return tribe.includes('spirit');
+    },
+    message: 'requiere soporte de la tribu de Espíritus'
+  },
+  {
+    id: 'knight_support',
+    regex: /\bother knights\b|\banother knight\b|\bknight you control\b/i,
+    allowed: (formData) => {
+      const tribe = (formData.tribe || '').toLowerCase();
+      return tribe.includes('knight') || tribe.includes('army');
+    },
+    message: 'requiere soporte de la tribu de Caballeros'
+  },
+  {
+    id: 'soldier_support',
+    regex: /\bother soldiers\b|\banother soldier\b|\bsoldier you control\b/i,
+    allowed: (formData) => {
+      const tribe = (formData.tribe || '').toLowerCase();
+      return tribe.includes('soldier') || tribe.includes('army');
+    },
+    message: 'requiere soporte de la tribu de Soldados'
+  },
+  {
+    id: 'wizard_support',
+    regex: /\bother wizards\b|\banother wizard\b|\bwizard you control\b/i,
+    allowed: (formData) => {
+      const tribe = (formData.tribe || '').toLowerCase();
+      return tribe.includes('wizard') || tribe.includes('party');
+    },
+    message: 'requiere soporte de la tribu de Magos'
+  },
+  {
+    id: 'dinosaur_support',
+    regex: /\bother dinosaurs\b|\banother dinosaur\b|\bdinosaur you control\b/i,
+    allowed: (formData) => {
+      const tribe = (formData.tribe || '').toLowerCase();
+      return tribe.includes('dinosaur') || tribe.includes('apex');
+    },
+    message: 'requiere soporte de la tribu de Dinosaurios'
+  },
+  {
+    id: 'eldrazi_support',
+    regex: /\bother eldrazi\b|\banother eldrazi\b|\beldrazi you control\b/i,
+    allowed: (formData) => {
+      const tribe = (formData.tribe || '').toLowerCase();
+      return tribe.includes('eldrazi');
+    },
+    message: 'requiere soporte de la tribu de Eldrazis'
+  }
+];
+

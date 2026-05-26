@@ -50,17 +50,36 @@ const PACTOS_DE_GREMIO = [
   { id: 'temur', label: 'Temur (URG)', colors: ['U', 'R', 'G'] }
 ];
 
-export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGenerationLogs, onOpenOracleLog, selectedFormat = 'MODERN' }) {
-  const [formData, setFormData] = useState({
-    formato: 'legacy-battlebox',
-    archetype: '',
-    colores: [],
-    tribe: '',
-    strategy: '',
-    curveProfile: 'balanced',
-    prompt: '',
-    mustInclude: '',
-    customBanlist: '',
+const RARITY_MODES = [
+  { value: 'high-power', label: 'Poder de Legacy', icon: '⚡', desc: 'Acceso total a míticas y raras sin límites.', detail: 'Acceso total a cartas raras y míticas sin restricción de rareza, manteniendo la balanza de Battle Box.' },
+  { value: 'standard', label: 'Estándar', icon: '⚖️', desc: 'Equilibrio casual general.', detail: 'Equilibrio casual equilibrado general.' },
+  { value: 'artisan', label: 'Artisan', icon: '🛡️', desc: 'Comunes e Infrecuentes.', detail: 'El Oráculo y el Juez de Estado forzarán exclusivamente cartas Comunes e Infrecuentes. Rarezas superiores serán transmutadas.' },
+  { value: 'pauper', label: 'Pauper', icon: '🍃', desc: 'Únicamente cartas Comunes.', detail: 'El Oráculo y el Juez de Estado forzarán exclusivamente cartas Comunes. Cualquier carta de rareza superior será transmutada.' }
+];
+
+export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGenerationLogs, onOpenOracleLog, selectedFormat = 'MODERN', onFormatChange }) {
+  const [formData, setFormData] = useState(() => {
+    let savedRarity = 'high-power';
+    try {
+      const savedConfig = localStorage.getItem('mtg_ai_config_forge') || localStorage.getItem('mtg_forge_ai_config');
+      if (savedConfig) {
+        const parsed = JSON.parse(savedConfig);
+        if (parsed.rarityMode) savedRarity = parsed.rarityMode;
+      }
+    } catch (e) {}
+
+    return {
+      formato: 'legacy-battlebox',
+      archetype: '',
+      colores: [],
+      tribe: '',
+      strategy: '',
+      curveProfile: 'balanced',
+      prompt: '',
+      mustInclude: '',
+      customBanlist: '',
+      rarityMode: savedRarity,
+    };
   });
 
   const CURVE_PROFILES = [
@@ -215,6 +234,43 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
     setFormData(prev => ({ ...prev, tribe: '', strategy: '' }));
   }, [formData.archetype]);
 
+  const allowedColorsInfo = useMemo(() => {
+    let allowed = [];
+    let primary = [];
+    if (selectedTribeInfo) {
+      allowed = [...new Set([...allowed, ...selectedTribeInfo.colors])];
+      const pc = Array.isArray(selectedTribeInfo.primaryColor) ? selectedTribeInfo.primaryColor : [selectedTribeInfo.primaryColor];
+      primary = [...new Set([...primary, ...pc])];
+    }
+    if (selectedStrategyInfo) {
+      allowed = [...new Set([...allowed, ...selectedStrategyInfo.colors])];
+      const pc = Array.isArray(selectedStrategyInfo.primaryColor) ? selectedStrategyInfo.primaryColor : [selectedStrategyInfo.primaryColor];
+      primary = [...new Set([...primary, ...pc])];
+    }
+    
+    if (!selectedTribeInfo && !selectedStrategyInfo) {
+      allowed = ['W', 'U', 'B', 'R', 'G', 'C'];
+      primary = [];
+    }
+    return { allowed, primary };
+  }, [selectedTribeInfo, selectedStrategyInfo]);
+
+  useEffect(() => {
+    const { allowed, primary } = allowedColorsInfo;
+    if (allowed.length === 6) return;
+    
+    setFormData(prev => {
+      const hasInvalidColors = prev.colores.some(c => !allowed.includes(c));
+      const hasNoPrimary = primary.length > 0 && !primary.includes('C') && !primary.some(pc => prev.colores.includes(pc));
+      
+      if (hasInvalidColors || hasNoPrimary) {
+        const newColors = primary.filter(c => c !== 'C');
+        return { ...prev, colores: newColors.length > 0 ? newColors : (primary.includes('C') ? ['C'] : []) };
+      }
+      return prev;
+    });
+  }, [allowedColorsInfo]);
+
   // Sincronizar tab activo cuando cambian las tribus disponibles
   useEffect(() => {
     if (formData.archetype) {
@@ -242,8 +298,8 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
 
   const steps = [
     { id: 1, name: 'Clase', desc: 'Arquetipo' },
-    { id: 2, name: 'Maná', desc: 'Colores' },
-    { id: 3, name: 'Núcleo', desc: 'Tribu/Táctica' },
+    { id: 2, name: 'Núcleo', desc: 'Tribu/Táctica' },
+    { id: 3, name: 'Maná', desc: 'Colores' },
     { id: 4, name: 'Sello', desc: 'Conjuración' }
   ];
 
@@ -334,11 +390,22 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                   </div>
                 </div>
                 
-                <div className="flex flex-col items-center md:items-end gap-1.5 bg-black/75 border border-[#ffdf91]/35 px-5 py-2.5 rounded-2xl shadow-lg">
+                <div className="flex flex-col items-center md:items-end gap-1.5 bg-black/75 border border-[#ffdf91]/35 px-4 py-2 rounded-2xl shadow-lg relative group transition-all duration-300 hover:border-[#ffdf91]/65">
                   <span className="text-[10px] text-magic-gold font-bold uppercase tracking-[0.2em] drop-shadow-md">Formato de Destino</span>
-                  <span className="text-xs font-cinzel font-bold text-white tracking-widest drop-shadow-md">
-                    {getBattleBoxFormatName(selectedFormat)}
-                  </span>
+                  <select
+                    value={selectedFormat}
+                    onChange={(e) => onFormatChange?.(e.target.value)}
+                    className="bg-transparent text-xs font-cinzel font-bold text-white tracking-widest outline-none cursor-pointer border-none pr-6 focus:ring-0 appearance-none drop-shadow-md"
+                    style={{
+                      backgroundImage: `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23ffdf91' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'></polyline></svg>")`,
+                      backgroundRepeat: 'no-repeat',
+                      backgroundPosition: 'right -4px center',
+                      backgroundSize: '16px'
+                    }}
+                  >
+                    <option value="MODERN" className="bg-[#111111] text-white font-sans">MODERN</option>
+                    <option value="STANDARD" className="bg-[#111111] text-white font-sans">STANDARD</option>
+                  </select>
                 </div>
               </div>
 
@@ -454,9 +521,9 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
             </motion.div>
           )}
 
-          {currentStep === 2 && (
+          {currentStep === 3 && (
             <motion.div
-              key="step2"
+              key="step3"
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
@@ -471,7 +538,7 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                     Pacto de Maná
                   </h3>
                   <p className="text-xs text-[#f4ece0]/50 tracking-wider font-semibold">
-                    Paso 2: Consagra la Identidad de Color de tu ecosistema
+                    Paso 3: Consagra la Identidad de Color de tu ecosistema
                   </p>
                 </div>
                 
@@ -491,6 +558,7 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                 {COLORS.map(color => {
                   const isSelected = formData.colores.includes(color.id);
                   const isRecommended = currentArchetype?.recommendedColors?.includes(color.id);
+                  const isAllowed = allowedColorsInfo.allowed.length === 6 || allowedColorsInfo.allowed.includes(color.id);
                   
                   // Brillo de orbe dinámico premium
                   let shadowGlow = "";
@@ -507,11 +575,13 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                     <div key={color.id} className="flex flex-col items-center gap-3">
                       <motion.button
                         type="button"
+                        disabled={!isAllowed}
                         onClick={() => toggleColor(color.id)}
-                        whileHover={{ scale: 1.12 }}
-                        whileTap={{ scale: 0.95 }}
+                        whileHover={{ scale: isAllowed ? 1.12 : 1 }}
+                        whileTap={{ scale: isAllowed ? 0.95 : 1 }}
                         className={cn(
                           "transition-all duration-300 relative flex items-center justify-center rounded-full focus:outline-none border-2 border-transparent p-0.5",
+                          !isAllowed ? "opacity-10 grayscale cursor-not-allowed" :
                           isSelected
                             ? "scale-110 z-10"
                             : "opacity-35 grayscale-[0.3] hover:opacity-100 hover:grayscale-0"
@@ -550,7 +620,7 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                   Presets Rápidos (Pactos de Gremio y Alianzas):
                 </span>
                 <div className="flex flex-wrap gap-2 justify-center max-h-[140px] overflow-y-auto p-2 bg-black/35 rounded-xl border border-white/5">
-                  {PACTOS_DE_GREMIO.map(pact => {
+                  {PACTOS_DE_GREMIO.filter(pact => pact.colors.every(c => allowedColorsInfo.allowed.length === 6 || allowedColorsInfo.allowed.includes(c))).map(pact => {
                     const isSelected = activePreset === pact.id;
                     return (
                       <button
@@ -581,7 +651,7 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
               <div className="flex justify-between pt-4 border-t border-white/10">
                 <button
                   type="button"
-                  onClick={() => setCurrentStep(1)}
+                  onClick={() => setCurrentStep(2)}
                   className="px-5 py-2.5 bg-black/60 hover:bg-black text-[#ffca58] hover:text-white border border-[#ffca58]/30 rounded-xl font-cinzel text-xs font-black uppercase tracking-widest transition-all"
                 >
                   📋 Regresar
@@ -591,7 +661,7 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                   disabled={formData.colores.length === 0 && formData.archetype !== 'legacy-eldrazi'}
                   onClick={() => {
                     if (formData.colores.length > 0 || formData.archetype === 'legacy-eldrazi') {
-                      setCurrentStep(3);
+                      setCurrentStep(4);
                     } else {
                       setErrors({ colores: 'Selecciona al menos un color' });
                     }
@@ -609,9 +679,9 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
             </motion.div>
           )}
 
-          {currentStep === 3 && (
+          {currentStep === 2 && (
             <motion.div
-              key="step3"
+              key="step2"
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
@@ -625,7 +695,7 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                   Núcleo y Sinergia Táctica
                 </h3>
                 <p className="text-xs text-[#f4ece0]/50 tracking-wider font-semibold">
-                  Paso 3: Define la raza y el motor estratégico que dominará el ecosistema
+                  Paso 2: Define la raza y el motor estratégico que dominará el ecosistema
                 </p>
               </div>
 
@@ -847,14 +917,14 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
               <div className="flex justify-between pt-4 border-t border-white/10">
                 <button
                   type="button"
-                  onClick={() => setCurrentStep(2)}
+                  onClick={() => setCurrentStep(1)}
                   className="px-5 py-2.5 bg-black/60 hover:bg-black text-[#ffca58] hover:text-white border border-[#ffca58]/30 rounded-xl font-cinzel text-xs font-black uppercase tracking-widest transition-all"
                 >
                   📋 Regresar
                 </button>
                 <button
                   type="button"
-                  onClick={() => setCurrentStep(4)}
+                  onClick={() => setCurrentStep(3)}
                   className="px-6 py-2.5 bg-[#ffca58] border-[#ffca58] text-black hover:shadow-[0_0_15px_rgba(255,202,88,0.4)] rounded-xl font-cinzel text-xs font-black uppercase tracking-widest transition-all duration-300 border shadow-lg flex items-center gap-2"
                 >
                   Siguiente Paso ➔
@@ -885,6 +955,62 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
 
               {/* Prompts and Rules */}
               <div className="space-y-5">
+                {/* Restricción de Rareza */}
+                <div className="space-y-3 bg-black/45 p-5 rounded-2xl border border-white/5 relative overflow-hidden">
+                  <div className="absolute inset-0 bg-[url('/ASSETS/FrostedGlass.webp')] bg-cover opacity-5 pointer-events-none" />
+                  <label className="block text-[#ffca58] text-xs font-bold uppercase tracking-[0.15em] drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)] flex items-center gap-1.5 relative z-10">
+                    🛡️ Restricción Global de Rareza
+                  </label>
+                  <p className="text-[10px] text-[#f4ece0]/60 tracking-wide leading-relaxed relative z-10 font-sans">
+                    Establece el límite de rareza máximo permitido para todas las cartas propuestas e hidratadas del mazo. El Juez de Estado transmutará automáticamente las infracciones.
+                  </p>
+                  
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-1 relative z-10">
+                    {RARITY_MODES.map(mode => {
+                      const isSelected = formData.rarityMode === mode.value;
+                      return (
+                        <div
+                          key={mode.value}
+                          onClick={() => setFormData(prev => ({ ...prev, rarityMode: mode.value }))}
+                          className={cn(
+                            "p-3 rounded-xl border cursor-pointer transition-all duration-300 flex flex-col justify-between items-start min-h-[90px] backdrop-blur-md relative overflow-hidden group",
+                            isSelected
+                              ? "border-[#ffca58] bg-gradient-to-b from-[#ffca58]/15 via-black/80 to-black shadow-[0_0_12px_rgba(255,202,88,0.25)] scale-[1.02]"
+                              : "bg-black/60 border-white/10 hover:border-white/25 hover:bg-black/80 hover:scale-[1.01]"
+                          )}
+                        >
+                          <div className="flex justify-between items-center w-full mb-1">
+                            <span className="text-lg">{mode.icon}</span>
+                            {isSelected && (
+                              <span className="text-[9px] font-black uppercase text-magic-gold px-1.5 py-0.5 rounded bg-magic-gold/10 border border-magic-gold/30 tracking-widest animate-pulse">
+                                Activo
+                              </span>
+                            )}
+                          </div>
+                          <div>
+                            <h4 className={cn("font-cinzel text-[10px] font-black tracking-wider transition-colors", isSelected ? "text-magic-gold" : "text-white/80")}>
+                              {mode.label}
+                            </h4>
+                            <p className="text-[8.5px] text-white/40 leading-tight mt-0.5 group-hover:text-white/60 transition-colors font-sans">
+                              {mode.desc}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Explicación Mística del Modo de Rareza Activo */}
+                  <div className="p-3 rounded-lg bg-black/60 border border-white/5 relative z-10 transition-all duration-300">
+                    <p className="text-[10px] text-[#f4ece0]/70 font-serif leading-relaxed flex items-start gap-2">
+                      <span className="text-magic-gold font-bold">↳</span>
+                      <span>
+                        {RARITY_MODES.find(m => m.value === formData.rarityMode)?.detail}
+                      </span>
+                    </p>
+                  </div>
+                </div>
+
                 <div className="space-y-2">
                   <label className="block text-[#ffca58] text-xs font-bold uppercase tracking-[0.15em] drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)] flex items-center gap-1.5">
                     <Sparkles size={12} className="text-magic-gold animate-pulse" /> Visión Creativa / Temática

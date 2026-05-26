@@ -1,6 +1,6 @@
 // src/services/ragService.js
 import { getBlueprint } from '../constants/blueprintTemplates.js';
-import { MTG_TRIBES, MTG_STRATEGIES } from '../constants/legacyBattleBox.js';
+import { MTG_TRIBES, MTG_STRATEGIES, PARASITIC_RULES } from '../constants/legacyBattleBox.js';
 import { getAllCards } from './dbIngestor.js';
 import { loadMetaFromDB } from './mtgtop8Service.js';
 
@@ -25,7 +25,12 @@ const FORMAT_STAPLES = {
     "sheoldred, the apocalypse", "bloodtithe harvester", "fable of the mirror-breaker", 
     "make disappear", "go for the throat", "cut down", "wandering emperor", 
     "wedding announcement", "raffine, scheming seer", "atraxa, grand unifier",
-    "deep-cavern bat", "preacher of the schism", "no more lies", "sunfall"
+    "deep-cavern bat", "preacher of the schism", "no more lies", "sunfall",
+    "slickshot show-off", "gix, yawgmoth praetor", "temporary lockdown", "cruel somnophage",
+    "haughty djinn", "urabrask's forge", "glissa sunslayer", "mosswood dreadknight",
+    "tishana's tidebinder", "lightning helix", "get lost", "virtue of loyalty",
+    "virtue of persistence", "duress", "archangel of wrath", "delighted halfling",
+    "cavern of souls", "zoetic slipstream", "elspeth's smite", "intrusive packbeast"
   ]),
   PIONEER: new Set([
     "fatal push", "thoughtseize", "fable of the mirror-breaker", "bloodtithe harvester",
@@ -120,6 +125,17 @@ export const buildCardPool = async (formData) => {
   let spellsPool = [];
 
   // Pre-calcular arrays en minúsculas para countKeywords
+  // Determinación Dinámica del Nivel de Pureza Tribal
+  let purityLevel = 'standard';
+  if (tribeData) {
+    const tribeLower = tribeData.id.toLowerCase();
+    if (tribeLower.includes('sliver')) {
+      purityLevel = 'strict';
+    } else if (strategyId === 'ramp' || strategyId === 'reanimator' || strategyId === 'combo') {
+      purityLevel = 'hybrid';
+    }
+  }
+
   const blueprintBoostLower = (blueprint.ragModifiers?.boost || []).map(k => k.toLowerCase());
   const blueprintPenaltyLower = (blueprint.ragModifiers?.penalty || []).map(k => k.toLowerCase());
   const urKeywords = ['instant', 'sorcery', 'prowess', 'magecraft', 'draw', 'damage'].map(k => k.toLowerCase());
@@ -142,6 +158,7 @@ export const buildCardPool = async (formData) => {
   const controlKeywords = ['counter target', 'destroy all', 'exile target', 'draw', 'planeswalker', 'flash', 'sweeper', 'board wipe'].map(k => k.toLowerCase());
   const aggroKeywords = ['haste', 'trample', 'prowess', 'damage to', 'deals damage', 'gets +', 'combat', 'attack'].map(k => k.toLowerCase());
   const comboKeywords = ['search', 'library', 'tutor', 'add', 'mana', 'infinite', 'win the game', 'return from your graveyard'].map(k => k.toLowerCase());
+  const rampKeywords = ['search your library for a land', 'search your library for a basic land', 'add ', 'mana', 'put onto the battlefield', 'trample', 'hexproof', 'reach'].map(k => k.toLowerCase());
   const tempoKeywords = ['flash', 'flying', 'counter target', 'return to its owner\'s hand', 'cantrip', 'draw a card', 'scry'].map(k => k.toLowerCase());
   const strategyDataKeywordsLower = (strategyData?.keywords || []).map(k => k.toLowerCase());
   const strategyIdKeywordsLower = strategyId.split('-').map(k => k.toLowerCase());
@@ -159,20 +176,65 @@ export const buildCardPool = async (formData) => {
     // Filtro dinámico estricto: Solo permitir cartas legales en el formato seleccionado
     if (!card.legalities || card.legalities[formatKey] !== 'legal') continue;
     
+    const cardNameLower = card.name ? card.name.toLowerCase() : '';
+    const typeLine = card.type_line ? card.type_line.toLowerCase() : '';
+    const oracleText = card.oracle_text ? card.oracle_text.toLowerCase() : '';
+    const isCreature = typeLine.includes('creature');
+
+    // --- FILTRADO PROACTIVO DE CARTAS PARASITARIAS ---
+    let isParasitic = false;
+    const combinedText = `${cardNameLower} | ${typeLine} | ${oracleText}`;
+    for (const rule of PARASITIC_RULES) {
+      if (rule.regex.test(combinedText)) {
+        if (!rule.allowed(formData)) {
+          isParasitic = true;
+          break;
+        }
+      }
+    }
+    if (isParasitic) continue;
+
+
+    // Bloqueo absoluto de cartas alucinadas/inyectadas con patrón "emeritus of" (Excepto Archmage Emeritus que es real)
+    if (cardNameLower.includes('emeritus of') && cardNameLower !== 'archmage emeritus') {
+      continue;
+    }
+
     // Reglas de la Casa: Filtro de Custom Banlist pre-generación RAG
     if (formData.customBanlist && card.name) {
       const customBannedNames = formData.customBanlist.split(/[,\n]/)
         .map(s => s.trim().toLowerCase())
         .filter(s => s.length > 0);
-      const cardNameLower = card.name.toLowerCase();
       if (customBannedNames.some(banned => cardNameLower === banned || cardNameLower.includes(banned))) {
         continue;
       }
     }
-    
-    const typeLine = card.type_line ? card.type_line.toLowerCase() : '';
+
     // Filtrar todas las tierras de forma absoluta, ya que se generan matemáticamente por el Ensamblador
     if (typeLine.includes('land')) continue;
+    
+    // --- INTEGRIDAD TRIBAL (PUREZA DINÁMICA) ---
+    if (tribeData && isCreature) {
+      const activeTribalSubtypes = tribeData.subtypes ? tribeData.subtypes.map(s => s.toLowerCase()) : [];
+      const hasTribalSubtype = activeTribalSubtypes.some(sub => typeLine.includes(sub)) || typeLine.includes('changeling') || typeLine.includes('shapeshifter');
+      
+      if (!hasTribalSubtype) {
+        if (purityLevel === 'strict') {
+          // Rechazo absoluto de criaturas no tribales (ej. Slivers)
+          continue; 
+        } else if (purityLevel === 'hybrid') {
+          // Se toleran dorks de maná (CMC <= 2 con 'add ') o amenazas gigantes (CMC >= 6)
+          const cmc = card.mana_value || 0;
+          const isDork = cmc <= 2 && oracleText.includes('add ');
+          const isGiantPayoff = cmc >= 6;
+          
+          if (!isDork && !isGiantPayoff) {
+            // Rechazamos bichos de utilidad de coste medio que diluyan la tribu (ej. Emeritus en Elfos Ramp)
+            continue; 
+          }
+        }
+      }
+    }
     
     if (card.color_identity) {
       const isLegalColor = card.color_identity.every(c => allowedColors.includes(c));
@@ -181,8 +243,6 @@ export const buildCardPool = async (formData) => {
  
     // 2. SISTEMA DE PUNTUACIÓN (SCORING)
     let score = 0;
-    const oracleText = card.oracle_text ? card.oracle_text.toLowerCase() : '';
-    const cardNameLower = card.name ? card.name.toLowerCase() : '';
  
     // A) Puntuación de Staples: Dinámico (torneos) con Fallback Estático
     const inVivoPercentage = metaStaples[cardNameLower] || 0;
@@ -258,8 +318,6 @@ export const buildCardPool = async (formData) => {
       score -= countKeywords(oracleText, blueprintPenaltyLower) * 10;
     }
 
-    const isCreature = typeLine.includes('creature');
-
     // === MULTIDIMENSIONAL GUILD / COLOR-PAIR SYNERGY SCORING ===
     if (allowedColors.includes('U') && allowedColors.includes('R')) {
       score += countKeywords(oracleText, urKeywords) * 8;
@@ -332,6 +390,22 @@ export const buildCardPool = async (formData) => {
         score += 45;
         score += matches * 12;
       }
+    } else if (formData.archetype === 'ramp') {
+      const matches = countKeywords(oracleText, rampKeywords) + countKeywords(cardNameLower, rampKeywords);
+      if (matches > 0) {
+        score += 55;
+        score += matches * 15;
+      }
+      // Finishers gigantescos para Ramp
+      const rampFinishers = [
+        "primeval titan", "craterhoof behemoth", "wurmcoil engine", "elder gargaroth",
+        "archon of cruelty", "koma, cosmos serpent", "uvalammog", "ulamog, the ceaseless hunger",
+        "kozilek, butcher of truth", "emrakul, the aeons torn", "sundering titan", "scute swarm",
+        "genesis wave", "tooth and nail", "titan of industry", "atraxa, grand unifier"
+      ];
+      if (rampFinishers.includes(cardNameLower)) {
+        score += 70;
+      }
     }
 
     // === ACCELERATION CALIBRATION: Dorks vs Talismans/Rocks ===
@@ -361,7 +435,7 @@ export const buildCardPool = async (formData) => {
         const subtypeLower = st.toLowerCase();
         if (typeLine.includes(subtypeLower)) {
           if (isCreature) {
-            score += 30; // Base Criatura Tribal
+            score += 150; // ¡Base Criatura Tribal Masiva para asegurar que dominen el pool!
             if (inVivoPercentage > 0 || stapleWeight > 0) {
                 score += Math.min(25, inVivoPercentage > 0 ? Math.round(inVivoPercentage) : 15);
             }
@@ -372,11 +446,11 @@ export const buildCardPool = async (formData) => {
             }
           } else {
             // Hechizos tribales no-criatura (ej. Tarfire) reciben un bonus moderado
-            score += 10;
+            score += 40;
           }
         }
         if (oracleText.includes(subtypeLower)) {
-          score += 10;
+          score += 30; // Gran empuje si hace sinergia directa con la tribu
         }
       });
     }
@@ -414,6 +488,166 @@ export const buildCardPool = async (formData) => {
       spellsPool.push(scoredCard);
     }
   }
+
+  // --- INICIO RAG 2.0: RED DE SINERGIA RELACIONAL (Double-Pass Synergy Graph) ---
+  // 2.5. Primera ordenación provisional para sacar un Top de pre-candidatos (Mejora radical de rendimiento y cohesión)
+  const maxPreCandidates = 600; // Analizamos las mejores 600 cartas para crear la red de densidad
+  let allCandidates = [...creaturesPool, ...spellsPool].sort((a, b) => b.score - a.score).slice(0, maxPreCandidates);
+
+  // Calcular métricas de densidad de este pool élite
+  let densityMetrics = {
+    instantSorcery: 0,
+    enchantment: 0,
+    artifact: 0,
+    graveyard: 0,
+    tribal: 0
+  };
+
+  const activeTribalSubtypes = tribeData && tribeData.subtypes ? tribeData.subtypes.map(s => s.toLowerCase()) : [];
+
+  allCandidates.forEach(c => {
+    const typeLine = c.type_line ? c.type_line.toLowerCase() : '';
+    const oracleText = c.oracle_text ? c.oracle_text.toLowerCase() : '';
+    
+    if (typeLine.includes('instant') || typeLine.includes('sorcery')) densityMetrics.instantSorcery++;
+    if (typeLine.includes('enchantment')) densityMetrics.enchantment++;
+    if (typeLine.includes('artifact')) densityMetrics.artifact++;
+    if (oracleText.includes('graveyard') || oracleText.includes('return') || oracleText.includes('discard')) densityMetrics.graveyard++;
+    
+    if (activeTribalSubtypes.length > 0) {
+      const isTribalMatch = activeTribalSubtypes.some(sub => typeLine.includes(sub));
+      if (isTribalMatch) densityMetrics.tribal++;
+    }
+  });
+
+  console.log(`[RAG 2.0] Densidad de Red calculada en Top ${allCandidates.length} pre-candidatos:`, densityMetrics);
+
+  // Aplicar multiplicadores de red (Segunda Pasada)
+  allCandidates.forEach(card => {
+    let relationalBoost = 0;
+    const typeLine = card.type_line ? card.type_line.toLowerCase() : '';
+    const oracleText = card.oracle_text ? card.oracle_text.toLowerCase() : '';
+    const cardNameLower = card.name.toLowerCase();
+
+    // A) Densidad Tribal (Efecto Bola de Nieve)
+    if (activeTribalSubtypes.length > 0) {
+      const isTribalMatch = activeTribalSubtypes.some(sub => typeLine.includes(sub));
+      if (isTribalMatch) {
+        // Enorme bonificación multiplicativa por cada otra carta de la tribu en el pool
+        relationalBoost += densityMetrics.tribal * 12; 
+        
+        // BOOST INTELIGENTE: Si es un Lord o Finisher tribal (Coste alto),
+        // darle un mega-boost para asegurar que entre en los buckets top-end.
+        if (card.mana_value >= 4) {
+          relationalBoost += 100;
+        }
+      }
+      // Si la carta apoya a la tribu en su texto, también se beneficia del cluster
+      const supportsTribe = activeTribalSubtypes.some(sub => oracleText.includes(sub));
+      if (supportsTribe) {
+        relationalBoost += densityMetrics.tribal * 8;
+        if (card.mana_value >= 4) {
+          relationalBoost += 80; // Boost para encantamientos/conjuros de tribu caros
+        }
+      }
+    }
+
+    // B) Auto-Alineación de Estrategias y Tipos (Gatillos Cruzados)
+    if (strategyId === 'spellslinger') {
+      if (oracleText.includes('instant') || oracleText.includes('sorcery') || oracleText.includes('cast a spell')) {
+        relationalBoost += densityMetrics.instantSorcery * 2.5;
+      }
+      if (typeLine.includes('instant') || typeLine.includes('sorcery')) {
+        relationalBoost += 20; 
+      }
+    } else if (strategyId === 'enchantress') {
+      if (oracleText.includes('enchantment') || oracleText.includes('constellation')) {
+        relationalBoost += densityMetrics.enchantment * 3.5;
+      }
+      if (typeLine.includes('enchantment')) relationalBoost += 15;
+    } else if (strategyId === 'vehicles') {
+      if (typeLine.includes('vehicle') || oracleText.includes('crew')) {
+        relationalBoost += densityMetrics.artifact * 3.0;
+      }
+    } else if (strategyId === 'reanimator' || strategyId === 'graveyard') {
+      if (oracleText.includes('graveyard') || oracleText.includes('discard') || oracleText.includes('return target')) {
+        relationalBoost += densityMetrics.graveyard * 2.5;
+      }
+    } else if (strategyId === 'aristocrats') {
+      if (oracleText.includes('sacrifice') || oracleText.includes('dies')) {
+        relationalBoost += 40;
+      }
+    }
+
+    // C) Red de Coocurrencia Histórica (Metagame Net)
+    let metaNetScore = 0;
+    const maxCooccurrenceChecks = 50; 
+    for (let j = 0; j < Math.min(maxCooccurrenceChecks, allCandidates.length); j++) {
+      const otherCardName = allCandidates[j].name.toLowerCase();
+      if (cardNameLower !== otherCardName) {
+         const pairFreq = metaSynergies[cardNameLower]?.[otherCardName] || metaSynergies[otherCardName]?.[cardNameLower] || 0;
+         if (pairFreq > 0) {
+           metaNetScore += (pairFreq * 0.5); 
+         }
+      }
+    }
+    
+    // Limitamos el bono de metajuego cruzado para que no domine por completo a las sinergias de texto
+    relationalBoost += Math.min(150, metaNetScore);
+
+    // Sumar el boost relacional al score original
+    card.score += Math.round(relationalBoost);
+  });
+
+  // === SEA MONSTERS DEDICATED RAG SCORING ===
+  if (formData.tribe === 'sea_monsters' || strategyId === 'sea_monsters' || formData.archetype === 'sea_monsters') {
+    // 1. Contar criaturas de early-game (CMC 1-2) en los candidatos provisionales
+    const earlyCreatures = allCandidates.filter(c => {
+      const typeLower = c.type_line ? c.type_line.toLowerCase() : '';
+      const isC = typeLower.includes('creature');
+      return isC && c.mana_value <= 2;
+    });
+
+    const earlyCreatureCount = earlyCreatures.length;
+    console.log(`[RAG Sea Monsters] Encontradas ${earlyCreatureCount} criaturas tempranas (CMC 1-2) en pre-candidatos.`);
+
+    // 2. Si la cantidad de juego temprano es menor de 12 (peligro de finisher-flood),
+    // aplicamos penalizaciones a los finishers masivos de CMC >= 5
+    if (earlyCreatureCount < 12) {
+      const penaltyAmount = (12 - earlyCreatureCount) * 15;
+      console.log(`[RAG Sea Monsters] Juego temprano insuficiente. Aplicando penalización de -${penaltyAmount} a finishers de CMC >= 5.`);
+      allCandidates.forEach(c => {
+        const typeLower = c.type_line ? c.type_line.toLowerCase() : '';
+        const isC = typeLower.includes('creature');
+        if (isC && c.mana_value >= 5) {
+          c.score -= penaltyAmount;
+        }
+      });
+    }
+
+    // 3. Además, boostear específicamente a dorks de maná y aceleradores de bajo coste
+    // para que tengan scores competitivos con los finishers tribales gigantescos.
+    allCandidates.forEach(c => {
+      const typeLower = c.type_line ? c.type_line.toLowerCase() : '';
+      const isC = typeLower.includes('creature');
+      const oracleText = c.oracle_text ? c.oracle_text.toLowerCase() : '';
+      if (isC && c.mana_value <= 2) {
+        const isRampDork = oracleText.includes('add ') || oracleText.includes('search your library for a land');
+        const isEarlyInteraction = oracleText.includes('counter') || oracleText.includes('return') || oracleText.includes('draw') || typeLower.includes('flash');
+        if (isRampDork) {
+          c.score += 80; // Mega-boost para dorks
+        } else if (isEarlyInteraction) {
+          c.score += 50; // Boost para interacción barata
+        }
+      }
+    });
+  }
+
+  // Re-separar los pools con las puntuaciones actualizadas
+  creaturesPool = allCandidates.filter(c => c.type_line && c.type_line.toLowerCase().includes('creature'));
+  spellsPool = allCandidates.filter(c => !c.type_line || !c.type_line.toLowerCase().includes('creature'));
+
+  // --- FIN RAG 2.0 ---
 
   // 3. ORDENACIÓN POR RANGO Y CUPOS DINÁMICOS CON SELECCIÓN CONSCIENTE DE LA CURVA (DTE POOL ALLOCATION)
   spellsPool.sort((a, b) => b.score - a.score);
@@ -460,7 +694,8 @@ export const buildCardPool = async (formData) => {
     lifegain:     { cmc1: 0.35, cmc2: 0.40, cmc3: 0.20, cmc4: 0.05, cmc5Plus: 0.00 },
     prison:       { cmc1: 0.15, cmc2: 0.45, cmc3: 0.30, cmc4: 0.10, cmc5Plus: 0.00 },
     voltron:      { cmc1: 0.45, cmc2: 0.40, cmc3: 0.10, cmc4: 0.05, cmc5Plus: 0.00 },
-    vehicles:     { cmc1: 0.30, cmc2: 0.40, cmc3: 0.20, cmc4: 0.10, cmc5Plus: 0.00 }
+    vehicles:     { cmc1: 0.30, cmc2: 0.40, cmc3: 0.20, cmc4: 0.10, cmc5Plus: 0.00 },
+    sea_monsters: { cmc1: 0.25, cmc2: 0.30, cmc3: 0.15, cmc4: 0.10, cmc5Plus: 0.20 }
   };
 
   const archetypeCurveMap = {
@@ -469,12 +704,35 @@ export const buildCardPool = async (formData) => {
     midrange:    { cmc1: 0.15, cmc2: 0.35, cmc3: 0.30, cmc4: 0.15, cmc5Plus: 0.05 },
     'ramp-tron': { cmc1: 0.15, cmc2: 0.25, cmc3: 0.20, cmc4: 0.15, cmc5Plus: 0.25 },
     combo:       { cmc1: 0.30, cmc2: 0.35, cmc3: 0.20, cmc4: 0.10, cmc5Plus: 0.05 },
+    sea_monsters: { cmc1: 0.25, cmc2: 0.30, cmc3: 0.15, cmc4: 0.10, cmc5Plus: 0.20 },
     default:     { cmc1: 0.20, cmc2: 0.35, cmc3: 0.25, cmc4: 0.15, cmc5Plus: 0.05 }
   };
 
-  const activeCurve = strategyCurveMap[strategyId] || 
+  let activeCurve = strategyCurveMap[strategyId] || 
                       archetypeCurveMap[formData.archetype] || 
                       archetypeCurveMap.default;
+
+  // Si es la tribu, estrategia o arquetipo "Terrores Marinos" (sea_monsters), forzamos una curva específica de rampa y control temprano
+  if (formData.tribe === 'sea_monsters' || strategyId === 'sea_monsters' || formData.archetype === 'sea_monsters') {
+    activeCurve = { cmc1: 0.25, cmc2: 0.30, cmc3: 0.15, cmc4: 0.10, cmc5Plus: 0.20 };
+  }
+
+  // Ajuste PRO: Si es Tribal y la curva no permite Costes 5+, forzamos un 5% 
+  // robándolo de los drops de coste 1, para permitir Finishers (ej. Sliver Legion, Muxus).
+  if (activeTribalSubtypes.length > 0) {
+    const adjustedCurve = { ...activeCurve };
+    if (adjustedCurve.cmc5Plus < 0.05) {
+      const difference = 0.05 - adjustedCurve.cmc5Plus;
+      adjustedCurve.cmc5Plus = 0.05;
+      adjustedCurve.cmc1 = Math.max(0, adjustedCurve.cmc1 - difference);
+    }
+    if (adjustedCurve.cmc4 < 0.05) {
+      const difference = 0.05 - adjustedCurve.cmc4;
+      adjustedCurve.cmc4 = 0.05;
+      adjustedCurve.cmc2 = Math.max(0, adjustedCurve.cmc2 - difference);
+    }
+    activeCurve = adjustedCurve;
+  }
 
   // Calcular creatureRatio dinámico
   let creatureRatio = 0.5; // Reparto estándar 50/50 por defecto
@@ -514,6 +772,11 @@ export const buildCardPool = async (formData) => {
     } else if (formData.archetype === 'ramp-tron') {
       creatureRatio = 0.4; // Ramp corre aceleradores no criatura mayormente
     }
+  }
+
+  // Si es Terrores Marinos, forzamos un ratio específico de 45% criaturas (dorks/Tritones/finishers) y 55% hechizos de control/ramp
+  if (formData.tribe === 'sea_monsters' || strategyId === 'sea_monsters' || formData.archetype === 'sea_monsters') {
+    creatureRatio = 0.45;
   }
 
   // Establecer límites de cupo para totalizar 200 cartas

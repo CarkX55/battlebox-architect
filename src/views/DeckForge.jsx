@@ -268,6 +268,10 @@ const getMatchupGuide = (mainDeck, sideboard, archetype = 'midrange') => {
 export default function DeckForge() {
   const [mode, setMode] = useState('form');
   const [selectedFormat, setSelectedFormat] = useState(() => localStorage.getItem('mtgtop8_selected_format') || 'MODERN');
+
+  useEffect(() => {
+    localStorage.setItem('mtgtop8_selected_format', selectedFormat);
+  }, [selectedFormat]);
   const [loading, setLoading] = useState(false);
   const [lastFormData, setLastFormData] = useState(null);
   const [aiConfig, setAiConfig] = useState(() => {
@@ -451,9 +455,21 @@ export default function DeckForge() {
 
     const combinedFormData = {
       ...formData,
-      rarityMode: aiConfig?.rarityMode || 'high-power',
       format: selectedFormat
     };
+
+    // Sincronizar el rarityMode seleccionado en el localStorage para que el panel administrativo y futuros accesos lo reconozcan
+    try {
+      const saved = localStorage.getItem(FORGE_STORAGE_KEY);
+      if (saved) {
+        const configObj = JSON.parse(saved);
+        configObj.rarityMode = formData.rarityMode;
+        localStorage.setItem(FORGE_STORAGE_KEY, JSON.stringify(configObj));
+        setAiConfig(configObj);
+      }
+    } catch (e) {
+      console.warn("No se pudo sincronizar rarityMode en localStorage:", e);
+    }
 
     setLastFormData(combinedFormData);
     setLoading(true);
@@ -521,6 +537,15 @@ export default function DeckForge() {
       setError(err.message || 'Error en la conexión con el Oráculo');
       if (err.generationLogs) {
         setLastGenerationLogs(err.generationLogs);
+      } else {
+        setLastGenerationLogs({
+          logs: [`[ERROR] ${err.message || 'Error inesperado'}`],
+          systemPrompt: '',
+          contextPrompt: '',
+          rawResponse: '',
+          error: err.message || 'Error inesperado',
+          stack: err.stack || ''
+        });
       }
     } finally {
       setLoading(false);
@@ -720,6 +745,7 @@ export default function DeckForge() {
                 setShowOracleLog(true);
               }}
               selectedFormat={selectedFormat}
+              onFormatChange={setSelectedFormat}
             />
           </motion.div>
         ) : (
@@ -1293,6 +1319,19 @@ export default function DeckForge() {
                             PROCESO ACTIVO
                           </span>
                         </div>
+                        {lastGenerationLogs?.error && (
+                          <div className="p-4 bg-red-950/40 border border-red-500/30 rounded-xl text-red-200 text-xs shadow-xl flex flex-col gap-2 font-mono">
+                            <div className="flex items-center gap-2 text-red-400 font-bold uppercase tracking-wider text-xs">
+                              <span>⚠️</span> DETALLE DEL ERROR DE LA IA / INFRAESTRUCTURA:
+                            </div>
+                            <p className="text-red-300 font-bold text-sm">{lastGenerationLogs.error}</p>
+                            {lastGenerationLogs.stack && (
+                              <pre className="mt-2 p-2 bg-black/60 rounded border border-red-500/20 text-[10px] text-red-400/80 overflow-x-auto whitespace-pre-wrap max-h-40 scrollbar-thin scrollbar-thumb-red-500/20 scrollbar-track-transparent font-mono select-text">
+                                {lastGenerationLogs.stack}
+                              </pre>
+                            )}
+                          </div>
+                        )}
                         <div className="space-y-3 font-mono">
                           {lastGenerationLogs?.logs?.map((log, index) => (
                             <div 

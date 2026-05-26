@@ -167,12 +167,14 @@ export function buildDeckArchitectPrompt(params) {
     .replace(/{spellCount}/g, archData.spellCount || 36);
 
   let blueprintFocus = "";
-  if (archetype === 'aggro-puro' || archetype === 'aggro-sinergico') {
+  if (archetype === 'aggro' || archetype === 'aggro-puro' || archetype === 'aggro-sinergico') {
     blueprintFocus = "\nFOCUS ARQUITECTURA: Prioriza costes 1 y 2. Mínimo 12 cartas de coste 1-2.";
   } else if (archetype === 'midrange') {
     blueprintFocus = "\nFOCUS ARQUITECTURA: Curva equilibrada. Máximo 8 cartas de coste 4+. Prioriza el 2x1.";
   } else if (archetype === 'control') {
     blueprintFocus = "\nFOCUS ARQUITECTURA: Máximo 4 criaturas. El resto deben ser respuestas y ventaja de cartas.";
+  } else if (archetype === 'ramp') {
+    blueprintFocus = "\nFOCUS ARQUITECTURA: Aceleración extrema de maná y amenazas gigantes de coste 5+. Mínimo 10-12 aceleradores y 6-8 payoffs.";
   }
 
   let rarityRule = '';
@@ -218,12 +220,14 @@ export function buildStrategistMathPrompt(params) {
   }
 
   let blueprintFocus = "";
-  if (archetype === 'aggro-puro' || archetype === 'aggro-sinergico') {
+  if (archetype === 'aggro' || archetype === 'aggro-puro' || archetype === 'aggro-sinergico') {
     blueprintFocus = "\n- FOCUS ARQUITECTURA: Prioriza costes 1 y 2. Mínimo 12 cartas de coste 1-2.";
   } else if (archetype === 'midrange') {
     blueprintFocus = "\n- FOCUS ARQUITECTURA: Curva equilibrada. Máximo 8 cartas de coste 4+. Prioriza el 2x1.";
   } else if (archetype === 'control') {
     blueprintFocus = "\n- FOCUS ARQUITECTURA: Máximo 4 criaturas. El resto deben ser respuestas y ventaja de cartas.";
+  } else if (archetype === 'ramp') {
+    blueprintFocus = "\n- FOCUS ARQUITECTURA: Aceleración extrema de maná y amenazas gigantes de coste 5+. Mínimo 10-12 aceleradores y 6-8 payoffs.";
   }
 
   prompt += `\n\n=== REQUISITOS DEL MAZO ===\n- Arquetipo: ${archData.label}\n- Colores: ${colors.join('-')}\n- Tribu: ${tribe || 'N/A'}\n- Estrategia: ${strategy || 'N/A'}\n- Nivel de Rareza: ${rarityRule}${blueprintFocus}\n- Hechizos: ${spellCount} | Tierras: ${landCount}\n- Deseos del Usuario: ${userPrompt}\n\nINVESTIGA LAS CARTAS Y PLANIFICA LAS CANTIDADES AHORA:`;

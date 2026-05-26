@@ -1,5 +1,5 @@
 const DB_NAME = 'mtg_cards_db';
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 const STORE_NAME = 'cards';
 
 let db = null;
@@ -113,18 +113,30 @@ export async function findFuzzyMatchInDB(cardName) {
   
   for (const key of allKeys) {
     iterations++;
-    // Yield to main thread every 1000 items so React can render (prevents UI freeze)
     if (iterations % 1000 === 0) {
       await new Promise(resolve => setTimeout(resolve, 0));
     }
 
     const keyLower = key.toLowerCase();
     
+    // Coincidencia exacta
     if (keyLower === target) {
       return key;
     }
+
+    // Coincidencia de cara exacta (Aventura / MDFC)
+    // Ejemplo: Si buscamos "Lightning Bolt" y la llave es "Emeritus of Conflict // Lightning Bolt"
+    if (keyLower.includes(' // ')) {
+      const faces = keyLower.split(' // ');
+      if (faces[0] === target || faces[1] === target) {
+        // En lugar de devolver la carta doble, ignoramos este match para que Scryfall
+        // descargue e hidrate la versión pura de una sola cara (si existe).
+        // A menos que realmente no haya otra, pero priorizaremos el fetch normal.
+        continue;
+      }
+    }
     
-    // Optimization: skip Levenshtein if length difference is too large to achieve 85% similarity
+    // Optimization: skip Levenshtein if length diff is too large
     if (Math.abs(target.length - keyLower.length) > Math.max(target.length, keyLower.length) * 0.2) {
       continue;
     }
@@ -174,7 +186,8 @@ async function fetchCardFromScryfall(cardName) {
         clearTimeout(timeoutId);
         return null;
       }
-      data = json.data[0];
+      const exactMatch = json.data.find(c => c.name.toLowerCase() === cleanName.toLowerCase());
+      data = exactMatch || json.data[0];
     }
     clearTimeout(timeoutId);
     

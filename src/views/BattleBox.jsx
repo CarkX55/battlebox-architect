@@ -7,6 +7,7 @@ import { cn } from '../utils/cn';
 import { rebalanceDecks, generateDeckTactics } from '../services/aiFactory';
 import { getArchivedDecks, updateArchivedDeck, archiveDeckOnline } from '../services/archiveService';
 import { hydrateCard } from '../services/cardHydrator';
+import { downloadObsidianFile } from '../services/obsidianService';
 import { motion, AnimatePresence } from 'framer-motion';
 import AiConfigPanel from '../components/forge/AiConfigPanel';
 import RadarChart from '../components/forge/RadarChart';
@@ -873,6 +874,12 @@ export default function BattleBox() {
               </button>
               <button onClick={handleExportProxy} className="btn-magic-glass btn-glass-blue">
                 <span>🖨️ Lista Proxy</span>
+              </button>
+              <button 
+                onClick={() => downloadObsidianFile(activeDeck)} 
+                className="btn-magic-glass btn-glass-purple shadow-lg"
+              >
+                <span>🔮 Obsidian</span>
               </button>
               <button 
                 onClick={handleArchiveOnline}
