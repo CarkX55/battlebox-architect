@@ -1,5 +1,5 @@
 {
-  "compileDate": 1779832317010,
+  "compileDate": 1780003516048,
   "cards": {
     "aang's iceberg": {
       "name": "Aang's Iceberg",
@@ -96,6 +96,17 @@
       "synergies": [
         {
           "name": "Riverpyre Verge"
+        }
+      ],
+      "tags": []
+    },
+    "adeline, resplendent cathar": {
+      "name": "Adeline, Resplendent Cathar",
+      "type": "creature",
+      "cmc": 2,
+      "synergies": [
+        {
+          "name": "Plains"
         }
       ],
       "tags": []
@@ -201,11 +212,11 @@
     },
     "amulet of vigor": {
       "name": "Amulet of Vigor",
-      "type": "spell",
+      "type": "artifact",
       "cmc": 2,
       "synergies": [
         {
-          "name": "Formidable Speaker"
+          "name": "Boseiju, Who Endures"
         }
       ],
       "tags": []
@@ -327,7 +338,7 @@
       "cmc": 2,
       "synergies": [
         {
-          "name": "Force of Negation"
+          "name": "Polluted Delta"
         }
       ],
       "tags": []
@@ -485,6 +496,17 @@
       "synergies": [
         {
           "name": "Shoot the Sheriff"
+        }
+      ],
+      "tags": []
+    },
+    "azusa, lost but seeking": {
+      "name": "Azusa, Lost but Seeking",
+      "type": "creature",
+      "cmc": 2,
+      "synergies": [
+        {
+          "name": "Boseiju, Who Endures"
         }
       ],
       "tags": []
@@ -831,7 +853,7 @@
       "cmc": 2,
       "synergies": [
         {
-          "name": "Force of Negation"
+          "name": "Tolaria West"
         }
       ],
       "tags": []
@@ -931,6 +953,17 @@
       "synergies": [
         {
           "name": "Tablet of Discovery"
+        }
+      ],
+      "tags": []
+    },
+    "brutal cathar": {
+      "name": "Brutal Cathar",
+      "type": "creature",
+      "cmc": 2,
+      "synergies": [
+        {
+          "name": "Plains"
         }
       ],
       "tags": []
@@ -1235,6 +1268,17 @@
       ],
       "tags": []
     },
+    "coppercoat vanguard": {
+      "name": "Coppercoat Vanguard",
+      "type": "creature",
+      "cmc": 2,
+      "synergies": [
+        {
+          "name": "Plains"
+        }
+      ],
+      "tags": []
+    },
     "cori mountain monastery": {
       "name": "Cori Mountain Monastery",
       "type": "land",
@@ -1274,7 +1318,7 @@
       "cmc": 2,
       "synergies": [
         {
-          "name": "Otawara, Soaring City"
+          "name": "Polluted Delta"
         }
       ],
       "tags": []
@@ -1749,11 +1793,11 @@
     },
     "dryad of the ilysian grove": {
       "name": "Dryad of the Ilysian Grove",
-      "type": "spell",
+      "type": "creature",
       "cmc": 2,
       "synergies": [
         {
-          "name": "Formidable Speaker"
+          "name": "Boseiju, Who Endures"
         }
       ],
       "tags": []
@@ -2030,6 +2074,17 @@
       "synergies": [
         {
           "name": "Forest"
+        }
+      ],
+      "tags": []
+    },
+    "esper sentinel": {
+      "name": "Esper Sentinel",
+      "type": "creature",
+      "cmc": 2,
+      "synergies": [
+        {
+          "name": "Polluted Delta"
         }
       ],
       "tags": []
@@ -2374,7 +2429,7 @@
       "cmc": 2,
       "synergies": [
         {
-          "name": "Island"
+          "name": "Polluted Delta"
         }
       ],
       "tags": []
@@ -2451,7 +2506,7 @@
       "cmc": 2,
       "synergies": [
         {
-          "name": "Mightform Harmonizer"
+          "name": "Tolaria West"
         }
       ],
       "tags": []
@@ -2734,6 +2789,17 @@
       ],
       "tags": []
     },
+    "golgari rot farm": {
+      "name": "Golgari Rot Farm",
+      "type": "land",
+      "cmc": 2,
+      "synergies": [
+        {
+          "name": "Boseiju, Who Endures"
+        }
+      ],
+      "tags": []
+    },
     "golgari thug": {
       "name": "Golgari Thug",
       "type": "spell",
@@ -2931,11 +2997,11 @@
     },
     "hallowed fountain": {
       "name": "Hallowed Fountain",
-      "type": "spell",
+      "type": "land",
       "cmc": 2,
       "synergies": [
         {
-          "name": "Godless Shrine"
+          "name": "Flooded Strand"
         }
       ],
       "tags": []
@@ -3101,6 +3167,17 @@
       "synergies": [
         {
           "name": "Eldritch Evolution"
+        }
+      ],
+      "tags": []
+    },
+    "hopeful initiate": {
+      "name": "Hopeful Initiate",
+      "type": "creature",
+      "cmc": 2,
+      "synergies": [
+        {
+          "name": "Plains"
         }
       ],
       "tags": []
@@ -3309,7 +3386,7 @@
       "cmc": 2,
       "synergies": [
         {
-          "name": "Flow State"
+          "name": "Flooded Strand"
         }
       ],
       "tags": []
@@ -3617,7 +3694,7 @@
       "cmc": 2,
       "synergies": [
         {
-          "name": "Indatha Triome"
+          "name": "Windswept Heath"
         }
       ],
       "tags": []
@@ -3639,7 +3716,7 @@
       "cmc": 2,
       "synergies": [
         {
-          "name": "Monastery Swiftspear"
+          "name": "Windswept Heath"
         }
       ],
       "tags": []
@@ -4334,11 +4411,11 @@
     },
     "nishoba brawler": {
       "name": "Nishoba Brawler",
-      "type": "spell",
+      "type": "creature",
       "cmc": 2,
       "synergies": [
         {
-          "name": "Tribal Flames"
+          "name": "Windswept Heath"
         }
       ],
       "tags": []
@@ -4541,6 +4618,17 @@
       ],
       "tags": []
     },
+    "ossification": {
+      "name": "Ossification",
+      "type": "spell",
+      "cmc": 2,
+      "synergies": [
+        {
+          "name": "Plains"
+        }
+      ],
+      "tags": []
+    },
     "otawara, soaring city": {
       "name": "Otawara, Soaring City",
       "type": "spell",
@@ -4580,7 +4668,7 @@
       "cmc": 2,
       "synergies": [
         {
-          "name": "Young Wolf"
+          "name": "Wooded Foothills"
         }
       ],
       "tags": []
@@ -4778,7 +4866,7 @@
       "cmc": 2,
       "synergies": [
         {
-          "name": "Mountain"
+          "name": "Flooded Strand"
         }
       ],
       "tags": []
@@ -4833,7 +4921,7 @@
       "cmc": 2,
       "synergies": [
         {
-          "name": "Plains"
+          "name": "Flooded Strand"
         }
       ],
       "tags": []
@@ -4915,7 +5003,7 @@
       "cmc": 2,
       "synergies": [
         {
-          "name": "Formidable Speaker"
+          "name": "Boseiju, Who Endures"
         }
       ],
       "tags": []
@@ -4937,7 +5025,7 @@
       "cmc": 2,
       "synergies": [
         {
-          "name": "Thoughtseize"
+          "name": "Polluted Delta"
         }
       ],
       "tags": []
@@ -5072,6 +5160,17 @@
       "synergies": [
         {
           "name": "Dryad Arbor"
+        }
+      ],
+      "tags": []
+    },
+    "raffine's tower": {
+      "name": "Raffine's Tower",
+      "type": "land",
+      "cmc": 2,
+      "synergies": [
+        {
+          "name": "Flooded Strand"
         }
       ],
       "tags": []
@@ -5367,11 +5466,11 @@
     },
     "sacred foundry": {
       "name": "Sacred Foundry",
-      "type": "spell",
+      "type": "land",
       "cmc": 2,
       "synergies": [
         {
-          "name": "Godless Shrine"
+          "name": "Wooded Foothills"
         }
       ],
       "tags": []
@@ -5488,11 +5587,11 @@
     },
     "scion of draco": {
       "name": "Scion of Draco",
-      "type": "spell",
+      "type": "creature",
       "cmc": 2,
       "synergies": [
         {
-          "name": "Indatha Triome"
+          "name": "Windswept Heath"
         }
       ],
       "tags": []
@@ -5785,11 +5884,11 @@
     },
     "simic growth chamber": {
       "name": "Simic Growth Chamber",
-      "type": "spell",
+      "type": "land",
       "cmc": 2,
       "synergies": [
         {
-          "name": "Formidable Speaker"
+          "name": "Boseiju, Who Endures"
         }
       ],
       "tags": []
@@ -5856,6 +5955,17 @@
       "synergies": [
         {
           "name": "Flooded Strand"
+        }
+      ],
+      "tags": []
+    },
+    "slayers' stronghold": {
+      "name": "Slayers' Stronghold",
+      "type": "land",
+      "cmc": 2,
+      "synergies": [
+        {
+          "name": "Tolaria West"
         }
       ],
       "tags": []
@@ -5950,11 +6060,11 @@
     },
     "solitude": {
       "name": "Solitude",
-      "type": "spell",
+      "type": "creature",
       "cmc": 2,
       "synergies": [
         {
-          "name": "Teferi, Time Raveler"
+          "name": "Polluted Delta"
         }
       ],
       "tags": []
@@ -6196,7 +6306,7 @@
       "cmc": 2,
       "synergies": [
         {
-          "name": "Slickshot Show-Off"
+          "name": "Wooded Foothills"
         }
       ],
       "tags": []
@@ -6376,7 +6486,7 @@
       "cmc": 2,
       "synergies": [
         {
-          "name": "Eldritch Evolution"
+          "name": "Boseiju, Who Endures"
         }
       ],
       "tags": []
@@ -6421,6 +6531,17 @@
       "synergies": [
         {
           "name": "Flashback"
+        }
+      ],
+      "tags": []
+    },
+    "sunhome, fortress of the legion": {
+      "name": "Sunhome, Fortress of the Legion",
+      "type": "land",
+      "cmc": 2,
+      "synergies": [
+        {
+          "name": "Tolaria West"
         }
       ],
       "tags": []
@@ -6651,7 +6772,7 @@
       "cmc": 2,
       "synergies": [
         {
-          "name": "Island"
+          "name": "Polluted Delta"
         }
       ],
       "tags": []
@@ -6669,11 +6790,11 @@
     },
     "territorial kavu": {
       "name": "Territorial Kavu",
-      "type": "spell",
+      "type": "creature",
       "cmc": 2,
       "synergies": [
         {
-          "name": "Scion of Draco"
+          "name": "Windswept Heath"
         }
       ],
       "tags": []
@@ -6685,6 +6806,17 @@
       "synergies": [
         {
           "name": "Blood Crypt"
+        }
+      ],
+      "tags": []
+    },
+    "thalia, guardian of thraben": {
+      "name": "Thalia, Guardian of Thraben",
+      "type": "creature",
+      "cmc": 2,
+      "synergies": [
+        {
+          "name": "Plains"
         }
       ],
       "tags": []
@@ -6717,7 +6849,7 @@
       "cmc": 2,
       "synergies": [
         {
-          "name": "Teferi, Hero of Dominaria"
+          "name": "Polluted Delta"
         }
       ],
       "tags": []
@@ -6891,11 +7023,11 @@
     },
     "tolaria west": {
       "name": "Tolaria West",
-      "type": "spell",
+      "type": "land",
       "cmc": 2,
       "synergies": [
         {
-          "name": "Springheart Nantuko"
+          "name": "Boseiju, Who Endures"
         }
       ],
       "tags": []
@@ -6950,7 +7082,7 @@
       "cmc": 2,
       "synergies": [
         {
-          "name": "Mountain"
+          "name": "Windswept Heath"
         }
       ],
       "tags": []
@@ -7526,7 +7658,7 @@
       "cmc": 2,
       "synergies": [
         {
-          "name": "Superior Spider-Man"
+          "name": "Flooded Strand"
         }
       ],
       "tags": []
@@ -7577,11 +7709,11 @@
     },
     "wild nacatl": {
       "name": "Wild Nacatl",
-      "type": "spell",
+      "type": "creature",
       "cmc": 2,
       "synergies": [
         {
-          "name": "Nishoba Brawler"
+          "name": "Windswept Heath"
         }
       ],
       "tags": []
@@ -7614,7 +7746,7 @@
       "cmc": 2,
       "synergies": [
         {
-          "name": "Galvanic Discharge"
+          "name": "Wooded Foothills"
         }
       ],
       "tags": []
@@ -7703,7 +7835,7 @@
       "cmc": 2,
       "synergies": [
         {
-          "name": "Monastery Swiftspear"
+          "name": "Windswept Heath"
         }
       ],
       "tags": []
@@ -8595,16 +8727,28 @@
       "name": "Amulet Titan",
       "format": "MODERN",
       "archetype": "Amulet Titan",
-      "player": "Tanner Drabek",
-      "event": "2-slot RCQ @ Dungeon's Gate (Ankeny, IA)",
-      "date": "2026-05-23",
+      "player": "HouseOfMana",
+      "event": "Spicerack Modern Open",
+      "date": "2026-05-24",
       "cards": [
         {
-          "name": "Dryad of the Ilysian Grove",
-          "quantity": 3
+          "name": "Primeval Titan",
+          "quantity": 4
         },
         {
           "name": "Amulet of Vigor",
+          "quantity": 4
+        },
+        {
+          "name": "Azusa, Lost but Seeking",
+          "quantity": 2
+        },
+        {
+          "name": "Dryad of the Ilysian Grove",
+          "quantity": 4
+        },
+        {
+          "name": "Summoner's Pact",
           "quantity": 4
         },
         {
@@ -8612,104 +8756,28 @@
           "quantity": 4
         },
         {
-          "name": "Crumbling Vestige",
-          "quantity": 3
-        },
-        {
-          "name": "Arboreal Grazer",
-          "quantity": 4
-        },
-        {
-          "name": "Cultivator Colossus",
-          "quantity": 1
-        },
-        {
-          "name": "Primeval Titan",
-          "quantity": 4
-        },
-        {
-          "name": "Springheart Nantuko",
-          "quantity": 1
-        },
-        {
-          "name": "Formidable Speaker",
-          "quantity": 1
-        },
-        {
-          "name": "Dryad Arbor",
-          "quantity": 1
-        },
-        {
-          "name": "Spelunking",
-          "quantity": 4
-        },
-        {
-          "name": "Summoner's Pact",
-          "quantity": 1
-        },
-        {
-          "name": "Green Sun's Zenith",
-          "quantity": 4
-        },
-        {
-          "name": "Explore",
+          "name": "Golgari Rot Farm",
           "quantity": 2
         },
         {
-          "name": "Gruul Turf",
-          "quantity": 4
-        },
-        {
-          "name": "Urza's Saga",
-          "quantity": 4
-        },
-        {
-          "name": "Shifting Woodland",
-          "quantity": 1
-        },
-        {
-          "name": "Windswept Heath",
-          "quantity": 1
-        },
-        {
-          "name": "Selesnya Sanctuary",
-          "quantity": 1
-        },
-        {
           "name": "Tolaria West",
+          "quantity": 2
+        },
+        {
+          "name": "Boseiju, Who Endures",
+          "quantity": 2
+        },
+        {
+          "name": "Slayers' Stronghold",
+          "quantity": 1
+        },
+        {
+          "name": "Sunhome, Fortress of the Legion",
           "quantity": 1
         },
         {
           "name": "Forest",
-          "quantity": 3
-        },
-        {
-          "name": "Valakut, the Molten Pinnacle",
-          "quantity": 1
-        },
-        {
-          "name": "Otawara, Soaring City",
-          "quantity": 1
-        },
-        {
-          "name": "Boseiju, Who Endures",
-          "quantity": 3
-        },
-        {
-          "name": "Mirrorpool",
-          "quantity": 1
-        },
-        {
-          "name": "Echoing Deeps",
-          "quantity": 1
-        },
-        {
-          "name": "Hanweir Battlements",
-          "quantity": 1
-        },
-        {
-          "name": "Vesuva",
-          "quantity": 1
+          "quantity": 4
         }
       ]
     },
@@ -10781,6 +10849,68 @@
         }
       ]
     },
+    "domain zoo": {
+      "name": "Domain Zoo",
+      "format": "MODERN",
+      "archetype": "Domain Zoo",
+      "player": "DavyJones",
+      "event": "Spicerack Weekly modern",
+      "date": "2026-05-22",
+      "cards": [
+        {
+          "name": "Wild Nacatl",
+          "quantity": 4
+        },
+        {
+          "name": "Territorial Kavu",
+          "quantity": 4
+        },
+        {
+          "name": "Scion of Draco",
+          "quantity": 4
+        },
+        {
+          "name": "Nishoba Brawler",
+          "quantity": 4
+        },
+        {
+          "name": "Tribal Flames",
+          "quantity": 4
+        },
+        {
+          "name": "Leyline of the Guildpact",
+          "quantity": 4
+        },
+        {
+          "name": "Lightning Bolt",
+          "quantity": 4
+        },
+        {
+          "name": "Wooded Foothills",
+          "quantity": 4
+        },
+        {
+          "name": "Windswept Heath",
+          "quantity": 4
+        },
+        {
+          "name": "Sacred Foundry",
+          "quantity": 2
+        },
+        {
+          "name": "Steam Vents",
+          "quantity": 2
+        },
+        {
+          "name": "Overgrown Tomb",
+          "quantity": 2
+        },
+        {
+          "name": "Forest",
+          "quantity": 1
+        }
+      ]
+    },
     "eldrazi ramp": {
       "name": "Eldrazi Ramp",
       "format": "MODERN",
@@ -11072,6 +11202,72 @@
         {
           "name": "Watery Grave",
           "quantity": 1
+        }
+      ]
+    },
+    "esper sentinel control": {
+      "name": "Esper Sentinel Control",
+      "format": "MODERN",
+      "archetype": "Esper Control",
+      "player": "WafoTapa",
+      "event": "Spicerack Pro Challenge",
+      "date": "2026-05-23",
+      "cards": [
+        {
+          "name": "Esper Sentinel",
+          "quantity": 4
+        },
+        {
+          "name": "Solitude",
+          "quantity": 4
+        },
+        {
+          "name": "Counterspell",
+          "quantity": 4
+        },
+        {
+          "name": "Archmage's Charm",
+          "quantity": 3
+        },
+        {
+          "name": "Teferi, Time Raveler",
+          "quantity": 3
+        },
+        {
+          "name": "The Wandering Emperor",
+          "quantity": 2
+        },
+        {
+          "name": "Prismatic Ending",
+          "quantity": 4
+        },
+        {
+          "name": "Flooded Strand",
+          "quantity": 4
+        },
+        {
+          "name": "Polluted Delta",
+          "quantity": 4
+        },
+        {
+          "name": "Hallowed Fountain",
+          "quantity": 3
+        },
+        {
+          "name": "Watery Grave",
+          "quantity": 2
+        },
+        {
+          "name": "Raffine's Tower",
+          "quantity": 2
+        },
+        {
+          "name": "Island",
+          "quantity": 3
+        },
+        {
+          "name": "Plains",
+          "quantity": 2
         }
       ]
     },
@@ -13332,6 +13528,44 @@
         {
           "name": "Ba Sing Se",
           "quantity": 3
+        }
+      ]
+    },
+    "mono white humans": {
+      "name": "Mono White Humans",
+      "format": "STANDARD",
+      "archetype": "Mono White Humans",
+      "player": "LightForce",
+      "event": "Spicerack Standard Open",
+      "date": "2026-05-24",
+      "cards": [
+        {
+          "name": "Thalia, Guardian of Thraben",
+          "quantity": 4
+        },
+        {
+          "name": "Adeline, Resplendent Cathar",
+          "quantity": 4
+        },
+        {
+          "name": "Hopeful Initiate",
+          "quantity": 4
+        },
+        {
+          "name": "Coppercoat Vanguard",
+          "quantity": 4
+        },
+        {
+          "name": "Brutal Cathar",
+          "quantity": 4
+        },
+        {
+          "name": "Ossification",
+          "quantity": 4
+        },
+        {
+          "name": "Plains",
+          "quantity": 20
         }
       ]
     },
@@ -16775,7 +17009,19 @@
       "name": "Amulet Titan",
       "cards": [
         {
+          "name": "Primeval Titan",
+          "avgQuantity": 4
+        },
+        {
           "name": "Amulet of Vigor",
+          "avgQuantity": 4
+        },
+        {
+          "name": "Dryad of the Ilysian Grove",
+          "avgQuantity": 4
+        },
+        {
+          "name": "Summoner's Pact",
           "avgQuantity": 4
         },
         {
@@ -16783,107 +17029,31 @@
           "avgQuantity": 4
         },
         {
-          "name": "Arboreal Grazer",
-          "avgQuantity": 4
-        },
-        {
-          "name": "Primeval Titan",
-          "avgQuantity": 4
-        },
-        {
-          "name": "Spelunking",
-          "avgQuantity": 4
-        },
-        {
-          "name": "Green Sun's Zenith",
-          "avgQuantity": 4
-        },
-        {
-          "name": "Gruul Turf",
-          "avgQuantity": 4
-        },
-        {
-          "name": "Urza's Saga",
-          "avgQuantity": 4
-        },
-        {
-          "name": "Dryad of the Ilysian Grove",
-          "avgQuantity": 3
-        },
-        {
-          "name": "Crumbling Vestige",
-          "avgQuantity": 3
-        },
-        {
           "name": "Forest",
-          "avgQuantity": 3
+          "avgQuantity": 4
         },
         {
-          "name": "Boseiju, Who Endures",
-          "avgQuantity": 3
-        },
-        {
-          "name": "Explore",
+          "name": "Azusa, Lost but Seeking",
           "avgQuantity": 2
         },
         {
-          "name": "Cultivator Colossus",
-          "avgQuantity": 1
-        },
-        {
-          "name": "Springheart Nantuko",
-          "avgQuantity": 1
-        },
-        {
-          "name": "Formidable Speaker",
-          "avgQuantity": 1
-        },
-        {
-          "name": "Dryad Arbor",
-          "avgQuantity": 1
-        },
-        {
-          "name": "Summoner's Pact",
-          "avgQuantity": 1
-        },
-        {
-          "name": "Shifting Woodland",
-          "avgQuantity": 1
-        },
-        {
-          "name": "Windswept Heath",
-          "avgQuantity": 1
-        },
-        {
-          "name": "Selesnya Sanctuary",
-          "avgQuantity": 1
+          "name": "Golgari Rot Farm",
+          "avgQuantity": 2
         },
         {
           "name": "Tolaria West",
+          "avgQuantity": 2
+        },
+        {
+          "name": "Boseiju, Who Endures",
+          "avgQuantity": 2
+        },
+        {
+          "name": "Slayers' Stronghold",
           "avgQuantity": 1
         },
         {
-          "name": "Valakut, the Molten Pinnacle",
-          "avgQuantity": 1
-        },
-        {
-          "name": "Otawara, Soaring City",
-          "avgQuantity": 1
-        },
-        {
-          "name": "Mirrorpool",
-          "avgQuantity": 1
-        },
-        {
-          "name": "Echoing Deeps",
-          "avgQuantity": 1
-        },
-        {
-          "name": "Hanweir Battlements",
-          "avgQuantity": 1
-        },
-        {
-          "name": "Vesuva",
+          "name": "Sunhome, Fortress of the Legion",
           "avgQuantity": 1
         }
       ]
@@ -19152,6 +19322,63 @@
         }
       ]
     },
+    "domain zoo": {
+      "name": "Domain Zoo",
+      "cards": [
+        {
+          "name": "Wild Nacatl",
+          "avgQuantity": 4
+        },
+        {
+          "name": "Territorial Kavu",
+          "avgQuantity": 4
+        },
+        {
+          "name": "Scion of Draco",
+          "avgQuantity": 4
+        },
+        {
+          "name": "Nishoba Brawler",
+          "avgQuantity": 4
+        },
+        {
+          "name": "Tribal Flames",
+          "avgQuantity": 4
+        },
+        {
+          "name": "Leyline of the Guildpact",
+          "avgQuantity": 4
+        },
+        {
+          "name": "Lightning Bolt",
+          "avgQuantity": 4
+        },
+        {
+          "name": "Wooded Foothills",
+          "avgQuantity": 4
+        },
+        {
+          "name": "Windswept Heath",
+          "avgQuantity": 4
+        },
+        {
+          "name": "Sacred Foundry",
+          "avgQuantity": 2
+        },
+        {
+          "name": "Steam Vents",
+          "avgQuantity": 2
+        },
+        {
+          "name": "Overgrown Tomb",
+          "avgQuantity": 2
+        },
+        {
+          "name": "Forest",
+          "avgQuantity": 1
+        }
+      ]
+    },
     "eldrazi ramp": {
       "name": "Eldrazi Ramp",
       "cards": [
@@ -19480,6 +19707,67 @@
         {
           "name": "Graveyard Trespasser",
           "avgQuantity": 0
+        }
+      ]
+    },
+    "esper control": {
+      "name": "Esper Control",
+      "cards": [
+        {
+          "name": "Esper Sentinel",
+          "avgQuantity": 4
+        },
+        {
+          "name": "Solitude",
+          "avgQuantity": 4
+        },
+        {
+          "name": "Counterspell",
+          "avgQuantity": 4
+        },
+        {
+          "name": "Prismatic Ending",
+          "avgQuantity": 4
+        },
+        {
+          "name": "Flooded Strand",
+          "avgQuantity": 4
+        },
+        {
+          "name": "Polluted Delta",
+          "avgQuantity": 4
+        },
+        {
+          "name": "Archmage's Charm",
+          "avgQuantity": 3
+        },
+        {
+          "name": "Teferi, Time Raveler",
+          "avgQuantity": 3
+        },
+        {
+          "name": "Hallowed Fountain",
+          "avgQuantity": 3
+        },
+        {
+          "name": "Island",
+          "avgQuantity": 3
+        },
+        {
+          "name": "The Wandering Emperor",
+          "avgQuantity": 2
+        },
+        {
+          "name": "Watery Grave",
+          "avgQuantity": 2
+        },
+        {
+          "name": "Raffine's Tower",
+          "avgQuantity": 2
+        },
+        {
+          "name": "Plains",
+          "avgQuantity": 2
         }
       ]
     },
@@ -21992,6 +22280,39 @@
         {
           "name": "Lumbering Worldwagon",
           "avgQuantity": 0
+        }
+      ]
+    },
+    "mono white humans": {
+      "name": "Mono White Humans",
+      "cards": [
+        {
+          "name": "Plains",
+          "avgQuantity": 20
+        },
+        {
+          "name": "Thalia, Guardian of Thraben",
+          "avgQuantity": 4
+        },
+        {
+          "name": "Adeline, Resplendent Cathar",
+          "avgQuantity": 4
+        },
+        {
+          "name": "Hopeful Initiate",
+          "avgQuantity": 4
+        },
+        {
+          "name": "Coppercoat Vanguard",
+          "avgQuantity": 4
+        },
+        {
+          "name": "Brutal Cathar",
+          "avgQuantity": 4
+        },
+        {
+          "name": "Ossification",
+          "avgQuantity": 4
         }
       ]
     },

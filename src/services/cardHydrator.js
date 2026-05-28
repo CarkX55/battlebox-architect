@@ -1,5 +1,5 @@
-const DB_NAME = 'mtg_cards_db';
-const DB_VERSION = 4;
+const DB_NAME = 'MagicGrimorioDB';
+const DB_VERSION = 1;
 const STORE_NAME = 'cards';
 
 let db = null;
@@ -18,12 +18,9 @@ async function openDB() {
     
     request.onupgradeneeded = (event) => {
       const database = event.target.result;
-      if (event.oldVersion < 1) {
-        database.createObjectStore(STORE_NAME, { keyPath: 'name' });
-      } else {
-        // DB_VERSION incremented, delete old and recreate
-        database.deleteObjectStore(STORE_NAME);
-        database.createObjectStore(STORE_NAME, { keyPath: 'name' });
+      if (!database.objectStoreNames.contains(STORE_NAME)) {
+        const store = database.createObjectStore(STORE_NAME, { keyPath: 'id' });
+        store.createIndex('cardIndex', 'name', { unique: false });
       }
     };
   });
@@ -45,7 +42,8 @@ export async function getCardFromDB(name) {
   return new Promise((resolve, reject) => {
     const tx = database.transaction(STORE_NAME, 'readonly');
     const store = tx.objectStore(STORE_NAME);
-    const request = store.get(name);
+    const index = store.index('cardIndex');
+    const request = index.get(name);
     request.onsuccess = () => resolve(request.result || null);
     request.onerror = () => reject(request.error);
   });
@@ -56,7 +54,8 @@ export async function getAllCardNamesFromDB() {
   return new Promise((resolve, reject) => {
     const tx = database.transaction(STORE_NAME, 'readonly');
     const store = tx.objectStore(STORE_NAME);
-    const request = store.getAllKeys();
+    const index = store.index('cardIndex');
+    const request = index.getAllKeys();
     request.onsuccess = () => resolve(request.result || []);
     request.onerror = () => reject(request.error);
   });
@@ -192,6 +191,7 @@ async function fetchCardFromScryfall(cardName) {
     clearTimeout(timeoutId);
     
     const card = {
+      id: data.id || `custom-${data.name.replace(/\s+/g, '-').toLowerCase()}`,
       name: data.name,
       type_line: data.type_line,
       rarity: data.rarity || 'common',

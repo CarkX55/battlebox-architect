@@ -4,7 +4,7 @@
  * MOCK DATA DE METAJUEGO COMPETITIVO ELITE (MTG)
  * Estructuras de mazos de torneos reales de MTGTop8 para usar en modo offline o sin API Key.
  */
-const MOCK_METAGAME_DECKS = {
+export const MOCK_METAGAME_DECKS = {
   STANDARD: [
     {
       name: "Dimir Midrange",

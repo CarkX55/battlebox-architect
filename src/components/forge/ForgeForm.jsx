@@ -297,7 +297,17 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
     setFormData(prev => ({ ...prev, tribe: '', strategy: '' }));
   }, [formData.archetype]);
 
+  const currentArchetype = useMemo(() => {
+    return archetypesList.find(a => a.value === formData.archetype);
+  }, [archetypesList, formData.archetype]);
+
   const allowedColorsInfo = useMemo(() => {
+    // Si hay un arquetipo seleccionado y no es genérico, nos basamos en sus colores recomendados
+    if (currentArchetype && currentArchetype.colorGroup !== 'generic') {
+      const allowed = currentArchetype.recommendedColors || [];
+      return { allowed, primary: allowed };
+    }
+
     let allowed = [];
     let primary = [];
     if (selectedTribeInfo) {
@@ -316,20 +326,38 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
       primary = [];
     }
     return { allowed, primary };
-  }, [selectedTribeInfo, selectedStrategyInfo]);
+  }, [currentArchetype, selectedTribeInfo, selectedStrategyInfo]);
 
   useEffect(() => {
     const { allowed, primary } = allowedColorsInfo;
-    if (allowed.length === 6) return;
     
     setFormData(prev => {
-      const hasInvalidColors = prev.colores.some(c => !allowed.includes(c));
-      const hasNoPrimary = primary.length > 0 && !primary.includes('C') && !primary.some(pc => prev.colores.includes(pc));
-      
-      if (hasInvalidColors || hasNoPrimary) {
-        const newColors = primary.filter(c => c !== 'C');
-        return { ...prev, colores: newColors.length > 0 ? newColors : (primary.includes('C') ? ['C'] : []) };
+      // Si todos los colores están permitidos, no es necesario validar
+      if (allowed.includes('W') && allowed.includes('U') && allowed.includes('B') && allowed.includes('R') && allowed.includes('G') && allowed.includes('C')) {
+        return prev;
       }
+      
+      // Filtrar colores seleccionados que no estén permitidos
+      const validSelected = prev.colores.filter(c => allowed.includes(c));
+      
+      // Si la selección actual tiene colores inválidos o se quedó sin colores seleccionados
+      if (validSelected.length !== prev.colores.length || validSelected.length === 0) {
+        // Fallback: usar los colores primarios o el primer color permitido
+        const fallback = primary.filter(c => c !== 'C');
+        const defaultChoice = fallback.length > 0 ? fallback : (allowed.length > 0 ? [allowed[0]] : []);
+        return { ...prev, colores: validSelected.length > 0 ? validSelected : defaultChoice };
+      }
+      
+      // Si se requiere un primario y no hay ninguno seleccionado (y primario no es incoloro)
+      const hasNoPrimary = primary.length > 0 && !primary.includes('C') && !primary.some(pc => validSelected.includes(pc));
+      if (hasNoPrimary) {
+        const fallback = primary.filter(c => c !== 'C');
+        if (fallback.length > 0) {
+          // Unir el primer primario a la selección
+          return { ...prev, colores: [...new Set([...validSelected, fallback[0]])] };
+        }
+      }
+      
       return prev;
     });
   }, [allowedColorsInfo]);
@@ -343,8 +371,6 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
       }
     }
   }, [groupedTribes, formData.archetype, activeTribeTab]);
-
-  const currentArchetype = archetypesList.find(a => a.value === formData.archetype);
 
   const resetColors = () => {
     if (currentArchetype) {

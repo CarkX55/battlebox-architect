@@ -1039,6 +1039,23 @@ export const getDynamicArchetypes = async () => {
       return [];
     }
 
+    // Cargar mapa de colores de todas las cartas de la base de datos local
+    const cardColorMap = new Map();
+    try {
+      const allCards = await getAllCards();
+      if (allCards && Array.isArray(allCards)) {
+        allCards.forEach(c => {
+          if (c.name) {
+            // Guardar la unión de colors y color_identity para mayor cobertura
+            const colors = (c.colors && c.colors.length > 0) ? c.colors : (c.color_identity || []);
+            cardColorMap.set(c.name.toLowerCase(), colors);
+          }
+        });
+      }
+    } catch (err) {
+      console.error("❌ [RAG Service] Error al cargar todas las cartas para mapeo de colores:", err);
+    }
+
     const transformed = [];
     for (const [key, arch] of Object.entries(graph.archetypes)) {
       const name = arch.name || key;
@@ -1072,63 +1089,113 @@ export const getDynamicArchetypes = async () => {
         spellCount = 38;
       }
 
-      // Deducción inteligente de colores recomendados basados en nombres de gremios canonicales de MTG
-      const recommendedColors = [];
-      if (nameLower.includes('azorius') || nameLower.includes('uw')) recommendedColors.push('W', 'U');
-      if (nameLower.includes('dimir') || nameLower.includes('ub')) recommendedColors.push('U', 'B');
-      if (nameLower.includes('rakdos') || nameLower.includes('br')) recommendedColors.push('B', 'R');
-      if (nameLower.includes('gruul') || nameLower.includes('rg')) recommendedColors.push('R', 'G');
-      if (nameLower.includes('selesnya') || nameLower.includes('wg')) recommendedColors.push('W', 'G');
-      if (nameLower.includes('orzhov') || nameLower.includes('wb')) recommendedColors.push('W', 'B');
-      if (nameLower.includes('izzet') || nameLower.includes('ur')) recommendedColors.push('U', 'R');
-      if (nameLower.includes('golgari') || nameLower.includes('bg')) recommendedColors.push('B', 'G');
-      if (nameLower.includes('boros') || nameLower.includes('wr')) recommendedColors.push('W', 'R');
-      if (nameLower.includes('simic') || nameLower.includes('ug')) recommendedColors.push('U', 'G');
-      if (nameLower.includes('jund')) recommendedColors.push('B', 'R', 'G');
-      if (nameLower.includes('grixis')) recommendedColors.push('U', 'B', 'R');
-      if (nameLower.includes('esper')) recommendedColors.push('W', 'U', 'B');
-      if (nameLower.includes('naya')) recommendedColors.push('W', 'R', 'G');
-      if (nameLower.includes('bant')) recommendedColors.push('W', 'U', 'G');
-      if (nameLower.includes('abzan')) recommendedColors.push('W', 'B', 'G');
-      if (nameLower.includes('jeskai')) recommendedColors.push('W', 'U', 'R');
-      if (nameLower.includes('sultai')) recommendedColors.push('U', 'B', 'G');
-      if (nameLower.includes('mardu')) recommendedColors.push('W', 'B', 'R');
-      if (nameLower.includes('temur')) recommendedColors.push('U', 'R', 'G');
-      if (nameLower.includes('mono-red') || nameLower.includes('mono red') || nameLower.includes('burn')) recommendedColors.push('R');
-      if (nameLower.includes('mono-white') || nameLower.includes('mono white') || nameLower.includes('taxes')) recommendedColors.push('W');
-      if (nameLower.includes('mono-green') || nameLower.includes('mono green') || nameLower.includes('elves')) recommendedColors.push('G');
-      if (nameLower.includes('mono-black') || nameLower.includes('mono black') || nameLower.includes('discard')) recommendedColors.push('B');
-      if (nameLower.includes('mono-blue') || nameLower.includes('mono blue') || nameLower.includes('merfolk')) recommendedColors.push('U');
-      if (nameLower.includes('tron') || nameLower.includes('eldrazi')) recommendedColors.push('C');
-      
+      // 1. Encontrar todos los mazos en el grafo que pertenecen a este arquetipo
+      const matchedDecks = Object.values(graph.decks || {}).filter(deck => {
+        const cleanArch = (deck.archetype || '').replace(/[\[\]]/g, '').trim().toLowerCase();
+        return cleanArch === key.toLowerCase() || cleanArch === nameLower;
+      });
+
+      // 2. Resolver formatos de manera exacta inspeccionando los mazos reales
+      let formats = [];
+      if (matchedDecks.length > 0) {
+        formats = [...new Set(matchedDecks.map(d => d.format.toUpperCase()))];
+      }
+
+      // Heurística robusta de fallback si no hay mazos competitivos cargados
+      if (formats.length === 0) {
+        const MODERN_EXCLUSIVE_KEYWORDS = [
+          'tron', 'murktide', 'living end', 'creativity', 'yawgmoth', 'eldrazi',
+          'belcher', 'shadow', 'affinity', 'titan', 'dredge', 'amulet', 'cascade',
+          'ponza', 'storm', 'hollow', 'chord', 'scepter', 'birthing', 'lantern',
+          'scales', 'omniscience', 'pinnacle', 'doomsday', 'momo', 'rhinos',
+          'prowess', 'reanimator', 'necrodominance', 'frog', 'cutter', 'energy', 'modern'
+        ];
+        const STANDARD_EXCLUSIVE_KEYWORDS = ['standard', 'momo', 'soldier', 'toxic', 'poison'];
+
+        if (STANDARD_EXCLUSIVE_KEYWORDS.some(kw => nameLower.includes(kw))) {
+          formats = ['STANDARD'];
+        } else if (MODERN_EXCLUSIVE_KEYWORDS.some(kw => nameLower.includes(kw))) {
+          formats = ['MODERN'];
+        } else {
+          formats = ['MODERN', 'STANDARD'];
+        }
+      }
+
+      // 3. Resolver colores recomendados basándose en las cartas del arquetipo y mazos
+      const colorsSet = new Set();
+
+      // A. Cartas de la plantilla del arquetipo
+      if (arch.cards && Array.isArray(arch.cards)) {
+        arch.cards.forEach(c => {
+          const cardColors = cardColorMap.get(c.name.toLowerCase());
+          if (cardColors && cardColors.length > 0) {
+            cardColors.forEach(col => colorsSet.add(col));
+          }
+        });
+      }
+
+      // B. Cartas de los mazos asociados
+      matchedDecks.forEach(deck => {
+        if (deck.cards && Array.isArray(deck.cards)) {
+          deck.cards.forEach(c => {
+            const cardColors = cardColorMap.get(c.name.toLowerCase());
+            if (cardColors && cardColors.length > 0) {
+              cardColors.forEach(col => colorsSet.add(col));
+            }
+          });
+        }
+      });
+
+      // C. Heurística inteligente basada en gremios tradicionales de MTG como soporte/fallback
+      const guildColors = [];
+      if (nameLower.includes('azorius') || nameLower.includes('uw')) guildColors.push('W', 'U');
+      if (nameLower.includes('dimir') || nameLower.includes('ub')) guildColors.push('U', 'B');
+      if (nameLower.includes('rakdos') || nameLower.includes('br')) guildColors.push('B', 'R');
+      if (nameLower.includes('gruul') || nameLower.includes('rg')) guildColors.push('R', 'G');
+      if (nameLower.includes('selesnya') || nameLower.includes('wg')) guildColors.push('W', 'G');
+      if (nameLower.includes('orzhov') || nameLower.includes('wb')) guildColors.push('W', 'B');
+      if (nameLower.includes('izzet') || nameLower.includes('ur')) guildColors.push('U', 'R');
+      if (nameLower.includes('golgari') || nameLower.includes('bg')) guildColors.push('B', 'G');
+      if (nameLower.includes('boros') || nameLower.includes('wr')) guildColors.push('W', 'R');
+      if (nameLower.includes('simic') || nameLower.includes('ug')) guildColors.push('U', 'G');
+      if (nameLower.includes('jund')) guildColors.push('B', 'R', 'G');
+      if (nameLower.includes('grixis')) guildColors.push('U', 'B', 'R');
+      if (nameLower.includes('esper')) guildColors.push('W', 'U', 'B');
+      if (nameLower.includes('naya')) guildColors.push('W', 'R', 'G');
+      if (nameLower.includes('bant')) guildColors.push('W', 'U', 'G');
+      if (nameLower.includes('abzan')) guildColors.push('W', 'B', 'G');
+      if (nameLower.includes('jeskai')) guildColors.push('W', 'U', 'R');
+      if (nameLower.includes('sultai')) guildColors.push('U', 'B', 'G');
+      if (nameLower.includes('mardu')) guildColors.push('W', 'B', 'R');
+      if (nameLower.includes('temur')) guildColors.push('U', 'R', 'G');
+      if (nameLower.includes('mono-red') || nameLower.includes('mono red') || nameLower.includes('burn')) guildColors.push('R');
+      if (nameLower.includes('mono-white') || nameLower.includes('mono white') || nameLower.includes('taxes')) guildColors.push('W');
+      if (nameLower.includes('mono-green') || nameLower.includes('mono green') || nameLower.includes('elves')) guildColors.push('G');
+      if (nameLower.includes('mono-black') || nameLower.includes('mono black') || nameLower.includes('discard')) guildColors.push('B');
+      if (nameLower.includes('mono-blue') || nameLower.includes('mono blue') || nameLower.includes('merfolk')) guildColors.push('U');
+      if (nameLower.includes('tron') || nameLower.includes('eldrazi')) guildColors.push('C');
+
+      guildColors.forEach(col => colorsSet.add(col));
+
+      let recommendedColors = [...colorsSet];
       if (recommendedColors.length === 0) {
-        // Fallback: todos los colores principales
         recommendedColors.push('W', 'U', 'B', 'R', 'G');
+      }
+
+      // Remover 'C' si hay más colores asociados, dejando 'C' solo si es puramente incoloro
+      if (recommendedColors.includes('C') && recommendedColors.length > 1) {
+        recommendedColors = recommendedColors.filter(c => c !== 'C');
       }
 
       const topCardNames = arch.cards ? arch.cards.slice(0, 3).map(c => c.name).join(', ') : '';
 
-      // --- Inferencia de Formato ---
-      const MODERN_EXCLUSIVE_KEYWORDS = [
-        'tron', 'murktide', 'living end', 'creativity', 'yawgmoth', 'eldrazi',
-        'belcher', 'shadow', 'affinity', 'titan', 'dredge', 'amulet', 'cascade',
-        'ponza', 'storm', 'hollow', 'chord', 'scepter', 'birthing', 'lantern',
-        'scales', 'omniscience', 'pinnacle', 'doomsday', 'momo', 'rhinos',
-        'prowess', 'reanimator', 'necrodominance', 'frog', 'cutter'
-      ];
-      const STANDARD_EXCLUSIVE_KEYWORDS = ['standard'];
-
-      let formats = ['MODERN', 'STANDARD']; // default: ambos
-      if (STANDARD_EXCLUSIVE_KEYWORDS.some(kw => nameLower.includes(kw))) {
-        formats = ['STANDARD'];
-      } else if (MODERN_EXCLUSIVE_KEYWORDS.some(kw => nameLower.includes(kw))) {
-        formats = ['MODERN'];
-      }
-
       // --- Clasificación por Grupo de Color ---
       const uniqueColors = [...new Set(recommendedColors)];
-      let colorGroup = 'multicolor'; // 4-5 colores
-      if (uniqueColors.length <= 1) colorGroup = 'mono';
+      let colorGroup = 'multicolor';
+      if (uniqueColors.length === 1) {
+        if (uniqueColors[0] === 'C') colorGroup = 'generic';
+        else colorGroup = 'mono';
+      }
       else if (uniqueColors.length === 2) colorGroup = 'bicolor';
       else if (uniqueColors.length === 3) colorGroup = 'tricolor';
 

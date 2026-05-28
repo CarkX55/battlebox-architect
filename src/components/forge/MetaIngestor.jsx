@@ -10,7 +10,8 @@ import {
   loadMetaFromDB,
   parseMultipleDecklists,
   computeMetaFromDecklistsList,
-  saveMetaToDB
+  saveMetaToDB,
+  MOCK_METAGAME_DECKS
 } from '../../services/mtgtop8Service';
 
 export default function MetaIngestor({ selectedFormat, onFormatChange }) {
@@ -97,6 +98,17 @@ export default function MetaIngestor({ selectedFormat, onFormatChange }) {
           clearInterval(interval);
           setProgress(100);
           setTimeout(() => {
+            // Calcular y guardar el metajuego simulado real para que se persista en localStorage
+            try {
+              const mockDecks = MOCK_METAGAME_DECKS[selectedFormat.toUpperCase()] || MOCK_METAGAME_DECKS.MODERN;
+              const mockMeta = computeMetaFromDecklistsList(mockDecks);
+              mockMeta.source = `Mock Local (${selectedFormat} - Sincronizado)`;
+              mockMeta.lastIngestionDate = Date.now();
+              saveMetaToDB(selectedFormat, mockMeta);
+              console.log(`[MetaIngestor] Metajuego simulado de ${selectedFormat} guardado exitosamente.`);
+            } catch (err) {
+              console.error("[MetaIngestor] Error al generar/guardar metajuego mock:", err);
+            }
             setSyncStatus('success');
             setTimeout(() => setSyncStatus('idle'), 3000);
           }, 400);
