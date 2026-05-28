@@ -486,6 +486,16 @@ export async function fetchMTGTop8Decklists(apifyToken, format, maxItems = 30, i
     return metaProfile;
   } catch (err) {
     console.warn("[MTGTop8 Apify] Fallo al consultar scraper, aplicando fallback de seguridad local:", err.message);
+    
+    // Si ya existen datos ricos en el localStorage, ¡NO los sobrescribas con el mock de 3 mazos!
+    const key = `mtgtop8_meta_${format.toUpperCase()}`;
+    const existing = localStorage.getItem(key);
+    if (existing) {
+      console.log(`[MTGTop8] Manteniendo datos existentes en localStorage para ${format} debido a fallo de sincronización.`);
+      // Relanzamos el error indicando que falló pero preservando el histórico
+      throw new Error(`${err.message} (Se preservaron tus ${JSON.parse(existing).totalDecks || 0} mazos históricos cargados previamente).`);
+    }
+    
     // Graceful fallback to mock data so the app doesn't crash or show a failure state to the user
     const fallbackFormat = format ? format.toUpperCase() : "MODERN";
     const mockMeta = computeMetaFromDecklistsList(MOCK_METAGAME_DECKS[fallbackFormat] || MOCK_METAGAME_DECKS.MODERN);

@@ -100,12 +100,18 @@ export default function MetaIngestor({ selectedFormat, onFormatChange }) {
           setTimeout(() => {
             // Calcular y guardar el metajuego simulado real para que se persista en localStorage
             try {
-              const mockDecks = MOCK_METAGAME_DECKS[selectedFormat.toUpperCase()] || MOCK_METAGAME_DECKS.MODERN;
-              const mockMeta = computeMetaFromDecklistsList(mockDecks);
-              mockMeta.source = `Mock Local (${selectedFormat} - Sincronizado)`;
-              mockMeta.lastIngestionDate = Date.now();
-              saveMetaToDB(selectedFormat, mockMeta);
-              console.log(`[MetaIngestor] Metajuego simulado de ${selectedFormat} guardado exitosamente.`);
+              const key = `mtgtop8_meta_${selectedFormat.toUpperCase()}`;
+              const existing = localStorage.getItem(key);
+              if (existing && JSON.parse(existing).totalDecks > 3) {
+                console.log(`[MetaIngestor] Se omitió sobrescribir el metajuego en modo mock porque existen ${JSON.parse(existing).totalDecks} mazos de una sincronización rica anterior.`);
+              } else {
+                const mockDecks = MOCK_METAGAME_DECKS[selectedFormat.toUpperCase()] || MOCK_METAGAME_DECKS.MODERN;
+                const mockMeta = computeMetaFromDecklistsList(mockDecks);
+                mockMeta.source = `Mock Local (${selectedFormat} - Sincronizado)`;
+                mockMeta.lastIngestionDate = Date.now();
+                saveMetaToDB(selectedFormat, mockMeta);
+                console.log(`[MetaIngestor] Metajuego simulado de ${selectedFormat} guardado exitosamente.`);
+              }
             } catch (err) {
               console.error("[MetaIngestor] Error al generar/guardar metajuego mock:", err);
             }
