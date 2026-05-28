@@ -925,3 +925,58 @@ export function calculateKarstenProbability(sourcesCount, turnNeeded, pipsNeeded
   const prob = (successfulStates / totalStates) * 100;
   return Math.round(Math.min(100, Math.max(0, prob)));
 }
+
+// Probabilidad de robar al menos targetLandDrop tierras para el turno N
+export function calculateLandDropProbability(totalLands, targetLandDrop, turn, deckSize = 60) {
+  if (totalLands <= 0 || targetLandDrop <= 0) return 0;
+  
+  const cardsDrawn = 6 + turn;
+  let successfulStates = 0;
+
+  const choose = (n, k) => {
+    if (k < 0 || k > n) return 0;
+    if (k === 0 || k === n) return 1;
+    let res = 1;
+    for (let i = 1; i <= k; i++) {
+      res = res * (n - i + 1) / i;
+    }
+    return Math.round(res);
+  };
+
+  const N = deckSize;
+  const K = totalLands;
+  const n = cardsDrawn;
+
+  for (let x = targetLandDrop; x <= n; x++) {
+    successfulStates += choose(K, x) * choose(N - K, n - x);
+  }
+  
+  const totalStates = choose(N, n);
+  if (totalStates === 0) return 0;
+  
+  const prob = (successfulStates / totalStates) * 100;
+  return Math.round(Math.min(100, Math.max(0, prob)));
+}
+
+// Cobertura de Maná: promedio de probabilidad de tener al menos 1 fuente de cada color requerido para el turno 2
+export function calculateManaCoverage(sourcesObj, colorsNeeded, deckSize = 60) {
+  if (!colorsNeeded || colorsNeeded.length === 0) return 100;
+  
+  let totalProb = 0;
+  let activeColorsCount = 0;
+  
+  for (const color of colorsNeeded) {
+    const srcCount = sourcesObj[color] || 0;
+    if (srcCount > 0) {
+      // Probabilidad de tener al menos 1 fuente de este color en el turno 2 (8 cartas vistas)
+      const prob = calculateKarstenProbability(srcCount, 2, 1, deckSize);
+      totalProb += prob;
+      activeColorsCount++;
+    } else {
+      activeColorsCount++; // Contamos el color como 0% si se requiere pero no hay fuentes
+    }
+  }
+  
+  if (activeColorsCount === 0) return 100;
+  return Math.round(totalProb / activeColorsCount);
+}

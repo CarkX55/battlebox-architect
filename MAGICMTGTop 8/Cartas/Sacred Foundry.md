@@ -1,37 +1,37 @@
 ---
 title: "Sacred Foundry"
-type: "spell"
+type: "land"
 cmc: 2
 synergies:
-  - name: "[[Mountain]]"
-    coeff: 0.78
-  - name: "[[Plains]]"
-    coeff: 0.64
-  - name: "[[Arid Mesa]]"
-    coeff: 0.53
-  - name: "[[Elegant Parlor]]"
-    coeff: 0.42
-  - name: "[[Steam Vents]]"
-    coeff: 0.36
-  - name: "[[Galvanic Discharge]]"
-    coeff: 0.33
-  - name: "[[Flooded Strand]]"
-    coeff: 0.33
-  - name: "[[Godless Shrine]]"
-    coeff: 0.33
+  - name: "[[Wild Nacatl]]"
+    coeff: 1
+  - name: "[[Territorial Kavu]]"
+    coeff: 1
+  - name: "[[Scion of Draco]]"
+    coeff: 1
+  - name: "[[Nishoba Brawler]]"
+    coeff: 1
+  - name: "[[Tribal Flames]]"
+    coeff: 1
+  - name: "[[Leyline of the Guildpact]]"
+    coeff: 1
+  - name: "[[Lightning Bolt]]"
+    coeff: 1
+  - name: "[[Wooded Foothills]]"
+    coeff: 1
 ---
 # Sacred Foundry
 
-- **Tipo:** Spell
-- **Sinergias Top 8:**
-  - [[Mountain]] (Fuerza: 78%)
-  - [[Plains]] (Fuerza: 64%)
-  - [[Arid Mesa]] (Fuerza: 53%)
-  - [[Elegant Parlor]] (Fuerza: 42%)
-  - [[Steam Vents]] (Fuerza: 36%)
-  - [[Galvanic Discharge]] (Fuerza: 33%)
-  - [[Flooded Strand]] (Fuerza: 33%)
-  - [[Godless Shrine]] (Fuerza: 33%)
+- **Tipo:** Land
+- **Sinergias Top 8 (Spicerack):**
+  - [[Wild Nacatl]] (Fuerza: 100%)
+  - [[Territorial Kavu]] (Fuerza: 100%)
+  - [[Scion of Draco]] (Fuerza: 100%)
+  - [[Nishoba Brawler]] (Fuerza: 100%)
+  - [[Tribal Flames]] (Fuerza: 100%)
+  - [[Leyline of the Guildpact]] (Fuerza: 100%)
+  - [[Lightning Bolt]] (Fuerza: 100%)
+  - [[Wooded Foothills]] (Fuerza: 100%)
 
 ---
 *Ficha de conocimiento competitiva generada automáticamente por BattleBox RAG.*

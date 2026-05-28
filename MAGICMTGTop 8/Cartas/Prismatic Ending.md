@@ -3,35 +3,35 @@ title: "Prismatic Ending"
 type: "spell"
 cmc: 2
 synergies:
-  - name: "[[Plains]]"
+  - name: "[[Esper Sentinel]]"
     coeff: 1
   - name: "[[Solitude]]"
-    coeff: 0.92
-  - name: "[[Meticulous Archive]]"
-    coeff: 0.83
-  - name: "[[Hallowed Fountain]]"
-    coeff: 0.83
-  - name: "[[Flooded Strand]]"
-    coeff: 0.83
+    coeff: 1
+  - name: "[[Counterspell]]"
+    coeff: 1
+  - name: "[[Archmage's Charm]]"
+    coeff: 1
   - name: "[[Teferi, Time Raveler]]"
-    coeff: 0.67
-  - name: "[[Marsh Flats]]"
-    coeff: 0.67
-  - name: "[[Thoughtseize]]"
-    coeff: 0.58
+    coeff: 1
+  - name: "[[The Wandering Emperor]]"
+    coeff: 1
+  - name: "[[Flooded Strand]]"
+    coeff: 1
+  - name: "[[Polluted Delta]]"
+    coeff: 1
 ---
 # Prismatic Ending
 
 - **Tipo:** Spell
-- **Sinergias Top 8:**
-  - [[Plains]] (Fuerza: 100%)
-  - [[Solitude]] (Fuerza: 92%)
-  - [[Meticulous Archive]] (Fuerza: 83%)
-  - [[Hallowed Fountain]] (Fuerza: 83%)
-  - [[Flooded Strand]] (Fuerza: 83%)
-  - [[Teferi, Time Raveler]] (Fuerza: 67%)
-  - [[Marsh Flats]] (Fuerza: 67%)
-  - [[Thoughtseize]] (Fuerza: 58%)
+- **Sinergias Top 8 (Spicerack):**
+  - [[Esper Sentinel]] (Fuerza: 100%)
+  - [[Solitude]] (Fuerza: 100%)
+  - [[Counterspell]] (Fuerza: 100%)
+  - [[Archmage's Charm]] (Fuerza: 100%)
+  - [[Teferi, Time Raveler]] (Fuerza: 100%)
+  - [[The Wandering Emperor]] (Fuerza: 100%)
+  - [[Flooded Strand]] (Fuerza: 100%)
+  - [[Polluted Delta]] (Fuerza: 100%)
 
 ---
 *Ficha de conocimiento competitiva generada automáticamente por BattleBox RAG.*

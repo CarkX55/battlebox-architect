@@ -3,35 +3,35 @@ title: "Archmage's Charm"
 type: "spell"
 cmc: 2
 synergies:
-  - name: "[[Ragavan, Nimble Pilferer]]"
+  - name: "[[Esper Sentinel]]"
     coeff: 1
-  - name: "[[Dragon's Rage Channeler]]"
-    coeff: 1
-  - name: "[[Murktide Regent]]"
-    coeff: 1
-  - name: "[[Ledger Shredder]]"
-    coeff: 1
-  - name: "[[Lightning Bolt]]"
-    coeff: 1
-  - name: "[[Unholy Heat]]"
+  - name: "[[Solitude]]"
     coeff: 1
   - name: "[[Counterspell]]"
     coeff: 1
-  - name: "[[Force of Negation]]"
+  - name: "[[Teferi, Time Raveler]]"
+    coeff: 1
+  - name: "[[The Wandering Emperor]]"
+    coeff: 1
+  - name: "[[Prismatic Ending]]"
+    coeff: 1
+  - name: "[[Flooded Strand]]"
+    coeff: 1
+  - name: "[[Polluted Delta]]"
     coeff: 1
 ---
 # Archmage's Charm
 
 - **Tipo:** Spell
-- **Sinergias Top 8:**
-  - [[Ragavan, Nimble Pilferer]] (Fuerza: 100%)
-  - [[Dragon's Rage Channeler]] (Fuerza: 100%)
-  - [[Murktide Regent]] (Fuerza: 100%)
-  - [[Ledger Shredder]] (Fuerza: 100%)
-  - [[Lightning Bolt]] (Fuerza: 100%)
-  - [[Unholy Heat]] (Fuerza: 100%)
+- **Sinergias Top 8 (Spicerack):**
+  - [[Esper Sentinel]] (Fuerza: 100%)
+  - [[Solitude]] (Fuerza: 100%)
   - [[Counterspell]] (Fuerza: 100%)
-  - [[Force of Negation]] (Fuerza: 100%)
+  - [[Teferi, Time Raveler]] (Fuerza: 100%)
+  - [[The Wandering Emperor]] (Fuerza: 100%)
+  - [[Prismatic Ending]] (Fuerza: 100%)
+  - [[Flooded Strand]] (Fuerza: 100%)
+  - [[Polluted Delta]] (Fuerza: 100%)
 
 ---
 *Ficha de conocimiento competitiva generada automáticamente por BattleBox RAG.*

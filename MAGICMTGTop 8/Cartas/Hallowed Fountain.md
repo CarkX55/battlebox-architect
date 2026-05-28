@@ -1,37 +1,37 @@
 ---
 title: "Hallowed Fountain"
-type: "spell"
+type: "land"
 cmc: 2
 synergies:
-  - name: "[[Plains]]"
-    coeff: 0.75
-  - name: "[[Island]]"
-    coeff: 0.56
-  - name: "[[Meticulous Archive]]"
-    coeff: 0.5
-  - name: "[[Quantum Riddler]]"
-    coeff: 0.47
+  - name: "[[Esper Sentinel]]"
+    coeff: 1
+  - name: "[[Solitude]]"
+    coeff: 1
+  - name: "[[Counterspell]]"
+    coeff: 1
+  - name: "[[Archmage's Charm]]"
+    coeff: 1
+  - name: "[[Teferi, Time Raveler]]"
+    coeff: 1
+  - name: "[[The Wandering Emperor]]"
+    coeff: 1
+  - name: "[[Prismatic Ending]]"
+    coeff: 1
   - name: "[[Flooded Strand]]"
-    coeff: 0.47
-  - name: "[[Watery Grave]]"
-    coeff: 0.47
-  - name: "[[Steam Vents]]"
-    coeff: 0.47
-  - name: "[[Godless Shrine]]"
-    coeff: 0.44
+    coeff: 1
 ---
 # Hallowed Fountain
 
-- **Tipo:** Spell
-- **Sinergias Top 8:**
-  - [[Plains]] (Fuerza: 75%)
-  - [[Island]] (Fuerza: 56%)
-  - [[Meticulous Archive]] (Fuerza: 50%)
-  - [[Quantum Riddler]] (Fuerza: 47%)
-  - [[Flooded Strand]] (Fuerza: 47%)
-  - [[Watery Grave]] (Fuerza: 47%)
-  - [[Steam Vents]] (Fuerza: 47%)
-  - [[Godless Shrine]] (Fuerza: 44%)
+- **Tipo:** Land
+- **Sinergias Top 8 (Spicerack):**
+  - [[Esper Sentinel]] (Fuerza: 100%)
+  - [[Solitude]] (Fuerza: 100%)
+  - [[Counterspell]] (Fuerza: 100%)
+  - [[Archmage's Charm]] (Fuerza: 100%)
+  - [[Teferi, Time Raveler]] (Fuerza: 100%)
+  - [[The Wandering Emperor]] (Fuerza: 100%)
+  - [[Prismatic Ending]] (Fuerza: 100%)
+  - [[Flooded Strand]] (Fuerza: 100%)
 
 ---
 *Ficha de conocimiento competitiva generada automáticamente por BattleBox RAG.*

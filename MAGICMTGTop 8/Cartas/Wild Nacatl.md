@@ -1,37 +1,37 @@
 ---
 title: "Wild Nacatl"
-type: "spell"
+type: "creature"
 cmc: 2
 synergies:
-  - name: "[[Arid Mesa]]"
+  - name: "[[Territorial Kavu]]"
     coeff: 1
-  - name: "[[Thundering Falls]]"
+  - name: "[[Scion of Draco]]"
     coeff: 1
-  - name: "[[Flooded Strand]]"
+  - name: "[[Nishoba Brawler]]"
     coeff: 1
-  - name: "[[Sacred Foundry]]"
-    coeff: 1
-  - name: "[[Steam Vents]]"
-    coeff: 1
-  - name: "[[Leyline Binding]]"
+  - name: "[[Tribal Flames]]"
     coeff: 1
   - name: "[[Leyline of the Guildpact]]"
     coeff: 1
-  - name: "[[Nishoba Brawler]]"
+  - name: "[[Lightning Bolt]]"
+    coeff: 1
+  - name: "[[Wooded Foothills]]"
+    coeff: 1
+  - name: "[[Windswept Heath]]"
     coeff: 1
 ---
 # Wild Nacatl
 
-- **Tipo:** Spell
-- **Sinergias Top 8:**
-  - [[Arid Mesa]] (Fuerza: 100%)
-  - [[Thundering Falls]] (Fuerza: 100%)
-  - [[Flooded Strand]] (Fuerza: 100%)
-  - [[Sacred Foundry]] (Fuerza: 100%)
-  - [[Steam Vents]] (Fuerza: 100%)
-  - [[Leyline Binding]] (Fuerza: 100%)
-  - [[Leyline of the Guildpact]] (Fuerza: 100%)
+- **Tipo:** Creature
+- **Sinergias Top 8 (Spicerack):**
+  - [[Territorial Kavu]] (Fuerza: 100%)
+  - [[Scion of Draco]] (Fuerza: 100%)
   - [[Nishoba Brawler]] (Fuerza: 100%)
+  - [[Tribal Flames]] (Fuerza: 100%)
+  - [[Leyline of the Guildpact]] (Fuerza: 100%)
+  - [[Lightning Bolt]] (Fuerza: 100%)
+  - [[Wooded Foothills]] (Fuerza: 100%)
+  - [[Windswept Heath]] (Fuerza: 100%)
 
 ---
 *Ficha de conocimiento competitiva generada automáticamente por BattleBox RAG.*

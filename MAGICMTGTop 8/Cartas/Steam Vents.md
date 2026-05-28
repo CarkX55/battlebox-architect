@@ -3,35 +3,35 @@ title: "Steam Vents"
 type: "land"
 cmc: 2
 synergies:
-  - name: "[[Island]]"
-    coeff: 0.72
-  - name: "[[Spirebluff Canal]]"
-    coeff: 0.62
-  - name: "[[Riverpyre Verge]]"
-    coeff: 0.57
-  - name: "[[Burst Lightning]]"
-    coeff: 0.47
-  - name: "[[Multiversal Passage]]"
-    coeff: 0.41
-  - name: "[[Opt]]"
-    coeff: 0.39
-  - name: "[[Sleight of Hand]]"
-    coeff: 0.39
-  - name: "[[Slickshot Show-Off]]"
-    coeff: 0.38
+  - name: "[[Wild Nacatl]]"
+    coeff: 1
+  - name: "[[Territorial Kavu]]"
+    coeff: 1
+  - name: "[[Scion of Draco]]"
+    coeff: 1
+  - name: "[[Nishoba Brawler]]"
+    coeff: 1
+  - name: "[[Tribal Flames]]"
+    coeff: 1
+  - name: "[[Leyline of the Guildpact]]"
+    coeff: 1
+  - name: "[[Lightning Bolt]]"
+    coeff: 1
+  - name: "[[Wooded Foothills]]"
+    coeff: 1
 ---
 # Steam Vents
 
 - **Tipo:** Land
-- **Sinergias Top 8:**
-  - [[Island]] (Fuerza: 72%)
-  - [[Spirebluff Canal]] (Fuerza: 62%)
-  - [[Riverpyre Verge]] (Fuerza: 57%)
-  - [[Burst Lightning]] (Fuerza: 47%)
-  - [[Multiversal Passage]] (Fuerza: 41%)
-  - [[Opt]] (Fuerza: 39%)
-  - [[Sleight of Hand]] (Fuerza: 39%)
-  - [[Slickshot Show-Off]] (Fuerza: 38%)
+- **Sinergias Top 8 (Spicerack):**
+  - [[Wild Nacatl]] (Fuerza: 100%)
+  - [[Territorial Kavu]] (Fuerza: 100%)
+  - [[Scion of Draco]] (Fuerza: 100%)
+  - [[Nishoba Brawler]] (Fuerza: 100%)
+  - [[Tribal Flames]] (Fuerza: 100%)
+  - [[Leyline of the Guildpact]] (Fuerza: 100%)
+  - [[Lightning Bolt]] (Fuerza: 100%)
+  - [[Wooded Foothills]] (Fuerza: 100%)
 
 ---
 *Ficha de conocimiento competitiva generada automáticamente por BattleBox RAG.*

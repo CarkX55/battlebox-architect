@@ -1,5 +1,5 @@
 ---
-title: "Boseiju, Who Endures"
+title: "Sunhome, Fortress of the Legion"
 type: "land"
 cmc: 2
 synergies:
@@ -20,7 +20,7 @@ synergies:
   - name: "[[Tolaria West]]"
     coeff: 1
 ---
-# Boseiju, Who Endures
+# Sunhome, Fortress of the Legion
 
 - **Tipo:** Land
 - **Sinergias Top 8 (Spicerack):**

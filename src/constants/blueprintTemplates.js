@@ -181,5 +181,33 @@ export const BLUEPRINTS = {
 };
 
 export const getBlueprint = (archetypeId) => {
-  return BLUEPRINTS[archetypeId] || BLUEPRINTS['midrange']; // Midrange as safe fallback
+  if (!archetypeId) return BLUEPRINTS['midrange'];
+  const idLower = archetypeId.toLowerCase();
+  
+  // Buscar coincidencia exacta primero
+  if (BLUEPRINTS[idLower]) {
+    return BLUEPRINTS[idLower];
+  }
+  
+  // Heurísticas inteligentes para arquetipos dinámicos
+  if (idLower.includes('aggro') || idLower.includes('burn') || idLower.includes('affinity') || idLower.includes('prowess') || idLower.includes('scales') || idLower.includes('sligh')) {
+    return BLUEPRINTS['aggro'];
+  }
+  if (idLower.includes('delver') || idLower.includes('shadow') || idLower.includes('tempo') || idLower.includes('merfolk') || idLower.includes('rogue')) {
+    return BLUEPRINTS['tempo'];
+  }
+  if (idLower.includes('prison') || idLower.includes('stax')) {
+    return BLUEPRINTS['prison'];
+  }
+  if (idLower.includes('control') || idLower.includes('miracles') || idLower.includes('taxes')) {
+    return BLUEPRINTS['control'];
+  }
+  if (idLower.includes('combo') || idLower.includes('storm') || idLower.includes('creativity') || idLower.includes('reanimator') || idLower.includes('titan') || idLower.includes('belcher')) {
+    return BLUEPRINTS['combo'];
+  }
+  if (idLower.includes('ramp') || idLower.includes('tron') || idLower.includes('amulet') || idLower.includes('valakut')) {
+    return BLUEPRINTS['ramp'];
+  }
+  
+  return BLUEPRINTS['midrange']; // Midrange as safe fallback
 };

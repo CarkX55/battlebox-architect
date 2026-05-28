@@ -3,35 +3,35 @@ title: "Lightning Bolt"
 type: "spell"
 cmc: 2
 synergies:
-  - name: "[[Mountain]]"
+  - name: "[[Wild Nacatl]]"
     coeff: 1
-  - name: "[[Arid Mesa]]"
-    coeff: 0.89
+  - name: "[[Territorial Kavu]]"
+    coeff: 1
+  - name: "[[Scion of Draco]]"
+    coeff: 1
+  - name: "[[Nishoba Brawler]]"
+    coeff: 1
+  - name: "[[Tribal Flames]]"
+    coeff: 1
+  - name: "[[Leyline of the Guildpact]]"
+    coeff: 1
   - name: "[[Wooded Foothills]]"
-    coeff: 0.89
-  - name: "[[Bloodstained Mire]]"
-    coeff: 0.72
-  - name: "[[Steam Vents]]"
-    coeff: 0.72
-  - name: "[[Thundering Falls]]"
-    coeff: 0.72
-  - name: "[[Scalding Tarn]]"
-    coeff: 0.61
-  - name: "[[Monastery Swiftspear]]"
-    coeff: 0.61
+    coeff: 1
+  - name: "[[Windswept Heath]]"
+    coeff: 1
 ---
 # Lightning Bolt
 
 - **Tipo:** Spell
-- **Sinergias Top 8:**
-  - [[Mountain]] (Fuerza: 100%)
-  - [[Arid Mesa]] (Fuerza: 89%)
-  - [[Wooded Foothills]] (Fuerza: 89%)
-  - [[Bloodstained Mire]] (Fuerza: 72%)
-  - [[Steam Vents]] (Fuerza: 72%)
-  - [[Thundering Falls]] (Fuerza: 72%)
-  - [[Scalding Tarn]] (Fuerza: 61%)
-  - [[Monastery Swiftspear]] (Fuerza: 61%)
+- **Sinergias Top 8 (Spicerack):**
+  - [[Wild Nacatl]] (Fuerza: 100%)
+  - [[Territorial Kavu]] (Fuerza: 100%)
+  - [[Scion of Draco]] (Fuerza: 100%)
+  - [[Nishoba Brawler]] (Fuerza: 100%)
+  - [[Tribal Flames]] (Fuerza: 100%)
+  - [[Leyline of the Guildpact]] (Fuerza: 100%)
+  - [[Wooded Foothills]] (Fuerza: 100%)
+  - [[Windswept Heath]] (Fuerza: 100%)
 
 ---
 *Ficha de conocimiento competitiva generada automáticamente por BattleBox RAG.*

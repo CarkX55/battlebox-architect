@@ -3,35 +3,35 @@ title: "Polluted Delta"
 type: "land"
 cmc: 2
 synergies:
-  - name: "[[Swamp]]"
-    coeff: 0.81
-  - name: "[[Thoughtseize]]"
-    coeff: 0.81
-  - name: "[[Marsh Flats]]"
-    coeff: 0.75
-  - name: "[[Undercity Sewers]]"
-    coeff: 0.69
+  - name: "[[Esper Sentinel]]"
+    coeff: 1
+  - name: "[[Solitude]]"
+    coeff: 1
+  - name: "[[Counterspell]]"
+    coeff: 1
+  - name: "[[Archmage's Charm]]"
+    coeff: 1
+  - name: "[[Teferi, Time Raveler]]"
+    coeff: 1
+  - name: "[[The Wandering Emperor]]"
+    coeff: 1
+  - name: "[[Prismatic Ending]]"
+    coeff: 1
   - name: "[[Flooded Strand]]"
-    coeff: 0.69
-  - name: "[[Watery Grave]]"
-    coeff: 0.69
-  - name: "[[Fatal Push]]"
-    coeff: 0.63
-  - name: "[[Plains]]"
-    coeff: 0.56
+    coeff: 1
 ---
 # Polluted Delta
 
 - **Tipo:** Land
-- **Sinergias Top 8:**
-  - [[Swamp]] (Fuerza: 81%)
-  - [[Thoughtseize]] (Fuerza: 81%)
-  - [[Marsh Flats]] (Fuerza: 75%)
-  - [[Undercity Sewers]] (Fuerza: 69%)
-  - [[Flooded Strand]] (Fuerza: 69%)
-  - [[Watery Grave]] (Fuerza: 69%)
-  - [[Fatal Push]] (Fuerza: 63%)
-  - [[Plains]] (Fuerza: 56%)
+- **Sinergias Top 8 (Spicerack):**
+  - [[Esper Sentinel]] (Fuerza: 100%)
+  - [[Solitude]] (Fuerza: 100%)
+  - [[Counterspell]] (Fuerza: 100%)
+  - [[Archmage's Charm]] (Fuerza: 100%)
+  - [[Teferi, Time Raveler]] (Fuerza: 100%)
+  - [[The Wandering Emperor]] (Fuerza: 100%)
+  - [[Prismatic Ending]] (Fuerza: 100%)
+  - [[Flooded Strand]] (Fuerza: 100%)
 
 ---
 *Ficha de conocimiento competitiva generada automáticamente por BattleBox RAG.*

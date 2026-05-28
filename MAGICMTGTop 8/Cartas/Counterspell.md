@@ -3,35 +3,35 @@ title: "Counterspell"
 type: "spell"
 cmc: 2
 synergies:
-  - name: "[[Spell Snare]]"
-    coeff: 0.89
-  - name: "[[Force of Negation]]"
-    coeff: 0.67
-  - name: "[[Island]]"
-    coeff: 0.67
+  - name: "[[Esper Sentinel]]"
+    coeff: 1
+  - name: "[[Solitude]]"
+    coeff: 1
+  - name: "[[Archmage's Charm]]"
+    coeff: 1
+  - name: "[[Teferi, Time Raveler]]"
+    coeff: 1
+  - name: "[[The Wandering Emperor]]"
+    coeff: 1
+  - name: "[[Prismatic Ending]]"
+    coeff: 1
   - name: "[[Flooded Strand]]"
-    coeff: 0.67
-  - name: "[[Stock Up]]"
-    coeff: 0.56
-  - name: "[[Meticulous Archive]]"
-    coeff: 0.56
-  - name: "[[Hallowed Fountain]]"
-    coeff: 0.56
-  - name: "[[Otawara, Soaring City]]"
-    coeff: 0.56
+    coeff: 1
+  - name: "[[Polluted Delta]]"
+    coeff: 1
 ---
 # Counterspell
 
 - **Tipo:** Spell
-- **Sinergias Top 8:**
-  - [[Spell Snare]] (Fuerza: 89%)
-  - [[Force of Negation]] (Fuerza: 67%)
-  - [[Island]] (Fuerza: 67%)
-  - [[Flooded Strand]] (Fuerza: 67%)
-  - [[Stock Up]] (Fuerza: 56%)
-  - [[Meticulous Archive]] (Fuerza: 56%)
-  - [[Hallowed Fountain]] (Fuerza: 56%)
-  - [[Otawara, Soaring City]] (Fuerza: 56%)
+- **Sinergias Top 8 (Spicerack):**
+  - [[Esper Sentinel]] (Fuerza: 100%)
+  - [[Solitude]] (Fuerza: 100%)
+  - [[Archmage's Charm]] (Fuerza: 100%)
+  - [[Teferi, Time Raveler]] (Fuerza: 100%)
+  - [[The Wandering Emperor]] (Fuerza: 100%)
+  - [[Prismatic Ending]] (Fuerza: 100%)
+  - [[Flooded Strand]] (Fuerza: 100%)
+  - [[Polluted Delta]] (Fuerza: 100%)
 
 ---
 *Ficha de conocimiento competitiva generada automáticamente por BattleBox RAG.*

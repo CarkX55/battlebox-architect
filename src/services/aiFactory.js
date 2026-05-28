@@ -1,5 +1,5 @@
 import { BATTLEBOX_BANLIST, BATTLEBOX_ARCHETYPES, MTG_STRATEGIES, BANLIST_SUBSTITUTIONS, getIntelligentSubstitution } from '../constants/legacyBattleBox.js';
-import { buildCardPool } from './ragService.js';
+import { buildCardPool, getDynamicArchetypes } from './ragService.js';
 
 const PROVIDER_URLS = {
   openai: 'https://api.openai.com/v1/chat/completions',
@@ -143,9 +143,9 @@ Tu misión es diseñar un mazo temático, altamente competitivo dentro de la equ
 Debes rellenar todos los campos del JSON y cumplir escrupulosamente con los totales numéricos.`;
 
 export function buildDeckArchitectPrompt(params) {
-  const { colors, archetype, tribe, strategy, userPrompt, rarityMode } = params;
+  const { colors, archetype, tribe, strategy, userPrompt, rarityMode, archData: passedArchData } = params;
 
-  const archData = BATTLEBOX_ARCHETYPES.find(a => a.id === archetype) || BATTLEBOX_ARCHETYPES[3];
+  const archData = passedArchData || BATTLEBOX_ARCHETYPES.find(a => a.id === archetype) || BATTLEBOX_ARCHETYPES[3];
   
   // Buscar mecánicas técnicas si se pasó una estrategia por nombre o id
   let strategyMechanics = 'N/A';
@@ -199,8 +199,8 @@ export function buildDeckArchitectPrompt(params) {
 }
 
 export function buildStrategistMathPrompt(params) {
-  const { colors, archetype, tribe, strategy, userPrompt, rarityMode } = params;
-  const archData = BATTLEBOX_ARCHETYPES.find(a => a.id === archetype) || BATTLEBOX_ARCHETYPES[3];
+  const { colors, archetype, tribe, strategy, userPrompt, rarityMode, archData: passedArchData } = params;
+  const archData = passedArchData || BATTLEBOX_ARCHETYPES.find(a => a.id === archetype) || BATTLEBOX_ARCHETYPES[3];
   const landCount = archData.landCount || 24;
   const spellCount = archData.spellCount || 36;
   
@@ -235,9 +235,9 @@ export function buildStrategistMathPrompt(params) {
 }
 
 export function buildUnifiedDeckArchitectPrompt(params) {
-  const { colors, archetype, tribe, strategy, userPrompt, rarityMode } = params;
+  const { colors, archetype, tribe, strategy, userPrompt, rarityMode, archData: passedArchData } = params;
 
-  const archData = BATTLEBOX_ARCHETYPES.find(a => a.id === archetype) || BATTLEBOX_ARCHETYPES[3];
+  const archData = passedArchData || BATTLEBOX_ARCHETYPES.find(a => a.id === archetype) || BATTLEBOX_ARCHETYPES[3];
   const landCount = archData.landCount || 24;
   const spellCount = archData.spellCount || 36;
   
@@ -528,7 +528,28 @@ export async function generateDeckTactics(deck, aiConfig) {
 
 export async function forgeMazo(formData, aiConfig, onProgress = () => {}) {
   const archetype = formData.archetype || 'midrange';
-  const archData = BATTLEBOX_ARCHETYPES.find(a => a.id === archetype) || BATTLEBOX_ARCHETYPES[3];
+  let archData = BATTLEBOX_ARCHETYPES.find(a => a.id === archetype);
+  if (!archData) {
+    try {
+      const dynamicArchs = await getDynamicArchetypes();
+      const match = dynamicArchs.find(a => a.value === archetype);
+      if (match) {
+        archData = {
+          id: match.value,
+          label: match.label,
+          recommendedColors: match.recommendedColors,
+          speed: match.speed,
+          winTurn: match.winTurn,
+          landCount: match.landCount,
+          spellCount: match.spellCount,
+          description: match.description
+        };
+      }
+    } catch (e) {
+      console.warn("Error loading dynamic archetypes in forgeMazo:", e);
+    }
+  }
+  if (!archData) archData = BATTLEBOX_ARCHETYPES[3];
   
   const promptParams = {
     colors: formData.colores || [],
@@ -536,7 +557,8 @@ export async function forgeMazo(formData, aiConfig, onProgress = () => {}) {
     tribe: formData.tribe,
     strategy: formData.strategy,
     userPrompt: formData.prompt,
-    rarityMode: formData.rarityMode || 'standard'
+    rarityMode: formData.rarityMode || 'standard',
+    archData
   };
 
   // 1. EL ARQUITECTO DE MAZOS UNIFICADO (Ejecución en un solo paso robusto)

@@ -17,7 +17,7 @@ import { PowerLevelMeter } from '../components/forge/PowerLevelMeter';
 import RadarChart from '../components/forge/RadarChart';
 import ManaCurve from '../components/forge/ManaCurve';
 import { AlertTriangle, Shield, Lightbulb, Target, Scroll, PenTool, CheckCircle2, XCircle, Info, Zap, Sparkles, Copy, PlusCircle, MinusCircle } from 'lucide-react';
-import { calculateKarstenProbability } from '../services/deckCalculator';
+import { calculateKarstenProbability, calculateLandDropProbability, calculateManaCoverage } from '../services/deckCalculator';
 
 const FORGE_STORAGE_KEY = 'mtg_ai_config_forge';
 
@@ -73,9 +73,19 @@ const getManaSourcesCount = (deck) => {
 };
 
 // Componente Visual de la Matriz de Probabilidades de Frank Karsten
-const KarstenMatrix = ({ deck }) => {
+// Componente Visual de la Matriz de Probabilidades de Frank Karsten
+const KarstenMatrix = ({ deck, validationEngine = 'local', validationData = null }) => {
+  const [activeTab, setActiveTab] = useState('matrix'); // 'matrix' | 'details' | 'recs'
   const sources = useMemo(() => getManaSourcesCount(deck), [deck]);
   const deckSize = useMemo(() => deck.reduce((sum, c) => sum + (c.quantity || 1), 0), [deck]);
+  
+  const totalLands = useMemo(() => {
+    return deck.filter(c => {
+      const category = (c.category || '').toLowerCase();
+      const isLandName = ['plains', 'island', 'swamp', 'mountain', 'forest', 'wastes', 'llanura', 'isla', 'pantano', 'montaña', 'bosque', 'yermo'].includes(c.name.toLowerCase());
+      return category === 'land' || isLandName;
+    }).reduce((sum, c) => sum + (c.quantity || 1), 0);
+  }, [deck]);
 
   const rows = [
     { color: 'W', label: 'Blanco', symbol: 'W' },
@@ -86,89 +96,237 @@ const KarstenMatrix = ({ deck }) => {
   ];
 
   const getProbColor = (p) => {
-    if (p >= 90) return 'text-green-400 bg-green-500/10 border-green-500/20';
-    if (p >= 80) return 'text-yellow-400 bg-yellow-500/10 border-yellow-500/20';
-    return 'text-red-400 bg-red-500/10 border-red-500/20';
+    if (p >= 90) return 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
+    if (p >= 80) return 'text-amber-400 bg-amber-500/10 border-amber-500/20';
+    return 'text-rose-400 bg-rose-500/10 border-rose-500/20';
   };
+
+  const getBarColor = (p) => {
+    if (p >= 90) return 'bg-emerald-500';
+    if (p >= 80) return 'bg-amber-500';
+    return 'bg-rose-500';
+  };
+
+  const localRecs = useMemo(() => {
+    const recs = [];
+    if (totalLands < 22 && totalLands > 0) {
+      recs.push({
+        title: 'Bajo recuento de tierras',
+        description: `Tu mazo posee solo ${totalLands} tierras. Con un recuento inferior a 22, tu probabilidad de jugar cartas de coste 3 o más en la curva óptima desciende fuertemente.`
+      });
+    }
+    if (totalLands > 26) {
+      recs.push({
+        title: 'Alto recuento de tierras',
+        description: `Tu mazo posee ${totalLands} tierras. Un recuento superior a 26 tierras puede provocar inundaciones de maná (Mana Flood) en estrategias que no tengan costos de maná muy elevados.`
+      });
+    }
+    
+    rows.forEach(r => {
+      const srcCount = sources[r.color] || 0;
+      if (srcCount > 0 && srcCount < 9) {
+        recs.push({
+          title: `Fuentes insuficientes para ${r.label}`,
+          description: `Frank Karsten recomienda al menos 10 fuentes de maná de color ${r.label} para poder lanzar hechizos de coste 1-2 consistentemente en el turno adecuado.`
+        });
+      }
+    });
+
+    if (recs.length === 0) {
+      recs.push({
+        title: 'Base de Maná Equilibrada',
+        description: '✅ ¡Tu base de maná cumple perfectamente con las proporciones áureas de Frank Karsten!'
+      });
+    }
+    return recs;
+  }, [totalLands, sources]);
 
   const hasAnySources = Object.values(sources).some(c => c > 0);
   if (!hasAnySources) return null;
 
   return (
-    <div className="bg-black/50 border border-[#D4AF37]/20 rounded-2xl p-5 space-y-4 glassmorphic-panel mt-6">
-      <div className="flex items-center justify-between border-b border-white/5 pb-2 animate-glow">
-        <h3 className="font-cinzel text-sm text-[#D4AF37] flex items-center gap-2">
-          <Target size={16} className="text-[#D4AF37] animate-pulse" /> Matriz de Frank Karsten (Probabilidad de Maná)
-        </h3>
-        <span className="text-[10px] text-gray-500 uppercase tracking-widest">Matemática Pro Tour</span>
+    <div className="bg-black/60 border border-[#D4AF37]/20 rounded-2xl p-5 space-y-4 glassmorphic-panel mt-6 relative overflow-hidden backdrop-blur-md">
+      {/* Decorative subtle visual top bar */}
+      <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-[#D4AF37]/50 to-transparent" />
+      
+      {/* Engine Status Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-white/5 pb-3 gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2">
+            <Target size={18} className="text-[#D4AF37] animate-pulse" />
+            <h3 className="font-cinzel text-sm text-[#D4AF37] tracking-wider">Métrica Hipergeométrica</h3>
+          </div>
+          {validationEngine === 'hypergeometric' ? (
+            <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-sans font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 animate-pulse shadow-[0_0_10px_rgba(16,185,129,0.15)]">
+              <Zap size={11} className="text-emerald-400 animate-bounce" /> Spicerack API
+            </span>
+          ) : (
+            <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-sans font-bold text-amber-400 bg-amber-500/10 border border-amber-500/30 animate-pulse shadow-[0_0_10px_rgba(245,158,11,0.15)]">
+              <Shield size={11} className="text-amber-400" /> Heurística Local
+            </span>
+          )}
+        </div>
+        
+        {/* Navigation Tabs */}
+        <div className="flex bg-white/5 border border-white/10 rounded-lg p-0.5 text-[11px] self-start sm:self-auto">
+          <button 
+            onClick={() => setActiveTab('matrix')}
+            className={cn("px-2.5 py-1 rounded-md transition-all font-medium", activeTab === 'matrix' ? "bg-[#D4AF37]/20 text-[#D4AF37] border border-[#D4AF37]/30" : "text-gray-400 hover:text-gray-200")}
+          >
+            Frank Karsten
+          </button>
+          <button 
+            onClick={() => setActiveTab('details')}
+            className={cn("px-2.5 py-1 rounded-md transition-all font-medium", activeTab === 'details' ? "bg-[#D4AF37]/20 text-[#D4AF37] border border-[#D4AF37]/30" : "text-gray-400 hover:text-gray-200")}
+          >
+            Prob. Tierras
+          </button>
+          <button 
+            onClick={() => setActiveTab('recs')}
+            className={cn("px-2.5 py-1 rounded-md transition-all font-medium relative", activeTab === 'recs' ? "bg-[#D4AF37]/20 text-[#D4AF37] border border-[#D4AF37]/30" : "text-gray-400 hover:text-gray-200")}
+          >
+            Sugerencias
+            {((validationData?.recommendations && validationData.recommendations.length > 0) || localRecs.length > 0) && (
+              <span className="absolute -top-1 -right-1 flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
+              </span>
+            )}
+          </button>
+        </div>
       </div>
 
-      <p className="text-xs text-gray-400 font-serif leading-relaxed">
-        Esta matriz calcula la probabilidad hipergeométrica exacta de tener fuentes de maná suficientes para jugar hechizos en la curva ideal en un mazo de {deckSize} cartas. Se recomienda apuntar al menos al <span className="text-green-400 font-bold">90%</span> para asegurar estabilidad competitiva.
-      </p>
+      {activeTab === 'matrix' && (
+        <div className="space-y-4">
+          <p className="text-xs text-gray-400 font-serif leading-relaxed">
+            Esta matriz calcula la probabilidad hipergeométrica exacta de tener fuentes de maná suficientes para jugar hechizos en la curva ideal en un mazo de {deckSize} cartas. Se recomienda apuntar al menos al <span className="text-emerald-400 font-bold">90%</span> para asegurar estabilidad competitiva.
+          </p>
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-left border-collapse text-xs">
-          <thead>
-            <tr className="border-b border-white/5 text-gray-500">
-              <th className="py-2">Color</th>
-              <th className="py-2">Fuentes</th>
-              <th className="py-2 text-center">T1 (1 Pip)</th>
-              <th className="py-2 text-center">T2 (1 Pip)</th>
-              <th className="py-2 text-center">T2 (2 Pips)</th>
-              <th className="py-2 text-center">T3 (2 Pips)</th>
-              <th className="py-2 text-center">T4 (2 Pips)</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => {
-              const srcCount = sources[row.color] || 0;
-              const t1_1 = calculateKarstenProbability(srcCount, 1, 1, deckSize);
-              const t2_1 = calculateKarstenProbability(srcCount, 2, 1, deckSize);
-              const t2_2 = calculateKarstenProbability(srcCount, 2, 2, deckSize);
-              const t3_2 = calculateKarstenProbability(srcCount, 3, 2, deckSize);
-              const t4_2 = calculateKarstenProbability(srcCount, 4, 2, deckSize);
-
-              if (srcCount === 0) return null;
-
-              return (
-                <tr key={row.color} className="border-b border-white/5 hover:bg-white/5 transition-colors">
-                  <td className="py-3 font-cinzel font-bold text-gray-200 flex items-center gap-2">
-                    <span className={`w-3 h-3 rounded-full bg-${row.color === 'W' ? 'yellow-100' : row.color === 'U' ? 'blue-500' : row.color === 'B' ? 'gray-700' : row.color === 'R' ? 'red-500' : 'green-500'} inline-block border border-white/10`} />
-                    {row.label}
-                  </td>
-                  <td className="py-3 text-gray-400 font-sans font-bold">{srcCount} fuentes</td>
-                  <td className="py-3 text-center">
-                    <span className={`px-2 py-0.5 rounded border text-[11px] font-sans font-bold ${getProbColor(t1_1)}`}>
-                      {t1_1}%
-                    </span>
-                  </td>
-                  <td className="py-3 text-center">
-                    <span className={`px-2 py-0.5 rounded border text-[11px] font-sans font-bold ${getProbColor(t2_1)}`}>
-                      {t2_1}%
-                    </span>
-                  </td>
-                  <td className="py-3 text-center">
-                    <span className={`px-2 py-0.5 rounded border text-[11px] font-sans font-bold ${getProbColor(t2_2)}`}>
-                      {t2_2}%
-                    </span>
-                  </td>
-                  <td className="py-3 text-center">
-                    <span className={`px-2 py-0.5 rounded border text-[11px] font-sans font-bold ${getProbColor(t3_2)}`}>
-                      {t3_2}%
-                    </span>
-                  </td>
-                  <td className="py-3 text-center">
-                    <span className={`px-2 py-0.5 rounded border text-[11px] font-sans font-bold ${getProbColor(t4_2)}`}>
-                      {t4_2}%
-                    </span>
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="border-b border-white/5 text-gray-500">
+                  <th className="py-2">Color</th>
+                  <th className="py-2">Fuentes</th>
+                  <th className="py-2 text-center">T1 (1 Pip)</th>
+                  <th className="py-2 text-center">T2 (1 Pip)</th>
+                  <th className="py-2 text-center">T2 (2 Pips)</th>
+                  <th className="py-2 text-center">T3 (2 Pips)</th>
+                  <th className="py-2 text-center">T4 (2 Pips)</th>
                 </tr>
+              </thead>
+              <tbody>
+                {rows.map((row) => {
+                  const srcCount = sources[row.color] || 0;
+                  if (srcCount === 0) return null;
+
+                  const t1_1 = validationData?.karstenMatrix?.[row.color]?.t1_1 ?? calculateKarstenProbability(srcCount, 1, 1, deckSize);
+                  const t2_1 = validationData?.karstenMatrix?.[row.color]?.t2_1 ?? calculateKarstenProbability(srcCount, 2, 1, deckSize);
+                  const t2_2 = validationData?.karstenMatrix?.[row.color]?.t2_2 ?? calculateKarstenProbability(srcCount, 2, 2, deckSize);
+                  const t3_2 = validationData?.karstenMatrix?.[row.color]?.t3_2 ?? calculateKarstenProbability(srcCount, 3, 2, deckSize);
+                  const t4_2 = validationData?.karstenMatrix?.[row.color]?.t4_2 ?? calculateKarstenProbability(srcCount, 4, 2, deckSize);
+
+                  return (
+                    <tr key={row.color} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                      <td className="py-3 font-cinzel font-bold text-gray-200 flex items-center gap-2">
+                        <span className={`w-2.5 h-2.5 rounded-full bg-${row.color === 'W' ? 'yellow-100' : row.color === 'U' ? 'blue-500' : row.color === 'B' ? 'gray-700' : row.color === 'R' ? 'red-500' : 'green-500'} inline-block border border-white/10`} />
+                        {row.label}
+                      </td>
+                      <td className="py-3 text-gray-400 font-sans font-bold">{srcCount} fuentes</td>
+                      <td className="py-3 text-center">
+                        <span className={`px-2 py-0.5 rounded border text-[11px] font-sans font-bold ${getProbColor(t1_1)}`}>
+                          {t1_1}%
+                        </span>
+                      </td>
+                      <td className="py-3 text-center">
+                        <span className={`px-2 py-0.5 rounded border text-[11px] font-sans font-bold ${getProbColor(t2_1)}`}>
+                          {t2_1}%
+                        </span>
+                      </td>
+                      <td className="py-3 text-center">
+                        <span className={`px-2 py-0.5 rounded border text-[11px] font-sans font-bold ${getProbColor(t2_2)}`}>
+                          {t2_2}%
+                        </span>
+                      </td>
+                      <td className="py-3 text-center">
+                        <span className={`px-2 py-0.5 rounded border text-[11px] font-sans font-bold ${getProbColor(t3_2)}`}>
+                          {t3_2}%
+                        </span>
+                      </td>
+                      <td className="py-3 text-center">
+                        <span className={`px-2 py-0.5 rounded border text-[11px] font-sans font-bold ${getProbColor(t4_2)}`}>
+                          {t4_2}%
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'details' && (
+        <div className="space-y-4">
+          <p className="text-xs text-gray-400 font-serif leading-relaxed">
+            Muestra la probabilidad estadística acumulada de robar al menos la cantidad de tierras deseadas según tu total actual de tierras (<span className="text-[#D4AF37] font-bold">{totalLands}</span>).
+          </p>
+
+          <div className="space-y-3">
+            {[
+              { target: 1, turn: 1, label: 'Al menos 1 tierra' },
+              { target: 2, turn: 2, label: 'Al menos 2 tierras' },
+              { target: 3, turn: 3, label: 'Al menos 3 tierras' },
+              { target: 4, turn: 4, label: 'Al menos 4 tierras' },
+              { target: 5, turn: 5, label: 'Al menos 5 tierras' }
+            ].map((ld) => {
+              const prob = validationData?.landDropProbabilities?.[`t${ld.turn}`] ?? calculateLandDropProbability(totalLands, ld.target, ld.turn, deckSize);
+              
+              return (
+                <div key={ld.turn} className="space-y-1 text-xs">
+                  <div className="flex justify-between text-gray-300 font-medium">
+                    <span>{ld.label} (Curva de Turno {ld.turn})</span>
+                    <span className="font-bold text-[#D4AF37]">{prob}%</span>
+                  </div>
+                  <div className="w-full bg-white/5 border border-white/10 rounded-full h-2 overflow-hidden">
+                    <div 
+                      className={`h-full rounded-full transition-all duration-500 ${getBarColor(prob)}`}
+                      style={{ width: `${prob}%` }}
+                    />
+                  </div>
+                </div>
               );
             })}
-          </tbody>
-        </table>
-      </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'recs' && (
+        <div className="space-y-3">
+          <p className="text-xs text-gray-400 font-serif leading-relaxed">
+            Recomendaciones sugeridas para optimizar el equilibrio y consistencia de tu base de maná.
+          </p>
+
+          <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
+            {(validationData?.recommendations && validationData.recommendations.length > 0
+              ? validationData.recommendations.map((r, i) => ({
+                  title: typeof r === 'string' ? 'Optimización del Motor' : r.title || 'Optimización del Motor',
+                  description: typeof r === 'string' ? r : r.description || ''
+                }))
+              : localRecs
+            ).map((rec, idx) => (
+              <div key={idx} className="bg-white/5 border border-white/10 rounded-xl p-3 flex gap-2.5 items-start">
+                <Lightbulb size={15} className="text-[#D4AF37] shrink-0 mt-0.5" />
+                <div className="space-y-0.5">
+                  <h4 className="text-[11px] font-bold text-gray-200 uppercase tracking-wider">{rec.title}</h4>
+                  <p className="text-xs text-gray-400 leading-normal font-serif">{rec.description}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -971,7 +1129,7 @@ export default function DeckForge() {
                 <VisualGrid cards={renderDeck} isEditing={isEditing} onRemoveCard={handleRemoveCard} onAddCard={(name) => handleAddCard({ name })} />
                 
                 {/* Matriz de Probabilidades de Frank Karsten */}
-                <KarstenMatrix deck={renderDeck} />
+                <KarstenMatrix deck={renderDeck} validationEngine={aiMetadata?.validationEngine} validationData={aiMetadata?.validationData} />
                 
                 {/* Sideboard Section */}
                 <div className="mt-12 pt-8 border-t border-white/10">

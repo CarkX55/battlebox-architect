@@ -1,7 +1,8 @@
 import { generateManaBase, calculatePerfectLandCount, calculateVMP } from './deckCalculator.js'; 
 import { callAI } from './aiFactory.js';
+import { API_ENDPOINTS } from '../config/apiEndpoints.js';
 import { BATTLEBOX_BANLIST, BANLIST_SUBSTITUTIONS, BATTLEBOX_ARCHETYPES, MTG_STRATEGIES, MTG_TRIBES, getIntelligentSubstitution, PARASITIC_RULES } from '../constants/legacyBattleBox.js';
-import { buildCardPool } from './ragService.js';
+import { buildCardPool, getDynamicArchetypes } from './ragService.js';
 import { findFuzzyMatchInDB, getCardFromDB } from './cardHydrator.js';
 
 /**
@@ -2215,7 +2216,22 @@ export async function forgeMazoPerfecto(formData, aiConfig, onProgress = () => {
    try {
      const strategyObj = MTG_STRATEGIES.find(s => s.label === formData.strategy || s.id === formData.strategy) || {};
      const strategyId = strategyObj.id || formData.strategy || "";
-   const archetypeObj = BATTLEBOX_ARCHETYPES.find(a => a.id === formData.archetype) || {};
+   let archetypeObj = BATTLEBOX_ARCHETYPES.find(a => a.id === formData.archetype);
+    if (!archetypeObj) {
+      const dynamicArchs = await getDynamicArchetypes();
+      const match = dynamicArchs.find(a => a.value === formData.archetype);
+      if (match) {
+        archetypeObj = {
+          id: match.value,
+          label: match.label,
+          recommendedColors: match.recommendedColors,
+          speed: match.speed,
+          winTurn: match.winTurn,
+          description: match.description
+        };
+      }
+    }
+    if (!archetypeObj) archetypeObj = {};
    const tribeObj = MTG_TRIBES.find(t => t.id === formData.tribe || t.label === formData.tribe) || null;
    const tribeId = tribeObj ? tribeObj.id : formData.tribe || "";
 
@@ -2822,6 +2838,75 @@ Analiza profundamente el mazo. Devuelve el JSON requerido con 'additions' (para 
     // Filtrar cartas que hayan quedado con cantidad 0
     validResultsStruct.cards = validResultsStruct.cards.filter(c => c.quantity > 0);
     
+    // === DETERMINISTIC HYPERGEOMETRIC VALIDATION API (POST /api/alg) ===
+    let validationEngine = 'local';
+    let validationData = null;
+    try {
+        const apiEndpoint = API_ENDPOINTS.VALIDATION.API_ALG;
+        addLog(`[HYPERGEOMETRIC API] Enviando mazo para validación determinista a ${apiEndpoint}...`);
+        
+        onProgress('validate', '📊 Validando base de maná con el Motor Hipergeométrico...');
+        
+        const payload = {
+            deck: validResultsStruct.cards.map(c => ({
+                name: c.name,
+                quantity: c.quantity,
+                category: c.category || (((c.type_line || '').toLowerCase().includes('land') || ['plains', 'island', 'swamp', 'mountain', 'forest', 'wastes', 'llanura', 'isla', 'pantano', 'montaña', 'bosque', 'yermo'].includes(c.name.toLowerCase())) ? 'Land' : 'Spell'),
+                cmc: c.mana_value || c.cmc || 0
+            })),
+            metadata: {
+                archetype: formData?.archetype || 'midrange',
+                strategy: formData?.strategy || '',
+                format: formData?.format || 'MODERN',
+                colores: formData?.colores || []
+            }
+        };
+
+        const fetchPromise = fetch(apiEndpoint, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...(API_ENDPOINTS.SPICERACK.API_KEY ? { 'Authorization': `Bearer ${API_ENDPOINTS.SPICERACK.API_KEY}` } : {})
+            },
+            body: JSON.stringify(payload)
+        }).then(async res => {
+            if (!res.ok) {
+                throw new Error(`HTTP Error ${res.status}`);
+            }
+            return res.json();
+        });
+
+        const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('Timeout de 3000ms excedido')), 3000);
+        });
+
+        validationData = await Promise.race([fetchPromise, timeoutPromise]);
+        validationEngine = 'hypergeometric';
+        addLog(`[HYPERGEOMETRIC API] Validación determinista completada exitosamente vía Spicerack.`);
+        
+        // Inyectar recomendaciones de optimización adicionales si están presentes en la respuesta
+        if (validationData?.recommendations && Array.isArray(validationData.recommendations)) {
+            addLog(`[HYPERGEOMETRIC API] Añadiendo recomendaciones de optimización del motor.`);
+            if (!validResultsStruct.recommendations) {
+                validResultsStruct.recommendations = [];
+            }
+            const cleanRecs = validationData.recommendations.map(r => {
+                if (typeof r === 'string') return { title: 'Optimización de Maná', description: r };
+                return { title: r.title || 'Optimización de Maná', description: r.description || '' };
+            });
+            validResultsStruct.recommendations = [
+                ...validResultsStruct.recommendations,
+                ...cleanRecs
+            ];
+        }
+    } catch (err) {
+        addLog(`[HYPERGEOMETRIC API] ⚠️ Error en API o Timeout (${err.message}). Activando paracaídas de heurísticas locales...`);
+        validationEngine = 'local';
+    }
+
+    validResultsStruct.validationEngine = validationEngine;
+    validResultsStruct.validationData = validationData;
+
     // Agregar logs detallados al metadata para el Oráculo
     validResultsStruct.banlistSwaps = banlistSwaps;
     validResultsStruct.generationLogs = {

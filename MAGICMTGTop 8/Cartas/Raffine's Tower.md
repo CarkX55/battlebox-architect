@@ -1,5 +1,5 @@
 ---
-title: "Flooded Strand"
+title: "Raffine's Tower"
 type: "land"
 cmc: 2
 synergies:
@@ -17,10 +17,10 @@ synergies:
     coeff: 1
   - name: "[[Prismatic Ending]]"
     coeff: 1
-  - name: "[[Polluted Delta]]"
+  - name: "[[Flooded Strand]]"
     coeff: 1
 ---
-# Flooded Strand
+# Raffine's Tower
 
 - **Tipo:** Land
 - **Sinergias Top 8 (Spicerack):**
@@ -31,7 +31,7 @@ synergies:
   - [[Teferi, Time Raveler]] (Fuerza: 100%)
   - [[The Wandering Emperor]] (Fuerza: 100%)
   - [[Prismatic Ending]] (Fuerza: 100%)
-  - [[Polluted Delta]] (Fuerza: 100%)
+  - [[Flooded Strand]] (Fuerza: 100%)
 
 ---
 *Ficha de conocimiento competitiva generada automáticamente por BattleBox RAG.*

@@ -1,5 +1,5 @@
 ---
-title: "Boseiju, Who Endures"
+title: "Slayers' Stronghold"
 type: "land"
 cmc: 2
 synergies:
@@ -20,7 +20,7 @@ synergies:
   - name: "[[Tolaria West]]"
     coeff: 1
 ---
-# Boseiju, Who Endures
+# Slayers' Stronghold
 
 - **Tipo:** Land
 - **Sinergias Top 8 (Spicerack):**

@@ -5,9 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "node scripts/compileVault.js && vite build",
     "preview": "vite preview",
-    "sync:all": "node scripts/syncMtgTop8.js && node scripts/syncScryfallTagger.js && node scripts/compileVault.js"
+    "sync:all": "node scripts/syncSpicerack.js && node scripts/syncMtgTop8.js && node scripts/syncScryfallTagger.js && node scripts/compileVault.js"
   },
   "dependencies": {
     "clsx": "^2.1.0",

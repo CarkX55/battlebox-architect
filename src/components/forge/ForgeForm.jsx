@@ -5,6 +5,7 @@ import { Sparkles, Swords, Shield, Zap, Flame, Crown, BookOpen, Search, Check, P
 
 import { BATTLEBOX_ARCHETYPES, getBattleBoxFormatName, BATTLEBOX_FORMAT_NAME, MTG_TRIBES, MTG_STRATEGIES, TRIBE_CATEGORIES, COLORS } from '../../constants/legacyBattleBox';
 import ManaOrb from '../atoms/ManaOrb';
+import { getDynamicArchetypes } from '../../services/ragService';
 
 function arraysEqual(a, b) {
   if (a.length !== b.length) return false;
@@ -13,7 +14,7 @@ function arraysEqual(a, b) {
   return sorted1.every((v, i) => v === sorted2[i]);
 }
 
-const ARCHETYPES = BATTLEBOX_ARCHETYPES.map(a => ({
+const LEGACY_ARCHETYPES = BATTLEBOX_ARCHETYPES.map(a => ({
   value: a.id,
   label: a.label.split('(')[0].trim(),
   landCount: a.landCount,
@@ -21,8 +22,19 @@ const ARCHETYPES = BATTLEBOX_ARCHETYPES.map(a => ({
   speed: a.speed,
   winTurn: a.winTurn,
   colorHint: `Velocidad: ${a.speed} • Victoria: Turno ${a.winTurn}`,
-  description: a.description
+  description: a.description,
+  formats: ['MODERN', 'STANDARD'],
+  colorGroup: 'generic'
 }));
+
+// Definiciones de tabs de grupo de color
+const COLOR_GROUP_TABS = [
+  { id: 'generic', label: 'Universales', icon: '⚙️', desc: 'Arquetipos base' },
+  { id: 'mono', label: 'Mono-Color', icon: '🔮', desc: '1 color' },
+  { id: 'bicolor', label: 'Bicolor', icon: '⚔️', desc: 'Gremios' },
+  { id: 'tricolor', label: 'Tricolor', icon: '🌀', desc: 'Shards/Clanes' },
+  { id: 'multicolor', label: '4-5 Colores', icon: '👑', desc: 'Multicolor' }
+];
 
 // Pactos de Gremio (Presets de Color rápidos)
 const PACTOS_DE_GREMIO = [
@@ -95,11 +107,62 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
     'legacy-eldrazi': 'heavy'
   };
 
+  const [archetypesList, setArchetypesList] = useState(LEGACY_ARCHETYPES);
+
+  useEffect(() => {
+    const loadDynamic = async () => {
+      try {
+        const dynamicArchs = await getDynamicArchetypes();
+        if (dynamicArchs && dynamicArchs.length > 0) {
+          // Filtrar duplicados por el campo 'value'
+          const existingValues = new Set(LEGACY_ARCHETYPES.map(a => a.value));
+          const filteredDynamic = dynamicArchs.filter(a => !existingValues.has(a.value));
+          setArchetypesList([...LEGACY_ARCHETYPES, ...filteredDynamic]);
+          console.log(`📊 [ForgeForm] Fusionados ${filteredDynamic.length} arquetipos dinámicos RAG.`);
+        }
+      } catch (err) {
+        console.warn("⚠️ [ForgeForm] Fallo al cargar arquetipos dinámicos. Usando fallback seguro:", err);
+      }
+    };
+    loadDynamic();
+  }, []);
+
   const [isCustomTribe, setIsCustomTribe] = useState(false);
   const [isCustomStrategy, setIsCustomStrategy] = useState(false);
   const [activeTribeTab, setActiveTribeTab] = useState('clasica');
   const [errors, setErrors] = useState({});
   const [currentStep, setCurrentStep] = useState(1);
+  const [activeColorTab, setActiveColorTab] = useState('generic');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Filtrado de arquetipos por formato + grupo de color + búsqueda
+  const filteredArchetypes = useMemo(() => {
+    return archetypesList.filter(arch => {
+      // Filtro por formato
+      if (arch.formats && !arch.formats.includes(selectedFormat)) return false;
+      // Filtro por grupo de color
+      if (arch.colorGroup !== activeColorTab) return false;
+      // Filtro por búsqueda de texto
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const matchLabel = arch.label.toLowerCase().includes(q);
+        const matchDesc = arch.description?.toLowerCase().includes(q);
+        if (!matchLabel && !matchDesc) return false;
+      }
+      return true;
+    });
+  }, [archetypesList, selectedFormat, activeColorTab, searchQuery]);
+
+  // Conteo de arquetipos por grupo de color (para badges)
+  const colorGroupCounts = useMemo(() => {
+    const counts = { generic: 0, mono: 0, bicolor: 0, tricolor: 0, multicolor: 0 };
+    archetypesList.forEach(arch => {
+      if (arch.formats && !arch.formats.includes(selectedFormat)) return;
+      const group = arch.colorGroup || 'generic';
+      if (counts[group] !== undefined) counts[group]++;
+    });
+    return counts;
+  }, [archetypesList, selectedFormat]);
 
   // Íconos e indicadores de velocidad
   const getSpeedStyles = (speed) => {
@@ -112,7 +175,7 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
   };
 
   const handleArchetypeChange = (val) => {
-    const arch = ARCHETYPES.find(a => a.value === val);
+    const arch = archetypesList.find(a => a.value === val);
     setFormData(prev => ({
       ...prev,
       archetype: val,
@@ -281,7 +344,7 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
     }
   }, [groupedTribes, formData.archetype, activeTribeTab]);
 
-  const currentArchetype = ARCHETYPES.find(a => a.value === formData.archetype);
+  const currentArchetype = archetypesList.find(a => a.value === formData.archetype);
 
   const resetColors = () => {
     if (currentArchetype) {
@@ -371,7 +434,8 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
             >
               <div className="absolute inset-0 bg-[url('/ASSETS/FrostedGlass.webp')] bg-cover opacity-5 pointer-events-none" />
               
-              <div className="flex flex-col md:flex-row items-center justify-between gap-6 w-full border-b border-white/10 pb-6">
+              {/* Header and Format Selection */}
+              <div className="flex flex-col lg:flex-row items-center justify-between gap-6 w-full border-b border-white/10 pb-6 relative z-10">
                 <div className="flex items-center gap-4">
                   <motion.img 
                     src="/ASSETS/Engranaje.webp" 
@@ -385,32 +449,40 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                       Clase de Combate
                     </h3>
                     <p className="text-xs text-[#f4ece0]/50 tracking-wider font-semibold">
-                      Paso 1: Elige el arquetipo de tu mazo
+                      Paso 1: Selecciona el formato de destino y la senda del arquetipo
                     </p>
                   </div>
                 </div>
                 
-                <div className="flex flex-col items-center md:items-end gap-1.5 bg-black/75 border border-[#ffdf91]/35 px-4 py-2 rounded-2xl shadow-lg relative group transition-all duration-300 hover:border-[#ffdf91]/65">
-                  <span className="text-[10px] text-magic-gold font-bold uppercase tracking-[0.2em] drop-shadow-md">Formato de Destino</span>
-                  <select
-                    value={selectedFormat}
-                    onChange={(e) => onFormatChange?.(e.target.value)}
-                    className="bg-transparent text-xs font-cinzel font-bold text-white tracking-widest outline-none cursor-pointer border-none pr-6 focus:ring-0 appearance-none drop-shadow-md"
-                    style={{
-                      backgroundImage: `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23ffdf91' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'></polyline></svg>")`,
-                      backgroundRepeat: 'no-repeat',
-                      backgroundPosition: 'right -4px center',
-                      backgroundSize: '16px'
-                    }}
-                  >
-                    <option value="MODERN" className="bg-[#111111] text-white font-sans">MODERN</option>
-                    <option value="STANDARD" className="bg-[#111111] text-white font-sans">STANDARD</option>
-                  </select>
+                {/* Format selection tabs */}
+                <div className="flex bg-black/60 p-1 rounded-xl border border-white/10 shadow-inner w-full sm:w-auto">
+                  {['MODERN', 'STANDARD'].map((fmt) => {
+                    const isSelected = selectedFormat === fmt;
+                    return (
+                      <button
+                        key={fmt}
+                        type="button"
+                        onClick={() => {
+                          onFormatChange?.(fmt);
+                          // Reset selection if it belongs to standard and is exclusive standard etc., or reset color tab if count is 0
+                          setSearchQuery('');
+                        }}
+                        className={cn(
+                          "flex-1 sm:flex-none px-6 py-2 rounded-lg font-cinzel text-xs font-black tracking-widest transition-all duration-300 uppercase",
+                          isSelected
+                            ? "bg-[#ffca58] text-black shadow-[0_0_10px_rgba(255,202,88,0.25)] font-bold scale-[1.02]"
+                            : "text-[#f4ece0]/60 hover:text-white hover:bg-white/5"
+                        )}
+                      >
+                        {fmt}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
               {error && (
-                <div className="p-4 bg-red-950/40 border-l-4 border-red-500 rounded-r-lg text-red-200 text-sm shadow-xl flex items-start gap-3 backdrop-blur-md">
+                <div className="p-4 bg-red-950/40 border-l-4 border-red-500 rounded-r-lg text-red-200 text-sm shadow-xl flex items-start gap-3 backdrop-blur-md relative z-10">
                   <AlertCircle className="text-red-400 mt-0.5" size={16} />
                   <div className="flex-1">
                     <p className="font-bold text-red-400 mb-1">El Oráculo ha fallado</p>
@@ -428,82 +500,158 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                 </div>
               )}
 
-              {/* Grid of Archetypes */}
-              <div className="space-y-4">
-                <label className="block text-[#ffca58] text-sm font-bold uppercase tracking-[0.2em] mb-3 drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)] flex items-center gap-2">
-                  <Crown size={14} className="text-magic-gold" /> Seleccionar Arquetipo
-                </label>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {ARCHETYPES.map((arch) => {
-                    const isSelected = formData.archetype === arch.value;
-                    const speedStyles = getSpeedStyles(arch.speed);
+              {/* Categorization & Search Panel */}
+              <div className="space-y-4 relative z-10">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <label className="block text-[#ffca58] text-sm font-bold uppercase tracking-[0.2em] drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)] flex items-center gap-2">
+                    <Crown size={14} className="text-magic-gold" /> Filtro de Arquetipos
+                  </label>
+                  
+                  {/* Search input */}
+                  <div className="relative w-full md:w-72">
+                    <Search className="absolute left-3 top-2.5 w-4 h-4 text-white/40" />
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Buscar por nombre..."
+                      className="w-full pl-9 pr-4 py-2 bg-black/60 border border-white/10 rounded-xl text-white placeholder-white/35 text-xs font-semibold focus:border-[#ffca58] focus:shadow-[0_0_10px_rgba(255,202,88,0.2)] focus:outline-none transition-all"
+                    />
+                  </div>
+                </div>
+
+                {/* Color Groups Tab Bar */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+                  {COLOR_GROUP_TABS.map((tab) => {
+                    const count = colorGroupCounts[tab.id] || 0;
+                    const isSelected = activeColorTab === tab.id;
                     
                     return (
-                      <motion.div
-                        key={arch.value}
-                        onClick={() => handleArchetypeChange(arch.value)}
-                        whileHover={{ scale: 1.02, translateY: -2 }}
-                        whileTap={{ scale: 0.98 }}
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => {
+                          setActiveColorTab(tab.id);
+                        }}
                         className={cn(
-                          "relative p-5 rounded-2xl border transition-all duration-300 cursor-pointer overflow-hidden backdrop-blur-md flex flex-col justify-between min-h-[170px]",
+                          "px-3 py-2.5 rounded-xl border flex flex-col items-center justify-center transition-all duration-300 relative group overflow-hidden",
                           isSelected
-                            ? "border-magic-gold bg-black/85 shadow-[0_0_20px_rgba(255,202,88,0.25)] ring-1 ring-magic-gold/50"
-                            : "border-white/20 bg-black/75 hover:border-white/40 hover:bg-black/85"
+                            ? "border-magic-gold bg-gradient-to-b from-magic-gold/15 to-black/90 shadow-[0_0_10px_rgba(255,202,88,0.15)]"
+                            : "bg-black/40 border-white/5 hover:border-white/20 hover:bg-black/60"
                         )}
                       >
-                        <div className="absolute inset-0 bg-[url('/ASSETS/FrostedGlass.webp')] bg-cover opacity-5 pointer-events-none" />
-                        
-                        <div>
-                          <div className="flex justify-between items-start gap-2 mb-2 relative z-10">
-                            <h4 className={cn(
-                              "font-cinzel text-sm font-bold tracking-wide transition-colors leading-tight",
-                              isSelected ? "text-magic-gold animate-pulse" : "text-white"
-                            )}>
-                              {arch.label}
-                            </h4>
-                            {isSelected && (
-                              <div className="w-5 h-5 rounded-full bg-[#ffca58] flex items-center justify-center shadow-lg border border-black/30">
-                                <Check size={10} className="text-black font-black" />
-                              </div>
-                            )}
-                          </div>
-                          
-                          <p className="text-[11.5px] text-white/90 leading-relaxed mb-4 font-serif relative z-10 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] font-medium">
-                            {arch.description}
-                          </p>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-sm">{tab.icon}</span>
+                          <span className={cn(
+                            "font-cinzel text-[10.5px] font-black tracking-wider transition-colors",
+                            isSelected ? "text-magic-gold" : "text-white/70 group-hover:text-white"
+                          )}>
+                            {tab.label}
+                          </span>
+                          <span className={cn(
+                            "text-[9px] font-bold px-1.5 py-0.5 rounded-full",
+                            isSelected ? "bg-magic-gold/20 text-[#ffca58]" : "bg-white/10 text-white/50"
+                          )}>
+                            {count}
+                          </span>
                         </div>
-
-                        <div className="flex flex-wrap items-center justify-between gap-2 mt-auto relative z-10 pt-2 border-t border-white/5">
-                          <div className="flex items-center gap-1.5">
-                            <div className={cn("flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider border", speedStyles.bg, speedStyles.color)}>
-                              {speedStyles.icon}
-                              <span>{arch.speed}</span>
-                            </div>
-                            <div className="flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-bold bg-black/65 border border-white/25 text-white">
-                              <span>T{arch.winTurn}</span>
-                            </div>
-                          </div>
-                          
-                          <div className="flex -space-x-1.5">
-                            {arch.recommendedColors.map(c => {
-                              const colObj = COLORS.find(co => co.id === c);
-                              return (
-                                <div key={c} className="w-4 h-4 rounded-full border border-black/50 overflow-hidden shadow" title={colObj?.name}>
-                                  <img src={colObj?.icon} alt={c} className="w-full h-full object-cover" />
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      </motion.div>
+                        <span className="text-[8px] text-white/40 group-hover:text-white/60 transition-colors mt-0.5 block font-sans truncate w-full text-center">
+                          {tab.desc}
+                        </span>
+                      </button>
                     );
                   })}
                 </div>
               </div>
 
+              {/* Grid of Filtered Archetypes */}
+              <div className="space-y-4 relative z-10">
+                {filteredArchetypes.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {filteredArchetypes.map((arch) => {
+                      const isSelected = formData.archetype === arch.value;
+                      const speedStyles = getSpeedStyles(arch.speed);
+                      
+                      return (
+                        <motion.div
+                          key={arch.value}
+                          onClick={() => handleArchetypeChange(arch.value)}
+                          whileHover={{ scale: 1.02, translateY: -2 }}
+                          whileTap={{ scale: 0.98 }}
+                          className={cn(
+                            "relative p-5 rounded-2xl border transition-all duration-300 cursor-pointer overflow-hidden backdrop-blur-md flex flex-col justify-between min-h-[170px]",
+                            isSelected
+                              ? "border-magic-gold bg-black/85 shadow-[0_0_20px_rgba(255,202,88,0.25)] ring-1 ring-magic-gold/50"
+                              : "border-white/20 bg-black/75 hover:border-white/40 hover:bg-black/85"
+                          )}
+                        >
+                          <div className="absolute inset-0 bg-[url('/ASSETS/FrostedGlass.webp')] bg-cover opacity-5 pointer-events-none" />
+                          
+                          <div>
+                            <div className="flex justify-between items-start gap-2 mb-2 relative z-10">
+                              <h4 className={cn(
+                                "font-cinzel text-sm font-bold tracking-wide transition-colors leading-tight",
+                                isSelected ? "text-magic-gold animate-pulse" : "text-white"
+                              )}>
+                                {arch.label}
+                              </h4>
+                              {isSelected && (
+                                <div className="w-5 h-5 rounded-full bg-[#ffca58] flex items-center justify-center shadow-lg border border-black/30">
+                                  <Check size={10} className="text-black font-black" />
+                                </div>
+                              )}
+                            </div>
+                            
+                            <p className="text-[11.5px] text-white/90 leading-relaxed mb-4 font-serif relative z-10 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] font-medium line-clamp-3">
+                              {arch.description}
+                            </p>
+                          </div>
+
+                          <div className="flex flex-wrap items-center justify-between gap-2 mt-auto relative z-10 pt-2 border-t border-white/5">
+                            <div className="flex items-center gap-1.5">
+                              <div className={cn("flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider border", speedStyles.bg, speedStyles.color)}>
+                                {speedStyles.icon}
+                                <span>{arch.speed}</span>
+                              </div>
+                              <div className="flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-bold bg-black/65 border border-white/25 text-white">
+                                <span>T{arch.winTurn}</span>
+                              </div>
+                            </div>
+                            
+                            <div className="flex -space-x-1.5">
+                              {arch.recommendedColors.map(c => {
+                                const colObj = COLORS.find(co => co.id === c);
+                                return (
+                                  <div key={c} className="w-4 h-4 rounded-full border border-black/50 overflow-hidden shadow" title={colObj?.name}>
+                                    <img src={colObj?.icon} alt={c} className="w-full h-full object-cover" />
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="p-12 text-center bg-black/45 border border-dashed border-white/10 rounded-2xl">
+                    <p className="text-white/40 text-sm font-cinzel tracking-wider">No se encontraron arquetipos con estos filtros</p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSearchQuery('');
+                        setActiveColorTab('generic');
+                      }}
+                      className="mt-4 text-xs text-magic-gold font-bold hover:underline"
+                    >
+                      Restablecer filtros
+                    </button>
+                  </div>
+                )}
+              </div>
+
               {/* Navigation buttons */}
-              <div className="flex justify-end pt-4 border-t border-white/10">
+              <div className="flex justify-end pt-4 border-t border-white/10 relative z-10">
                 <button
                   type="button"
                   disabled={!formData.archetype}

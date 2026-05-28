@@ -3,35 +3,35 @@ title: "Watery Grave"
 type: "land"
 cmc: 2
 synergies:
-  - name: "[[Swamp]]"
-    coeff: 0.63
-  - name: "[[Undercity Sewers]]"
-    coeff: 0.57
-  - name: "[[Gloomlake Verge]]"
-    coeff: 0.51
-  - name: "[[Hallowed Fountain]]"
-    coeff: 0.49
-  - name: "[[Godless Shrine]]"
-    coeff: 0.46
-  - name: "[[Plains]]"
-    coeff: 0.43
+  - name: "[[Esper Sentinel]]"
+    coeff: 1
+  - name: "[[Solitude]]"
+    coeff: 1
+  - name: "[[Counterspell]]"
+    coeff: 1
+  - name: "[[Archmage's Charm]]"
+    coeff: 1
+  - name: "[[Teferi, Time Raveler]]"
+    coeff: 1
+  - name: "[[The Wandering Emperor]]"
+    coeff: 1
+  - name: "[[Prismatic Ending]]"
+    coeff: 1
   - name: "[[Flooded Strand]]"
-    coeff: 0.37
-  - name: "[[Superior Spider-Man]]"
-    coeff: 0.37
+    coeff: 1
 ---
 # Watery Grave
 
 - **Tipo:** Land
-- **Sinergias Top 8:**
-  - [[Swamp]] (Fuerza: 63%)
-  - [[Undercity Sewers]] (Fuerza: 57%)
-  - [[Gloomlake Verge]] (Fuerza: 51%)
-  - [[Hallowed Fountain]] (Fuerza: 49%)
-  - [[Godless Shrine]] (Fuerza: 46%)
-  - [[Plains]] (Fuerza: 43%)
-  - [[Flooded Strand]] (Fuerza: 37%)
-  - [[Superior Spider-Man]] (Fuerza: 37%)
+- **Sinergias Top 8 (Spicerack):**
+  - [[Esper Sentinel]] (Fuerza: 100%)
+  - [[Solitude]] (Fuerza: 100%)
+  - [[Counterspell]] (Fuerza: 100%)
+  - [[Archmage's Charm]] (Fuerza: 100%)
+  - [[Teferi, Time Raveler]] (Fuerza: 100%)
+  - [[The Wandering Emperor]] (Fuerza: 100%)
+  - [[Prismatic Ending]] (Fuerza: 100%)
+  - [[Flooded Strand]] (Fuerza: 100%)
 
 ---
 *Ficha de conocimiento competitiva generada automáticamente por BattleBox RAG.*

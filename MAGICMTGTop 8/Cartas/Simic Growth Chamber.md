@@ -1,37 +1,37 @@
 ---
 title: "Simic Growth Chamber"
-type: "spell"
+type: "land"
 cmc: 2
 synergies:
-  - name: "[[Dryad of the Ilysian Grove]]"
+  - name: "[[Primeval Titan]]"
     coeff: 1
   - name: "[[Amulet of Vigor]]"
     coeff: 1
-  - name: "[[Crumbling Vestige]]"
+  - name: "[[Azusa, Lost but Seeking]]"
     coeff: 1
-  - name: "[[Arboreal Grazer]]"
+  - name: "[[Dryad of the Ilysian Grove]]"
     coeff: 1
-  - name: "[[Cultivator Colossus]]"
+  - name: "[[Summoner's Pact]]"
     coeff: 1
-  - name: "[[Primeval Titan]]"
+  - name: "[[Golgari Rot Farm]]"
     coeff: 1
-  - name: "[[Springheart Nantuko]]"
+  - name: "[[Tolaria West]]"
     coeff: 1
-  - name: "[[Formidable Speaker]]"
+  - name: "[[Boseiju, Who Endures]]"
     coeff: 1
 ---
 # Simic Growth Chamber
 
-- **Tipo:** Spell
-- **Sinergias Top 8:**
-  - [[Dryad of the Ilysian Grove]] (Fuerza: 100%)
-  - [[Amulet of Vigor]] (Fuerza: 100%)
-  - [[Crumbling Vestige]] (Fuerza: 100%)
-  - [[Arboreal Grazer]] (Fuerza: 100%)
-  - [[Cultivator Colossus]] (Fuerza: 100%)
+- **Tipo:** Land
+- **Sinergias Top 8 (Spicerack):**
   - [[Primeval Titan]] (Fuerza: 100%)
-  - [[Springheart Nantuko]] (Fuerza: 100%)
-  - [[Formidable Speaker]] (Fuerza: 100%)
+  - [[Amulet of Vigor]] (Fuerza: 100%)
+  - [[Azusa, Lost but Seeking]] (Fuerza: 100%)
+  - [[Dryad of the Ilysian Grove]] (Fuerza: 100%)
+  - [[Summoner's Pact]] (Fuerza: 100%)
+  - [[Golgari Rot Farm]] (Fuerza: 100%)
+  - [[Tolaria West]] (Fuerza: 100%)
+  - [[Boseiju, Who Endures]] (Fuerza: 100%)
 
 ---
 *Ficha de conocimiento competitiva generada automáticamente por BattleBox RAG.*

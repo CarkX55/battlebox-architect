@@ -1026,3 +1026,130 @@ export const buildCardPool = async (formData) => {
     pool: finalPool
   };
 };
+
+/**
+ * Servicio de transformación para convertir el esquema del arquetipo de synergy_graph.json
+ * en el formato compatible con la interfaz: { value, label, speed, winTurn, landCount, spellCount, description, recommendedColors, colorHint, isDynamic }.
+ */
+export const getDynamicArchetypes = async () => {
+  try {
+    const graph = await loadObsidianGraph();
+    if (!graph || !graph.archetypes) {
+      console.warn("⚠️ [RAG Service] No se encontraron arquetipos en el grafo de Obsidian.");
+      return [];
+    }
+
+    const transformed = [];
+    for (const [key, arch] of Object.entries(graph.archetypes)) {
+      const name = arch.name || key;
+      const nameLower = name.toLowerCase();
+      
+      // Heurísticas de velocidad, turno de victoria y cantidades de maná
+      let speed = 'Media';
+      let winTurn = '7-9';
+      let landCount = 24;
+      let spellCount = 36;
+      
+      if (nameLower.includes('aggro') || nameLower.includes('burn') || nameLower.includes('affinity') || nameLower.includes('prowess') || nameLower.includes('scales')) {
+        speed = 'Rápida';
+        winTurn = '4-5';
+        landCount = 22;
+        spellCount = 38;
+      } else if (nameLower.includes('control') || nameLower.includes('taxes') || nameLower.includes('prison') || nameLower.includes('stax') || nameLower.includes('lantern') || nameLower.includes('tron')) {
+        speed = 'Lenta';
+        winTurn = '10+';
+        landCount = 26;
+        spellCount = 34;
+      } else if (nameLower.includes('tempo') || nameLower.includes('shadow') || nameLower.includes('delver') || nameLower.includes('merfolk') || nameLower.includes('rogue')) {
+        speed = 'Media-rápida';
+        winTurn = '5-7';
+        landCount = 20;
+        spellCount = 40;
+      } else if (nameLower.includes('combo') || nameLower.includes('titan') || nameLower.includes('reanimator') || nameLower.includes('creativity') || nameLower.includes('storm') || nameLower.includes('spellslinger') || nameLower.includes('belcher')) {
+        speed = 'Variable';
+        winTurn = '5-8';
+        landCount = 22;
+        spellCount = 38;
+      }
+
+      // Deducción inteligente de colores recomendados basados en nombres de gremios canonicales de MTG
+      const recommendedColors = [];
+      if (nameLower.includes('azorius') || nameLower.includes('uw')) recommendedColors.push('W', 'U');
+      if (nameLower.includes('dimir') || nameLower.includes('ub')) recommendedColors.push('U', 'B');
+      if (nameLower.includes('rakdos') || nameLower.includes('br')) recommendedColors.push('B', 'R');
+      if (nameLower.includes('gruul') || nameLower.includes('rg')) recommendedColors.push('R', 'G');
+      if (nameLower.includes('selesnya') || nameLower.includes('wg')) recommendedColors.push('W', 'G');
+      if (nameLower.includes('orzhov') || nameLower.includes('wb')) recommendedColors.push('W', 'B');
+      if (nameLower.includes('izzet') || nameLower.includes('ur')) recommendedColors.push('U', 'R');
+      if (nameLower.includes('golgari') || nameLower.includes('bg')) recommendedColors.push('B', 'G');
+      if (nameLower.includes('boros') || nameLower.includes('wr')) recommendedColors.push('W', 'R');
+      if (nameLower.includes('simic') || nameLower.includes('ug')) recommendedColors.push('U', 'G');
+      if (nameLower.includes('jund')) recommendedColors.push('B', 'R', 'G');
+      if (nameLower.includes('grixis')) recommendedColors.push('U', 'B', 'R');
+      if (nameLower.includes('esper')) recommendedColors.push('W', 'U', 'B');
+      if (nameLower.includes('naya')) recommendedColors.push('W', 'R', 'G');
+      if (nameLower.includes('bant')) recommendedColors.push('W', 'U', 'G');
+      if (nameLower.includes('abzan')) recommendedColors.push('W', 'B', 'G');
+      if (nameLower.includes('jeskai')) recommendedColors.push('W', 'U', 'R');
+      if (nameLower.includes('sultai')) recommendedColors.push('U', 'B', 'G');
+      if (nameLower.includes('mardu')) recommendedColors.push('W', 'B', 'R');
+      if (nameLower.includes('temur')) recommendedColors.push('U', 'R', 'G');
+      if (nameLower.includes('mono-red') || nameLower.includes('mono red') || nameLower.includes('burn')) recommendedColors.push('R');
+      if (nameLower.includes('mono-white') || nameLower.includes('mono white') || nameLower.includes('taxes')) recommendedColors.push('W');
+      if (nameLower.includes('mono-green') || nameLower.includes('mono green') || nameLower.includes('elves')) recommendedColors.push('G');
+      if (nameLower.includes('mono-black') || nameLower.includes('mono black') || nameLower.includes('discard')) recommendedColors.push('B');
+      if (nameLower.includes('mono-blue') || nameLower.includes('mono blue') || nameLower.includes('merfolk')) recommendedColors.push('U');
+      if (nameLower.includes('tron') || nameLower.includes('eldrazi')) recommendedColors.push('C');
+      
+      if (recommendedColors.length === 0) {
+        // Fallback: todos los colores principales
+        recommendedColors.push('W', 'U', 'B', 'R', 'G');
+      }
+
+      const topCardNames = arch.cards ? arch.cards.slice(0, 3).map(c => c.name).join(', ') : '';
+
+      // --- Inferencia de Formato ---
+      const MODERN_EXCLUSIVE_KEYWORDS = [
+        'tron', 'murktide', 'living end', 'creativity', 'yawgmoth', 'eldrazi',
+        'belcher', 'shadow', 'affinity', 'titan', 'dredge', 'amulet', 'cascade',
+        'ponza', 'storm', 'hollow', 'chord', 'scepter', 'birthing', 'lantern',
+        'scales', 'omniscience', 'pinnacle', 'doomsday', 'momo', 'rhinos',
+        'prowess', 'reanimator', 'necrodominance', 'frog', 'cutter'
+      ];
+      const STANDARD_EXCLUSIVE_KEYWORDS = ['standard'];
+
+      let formats = ['MODERN', 'STANDARD']; // default: ambos
+      if (STANDARD_EXCLUSIVE_KEYWORDS.some(kw => nameLower.includes(kw))) {
+        formats = ['STANDARD'];
+      } else if (MODERN_EXCLUSIVE_KEYWORDS.some(kw => nameLower.includes(kw))) {
+        formats = ['MODERN'];
+      }
+
+      // --- Clasificación por Grupo de Color ---
+      const uniqueColors = [...new Set(recommendedColors)];
+      let colorGroup = 'multicolor'; // 4-5 colores
+      if (uniqueColors.length <= 1) colorGroup = 'mono';
+      else if (uniqueColors.length === 2) colorGroup = 'bicolor';
+      else if (uniqueColors.length === 3) colorGroup = 'tricolor';
+
+      transformed.push({
+        value: key.toLowerCase(),
+        label: name,
+        speed,
+        winTurn,
+        landCount,
+        spellCount,
+        recommendedColors,
+        description: `Arquetipo dinámico RAG extraído de torneos y Obsidian. Sinergias clave con cartas como: ${topCardNames || 'de tu pool'}.`,
+        colorHint: `Velocidad: ${speed} • Victoria: Turno ${winTurn}`,
+        isDynamic: true,
+        formats,
+        colorGroup
+      });
+    }
+    return transformed;
+  } catch (err) {
+    console.error("❌ [RAG Service] Error al transformar arquetipos dinámicos:", err);
+    return [];
+  }
+};
