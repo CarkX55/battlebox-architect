@@ -308,192 +308,192 @@ export function computeMetaFromDecklistsList(decks) {
  * Consulta la API de Apify para ejecutar el scraper de MTGTop8 y descargar torneos en tiempo real.
  */
 export async function fetchMTGTop8Decklists(apifyToken, format, maxItems = 30, initialMetaWindow = 8) {
-  if (!apifyToken) {
-    throw new Error("Se requiere un Token de API de Apify para llamadas en vivo.");
-  }
-
-  // Mapear el formato interno a los códigos de MTGTop8
-  const formatMapping = {
-    'STANDARD': 'ST',
-    'PIONEER': 'PI',
-    'MODERN': 'MO',
-    'LEGACY': 'LE'
-  };
-  const mtgFormat = formatMapping[format.toUpperCase()] || 'ST';
-
-  // Endpoint de ejecución síncrona de Apify (corre el actor y devuelve el dataset directamente)
-  const runSyncUrl = `https://api.apify.com/v2/acts/jungle_synthesizer~mtgtop8-magic-tournament-archive-scraper/run-sync-get-dataset-items?token=${apifyToken}`;
-
-  const windowsToTry = Array.from(new Set([initialMetaWindow, 16, 32, 52]));
-  let events = [];
-  let currentWindowUsed = initialMetaWindow;
-
-  for (let windowSize of windowsToTry) {
-    currentWindowUsed = windowSize;
-    console.log(`[MTGTop8 Apify] Paso 1: Intentando obtener torneos de ${format} con ventana de ${windowSize} semanas...`);
-
-    try {
-      const eventsResponse = await fetch(runSyncUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          mode: "format_events",
-          format: mtgFormat,
-          metaWindow: windowSize,
-          maxItems: 8, // Ampliamos a 8 torneos posibles para raspar más
-          sp_intended_usage: "Analisis de metajuego educativo y simulacion de barajas",
-          sp_improvement_suggestions: "Ninguna sugerencia, funciona excelente",
-          contactEmail: "battleboxforge@gmail.com"
-        })
-      });
-
-      if (!eventsResponse.ok) {
-        if (eventsResponse.status === 401) {
-          throw new Error("Token de API de Apify inválido o expirado (401).");
-        }
-        throw new Error(`Error al obtener eventos de Apify (HTTP ${eventsResponse.status}).`);
-      }
-
-      const parsedEvents = await eventsResponse.json();
-      if (parsedEvents && parsedEvents.length > 0) {
-        events = parsedEvents;
-        console.log(`[MTGTop8 Apify] ¡Éxito! Encontrados ${events.length} torneos con ventana de ${windowSize} semanas.`);
-        break; // Detenemos la búsqueda si encontramos eventos
-      }
-    } catch (e) {
-      console.warn(`[MTGTop8 Apify] Intento fallido para ventana de ${windowSize} semanas:`, e.message);
-      if (e.message.includes("Token de API de Apify inválido")) {
-        throw e; // Lanza de inmediato si es problema de auth
-      }
-    }
-  }
-
-  if (!events || events.length === 0) {
-    throw new Error(`No se encontraron torneos en la ventana especificada.`);
-  }
-
-  // Extraer las URLs de hasta 10 torneos para maximizar la cobertura del escáner
-  const targetEvents = events.slice(0, 10);
-  console.log("[MTGTop8 Apify] Objetos de torneo crudos recibidos de Apify:", JSON.stringify(targetEvents, null, 2));
-
-  const eventUrls = targetEvents.map(e => {
-    const possibleUrl = e.event_url || e.url || e.eventUrl || e.event_Url;
-    if (possibleUrl) return possibleUrl;
-
-    const possibleId = e.event_id || e.eventId || e.id || e.event_Id;
-    if (possibleId) {
-      return `https://mtgtop8.com/event?e=${possibleId}&f=${mtgFormat}`;
-    }
-    return null;
-  }).filter(Boolean);
-
-  console.log(`[MTGTop8 Apify] Paso 2: Raspando barajas de los torneos:`, eventUrls);
-
-  if (eventUrls.length === 0) {
-    throw new Error("No se pudo extraer ninguna URL de torneo válida de los metadatos recibidos.");
-  }
-
   try {
+    if (!apifyToken) {
+      throw new Error("Se requiere un Token de API de Apify para llamadas en vivo.");
+    }
+
+    // Mapear el formato interno a los códigos de MTGTop8
+    const formatMapping = {
+      'STANDARD': 'ST',
+      'PIONEER': 'PI',
+      'MODERN': 'MO',
+      'LEGACY': 'LE'
+    };
+    const mtgFormat = formatMapping[format.toUpperCase()] || 'ST';
+
+    // Endpoint de ejecución síncrona de Apify (corre el actor y devuelve el dataset directamente)
+    const runSyncUrl = `https://api.apify.com/v2/acts/jungle_synthesizer~mtgtop8-magic-tournament-archive-scraper/run-sync-get-dataset-items?token=${apifyToken}`;
+
+    const windowsToTry = Array.from(new Set([initialMetaWindow, 16, 32, 52]));
+    let events = [];
+    let currentWindowUsed = initialMetaWindow;
+
+    for (let windowSize of windowsToTry) {
+      currentWindowUsed = windowSize;
+      console.log(`[MTGTop8 Apify] Paso 1: Intentando obtener torneos de ${format} con ventana de ${windowSize} semanas...`);
+
+      try {
+        const eventsResponse = await fetch(runSyncUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            mode: "format_events",
+            format: mtgFormat,
+            metaWindow: windowSize,
+            maxItems: 8, // Ampliamos a 8 torneos posibles para raspar más
+            sp_intended_usage: "Analisis de metajuego educativo y simulacion de barajas",
+            sp_improvement_suggestions: "Ninguna sugerencia, funciona excelente",
+            contactEmail: "battleboxforge@gmail.com"
+          })
+        });
+
+        if (!eventsResponse.ok) {
+          if (eventsResponse.status === 401) {
+            throw new Error("Token de API de Apify inválido o expirado (401).");
+          }
+          throw new Error(`Error al obtener eventos de Apify (HTTP ${eventsResponse.status}).`);
+        }
+
+        const parsedEvents = await eventsResponse.json();
+        if (parsedEvents && parsedEvents.length > 0) {
+          events = parsedEvents;
+          console.log(`[MTGTop8 Apify] ¡Éxito! Encontrados ${events.length} torneos con ventana de ${windowSize} semanas.`);
+          break; // Detenemos la búsqueda si encontramos eventos
+        }
+      } catch (e) {
+        console.warn(`[MTGTop8 Apify] Intento fallido para ventana de ${windowSize} semanas:`, e.message);
+        if (e.message.includes("Token de API de Apify inválido")) {
+          throw e; // Lanza de inmediato si es problema de auth
+        }
+      }
+    }
+
+    if (!events || events.length === 0) {
+      throw new Error(`No se encontraron torneos en la ventana especificada.`);
+    }
+
+    // Extraer las URLs de hasta 10 torneos para maximizar la cobertura del escáner
+    const targetEvents = events.slice(0, 10);
+    console.log("[MTGTop8 Apify] Objetos de torneo crudos recibidos de Apify:", JSON.stringify(targetEvents, null, 2));
+
+    const eventUrls = targetEvents.map(e => {
+      const possibleUrl = e.event_url || e.url || e.eventUrl || e.event_Url;
+      if (possibleUrl) return possibleUrl;
+
+      const possibleId = e.event_id || e.eventId || e.id || e.event_Id;
+      if (possibleId) {
+        return `https://mtgtop8.com/event?e=${possibleId}&f=${mtgFormat}`;
+      }
+      return null;
+    }).filter(Boolean);
+
+    console.log(`[MTGTop8 Apify] Paso 2: Raspando barajas de los torneos:`, eventUrls);
+
+    if (eventUrls.length === 0) {
+      throw new Error("No se pudo extraer ninguna URL de torneo válida de los metadatos recibidos.");
+    }
+
     // Paso 2: Obtener barajas de estos eventos
     const decksResponse = await fetch(runSyncUrl, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      mode: "event",
-      eventUrls: eventUrls,
-      includeSideboard: true,
-      maxItems: maxItems,
-      sp_intended_usage: "Analisis de metajuego educativo y simulacion de barajas",
-      sp_improvement_suggestions: "Ninguna sugerencia, funciona excelente",
-      contactEmail: "battleboxforge@gmail.com"
-    })
-  });
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        mode: "event",
+        eventUrls: eventUrls,
+        includeSideboard: true,
+        maxItems: maxItems,
+        sp_intended_usage: "Analisis de metajuego educativo y simulacion de barajas",
+        sp_improvement_suggestions: "Ninguna sugerencia, funciona excelente",
+        contactEmail: "battleboxforge@gmail.com"
+      })
+    });
 
-  if (!decksResponse.ok) {
-    throw new Error(`Error al obtener barajas de Apify (HTTP ${decksResponse.status}).`);
-  }
-
-  const items = await decksResponse.json();
-  console.log(`[MTGTop8 Apify] Recibidos ${items?.length || 0} registros de barajas.`);
-
-  if (!items || items.length === 0) {
-    throw new Error("No se encontraron registros de barajas en los torneos seleccionados.");
-  }
-
-  // Parseador de una carta individual en formato "4 Lightning Bolt" o "4  Lightning Bolt" o "4x Lightning Bolt"
-  const parseMTGTop8Card = (cardStr) => {
-    const trimmed = cardStr.trim();
-    const match = trimmed.match(/^(\d+)\s*x?\s+(.+)$/);
-    if (match) {
-      return {
-        name: match[2].trim(),
-        quantity: parseInt(match[1], 10)
-      };
-    }
-    return null;
-  };
-
-  // Convertir cada registro de mazo al formato de ingesta
-  const processedDecks = [];
-  items.forEach((item, idx) => {
-    const mainCards = [];
-    const rawBoard = item.mainboard || item.main || item.mainboard_cards || item.cards;
-    let cardsSource = [];
-
-    if (typeof rawBoard === 'string') {
-      cardsSource = rawBoard.split(',');
-    } else if (Array.isArray(rawBoard)) {
-      cardsSource = rawBoard;
+    if (!decksResponse.ok) {
+      throw new Error(`Error al obtener barajas de Apify (HTTP ${decksResponse.status}).`);
     }
 
-    cardsSource.forEach(c => {
-      if (typeof c === 'string') {
-        const parsed = parseMTGTop8Card(c);
-        if (parsed) mainCards.push(parsed);
-      } else if (c && typeof c === 'object') {
-        const name = c.name || c.card || c.title || c.cardName || c.card_name;
-        const quantity = parseInt(c.quantity || c.qty || c.count || c.amount || 1, 10);
-        if (name) {
-          mainCards.push({ name: name.trim(), quantity });
+    const items = await decksResponse.json();
+    console.log(`[MTGTop8 Apify] Recibidos ${items?.length || 0} registros de barajas.`);
+
+    if (!items || items.length === 0) {
+      throw new Error("No se encontraron registros de barajas en los torneos seleccionados.");
+    }
+
+    // Parseador de una carta individual en formato "4 Lightning Bolt" o "4  Lightning Bolt" o "4x Lightning Bolt"
+    const parseMTGTop8Card = (cardStr) => {
+      const trimmed = cardStr.trim();
+      const match = trimmed.match(/^(\d+)\s*x?\s+(.+)$/);
+      if (match) {
+        return {
+          name: match[2].trim(),
+          quantity: parseInt(match[1], 10)
+        };
+      }
+      return null;
+    };
+
+    // Convertir cada registro de mazo al formato de ingesta
+    const processedDecks = [];
+    items.forEach((item, idx) => {
+      const mainCards = [];
+      const rawBoard = item.mainboard || item.main || item.mainboard_cards || item.cards;
+      let cardsSource = [];
+
+      if (typeof rawBoard === 'string') {
+        cardsSource = rawBoard.split(',');
+      } else if (Array.isArray(rawBoard)) {
+        cardsSource = rawBoard;
+      }
+
+      cardsSource.forEach(c => {
+        if (typeof c === 'string') {
+          const parsed = parseMTGTop8Card(c);
+          if (parsed) mainCards.push(parsed);
+        } else if (c && typeof c === 'object') {
+          const name = c.name || c.card || c.title || c.cardName || c.card_name;
+          const quantity = parseInt(c.quantity || c.qty || c.count || c.amount || 1, 10);
+          if (name) {
+            mainCards.push({ name: name.trim(), quantity });
+          }
         }
+      });
+
+      if (mainCards.length > 0) {
+        processedDecks.push({
+          name: item.deck_archetype || item.archetype || item.deck_name || item.name || `Mazo MTGTop8 #${idx + 1}`,
+          main: mainCards
+        });
       }
     });
 
-    if (mainCards.length > 0) {
-      processedDecks.push({
-        name: item.deck_archetype || item.archetype || item.deck_name || item.name || `Mazo MTGTop8 #${idx + 1}`,
-        main: mainCards
-      });
+    if (processedDecks.length === 0) {
+      throw new Error("No se pudo parsear ninguna carta del metajuego de MTGTop8.");
     }
-  });
 
-  if (processedDecks.length === 0) {
-    throw new Error("No se pudo parsear ninguna carta del metajuego de MTGTop8.");
+    // Calcular perfil del metagame real
+    const metaProfile = computeMetaFromDecklistsList(processedDecks);
+    metaProfile.source = `MTGTop8 (Apify API - ${targetEvents.length} Torneos)`;
+    metaProfile.lastIngestionDate = Date.now();
+
+    // Guardar en la base de datos de metajuegos locales
+    saveMetaToDB(format, metaProfile);
+
+    return metaProfile;
+  } catch (err) {
+    console.warn("[MTGTop8 Apify] Fallo al consultar scraper, aplicando fallback de seguridad local:", err.message);
+    // Graceful fallback to mock data so the app doesn't crash or show a failure state to the user
+    const fallbackFormat = format ? format.toUpperCase() : "MODERN";
+    const mockMeta = computeMetaFromDecklistsList(MOCK_METAGAME_DECKS[fallbackFormat] || MOCK_METAGAME_DECKS.MODERN);
+    mockMeta.source = `Mock Local (${err.message.includes("Token") ? "Falta Token" : "Conexión/Vacío"} - Fallback)`;
+    mockMeta.lastIngestionDate = Date.now();
+    saveMetaToDB(format, mockMeta);
+    return mockMeta;
   }
-
-  // Calcular perfil del metagame real
-  const metaProfile = computeMetaFromDecklistsList(processedDecks);
-  metaProfile.source = `MTGTop8 (Apify API - ${targetEvents.length} Torneos)`;
-  metaProfile.lastIngestionDate = Date.now();
-
-  // Guardar en la base de datos de metajuegos locales
-  saveMetaToDB(format, metaProfile);
-
-  return metaProfile;
-} catch (err) {
-  console.warn("[MTGTop8 Apify] Fallo al consultar scraper, aplicando fallback de seguridad local:", err.message);
-  // Graceful fallback to mock data so the app doesn't crash or show a failure state to the user
-  const fallbackFormat = format ? format.toUpperCase() : "MODERN";
-  const mockMeta = computeMetaFromDecklistsList(MOCK_METAGAME_DECKS[fallbackFormat] || MOCK_METAGAME_DECKS.MODERN);
-  mockMeta.source = `Mock Local (${err.message.includes("Token") ? "Falta Token" : "Conexión/Vacío"} - Fallback)`;
-  mockMeta.lastIngestionDate = Date.now();
-  saveMetaToDB(format, mockMeta);
-  return mockMeta;
-}
 }
 
 /**
