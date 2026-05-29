@@ -239,7 +239,7 @@ async function run() {
 
     console.log(`   - Descargados ${responseDecks.length} mazos brutos de Spicerack.`);
 
-    responseDecks.slice(0, 15).forEach(d => {
+    responseDecks.slice(0, 40).forEach(d => {
       const parsedCards = parseDecklistText(d.decklist_as_text || d.decklist);
       if (parsedCards.length > 0) {
         allDecks.push({

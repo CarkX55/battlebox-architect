@@ -601,3 +601,31 @@ export const PARASITIC_RULES = [
   }
 ];
 
+// Matrix estática de exclusión competitiva de no-bos para el Juez Supremo
+export const COMPETITIVE_ANTI_SYNERGIES = [
+  {
+    card: "Murktide Regent",
+    strategy: "cascade",
+    replacement: "Orcish Bowmasters",
+    reason: "Murktide Regent requiere exiliar recursos del cementerio, provocando fricción (non-bo) con habilitadores de Cascade."
+  },
+  {
+    card: "Thalia, Guardian of Thraben",
+    strategy: "spellslinger",
+    replacement: "Dragon's Rage Channeler",
+    reason: "Thalia cobra impuestos a tus propios instantáneos/conjuros en una estrategia de Prowess o Spellslinger."
+  },
+  {
+    card: "Rest in Peace",
+    strategy: "graveyard",
+    replacement: "Prismatic Ending",
+    reason: "Rest in Peace aniquila tus propios motores de cementerio (Dredge/Delirium) en el mazo principal."
+  },
+  {
+    card: "Grafdigger's Cage",
+    strategy: "reanimator",
+    replacement: "Thoughtseize",
+    reason: "Grafdigger's Cage bloquea la reanimación de criaturas de tu propio cementerio."
+  }
+];
+

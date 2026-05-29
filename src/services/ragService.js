@@ -233,6 +233,25 @@ export const buildCardPool = async (formData) => {
       }
     }
 
+    // --- FILTRADO ESTRICTO DE CURVA PARA CASCADE ---
+    // Si el arquetipo o la estrategia es cascade, impedimos cualquier hechizo de CMC 1 o 2 en Maindeck
+    // para evitar corromper la cascada y diluir los payoffs de coste 0 (como Crashing Footfalls).
+    const isCascadeActive = (formData.archetype || '').toLowerCase().includes('cascade') || 
+                            strategyId.toLowerCase().includes('cascade');
+    if (isCascadeActive) {
+      const cmc = card.mana_value || 0;
+      if (cmc === 1 || cmc === 2) {
+        const keywords = (card.oracle_text || '').toLowerCase();
+        const isEvokeSpecial = keywords.includes('evoke');
+        const isAdventureOrSplit = typeLine.includes('adventure') || 
+                                   (typeLine.includes('instant') && typeLine.includes('creature')) ||
+                                   (card.layout === 'split');
+        if (!isEvokeSpecial && !isAdventureOrSplit) {
+          continue; // Se excluye por completo
+        }
+      }
+    }
+
     // Filtrar todas las tierras de forma absoluta, ya que se generan matemáticamente por el Ensamblador
     if (typeLine.includes('land')) continue;
     
@@ -621,6 +640,23 @@ export const buildCardPool = async (formData) => {
         const isSpellslingerCore = ['murktide regent', 'arclight phoenix', 'young pyromancer', 'third path iconoclast', 'ledger shredder', 'dragon\'s rage channeler', 'monastery swiftspear', 'slickshot show-off', 'brainstorm', 'ponder', 'preordain', 'consider', 'opt'].includes(cardNameLower);
         if (isSpellslingerCore) {
           score += 130;
+        }
+      } else if (strategyId === 'tron') {
+        const isTronCore = ["urza's tower", "urza's power plant", "urza's mine", "expedition map", "sylvan scrying", "ancient stirrings", "wurmcoil engine", "karn liberated", "sundering titan", "chromatic star", "chromatic sphere"].includes(cardNameLower);
+        if (isTronCore) {
+          score += 180; // Impulso máximo para asegurar Tron
+        }
+      } else if (strategyId === 'enchantress' || strategyId === 'voltron') {
+        const isBoglesCore = ['slippery bogle', 'gladecover scout', 'ethereal armor', 'all that glitters', 'sythis, harvest\'s hand', 'rancor', 'spider umbra', 'hyena umbra', 'sigarda\'s aid', 'puresteel paladin', 'colossus hammer'].includes(cardNameLower);
+        if (isBoglesCore) {
+          score += 140;
+        }
+      } else if (cardNameLower.includes('stoneforge mystic') || ['sword of fire and ice', 'shadowspear', 'batterskull', 'kaldra compleat', 'sword of feast and famine'].includes(cardNameLower)) {
+        score += 160; // Gran empuje para habilitadores y equipos premium de Stoneforge
+      } else if (strategyId === 'graveyard' || strategyId === 'delirium') {
+        const isDeliriumCore = ['mishra\'s bauble', 'dragon\'s rage channeler', 'tarmogoyf', 'unholy heat', 'consider', 'bauble'].includes(cardNameLower);
+        if (isDeliriumCore) {
+          score += 150;
         }
       }
     } else if (strategyData) {

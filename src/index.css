@@ -128,7 +128,8 @@ html, body {
   border-image-slice: 0 180 0 180 fill;
   height: 130px;
   width: fit-content;
-  min-width: 520px;
+  min-width: 320px;
+  max-width: 100%;
   margin: 2rem auto 0 auto;
   color: #ffca58;
   transition: all 0.3s ease;
@@ -142,6 +143,14 @@ html, body {
   text-shadow: 0 2px 4px rgba(0,0,0,1);
   background: transparent;
   padding-bottom: 2px;
+  position: relative;
+  z-index: 10;
+}
+
+@media (min-width: 640px) {
+  .btn-asset {
+    min-width: 520px;
+  }
 }
 
 .btn-asset:hover:not(:disabled) {

@@ -47,8 +47,11 @@ function CategorySection({ title, icon: Icon, cards, onRemove, onAdd, isEditing 
 }
 
 export default function VisualGrid({ cards, onRemoveCard, onAddCard, isEditing }) {
+  const safeCards = Array.isArray(cards) ? cards.filter(Boolean) : [];
+
   const getPrimaryCategory = (card) => {
-    const type = card.type_line || '';
+    if (!card) return 'Other';
+    const type = card.type_line || card.type || '';
     if (type.includes('Creature')) return 'Creature';
     if (type.includes('Planeswalker')) return 'Planeswalker';
     if (type.includes('Enchantment')) return 'Enchantment';
@@ -59,14 +62,15 @@ export default function VisualGrid({ cards, onRemoveCard, onAddCard, isEditing }
     return 'Other';
   };
 
-  const cardsByCategory = cards.reduce((acc, card) => {
+  const cardsByCategory = safeCards.reduce((acc, card) => {
+    if (!card) return acc;
     const cat = getPrimaryCategory(card);
     if (!acc[cat]) acc[cat] = [];
     acc[cat].push(card);
     return acc;
   }, {});
 
-  const totalCards = cards.reduce((sum, c) => sum + (c.quantity || 1), 0);
+  const totalCards = safeCards.reduce((sum, c) => sum + (c.quantity || 1), 0);
   const creatures = cardsByCategory.Creature?.reduce((sum, c) => sum + (c.quantity || 1), 0) || 0;
   const spells = (cardsByCategory.Instant?.reduce((sum, c) => sum + (c.quantity || 1), 0) || 0) +
                  (cardsByCategory.Sorcery?.reduce((sum, c) => sum + (c.quantity || 1), 0) || 0) +

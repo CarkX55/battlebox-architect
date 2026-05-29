@@ -207,7 +207,7 @@ async function run() {
         foundEventIds.add(eventMatch[1]);
       }
 
-      const eventList = Array.from(foundEventIds).slice(0, 15); // Top 15 torneos más recientes por formato para amplitud total
+      const eventList = Array.from(foundEventIds).slice(0, 30); // Top 30 torneos más recientes por formato para amplitud total
       console.log(`   - Encontrados torneos recientes para ${fmt.name}: [${eventList.join(', ')}]`);
 
       for (const eventId of eventList) {
@@ -253,7 +253,7 @@ async function run() {
           }
         }
 
-        const topDecks = eventDecks.slice(0, 8); // Top 8 barajas completas por torneo para amplitud total
+        const topDecks = eventDecks.slice(0, 12); // Top 12 barajas completas por torneo para amplitud total
         console.log(`     * Descargando e indexando las Top ${topDecks.length} barajas de este torneo...`);
 
         for (const deckInfo of topDecks) {

@@ -1,9 +1,10 @@
 import { generateManaBase, calculatePerfectLandCount, calculateVMP } from './deckCalculator.js'; 
 import { callAI } from './aiFactory.js';
 import { API_ENDPOINTS } from '../config/apiEndpoints.js';
-import { BATTLEBOX_BANLIST, BANLIST_SUBSTITUTIONS, BATTLEBOX_ARCHETYPES, MTG_STRATEGIES, MTG_TRIBES, getIntelligentSubstitution, PARASITIC_RULES } from '../constants/legacyBattleBox.js';
+import { BATTLEBOX_BANLIST, BANLIST_SUBSTITUTIONS, BATTLEBOX_ARCHETYPES, MTG_STRATEGIES, MTG_TRIBES, getIntelligentSubstitution, PARASITIC_RULES, COMPETITIVE_ANTI_SYNERGIES } from '../constants/legacyBattleBox.js';
 import { buildCardPool, getDynamicArchetypes } from './ragService.js';
 import { findFuzzyMatchInDB, getCardFromDB } from './cardHydrator.js';
+import { generateSideboardGuide } from './sideboardService.js';
 
 /**
  * Limpia y parsea de forma segura respuestas JSON de la IA que puedan incluir cercas de código de markdown.
@@ -1036,6 +1037,172 @@ export function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ragPool 
         }
         return list;
     };
+
+    // =========================================================================
+    // ⚔️ EL CUERPO SUPREMO DE LEYES DEL PRO TOUR (AUDITORÍA DE INCOMPATIBILIDADES)
+    // =========================================================================
+    
+    // A. EXCLUSIÓN DE CARTAS DE ODIO ESTRECHO DEL MAINDECK AL SIDEBOARD
+    const narrowHateCards = ["rest in peace", "surgical extraction", "leyline of the void", "tormod's crypt", "grafdigger's cage", "stony silence"];
+    let hateCardsFound = [];
+    cards = cards.filter(c => {
+        if (c.category !== 'Land' && narrowHateCards.includes(c.name.toLowerCase())) {
+            hateCardsFound.push(c);
+            return false; // Quitar del Maindeck
+        }
+        return true;
+    });
+
+    if (hateCardsFound.length > 0) {
+        const totalHateQty = hateCardsFound.reduce((sum, h) => sum + h.quantity, 0);
+        const logHate = `[JUEZ PRO TOUR] Odio estrecho en Maindeck detectado (${hateCardsFound.map(h => `${h.quantity}x ${h.name}`).join(', ')}). Moviéndolo al Sideboard dinámicamente y rellenando con interacción genérica.`;
+        console.log(logHate);
+        if (addLog) addLog(logHate);
+
+        // Rellenar con interacción genérica de coste 1
+        let genSpellName = "Fatal Push";
+        if (colors.has("R")) genSpellName = "Lightning Bolt";
+        else if (colors.has("W")) genSpellName = "Prismatic Ending";
+        else if (colors.has("U")) genSpellName = "Spell Pierce";
+
+        cards = inyectarCartaDirecta(cards, { name: genSpellName, quantity: totalHateQty, category: "Instant", cmc: 1, role: "interaction" });
+    }
+
+    // B. COMPATIBILIDAD DE STONEFORGE MYSTIC
+    const hasStoneforge = cards.some(c => c.name.toLowerCase() === "stoneforge mystic");
+    if (hasStoneforge) {
+        const equipments = ["sword of fire and ice", "shadowspear", "batterskull", "kaldra compleat", "colossus hammer", "sword of feast and famine"];
+        const hasEquip = cards.some(c => equipments.includes(c.name.toLowerCase()));
+        if (!hasEquip) {
+            const logStone = `[JUEZ PRO TOUR] Stoneforge Mystic detectada sin equipos en Maindeck. Inyectando suite de equipos obligatorios para evitar carta muerta.`;
+            console.log(logStone);
+            if (addLog) addLog(logStone);
+
+            cards = inyectarCartaDirecta(cards, { name: "Sword of Fire and Ice", quantity: 1, category: "Artifact", cmc: 3, role: "equipment" });
+            cards = inyectarCartaDirecta(cards, { name: "Shadowspear", quantity: 1, category: "Artifact", cmc: 1, role: "equipment" });
+            
+            let purgedCount = 0;
+            const highCmcThreats = cards.filter(c => c.category !== 'Land' && c.cmc >= 3 && !esRolProtegido(c.role) && c.quantity > 1);
+            for (let tc of highCmcThreats) {
+                if (purgedCount >= 2) break;
+                tc.quantity -= 1;
+                purgedCount += 1;
+            }
+        }
+    }
+
+    // C. COMPATIBILIDAD DE REANIMATOR CON PERSIST
+    const hasPersist = cards.some(c => c.name.toLowerCase() === "persist");
+    if (hasPersist && strategyId === 'reanimator') {
+        const giants = cards.filter(c => c.category === 'Creature' && c.cmc >= 6);
+        const hasNonLegendaryGiant = giants.some(c => !["atraxa, grand unifier", "griselbrand", "sheoldred, the apocalypse", "koma, cosmos serpent"].includes(c.name.toLowerCase()));
+        if (!hasNonLegendaryGiant) {
+            const logPersist = `[JUEZ PRO TOUR] El mazo usa "Persist" (solo reanima NO-legendarias) pero solo tiene payoffs legendarios. Inyectando "Archon of Cruelty" para asegurar consistencia del combo.`;
+            console.log(logPersist);
+            if (addLog) addLog(logPersist);
+
+            cards = inyectarCartaDirecta(cards, { name: "Archon of Cruelty", quantity: 2, category: "Creature", cmc: 8, role: "reanimation_creature_targets" });
+            
+            let purgedLegendaries = 0;
+            const legendaries = cards.filter(c => c.category === 'Creature' && c.cmc >= 6 && c.name.toLowerCase() !== "archon of cruelty");
+            for (let leg of legendaries) {
+                if (purgedLegendaries >= 2) break;
+                const take = Math.min(leg.quantity, 2 - purgedLegendaries);
+                leg.quantity -= take;
+                purgedLegendaries += take;
+            }
+            cards = cards.filter(c => c.quantity > 0);
+        }
+    }
+
+    // D. COMPATIBILIDAD DE DELIRIO CON MISHRA'S BAUBLE
+    const hasDelirium = cards.some(c => c.name.toLowerCase() === "dragon's rage channeler" || c.name.toLowerCase() === "tarmogoyf");
+    if (hasDelirium && (strategyId === 'graveyard' || strategyId === 'delirium')) {
+        const hasBauble = cards.some(c => c.name.toLowerCase() === "mishra's bauble");
+        if (!hasBauble) {
+            const logDelirium = `[JUEZ PRO TOUR] Mazo de Delirium detectado sin Mishra's Bauble. Inyectando 4x Mishra's Bauble para acelerar cementerio gratis.`;
+            console.log(logDelirium);
+            if (addLog) addLog(logDelirium);
+
+            cards = inyectarCartaDirecta(cards, { name: "Mishra's Bauble", quantity: 4, category: "Artifact", cmc: 0, role: "delirium_enabler" });
+
+            let purgedCount = 0;
+            const lowPrioritySpells = cards.filter(c => c.category !== 'Land' && c.cmc >= 2 && !esRolProtegido(c.role) && c.quantity > 1);
+            for (let lp of lowPrioritySpells) {
+                if (purgedCount >= 4) break;
+                const take = Math.min(lp.quantity - 1, 4 - purgedCount);
+                lp.quantity -= take;
+                purgedCount += take;
+            }
+            cards = cards.filter(c => c.quantity > 0);
+        }
+    }
+
+    // E. AUDITORÍA DE ANTI-SINERGIAS COMPETITIVAS (COMPETITIVE_ANTI_SYNERGIES)
+    COMPETITIVE_ANTI_SYNERGIES.forEach(anti => {
+        const hasCard = cards.some(c => c.name.toLowerCase() === anti.card.toLowerCase());
+        const hasConflict = strategyId.toLowerCase() === anti.strategy.toLowerCase() || 
+                            (formData?.archetype || '').toLowerCase().includes(anti.strategy.toLowerCase());
+        
+        if (hasCard && hasConflict) {
+            const existingIdx = cards.findIndex(c => c.name.toLowerCase() === anti.card.toLowerCase());
+            if (existingIdx !== -1) {
+                const qty = cards[existingIdx].quantity;
+                const logAnti = `[JUEZ PRO TOUR] Veto de Antisinersia: Interceptada "${anti.card}" en estrategia "${anti.strategy}". Motivo: ${anti.reason}. Reemplazada por "${anti.replacement}".`;
+                console.log(logAnti);
+                if (addLog) addLog(logAnti);
+
+                cards.splice(existingIdx, 1);
+                cards = inyectarCartaDirecta(cards, { name: anti.replacement, quantity: qty, category: "Creature", cmc: 2, role: "synergy_fix" });
+            }
+        }
+    });
+
+    // F. SOPORTE DE DOMAIN PARA LEYLINE BINDING
+    const hasLeylineBinding = cards.some(c => c.name.toLowerCase() === "leyline binding");
+    if (hasLeylineBinding && colors.size >= 2) {
+        const triomes = ["Raffine's Tower", "Xander's Lounge", "Ziatora's Proving Ground", "Jetmir's Garden", "Spara's Headquarters", "Indatha Triome", "Ketria Triome", "Raugrin Triome", "Savai Triome", "Zagoth Triome"];
+        const hasTriome = cards.some(c => c.category === 'Land' && triomes.includes(c.name));
+        if (!hasTriome) {
+            const complementTriome = colors.has("W") && colors.has("U") && colors.has("B") ? "Ziatora's Proving Ground" : "Spara's Headquarters";
+            const logDomain = `[JUEZ PRO TOUR] Leyline Binding detectado sin Trioma de soporte. Inyectando 1x "${complementTriome}" para acelerar el Domain.`;
+            console.log(logDomain);
+            if (addLog) addLog(logDomain);
+
+            const basicLandsList = cards.filter(c => c.category === 'Land' && ["plains", "island", "swamp", "mountain", "forest"].includes(c.name.toLowerCase()));
+            if (basicLandsList.length > 0) {
+                basicLandsList[0].quantity -= 1;
+                cards.push({ name: complementTriome, quantity: 1, category: "Land", type_line: "Land — Triome", color_identity: ["G", "W", "U"] });
+            }
+            cards = cards.filter(c => c.quantity > 0);
+        }
+    }
+
+    // G. PROTECCIÓN CONTRA BLOOD MOON EN MAZOS MULTICOLORES (3+ COLORES)
+    if (colors.size >= 3) {
+        const basicLands = cards.filter(c => c.category === 'Land' && ["plains", "island", "swamp", "mountain", "forest"].includes(c.name.toLowerCase()));
+        const uniqueBasics = new Set(basicLands.map(b => b.name.toLowerCase()));
+        
+        let basicsToAdd = [];
+        if (colors.has("G") && !uniqueBasics.has("forest")) basicsToAdd.push("Forest");
+        if (colors.has("U") && !uniqueBasics.has("island")) basicsToAdd.push("Island");
+        if (colors.has("B") && !uniqueBasics.has("swamp")) basicsToAdd.push("Swamp");
+
+        if (basicsToAdd.length > 0) {
+            const logMoon = `[JUEZ PRO TOUR] Mazo de 3+ colores vulnerable a Blood Moon. Inyectando tierras básicas críticas: ${basicsToAdd.join(', ')}.`;
+            console.log(logMoon);
+            if (addLog) addLog(logMoon);
+
+            basicsToAdd.forEach(basicName => {
+                const duals = cards.filter(c => c.category === 'Land' && !["plains", "island", "swamp", "mountain", "forest"].includes(c.name.toLowerCase()) && c.quantity > 1);
+                if (duals.length > 0) {
+                    duals[0].quantity -= 1;
+                    cards = inyectarCartaDirecta(cards, { name: basicName, quantity: 1, category: "Land", cmc: 0 });
+                }
+            });
+            cards = cards.filter(c => c.quantity > 0);
+        }
+    }
 
     const obtenerColorDeCarta = (cardName) => {
         const nameLower = cardName.toLowerCase();
@@ -2098,11 +2265,15 @@ export function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ragPool 
     });
     cards = uniqueCards;
 
+    // Generar la guía simétrica interactiva de banquillo
+    const sideboard_guide = generateSideboardGuide(cards, sideboard);
+
     return {
         ...deckResult,
         cards,
         sideboard,
-        sideboard_strategy
+        sideboard_strategy,
+        sideboard_guide
     };
 }
 const CRITICAL_SYNERGY_RULES = {
@@ -2722,7 +2893,43 @@ Analiza profundamente el mazo. Devuelve el JSON requerido con 'additions' (para 
       }
   }
  
- onProgress('judge', '🌐 Trazando Matemática Perfecta del Flujo Natural Generando Pips Lands de JS Puro..'); 
+  // === AUDITORÍA DETERMINISTA DE PIPS REALES ===
+  // Para evitar que las alucinaciones del JSON de Gemini (como marcar B:0 teniendo Fatal Push) corrompan la manabase,
+  // escaneamos los hechizos finales de forma determinista y sobreescribimos los pips técnicos reales.
+  let recalculatedPips = { W: 0, U: 0, B: 0, R: 0, G: 0 };
+  sanitizedFinals_ArraySpells.forEach(card => {
+      let cost = card.mana_cost || '';
+      if (card.card_faces && card.card_faces[0] && typeof card.card_faces[0].mana_cost === 'string') {
+          cost = card.card_faces[0].mana_cost;
+      }
+      const qty = Number(card.quantity || 1);
+      
+      let hasPips = false;
+      if (cost.includes('{W}')) { recalculatedPips.W += (cost.match(/\{W\}/g) || []).length * qty; hasPips = true; }
+      if (cost.includes('{U}')) { recalculatedPips.U += (cost.match(/\{U\}/g) || []).length * qty; hasPips = true; }
+      if (cost.includes('{B}')) { recalculatedPips.B += (cost.match(/\{B\}/g) || []).length * qty; hasPips = true; }
+      if (cost.includes('{R}')) { recalculatedPips.R += (cost.match(/\{R\}/g) || []).length * qty; hasPips = true; }
+      if (cost.includes('{G}')) { recalculatedPips.G += (cost.match(/\{G\}/g) || []).length * qty; hasPips = true; }
+
+      // Fallback si no hay pips explícitos en coste (ej. cartas con Suspend como Crashing Footfalls de coste 0)
+      if (!hasPips) {
+          let cardColors = card.colors || card.color_identity || [];
+          if (typeof cardColors === 'string') cardColors = [cardColors];
+          cardColors.forEach(col => {
+              const upperCol = String(col).toUpperCase();
+              if (recalculatedPips[upperCol] !== undefined) {
+                  recalculatedPips[upperCol] += 1 * qty;
+              }
+          });
+      }
+  });
+
+  // Sobrescribir pips_balance en metricsPIPsStruct con los pips deterministas reales recalculados
+  Object.keys(recalculatedPips).forEach(color => {
+      metricsPIPsStruct[color] = recalculatedPips[color];
+  });
+ 
+  onProgress('judge', '🌐 Trazando Matemática Perfecta del Flujo Natural Generando Pips Lands de JS Puro..'); 
   
   let validCurrentGenUsedStrPipKeysBaseArrayDetected = Object.keys(metricsPIPsStruct).filter(mX => metricsPIPsStruct[mX] > 0);
 

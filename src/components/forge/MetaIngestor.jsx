@@ -20,8 +20,9 @@ export default function MetaIngestor({ selectedFormat, onFormatChange }) {
   const [syncStatus, setSyncStatus] = useState('idle');
   const [syncError, setSyncError] = useState(null);
   const [progress, setProgress] = useState(0);
-  const [ingestMode, setIngestMode] = useState('auto'); // 'auto' | 'manual'
+  const [ingestMode, setIngestMode] = useState('auto'); // 'auto' | 'moxfield' | 'manual'
   const [manualText, setManualText] = useState('');
+  const [moxfieldUrl, setMoxfieldUrl] = useState('');
   const [timeWindow, setTimeWindow] = useState(() => {
     return parseInt(localStorage.getItem('mtg_meta_window') || '8', 10);
   });
@@ -49,6 +50,72 @@ export default function MetaIngestor({ selectedFormat, onFormatChange }) {
     setSyncStatus('syncing');
     setSyncError(null);
     setProgress(10);
+
+    if (ingestMode === 'moxfield') {
+      try {
+        setProgress(20);
+        if (!moxfieldUrl.trim()) {
+          throw new Error("El campo de URL de Moxfield está vacío.");
+        }
+        
+        const match = moxfieldUrl.match(/decks\/([a-zA-Z0-9_-]+)/);
+        if (!match) {
+          throw new Error("URL de Moxfield inválida. Debe contener '/decks/ID_DEL_MAZO'");
+        }
+        const deckId = match[1];
+        setProgress(40);
+        
+        const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://api2.moxfield.com/v2/decks/all/${deckId}`)}`;
+        
+        const response = await fetch(proxyUrl);
+        if (!response.ok) {
+          throw new Error(`Error al conectar con Moxfield (HTTP ${response.status})`);
+        }
+        
+        setProgress(70);
+        const data = await response.json();
+        
+        if (!data || !data.mainboard) {
+          throw new Error("La estructura del mazo de Moxfield es inválida o no tiene cartas en el mainboard.");
+        }
+        
+        const mainCards = [];
+        Object.entries(data.mainboard).forEach(([name, entry]) => {
+          mainCards.push({
+            name: name.trim(),
+            quantity: entry.quantity || 1
+          });
+        });
+        
+        if (mainCards.length === 0) {
+          throw new Error("No se encontraron cartas en el mainboard de Moxfield.");
+        }
+        
+        const processedDeck = {
+          name: data.name || `Mazo Moxfield #${deckId.substring(0, 4)}`,
+          main: mainCards
+        };
+        
+        setProgress(85);
+        const calculatedMeta = computeMetaFromDecklistsList([processedDeck]);
+        calculatedMeta.source = `Moxfield (${processedDeck.name})`;
+        calculatedMeta.lastIngestionDate = Date.now();
+        
+        setProgress(95);
+        saveMetaToDB(selectedFormat, calculatedMeta);
+        
+        setProgress(100);
+        setSyncStatus('success');
+        setTimeout(() => {
+          setSyncStatus('idle');
+          setMoxfieldUrl('');
+        }, 3000);
+      } catch (err) {
+        setSyncStatus('error');
+        setSyncError(err.message || 'Error al procesar el mazo de Moxfield.');
+      }
+      return;
+    }
 
     if (ingestMode === 'manual') {
       try {
@@ -210,6 +277,18 @@ export default function MetaIngestor({ selectedFormat, onFormatChange }) {
         </button>
         <button
           type="button"
+          onClick={() => setIngestMode('moxfield')}
+          className={cn(
+            "flex-1 pb-2 border-b-2 font-bold uppercase tracking-widest text-[9.5px] transition-all duration-300",
+            ingestMode === 'moxfield'
+              ? "border-magic-gold text-magic-gold drop-shadow-[0_0_8px_rgba(255,202,88,0.25)]"
+              : "border-transparent text-magic-gold/40 hover:text-magic-gold"
+          )}
+        >
+          Moxfield URL
+        </button>
+        <button
+          type="button"
           onClick={() => setIngestMode('manual')}
           className={cn(
             "flex-1 pb-2 border-b-2 font-bold uppercase tracking-widest text-[9.5px] transition-all duration-300",
@@ -223,7 +302,7 @@ export default function MetaIngestor({ selectedFormat, onFormatChange }) {
       </div>
 
       {/* Inputs condicionales según el modo */}
-      {ingestMode === 'auto' ? (
+      {ingestMode === 'auto' && (
         <div className="space-y-3 mb-4">
           <div className="space-y-1.5">
             <label className="flex items-center gap-1.5 text-[10.5px] font-bold text-magic-gold uppercase tracking-widest">
@@ -273,7 +352,28 @@ export default function MetaIngestor({ selectedFormat, onFormatChange }) {
             </p>
           </div>
         </div>
-      ) : (
+      )}
+
+      {ingestMode === 'moxfield' && (
+        <div className="space-y-2 mb-4">
+          <label className="flex items-center gap-1.5 text-[10.5px] font-bold text-magic-gold uppercase tracking-widest">
+            <Globe size={12} className="text-magic-gold" />
+            URL de Mazo de Moxfield
+          </label>
+          <input
+            type="text"
+            value={moxfieldUrl}
+            onChange={(e) => setMoxfieldUrl(e.target.value)}
+            placeholder="https://www.moxfield.com/decks/ID_DEL_MAZO"
+            className="w-full px-3 py-2 bg-black/60 border border-magic-gold/20 rounded-xl text-xs text-[#f4ece0] placeholder-magic-gold/30 focus:border-magic-gold focus:outline-none transition-all duration-300"
+          />
+          <p className="text-[9px] text-[#f4ece0]/40 leading-tight">
+            El motor descargará el mazo vía proxy CORS, analizará su contenido y computará la coocurrencia de cartas de forma local.
+          </p>
+        </div>
+      )}
+
+      {ingestMode === 'manual' && (
         <div className="space-y-2 mb-4">
           <label className="flex items-center gap-1.5 text-[10.5px] font-bold text-magic-gold uppercase tracking-widest">
             <FileText size={12} className="text-magic-gold" />

@@ -16,19 +16,45 @@ import HandSimulator from '../components/forge/HandSimulator';
 import { PowerLevelMeter } from '../components/forge/PowerLevelMeter';
 import RadarChart from '../components/forge/RadarChart';
 import ManaCurve from '../components/forge/ManaCurve';
-import { AlertTriangle, Shield, Lightbulb, Target, Scroll, PenTool, CheckCircle2, XCircle, Info, Zap, Sparkles, Copy, PlusCircle, MinusCircle } from 'lucide-react';
+import { AlertTriangle, Shield, Lightbulb, Target, Scroll, PenTool, CheckCircle2, XCircle, Info, Zap, Sparkles, Copy, PlusCircle, MinusCircle, GitFork, Share2, Download } from 'lucide-react';
 import { calculateKarstenProbability, calculateLandDropProbability, calculateManaCoverage } from '../services/deckCalculator';
+import { generateSideboard } from '../services/sideboardService';
+import SynergyGraphVisualizer from '../components/forge/SynergyGraphVisualizer';
+import DeckVisualExporter from '../components/forge/DeckVisualExporter';
 
 const FORGE_STORAGE_KEY = 'mtg_ai_config_forge';
 
+// Función auxiliar ultra-robusta para detectar tierras de cualquier tipo (básicas y especiales)
+const isLandCard = (c) => {
+  if (!c) return false;
+  const category = (c.category || '').toLowerCase();
+  const typeLine = (c.type_line || c.type || '').toLowerCase();
+  const name = (c.name || '').toLowerCase();
+  
+  return (
+    category.includes('land') || 
+    category.includes('tierra') || 
+    typeLine.includes('land') || 
+    typeLine.includes('tierra') ||
+    ['plains', 'island', 'swamp', 'mountain', 'forest', 'wastes', 'llanura', 'isla', 'pantano', 'montaña', 'bosque', 'yermo'].includes(name) ||
+    /tundra|underground sea|badlands|taiga|savannah|scrubland|volcanic island|bayou|plateau|tropical island/i.test(name) ||
+    /hallowed fountain|watery grave|blood crypt|stomping ground|temple garden|godless shrine|steam vents|overgrown tomb|sacred foundry|breeding pool/i.test(name) ||
+    /strand|delta|mire|foothills|heath|flats|tarn|catacomb|mesa|rainforest/i.test(name) ||
+    /lounge|triome|headquarters|spa|garden/i.test(name)
+  );
+};
+
 // Contador inteligente de fuentes de color de tierras para Frank Karsten
 const getManaSourcesCount = (deck) => {
-  const lands = deck.filter(c => (c.category || '').toLowerCase() === 'land' || ['plains', 'island', 'swamp', 'mountain', 'forest', 'wastes', 'llanura', 'isla', 'pantano', 'montaña', 'bosque', 'yermo'].includes(c.name.toLowerCase()));
+  if (!Array.isArray(deck)) return { W: 0, U: 0, B: 0, R: 0, G: 0 };
+  const lands = deck.filter(isLandCard);
   
   const counts = { W: 0, U: 0, B: 0, R: 0, G: 0 };
   
   lands.forEach(l => {
-    const name = l.name.toLowerCase();
+    if (!l) return;
+    const name = (l.name || '').toLowerCase();
+    if (!name) return;
     const qty = l.quantity || 1;
     
     if (name.includes('plains') || name.includes('llanura')) counts.W += qty;
@@ -80,11 +106,7 @@ const KarstenMatrix = ({ deck, validationEngine = 'local', validationData = null
   const deckSize = useMemo(() => deck.reduce((sum, c) => sum + (c.quantity || 1), 0), [deck]);
   
   const totalLands = useMemo(() => {
-    return deck.filter(c => {
-      const category = (c.category || '').toLowerCase();
-      const isLandName = ['plains', 'island', 'swamp', 'mountain', 'forest', 'wastes', 'llanura', 'isla', 'pantano', 'montaña', 'bosque', 'yermo'].includes(c.name.toLowerCase());
-      return category === 'land' || isLandName;
-    }).reduce((sum, c) => sum + (c.quantity || 1), 0);
+    return deck.filter(isLandCard).reduce((sum, c) => sum + (c.quantity || 1), 0);
   }, [deck]);
 
   const rows = [
@@ -332,7 +354,7 @@ const KarstenMatrix = ({ deck, validationEngine = 'local', validationData = null
 };
 
 // Helper para detectar tierras básicas
-const isBasicLand = (name) => ['Plains', 'Island', 'Swamp', 'Mountain', 'Forest', 'Wastes'].includes(name) || name.startsWith('Snow-Covered');
+const isBasicLand = (name) => name && (['Plains', 'Island', 'Swamp', 'Mountain', 'Forest', 'Wastes'].includes(name) || (typeof name === 'string' && name.startsWith('Snow-Covered')));
 
 // Generador de Guía Táctica Interactiva de Banquillo
 const getMatchupGuide = (mainDeck, sideboard, archetype = 'midrange') => {
@@ -377,38 +399,42 @@ const getMatchupGuide = (mainDeck, sideboard, archetype = 'midrange') => {
     }
   ];
 
+  const safeMainDeck = Array.isArray(mainDeck) ? mainDeck.filter(Boolean) : [];
+  const safeSideboard = Array.isArray(sideboard) ? sideboard.filter(Boolean) : [];
+
   return matchups.map(m => {
-    let cardsIn = sideboard.filter(c => 
-      m.inKeywords.some(kw => c.name.toLowerCase().includes(kw))
-    ).map(c => ({ name: c.name, quantity: c.quantity }));
+    let cardsIn = safeSideboard.filter(c => 
+      c && typeof c.name === 'string' && m.inKeywords.some(kw => c.name.toLowerCase().includes(kw))
+    ).map(c => ({ name: c.name, quantity: c.quantity || 1 }));
 
-    let cardsOut = mainDeck.filter(c => 
-      m.outKeywords.some(kw => c.name.toLowerCase().includes(kw)) && c.category !== 'Land'
-    ).map(c => ({ name: c.name, quantity: c.quantity }));
+    let cardsOut = safeMainDeck.filter(c => 
+      c && typeof c.name === 'string' && m.outKeywords.some(kw => c.name.toLowerCase().includes(kw)) && c.category !== 'Land'
+    ).map(c => ({ name: c.name, quantity: c.quantity || 1 }));
 
-    if (cardsIn.length === 0 && sideboard.length > 0) {
-      cardsIn.push({ name: sideboard[0].name, quantity: sideboard[0].quantity });
-      if (sideboard[1]) cardsIn.push({ name: sideboard[1].name, quantity: sideboard[1].quantity });
+    if (cardsIn.length === 0 && safeSideboard.length > 0) {
+      if (safeSideboard[0]) cardsIn.push({ name: safeSideboard[0].name || '', quantity: safeSideboard[0].quantity || 1 });
+      if (safeSideboard[1]) cardsIn.push({ name: safeSideboard[1].name || '', quantity: safeSideboard[1].quantity || 1 });
     }
-    if (cardsOut.length === 0 && mainDeck.length > 0) {
-      const nonLandCards = mainDeck.filter(c => c.category !== 'Land').sort((a, b) => b.mana_value - a.mana_value);
-      if (nonLandCards.length > 0) {
-        cardsOut.push({ name: nonLandCards[0].name, quantity: 2 });
+    if (cardsOut.length === 0 && safeMainDeck.length > 0) {
+      const nonLandCards = safeMainDeck.filter(c => c && c.category !== 'Land').sort((a, b) => (b?.mana_value || 0) - (a?.mana_value || 0));
+      if (nonLandCards.length > 0 && nonLandCards[0]) {
+        cardsOut.push({ name: nonLandCards[0].name || '', quantity: 2 });
       }
     }
 
     // Igualación matemática (1:1) estricta
-    let inTotal = cardsIn.reduce((sum, c) => sum + c.quantity, 0);
-    let outTotal = cardsOut.reduce((sum, c) => sum + c.quantity, 0);
+    let inTotal = cardsIn.reduce((sum, c) => sum + (c?.quantity || 0), 0);
+    let outTotal = cardsOut.reduce((sum, c) => sum + (c?.quantity || 0), 0);
     const minTotal = Math.min(inTotal, outTotal, 4); // Tope de 4 cartas por matchup
 
     const trimCards = (cards, target) => {
       let current = 0;
       return cards.map(c => {
+        if (!c) return null;
         if (current >= target) return null;
-        let take = Math.min(c.quantity, target - current);
+        let take = Math.min(c.quantity || 1, target - current);
         current += take;
-        return { name: c.name, quantity: take };
+        return { name: c.name || '', quantity: take };
       }).filter(Boolean);
     };
 
@@ -433,8 +459,13 @@ export default function DeckForge() {
   const [loading, setLoading] = useState(false);
   const [lastFormData, setLastFormData] = useState(null);
   const [aiConfig, setAiConfig] = useState(() => {
-    const saved = localStorage.getItem(FORGE_STORAGE_KEY);
-    return saved ? JSON.parse(saved) : null;
+    try {
+      const saved = localStorage.getItem(FORGE_STORAGE_KEY);
+      return saved ? JSON.parse(saved) : null;
+    } catch (e) {
+      console.warn("⚠️ No se pudo parsear aiConfig de localStorage:", e);
+      return null;
+    }
   });
   const [error, setError] = useState(null);
   const [warning, setWarning] = useState(null);
@@ -457,6 +488,9 @@ export default function DeckForge() {
   const [elapsedTime, setElapsedTime] = useState(0);
   const timerRef = useRef(null);
   const [activeMatchupTab, setActiveMatchupTab] = useState('aggro');
+  const [showRagGraph, setShowRagGraph] = useState(false);
+  const [showVisualGrid, setShowVisualGrid] = useState(false);
+  const [exportDropdownOpen, setExportDropdownOpen] = useState(false);
 
   // Timer de forja: muestra segundos transcurridos cuando loading === true
   useEffect(() => {
@@ -537,10 +571,13 @@ export default function DeckForge() {
 
   // --- LÓGICA DE VALIDACIÓN DE REGLAS ---
   const stats = useMemo(() => {
-    const mainCount = renderDeck.reduce((sum, c) => sum + c.quantity, 0);
-    const sideCount = renderSideboard.reduce((sum, c) => sum + c.quantity, 0);
-    const bannedInDeck = [...renderDeck, ...renderSideboard].filter(c => BATTLEBOX_BANLIST.includes(c.name));
-    const overLimit = [...renderDeck, ...renderSideboard].filter(c => !isBasicLand(c.name) && c.quantity > BATTLEBOX_RULES.maxCopies);
+    const safeDeck = Array.isArray(renderDeck) ? renderDeck.filter(Boolean) : [];
+    const safeSideboard = Array.isArray(renderSideboard) ? renderSideboard.filter(Boolean) : [];
+    
+    const mainCount = safeDeck.reduce((sum, c) => sum + (c.quantity || 0), 0);
+    const sideCount = safeSideboard.reduce((sum, c) => sum + (c.quantity || 0), 0);
+    const bannedInDeck = [...safeDeck, ...safeSideboard].filter(c => c.name && BATTLEBOX_BANLIST.includes(c.name));
+    const overLimit = [...safeDeck, ...safeSideboard].filter(c => c.name && !isBasicLand(c.name) && (c.quantity || 0) > BATTLEBOX_RULES.maxCopies);
     
     return {
       mainCount,
@@ -556,6 +593,135 @@ export default function DeckForge() {
   const matchupsList = useMemo(() => {
     return getMatchupGuide(renderDeck, renderSideboard, lastFormData?.archetype || 'midrange');
   }, [renderDeck, renderSideboard, lastFormData]);
+
+  const handleAutoGenerateSideboard = () => {
+    if (!renderDeck.length) return;
+    setLoading(true);
+    setForgePhase({ phase: 'hydrate', message: '🔮 Sideboard Architect analizando amenazas del metajuego...' });
+    
+    setTimeout(() => {
+      try {
+        const rawSide = generateSideboard(renderDeck, selectedFormat);
+        const rarityMode = lastFormData?.rarityMode || 'normal';
+        
+        hydrateDeckCards(rawSide, rarityMode)
+          .then(hydratedSide => {
+            setRenderSideboard(hydratedSide);
+            setWarning(null);
+          })
+          .catch(err => {
+            console.error(err);
+            setWarning("⚠️ Error al obtener imágenes de Scryfall para las cartas del banquillo.");
+          })
+          .finally(() => {
+            setLoading(false);
+            setForgePhase(null);
+          });
+      } catch (e) {
+        console.error(e);
+        setWarning("⚠️ Ocurrió un error al calcular las sinergias del banquillo.");
+        setLoading(false);
+        setForgePhase(null);
+      }
+    }, 800);
+  };
+
+  const handleExportUniversal = (formatType) => {
+    if (!renderDeck.length) return;
+    
+    const deckName = aiMetadata?.deckName || 'Mazo_Forjado';
+    let content = "";
+    let fileExtension = "txt";
+    let mimeType = "text/plain;charset=utf-8";
+
+    if (formatType === 'forge') {
+      content = "[main]\n";
+      renderDeck.forEach(c => {
+        content += `${c.quantity} ${c.name}\n`;
+      });
+      if (renderSideboard && renderSideboard.length > 0) {
+        content += "[sideboard]\n";
+        renderSideboard.forEach(c => {
+          content += `${c.quantity} ${c.name}\n`;
+        });
+      }
+      fileExtension = "dck";
+    } 
+    else if (formatType === 'arena') {
+      content = "Deck\n";
+      renderDeck.forEach(c => {
+        content += `${c.quantity} ${c.name}\n`;
+      });
+      if (renderSideboard && renderSideboard.length > 0) {
+        content += "\nSideboard\n";
+        renderSideboard.forEach(c => {
+          content += `${c.quantity} ${c.name}\n`;
+        });
+      }
+      fileExtension = "txt";
+    } 
+    else if (formatType === 'cockatrice') {
+      content = '<?xml version="1.0" encoding="UTF-8"?>\n';
+      content += '<cockatrice_deck version="1">\n';
+      content += `  <deckname>${deckName}</deckname>\n`;
+      content += '  <comments>Generado por Battlebox Architect (RAG Engine)</comments>\n';
+      content += '  <zone name="main">\n';
+      renderDeck.forEach(c => {
+        content += `    <card number="${c.quantity}" name="${c.name}"/>\n`;
+      });
+      content += '  </zone>\n';
+      if (renderSideboard && renderSideboard.length > 0) {
+        content += '  <zone name="side">\n';
+        renderSideboard.forEach(c => {
+          content += `    <card number="${c.quantity}" name="${c.name}"/>\n`;
+        });
+        content += '  </zone>\n';
+      }
+      content += '</cockatrice_deck>\n';
+      fileExtension = "xml";
+      mimeType = "application/xml;charset=utf-8";
+    } 
+    else if (formatType === 'obsidian') {
+      const today = new Date().toISOString().split('T')[0];
+      const colorsStr = lastFormData?.colores ? JSON.stringify(lastFormData.colores) : "[]";
+      
+      content = "---\n";
+      content += `name: "${deckName}"\n`;
+      content += `archetype: "${aiMetadata?.archetype || lastFormData?.archetype || 'Midrange'}"\n`;
+      content += `format: "${selectedFormat.toUpperCase()} Battle Box"\n`;
+      content += `colors: ${colorsStr}\n`;
+      content += `created: ${today}\n`;
+      content += "type: decklist\n";
+      content += "---\n\n";
+      
+      content += `# 🎴 Ficha del Mazo: ${deckName}\n\n`;
+      content += `> **Estrategia General:** *"${pocketGuide?.plan || aiMetadata?.strategy || 'No descifrada'}*"\n\n`;
+      
+      content += "## ⚔️ Mazo Principal (Mainboard)\n";
+      renderDeck.forEach(c => {
+        content += `- [[${c.name}]] x${c.quantity} (${c.category})\n`;
+      });
+      
+      if (renderSideboard && renderSideboard.length > 0) {
+        content += "\n## 🛡️ Banquillo (Sideboard)\n";
+        renderSideboard.forEach(c => {
+          content += `- [[${c.name}]] x${c.quantity} (${c.subCategory || 'Sideboard'})\n`;
+        });
+      }
+      fileExtension = "md";
+    }
+
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${deckName.replace(/\s+/g, '_')}.${fileExtension}`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    setExportDropdownOpen(false);
+  };
 
   const handleArchive = async () => {
     if (!renderDeck.length) return;
@@ -661,7 +827,7 @@ export default function DeckForge() {
       if (currentCount !== 60) {
         if (currentCount > 60) {
           let excess = currentCount - 60;
-          let landsDesc = finalDeck.map((c, i) => ({...c, originalIndex: i})).filter(c => c.category === 'Land').sort((a, b) => b.quantity - a.quantity);
+          let landsDesc = finalDeck.map((c, i) => ({...c, originalIndex: i})).filter(isLandCard).sort((a, b) => b.quantity - a.quantity);
           for (let land of landsDesc) {
             if (excess > 0 && land.quantity > 1) {
               const toRemove = Math.min(land.quantity - 1, excess);
@@ -671,7 +837,7 @@ export default function DeckForge() {
           }
         } else if (currentCount < 60) {
           const missing = 60 - currentCount;
-          const lands = finalDeck.filter(c => c.category === 'Land').sort((a, b) => b.quantity - a.quantity);
+          const lands = finalDeck.filter(isLandCard).sort((a, b) => b.quantity - a.quantity);
           if (lands.length > 0) {
             const index = finalDeck.findIndex(c => c.name === lands[0].name);
             finalDeck[index].quantity += missing;
@@ -892,6 +1058,28 @@ export default function DeckForge() {
         {mode === 'form' ? (
           <motion.div key="form" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
 
+            {/* Panel de Configuración de IA */}
+            <details className="mb-8 group" open={!aiConfig?.selectedModel}>
+              <summary className="cursor-pointer flex items-center gap-3 p-5 frosted-panel border border-magic-gold/20 rounded-2xl hover:border-magic-gold/40 transition-all duration-300">
+                <img src="/ASSETS/Engranaje.webp" alt="Config" className="w-10 h-10 object-contain drop-shadow-[0_0_10px_rgba(255,202,88,0.4)] group-open:animate-spin" style={{ animationDuration: '8s' }} />
+                <div className="flex-1">
+                  <h3 className="font-cinzel text-sm text-magic-gold uppercase tracking-[0.15em] font-black">
+                    Configuración del Oráculo IA
+                  </h3>
+                  <p className="text-[10px] text-white/40 tracking-wider">
+                    {aiConfig?.selectedModel ? `✅ Modelo activo: ${aiConfig.selectedModel}` : '⚠️ Configura un modelo de IA para poder forjar mazos'}
+                  </p>
+                </div>
+                <span className="text-magic-gold text-xs group-open:rotate-180 transition-transform duration-300">▼</span>
+              </summary>
+              <div className="mt-3 p-6 frosted-panel border border-magic-gold/10 rounded-2xl">
+                <AiConfigPanel
+                  storageKey={FORGE_STORAGE_KEY}
+                  onConfigReady={(config) => setAiConfig(config)}
+                />
+              </div>
+            </details>
+
             <ForgeForm 
               onSubmit={handleSubmit} 
               isLoading={loading} 
@@ -962,6 +1150,18 @@ export default function DeckForge() {
                   </button>
                 )}
                 <button
+                  onClick={() => setShowRagGraph(true)}
+                  className="btn-magic-glass btn-glass-gold shadow-lg flex items-center gap-1.5 border-[#D4AF37]/30 text-[#D4AF37]"
+                >
+                  <GitFork size={14} className="rotate-90" /> Grafo RAG
+                </button>
+                <button
+                  onClick={() => setShowVisualGrid(true)}
+                  className="btn-magic-glass btn-glass-silver shadow-lg flex items-center gap-1.5"
+                >
+                  <Share2 size={14} /> Grid Visual
+                </button>
+                <button
                   onClick={() => setShowHandSim(true)}
                   className="btn-magic-glass btn-glass-silver shadow-lg"
                 >
@@ -987,6 +1187,40 @@ export default function DeckForge() {
                 >
                   {cloudArchived ? '☁️ Subido' : '☁️ Subir Nube'}
                 </button>
+                <div className="relative">
+                  <button
+                    onClick={() => setExportDropdownOpen(!exportDropdownOpen)}
+                    className="btn-magic-glass btn-glass-silver shadow-lg flex items-center gap-2"
+                  >
+                    <Download size={14} /> Exportar Mazo ▾
+                  </button>
+                  <AnimatePresence>
+                    {exportDropdownOpen && (
+                      <>
+                        <div className="fixed inset-0 z-40" onClick={() => setExportDropdownOpen(false)} />
+                        <motion.div
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: 10 }}
+                          className="absolute right-0 mt-2 w-52 bg-[#120F0D] border-2 border-[#D4AF37]/30 rounded-xl shadow-[0_10px_30px_rgba(0,0,0,0.9)] overflow-hidden z-50 divide-y divide-white/5 text-xs text-left backdrop-blur-md"
+                        >
+                          <button onClick={() => handleExportUniversal('forge')} className="w-full px-4 py-2.5 hover:bg-[#D4AF37]/10 text-gray-200 hover:text-white transition-colors flex items-center gap-2">
+                            <span>📥</span> Forge (.dck)
+                          </button>
+                          <button onClick={() => handleExportUniversal('arena')} className="w-full px-4 py-2.5 hover:bg-[#D4AF37]/10 text-gray-200 hover:text-white transition-colors flex items-center gap-2">
+                            <span>🎴</span> MTG Arena (.txt)
+                          </button>
+                          <button onClick={() => handleExportUniversal('cockatrice')} className="w-full px-4 py-2.5 hover:bg-[#D4AF37]/10 text-gray-200 hover:text-white transition-colors flex items-center gap-2">
+                            <span>⚔</span> Cockatrice (.xml)
+                          </button>
+                          <button onClick={() => handleExportUniversal('obsidian')} className="w-full px-4 py-2.5 hover:bg-[#D4AF37]/10 text-gray-200 hover:text-white transition-colors flex items-center gap-2">
+                            <span>📝</span> Obsidian Note (.md)
+                          </button>
+                        </motion.div>
+                      </>
+                    )}
+                  </AnimatePresence>
+                </div>
                 <button onClick={() => setMode('form')} className="btn-magic-glass btn-glass-silver">← Nuevo</button>
               </div>
             </div>
@@ -1133,7 +1367,7 @@ export default function DeckForge() {
                 
                 {/* Sideboard Section */}
                 <div className="mt-12 pt-8 border-t border-white/10">
-                  <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
                     <div className="flex items-center gap-4">
                       <h3 className="font-cinzel text-xl text-magic-gold flex items-center gap-3">
                         <Shield className="text-[#D4AF37]" /> Banquillo (Sideboard)
@@ -1145,6 +1379,13 @@ export default function DeckForge() {
                         {stats.sideCount} / 15 cartas
                       </span>
                     </div>
+
+                    <button
+                      onClick={handleAutoGenerateSideboard}
+                      className="px-4 py-2 bg-[#D4AF37]/15 hover:bg-[#D4AF37]/25 border border-[#D4AF37]/40 hover:border-[#D4AF37] text-magic-gold hover:text-white rounded-xl text-xs font-cinzel flex items-center gap-2 transition-all active:scale-95 shadow-md"
+                    >
+                      <Sparkles size={13} className="text-[#D4AF37] animate-pulse" /> 🔮 Sideboard Architect
+                    </button>
                   </div>
 
 
@@ -1357,6 +1598,8 @@ export default function DeckForge() {
             </div>
 
             <HandSimulator deck={renderDeck} isOpen={showHandSim} onClose={() => setShowHandSim(false)} aiConfig={aiConfig} />
+            <SynergyGraphVisualizer deck={renderDeck} isOpen={showRagGraph} onClose={() => setShowRagGraph(false)} archetype={aiMetadata?.archetype || lastFormData?.archetype} colors={lastFormData?.colores} />
+            <DeckVisualExporter deck={renderDeck} sideboard={renderSideboard} isOpen={showVisualGrid} onClose={() => setShowVisualGrid(false)} deckName={aiMetadata?.deckName || 'Mazo Forjado'} archetype={aiMetadata?.archetype || lastFormData?.archetype} colors={lastFormData?.colores} />
           </motion.div>
         )}
       </AnimatePresence>

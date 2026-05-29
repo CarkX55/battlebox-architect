@@ -253,6 +253,9 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
   ['W', 'U', 'B', 'R', 'G'].forEach(color => {
     let requiredSources = 0;
     
+    // Ignorar colores que no estén en la identidad de color del mazo (ej. pips Phyrexianos como Dismember en mazos sin Negro)
+    if (!colors.includes(color)) return;
+    
     nonLandSpells.forEach(s => {
       const costStr = getCardManaCostString(s);
       const nameLower = (s.name || '').toLowerCase();
@@ -634,43 +637,73 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
       });
     }
 
-    // D. AUXILIARY LANDS (Fastlands & Slowlands for Pioneer / Standard or budget fillers)
+    // D. AUXILIARY LANDS (Fastlands & Slowlands: Optimización de Turno Crítico de Pips)
     if (format === 'PIONEER' || format === 'STANDARD' || remainingLands > minBasics) {
-      const validFast = fastLands.filter(f => f.colors.every(c => actualColors.includes(c)));
-      validFast.forEach(fast => {
-        if (remainingLands <= minBasics) return;
-        let quantity = (archetype === 'aggro' || format === 'STANDARD') ? 4 : 2;
-        quantity = Math.min(quantity, remainingLands - minBasics);
-
-        if (quantity > 0) {
-          manaBase.push({
-            name: fast.name,
-            quantity: quantity,
-            category: 'Land',
-            type_line: 'Land — Fast',
-            color_identity: fast.colors
-          });
-          remainingLands -= quantity;
-          console.log(`[MANABASE GENERATOR] Inyectada fast land: ${quantity}x ${fast.name}`);
+      // 1. Deducir qué colores tienen pips de coste bajo (CMC <= 2)
+      const lowCmcColors = new Set();
+      nonLandSpells.forEach(s => {
+        const mv = getManaValue(s);
+        if (mv <= 2) {
+          const costStr = getCardManaCostString(s);
+          if (costStr.includes('W')) lowCmcColors.add('W');
+          if (costStr.includes('U')) lowCmcColors.add('U');
+          if (costStr.includes('B')) lowCmcColors.add('B');
+          if (costStr.includes('R')) lowCmcColors.add('R');
+          if (costStr.includes('G')) lowCmcColors.add('G');
         }
       });
 
+      // 2. Filtrar tierras auxiliares válidas
+      const validFast = fastLands.filter(f => f.colors.every(c => actualColors.includes(c)));
       const validSlow = slowLands.filter(s => s.colors.every(c => actualColors.includes(c)));
+
+      // 3. Inyectar Fastlands primero si el par de colores tiene pips tempranos de CMC <= 2
+      validFast.forEach(fast => {
+        if (remainingLands <= minBasics) return;
+        
+        // ¿Tiene pips tempranos?
+        const hasEarlyPip = fast.colors.some(c => lowCmcColors.has(c));
+        
+        if (hasEarlyPip || archetype === 'aggro') {
+          let quantity = (archetype === 'aggro' || format === 'STANDARD') ? 4 : 2;
+          quantity = Math.min(quantity, remainingLands - minBasics);
+
+          if (quantity > 0) {
+            manaBase.push({
+              name: fast.name,
+              quantity: quantity,
+              category: 'Land',
+              type_line: 'Land — Fast',
+              color_identity: fast.colors
+            });
+            remainingLands -= quantity;
+            console.log(`[MANABASE GENERATOR] [CRITICAL PIP] Inyectada Fastland para tempo temprano: ${quantity}x ${fast.name}`);
+          }
+        }
+      });
+
+      // 4. Inyectar Slowlands si no se requería tempo temprano o si queda espacio
       validSlow.forEach(slow => {
         if (remainingLands <= minBasics) return;
-        let quantity = (archetype === 'control' || archetype === 'midrange') ? 4 : 2;
-        quantity = Math.min(quantity, remainingLands - minBasics);
+        
+        const hasEarlyPip = slow.colors.some(c => lowCmcColors.has(c));
+        
+        // Priorizar slowlands si no se requiere velocidad inmediata (Control/Midrange o costes >= 3)
+        if (!hasEarlyPip || archetype === 'control' || archetype === 'midrange') {
+          let quantity = (archetype === 'control' || archetype === 'midrange') ? 4 : 2;
+          quantity = Math.min(quantity, remainingLands - minBasics);
 
-        if (quantity > 0) {
-          manaBase.push({
-            name: slow.name,
-            quantity: quantity,
-            category: 'Land',
-            type_line: 'Land — Slow',
-            color_identity: slow.colors
-          });
-          remainingLands -= quantity;
-          console.log(`[MANABASE GENERATOR] Inyectada slow land: ${quantity}x ${slow.name}`);
+          if (quantity > 0) {
+            manaBase.push({
+              name: slow.name,
+              quantity: quantity,
+              category: 'Land',
+              type_line: 'Land — Slow',
+              color_identity: slow.colors
+            });
+            remainingLands -= quantity;
+            console.log(`[MANABASE GENERATOR] [CRITICAL PIP] Inyectada Slowland para late-game de valor: ${quantity}x ${slow.name}`);
+          }
         }
       });
     }

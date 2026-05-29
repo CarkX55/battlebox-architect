@@ -1,14 +1,84 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, Component } from 'react';
 import { useAppStore } from './store/useAppStore';
 import { MotionConfig, motion, AnimatePresence } from 'framer-motion';
 import { cn } from './utils/cn';
 
-const Home = lazy(() => import('./views/Home'));
-const BattleBox = lazy(() => import('./views/BattleBox'));
-const Community = lazy(() => import('./views/Community'));
-const DeckForge = lazy(() => import('./views/DeckForge'));
-const DeckArchive = lazy(() => import('./views/DeckArchive'));
-const Admin = lazy(() => import('./views/AdminPanel'));
+// ErrorBoundary class component to capture any runtime crashes gracefully and display the stack trace
+class ErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error("💥 [React Crash] Error capturado en ErrorBoundary:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="p-8 max-w-4xl mx-auto border-2 border-red-500/40 bg-red-950/20 text-red-200 rounded-2xl shadow-2xl space-y-5 my-8 backdrop-blur-md">
+          <h2 className="text-2xl font-cinzel text-red-400 font-bold uppercase tracking-wider flex items-center gap-2">
+            ⚠️ El Grimorio ha Colapsado
+          </h2>
+          <p className="font-serif text-sm">
+            Se ha producido un error crítico al canalizar este ecosistema. Por favor, compártele esta traza al Juez Supremo para su depuración:
+          </p>
+          <div className="p-5 bg-black/90 rounded-xl border border-red-500/25 overflow-x-auto text-xs font-mono text-red-400 leading-relaxed shadow-inner">
+            {this.state.error && this.state.error.toString()}
+            {this.state.error?.stack && (
+              <pre className="mt-3 text-red-500/70 whitespace-pre-wrap font-sans text-[11px]">
+                {this.state.error.stack}
+              </pre>
+            )}
+          </div>
+          <div className="flex gap-4">
+            <button
+              onClick={() => {
+                localStorage.clear();
+                window.location.reload();
+              }}
+              className="px-6 py-3 bg-red-500/10 hover:bg-red-500/25 text-red-400 border border-red-500/45 rounded-xl font-cinzel text-xs font-black uppercase tracking-widest transition-all"
+            >
+              🧹 Limpiar Caché y Reiniciar
+            </button>
+            <button
+              onClick={() => window.location.reload()}
+              className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-cinzel text-xs font-black uppercase tracking-widest transition-all shadow-lg"
+            >
+              Re-invocar Aplicación ➔
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
+// Helper premium ultra-robusto para reintentar la descarga de vistas dinámicas (Lazy Chunks) de Vite
+// en caso de fallo de red, cambios de hash tras compilación o caché corrompida.
+const lazyWithRetry = (componentImport) => 
+  lazy(() => 
+    componentImport().catch((error) => {
+      console.warn("🔮 [Vite Oracle] Fallo de importación dinámica detectado. Forzando recarga de página para traer los nuevos hashes...", error);
+      // Forzar recarga limpia
+      window.location.reload();
+      return { default: () => <div className="min-h-screen bg-[#0a0a0a]" /> };
+    })
+  );
+
+const Home = lazyWithRetry(() => import('./views/Home'));
+const BattleBox = lazyWithRetry(() => import('./views/BattleBox'));
+const Community = lazyWithRetry(() => import('./views/Community'));
+const DeckForge = lazyWithRetry(() => import('./views/DeckForge'));
+const DeckArchive = lazyWithRetry(() => import('./views/DeckArchive'));
+const Admin = lazyWithRetry(() => import('./views/AdminPanel'));
 
 const views = {
   Home,
@@ -68,15 +138,17 @@ function App() {
               <p className="font-cinzel text-magic-gold/60 tracking-[0.3em] uppercase text-sm">Canalizando el Oráculo...</p>
             </div>
           }>
-            <motion.div
-              key={currentView}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.3 }}
-            >
-              <CurrentView />
-            </motion.div>
+            <ErrorBoundary>
+              <motion.div
+                key={currentView}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.3 }}
+              >
+                <CurrentView />
+              </motion.div>
+            </ErrorBoundary>
           </Suspense>
         </main>
 

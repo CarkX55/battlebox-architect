@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../../utils/cn';
 import { BATTLEBOX_BANLIST, COLORS } from '../../constants/legacyBattleBox';
-import { Search, Filter, ShieldAlert, Swords, Zap, Scroll, Book, Box, Gem, Map, X, Plus, Check, RefreshCw } from 'lucide-react';
+import { Search, Filter, ShieldAlert, Swords, Zap, Scroll, Book, Box, Gem, Map, X, Plus, Check, RefreshCw, AlertTriangle } from 'lucide-react';
 
 export default function CardSearch({ onAddCard }) {
   const [query, setQuery] = useState('');

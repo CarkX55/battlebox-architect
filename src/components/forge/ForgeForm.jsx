@@ -1,7 +1,7 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../../utils/cn';
-import { Sparkles, Swords, Shield, Zap, Flame, Crown, BookOpen, Search, Check, Plus, AlertCircle, Wand2, Compass, PlusCircle, MinusCircle, Scroll, TrendingUp } from 'lucide-react';
+import { Sparkles, Swords, Shield, Zap, Flame, Crown, BookOpen, Search, Check, Plus, AlertCircle, Wand2, Compass, PlusCircle, MinusCircle, Scroll, TrendingUp, Lock } from 'lucide-react';
 
 import { BATTLEBOX_ARCHETYPES, getBattleBoxFormatName, BATTLEBOX_FORMAT_NAME, MTG_TRIBES, MTG_STRATEGIES, TRIBE_CATEGORIES, COLORS } from '../../constants/legacyBattleBox';
 import ManaOrb from '../atoms/ManaOrb';
@@ -35,6 +35,161 @@ const COLOR_GROUP_TABS = [
   { id: 'tricolor', label: 'Tricolor', icon: '🌀', desc: 'Shards/Clanes' },
   { id: 'multicolor', label: '4-5 Colores', icon: '👑', desc: 'Multicolor' }
 ];
+
+// Componente Premium: Vistazo Rápido de tu Ecosistema
+function QuickGlancePanel({ formData, currentArchetype, selectedTribeInfo, selectedStrategyInfo, isCustomTribe, isCustomStrategy }) {
+  if (!currentArchetype) {
+    return (
+      <div className="frosted-panel border-2 border-magic-gold/30 p-6 rounded-2xl bg-gradient-to-b from-[#18120c] via-[#0b0805] to-black text-center space-y-4 relative overflow-hidden shadow-2xl">
+        <div className="absolute inset-0 bg-[url('/ASSETS/FrostedGlass.webp')] bg-cover opacity-5 pointer-events-none" />
+        <Scroll className="w-10 h-10 text-magic-gold mx-auto animate-pulse" />
+        <h4 className="font-cinzel text-xs font-black uppercase tracking-[0.15em] text-[#ffca58]">El Grimorio está Vacío</h4>
+        <p className="text-[11.5px] text-white/60 font-serif leading-relaxed">
+          Selecciona una clase y arquetipo en el primer paso para comenzar a trazar las runas de tu mazo competitivo.
+        </p>
+      </div>
+    );
+  }
+
+  // Estilos de velocidad dinámicos
+  const getSpeedStyle = (speed) => {
+    const s = (speed || '').toLowerCase();
+    if (s.includes('rápida')) return { border: 'border-red-500/40 bg-red-950/45 text-red-400', label: 'Blitz/Agresivo' };
+    if (s.includes('media-rápida')) return { border: 'border-orange-500/40 bg-orange-950/45 text-orange-400', label: 'Tempo' };
+    if (s.includes('media')) return { border: 'border-amber-500/40 bg-amber-950/45 text-amber-400', label: 'Midrange' };
+    return { border: 'border-emerald-500/40 bg-emerald-950/45 text-emerald-400', label: 'Control/Taxes' };
+  };
+
+  const speedStyle = getSpeedStyle(currentArchetype.speed);
+
+  // Generar la prosa evocadora
+  const nombresColores = (formData?.colores || []).map(c => COLORS.find(co => co.id === c)?.name).filter(Boolean);
+  const coloresTexto = nombresColores.length > 0 
+    ? nombresColores.slice(0, -1).join(', ') + (nombresColores.length > 1 ? ' y ' : '') + nombresColores.slice(-1)
+    : 'incoloras';
+
+  let prosepica = `Bajo el signo del arquetipo **${currentArchetype.label}**, canalizarás energías **${coloresTexto}** para dar forma a una estrategia de velocidad **${currentArchetype.speed}**.`;
+  if (formData?.tribe) {
+    prosepica += ` Invocarás la fuerza e identidad de la facción de los **${formData.tribe}**, `;
+  } else {
+    prosepica += ` Mantendrás un ejército diversificado sin afiliación tribal estricta, `;
+  }
+  if (formData?.strategy) {
+    prosepica += `articulando cada jugada en base al motor de **${formData.strategy}**.`;
+  } else {
+    prosepica += `confiando en la excelencia de la pura ventaja de cartas.`;
+  }
+
+  return (
+    <div className="frosted-panel border-2 border-magic-gold/45 p-6 rounded-2xl bg-gradient-to-b from-[#1c140e] via-[#0d0906] to-[#040303] shadow-[0_10px_40px_rgba(0,0,0,0.9),0_0_20px_rgba(255,202,88,0.15)] space-y-6 relative overflow-hidden h-fit sticky top-6">
+      {/* Runas de fondo */}
+      <div className="absolute inset-0 bg-[url('/ASSETS/FrostedGlass.webp')] bg-cover opacity-5 pointer-events-none" />
+      
+      {/* Título de Cabecera */}
+      <div className="border-b border-magic-gold/25 pb-3.5 flex items-center justify-between relative z-10">
+        <h4 className="font-cinzel text-[13px] font-black uppercase tracking-[0.2em] text-magic-gold flex items-center gap-2 drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">
+          <Scroll size={14} className="text-magic-gold animate-pulse" /> Vistazo del Ecosistema
+        </h4>
+        <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded border border-[#ffca58]/40 bg-[#ffca58]/10 text-magic-gold shadow-[0_0_8px_rgba(255,202,88,0.1)]">
+          {currentArchetype.isDynamic ? "RAG Dinámico" : "Legacy"}
+        </span>
+      </div>
+
+      {/* Grid de Métricas Rúnicas */}
+      <div className="grid grid-cols-2 gap-3.5 relative z-10">
+        <div className={cn("p-3 rounded-xl border flex flex-col justify-between min-h-[70px] shadow-[inset_0_0_10px_rgba(0,0,0,0.8)]", speedStyle.border, speedStyle.glow)}>
+          <span className="text-[8.5px] uppercase tracking-widest text-[#ffdf91] font-black leading-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">Cadencia</span>
+          <span className="text-xs font-cinzel font-black tracking-wide leading-none mt-1.5 text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">{currentArchetype.speed}</span>
+          <span className="text-[8px] font-sans font-bold text-white/70 leading-none mt-1">{speedStyle.label}</span>
+        </div>
+        <div className="p-3 rounded-xl border border-white/15 bg-black/85 shadow-[inset_0_0_10px_rgba(0,0,0,0.9),0_0_15px_rgba(255,255,255,0.03)] flex flex-col justify-between min-h-[70px]">
+          <span className="text-[8.5px] uppercase tracking-widest text-[#ffdf91] font-black leading-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">Turno Crítico</span>
+          <span className="text-sm font-cinzel font-black text-magic-gold leading-none mt-1.5 drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">T{currentArchetype.winTurn}</span>
+          <span className="text-[8px] font-sans font-bold text-white/60 leading-none mt-1">Victoria Optimizada</span>
+        </div>
+      </div>
+
+      {/* Visualizador de Orbes de Maná Consagrados */}
+      <div className="space-y-2 relative z-10">
+        <span className="text-[9px] uppercase tracking-widest text-[#ffdf91] font-black block drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">Maná Consagrado:</span>
+        <div className="flex gap-1.5 p-3 bg-black/90 border border-white/10 rounded-xl justify-center shadow-inner min-h-[40px]">
+          {(formData?.colores || []).length > 0 ? (
+            (formData?.colores || []).map(c => {
+              const cObj = COLORS.find(co => co.id === c);
+              return (
+                <div key={c} className="w-5.5 h-5.5 rounded-full overflow-hidden shadow-md border-2 border-black/80 hover:scale-125 hover:border-magic-gold transition-all duration-300 cursor-help" title={cObj?.name}>
+                  <img src={cObj?.icon} alt={c} className="w-full h-full object-cover" />
+                </div>
+              );
+            })
+          ) : (
+            <span className="text-[9.5px] text-white/50 font-serif self-center italic">Sin colores consagrados</span>
+          )}
+        </div>
+      </div>
+
+      {/* Sinergias del Núcleo */}
+      <div className="space-y-4 relative z-10 border-t border-white/10 pt-4">
+        <div>
+          <span className="text-[8.5px] uppercase tracking-widest text-[#ffdf91] font-black block leading-none mb-1.5 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">Identidad Tribal:</span>
+          <div className="flex items-center gap-2">
+            <span className="text-sm">🧬</span>
+            <span className={cn("text-[11.5px] font-cinzel font-black tracking-wide drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]", formData.tribe ? "text-white" : "text-white/40 italic")}>
+              {formData.tribe ? formData.tribe : "Sin Afiliación Tribal"}
+            </span>
+            {selectedTribeInfo && (
+              <div className="flex gap-0.5 ml-auto">
+                {selectedTribeInfo.colors.map(col => (
+                  <div key={col} className="w-3.5 h-3.5 rounded-full border border-black/50 overflow-hidden shadow-md" title={COLORS.find(co => co.id === col)?.name}>
+                    <img src={COLORS.find(co => co.id === col)?.icon} alt={col} className="w-full h-full object-cover" />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div>
+          <span className="text-[8.5px] uppercase tracking-widest text-[#ffdf91] font-black block leading-none mb-1.5 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">Motor de Combate:</span>
+          <div className="flex items-center gap-2">
+            <span className="text-sm">⚔️</span>
+            <span className={cn("text-[11.5px] font-cinzel font-black tracking-wide drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]", formData.strategy ? "text-white" : "text-white/40 italic")}>
+              {formData.strategy ? formData.strategy : "Sin Sinergia Específica"}
+            </span>
+            {selectedStrategyInfo && (
+              <div className="flex gap-0.5 ml-auto">
+                {selectedStrategyInfo.colors.map(col => (
+                  <div key={col} className="w-3.5 h-3.5 rounded-full border border-black/50 overflow-hidden shadow-md" title={COLORS.find(co => co.id === col)?.name}>
+                    <img src={COLORS.find(co => co.id === col)?.icon} alt={col} className="w-full h-full object-cover" />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Prosa Mística y Épica */}
+      <div className="p-4 bg-black/90 border border-magic-gold/30 rounded-xl relative z-10 shadow-2xl">
+        <span className="text-[9px] uppercase tracking-[0.15em] text-magic-gold font-black block mb-2 flex items-center gap-1.5 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
+          <TrendingUp size={10} className="text-magic-gold" /> Revelación del Oráculo
+        </span>
+        <p 
+          className="text-[12px] text-white/95 font-serif leading-relaxed drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]"
+          dangerouslySetInnerHTML={{ 
+            __html: prosepica
+              .replace(/\*\*(.*?)\*\*/g, '<strong class="text-[#ffdf91] font-black drop-shadow-[0_1px_3px_rgba(255,202,88,0.5)]">$1</strong>')
+          }}
+        />
+      </div>
+
+      {/* Nota sutil de tierras */}
+      <div className="text-[9px] text-[#ffdf91]/50 text-center font-sans font-semibold tracking-wide drop-shadow-[0_1px_1px_rgba(0,0,0,0.9)]">
+        El Juez Supremo optimizará la base de maná para {currentArchetype.landCount} tierras.
+      </div>
+    </div>
+  );
+}
 
 // Pactos de Gremio (Presets de Color rápidos)
 const PACTOS_DE_GREMIO = [
@@ -166,7 +321,7 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
 
   // Íconos e indicadores de velocidad
   const getSpeedStyles = (speed) => {
-    const speedLower = speed.toLowerCase();
+    const speedLower = (speed || '').toLowerCase();
     if (speedLower.includes('rápida')) return { color: 'text-red-400', bg: 'bg-red-950/40 border-red-500/30 shadow-[0_0_10px_rgba(239,68,68,0.15)]', icon: <Flame size={12} className="text-red-400 animate-pulse" /> };
     if (speedLower.includes('media-rápida')) return { color: 'text-orange-400', bg: 'bg-orange-950/40 border-orange-500/30 shadow-[0_0_10px_rgba(249,115,22,0.15)]', icon: <Zap size={12} className="text-orange-400 animate-pulse" /> };
     if (speedLower.includes('media')) return { color: 'text-amber-400', bg: 'bg-amber-950/40 border-amber-500/30 shadow-[0_0_10px_rgba(245,158,11,0.15)]', icon: <Swords size={12} className="text-amber-400" /> };
@@ -181,7 +336,7 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
       archetype: val,
       tribe: '',
       strategy: '',
-      colores: prev.colores.length > 0 ? prev.colores : (arch?.recommendedColors || []),
+      colores: arch?.recommendedColors || [],
       curveProfile: ARCHETYPE_DEFAULT_CURVE[val] || 'balanced'
     }));
     setIsCustomTribe(false);
@@ -196,10 +351,11 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
 
   const toggleColor = (colorId) => {
     setFormData(prev => {
-      const isSelected = prev.colores.includes(colorId);
+      const currentColors = prev?.colores || [];
+      const isSelected = currentColors.includes(colorId);
       const newColors = isSelected
-        ? prev.colores.filter(c => c !== colorId)
-        : [...prev.colores, colorId];
+        ? currentColors.filter(c => c !== colorId)
+        : [...currentColors, colorId];
       return { ...prev, colores: newColors };
     });
     setErrors(prev => ({ ...prev, colores: null }));
@@ -215,7 +371,7 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
     if (!formData.archetype) {
       newErrors.archetype = 'Debes seleccionar un arquetipo';
     }
-    if (formData.colores.length === 0 && formData.archetype !== 'legacy-eldrazi') {
+    if ((formData?.colores || []).length === 0 && formData.archetype !== 'legacy-eldrazi') {
       newErrors.colores = 'Selecciona al menos un color para tu mazo';
     }
     setErrors(newErrors);
@@ -229,58 +385,9 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
     }
   };
 
-  // Filtrado de Tribus disponibles
-  const availableTribes = useMemo(() => {
-    if (!formData.archetype) return [];
-    
-    let tribes = MTG_TRIBES.filter(t => t.archetypes && t.archetypes.includes(formData.archetype));
-    
-    if (formData.strategy && !isCustomStrategy) {
-      const stratData = MTG_STRATEGIES.find(s => s.label === formData.strategy);
-      if (stratData) {
-        tribes = tribes.filter(t => {
-          if (t.strategies && t.strategies.includes(stratData.id)) return true;
-          if (!t.strategies || t.strategies.length === 0) {
-            return t.colors.some(c => stratData.colors.includes(c));
-          }
-          return false;
-        });
-      }
-    }
-    return tribes;
-  }, [formData.archetype, formData.strategy, isCustomStrategy]);
-
-  // Agrupar por categoría
-  const groupedTribes = useMemo(() => {
-    const categoryOrder = ['clasica', 'vocacion', 'monstruo', 'exotica', 'alianza'];
-    const groups = {};
-    for (const cat of categoryOrder) {
-      const tribesInCat = availableTribes.filter(t => t.category === cat);
-      if (tribesInCat.length > 0) {
-        groups[cat] = tribesInCat;
-      }
-    }
-    return groups;
-  }, [availableTribes]);
-
-  // Estrategias disponibles
-  const availableStrategies = useMemo(() => {
-    if (!formData.archetype) return [];
-    
-    let strategies = MTG_STRATEGIES.filter(s => s.archetypes.includes(formData.archetype));
-    
-    if (formData.tribe && !isCustomTribe) {
-      const tribeData = MTG_TRIBES.find(t => t.label === formData.tribe);
-      if (tribeData) {
-        if (tribeData.strategies && tribeData.strategies.length > 0) {
-          strategies = strategies.filter(s => tribeData.strategies.includes(s.id));
-        } else {
-          strategies = strategies.filter(s => s.colors.some(c => tribeData.colors.includes(c)));
-        }
-      }
-    }
-    return strategies;
-  }, [formData.archetype, formData.tribe, isCustomTribe]);
+  const currentArchetype = useMemo(() => {
+    return archetypesList.find(a => a.value === formData.archetype);
+  }, [archetypesList, formData.archetype]);
 
   const selectedTribeInfo = useMemo(() => {
     if (!formData.tribe || isCustomTribe) return null;
@@ -292,18 +399,9 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
     return MTG_STRATEGIES.find(s => s.label === formData.strategy);
   }, [formData.strategy, isCustomStrategy]);
 
-  // Si cambia el arquetipo, reseteamos tribu y estrategia
-  useEffect(() => {
-    setFormData(prev => ({ ...prev, tribe: '', strategy: '' }));
-  }, [formData.archetype]);
-
-  const currentArchetype = useMemo(() => {
-    return archetypesList.find(a => a.value === formData.archetype);
-  }, [archetypesList, formData.archetype]);
-
   const allowedColorsInfo = useMemo(() => {
-    // Si hay un arquetipo seleccionado y no es genérico, nos basamos en sus colores recomendados
-    if (currentArchetype && currentArchetype.colorGroup !== 'generic') {
+    // Si hay un arquetipo seleccionado, nos basamos 100% en sus colores recomendados (identidad del arquetipo)
+    if (currentArchetype) {
       const allowed = currentArchetype.recommendedColors || [];
       return { allowed, primary: allowed };
     }
@@ -328,8 +426,112 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
     return { allowed, primary };
   }, [currentArchetype, selectedTribeInfo, selectedStrategyInfo]);
 
+  // Si cambia el arquetipo, reseteamos tribu y estrategia
   useEffect(() => {
-    const { allowed, primary } = allowedColorsInfo;
+    setFormData(prev => ({ ...prev, tribe: '', strategy: '' }));
+  }, [formData.archetype]);
+
+  // Lógica Avanzada de Compatibilidad de Sinergias (Razas + Mecánicas)
+  const isTribeCompatible = useCallback((tribe) => {
+    if (!tribe) return false;
+    if (!formData.strategy || isCustomStrategy) return true;
+    const stratData = MTG_STRATEGIES.find(s => s.label === formData.strategy);
+    if (!stratData) return true;
+    
+    // Si la tribu tiene estrategias recomendadas explícitas, comprobamos compatibilidad
+    if (tribe.strategies && tribe.strategies.length > 0) {
+      return tribe.strategies.includes(stratData.id);
+    }
+    // Si no, verificamos que compartan algún color
+    return Array.isArray(tribe.colors) && Array.isArray(stratData.colors) && tribe.colors.some(c => stratData.colors.includes(c));
+  }, [formData.strategy, isCustomStrategy]);
+
+  const isStrategyCompatible = useCallback((strat) => {
+    if (!strat) return false;
+    if (!formData.tribe || isCustomTribe) return true;
+    const tribeData = MTG_TRIBES.find(t => t.label === formData.tribe);
+    if (!tribeData) return true;
+    
+    // Si la tribu tiene estrategias recomendadas explícitas, comprobamos compatibilidad
+    if (tribeData.strategies && tribeData.strategies.length > 0) {
+      return tribeData.strategies.includes(strat.id);
+    }
+    // Si no, verificamos que compartan algún color
+    return Array.isArray(strat.colors) && Array.isArray(tribeData.colors) && strat.colors.some(c => tribeData.colors.includes(c));
+  }, [formData.tribe, isCustomTribe]);
+
+  // Filtrado de Tribus viables para el Arquetipo
+  const availableTribes = useMemo(() => {
+    if (!formData.archetype) return [];
+    
+    let tribes = MTG_TRIBES.filter(t => t && t.archetypes && t.archetypes.includes(formData.archetype));
+    
+    // Fallback dinámico inteligente para arquetipos específicos/RAG:
+    if (tribes.length === 0) {
+      const allowedColors = allowedColorsInfo?.allowed || [];
+      tribes = MTG_TRIBES.filter(t => t && t.colors && t.colors.some(c => allowedColors.includes(c)));
+    }
+    return tribes;
+  }, [formData.archetype, allowedColorsInfo]);
+
+  // Agrupar por categoría
+  const groupedTribes = useMemo(() => {
+    const categoryOrder = ['clasica', 'vocacion', 'monstruo', 'exotica', 'alianza'];
+    const groups = {};
+    for (const cat of categoryOrder) {
+      const tribesInCat = availableTribes.filter(t => t && t.category === cat);
+      if (tribesInCat.length > 0) {
+        groups[cat] = tribesInCat;
+      }
+    }
+    return groups;
+  }, [availableTribes]);
+
+  // Estrategias viables para el Arquetipo
+  const availableStrategies = useMemo(() => {
+    if (!formData.archetype) return [];
+    
+    let strategies = MTG_STRATEGIES.filter(s => s && s.archetypes && s.archetypes.includes(formData.archetype));
+    
+    // Fallback dinámico inteligente para arquetipos específicos/RAG:
+    if (strategies.length === 0) {
+      const allowedColors = allowedColorsInfo?.allowed || [];
+      strategies = MTG_STRATEGIES.filter(s => s && s.colors && s.colors.some(c => allowedColors.includes(c)));
+    }
+    return strategies;
+  }, [formData.archetype, allowedColorsInfo]);
+
+  // Autoselección reactiva inteligente cuando queda un único camino habilitado
+  useEffect(() => {
+    if (formData.archetype) {
+      // 1. Si no hay tribu seleccionada, pero solo hay una tribu compatible habilitada
+      const activeCompatibleTribes = availableTribes.filter(isTribeCompatible);
+      if (!formData.tribe && !isCustomTribe && activeCompatibleTribes.length === 1) {
+        setFormData(prev => ({ ...prev, tribe: activeCompatibleTribes[0].label }));
+      }
+      
+      // 2. Si no hay estrategia seleccionada, pero solo hay una estrategia compatible habilitada
+      const activeCompatibleStrats = availableStrategies.filter(isStrategyCompatible);
+      if (!formData.strategy && !isCustomStrategy && activeCompatibleStrats.length === 1) {
+        setFormData(prev => ({ ...prev, strategy: activeCompatibleStrats[0].label }));
+      }
+    }
+  }, [
+    formData.archetype, 
+    formData.tribe, 
+    formData.strategy, 
+    isCustomTribe, 
+    isCustomStrategy, 
+    availableTribes, 
+    availableStrategies, 
+    isTribeCompatible, 
+    isStrategyCompatible
+  ]);
+
+
+
+  useEffect(() => {
+    const { allowed = [], primary = [] } = allowedColorsInfo || {};
     
     setFormData(prev => {
       // Si todos los colores están permitidos, no es necesario validar
@@ -338,10 +540,10 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
       }
       
       // Filtrar colores seleccionados que no estén permitidos
-      const validSelected = prev.colores.filter(c => allowed.includes(c));
+      const validSelected = (prev.colores || []).filter(c => allowed.includes(c));
       
       // Si la selección actual tiene colores inválidos o se quedó sin colores seleccionados
-      if (validSelected.length !== prev.colores.length || validSelected.length === 0) {
+      if (validSelected.length !== (prev.colores || []).length || validSelected.length === 0) {
         // Fallback: usar los colores primarios o el primer color permitido
         const fallback = primary.filter(c => c !== 'C');
         const defaultChoice = fallback.length > 0 ? fallback : (allowed.length > 0 ? [allowed[0]] : []);
@@ -378,12 +580,12 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
     }
   };
 
-  const isFormValid = formData.archetype && (formData.colores.length > 0 || formData.archetype === 'legacy-eldrazi');
+  const isFormValid = formData.archetype && ((formData?.colores || []).length > 0 || formData.archetype === 'legacy-eldrazi');
 
   // Comprobar preset seleccionado
   const activePreset = useMemo(() => {
-    return PACTOS_DE_GREMIO.find(p => arraysEqual(p.colors, formData.colores))?.id || null;
-  }, [formData.colores]);
+    return PACTOS_DE_GREMIO.find(p => arraysEqual(p.colors, formData?.colores || []))?.id || null;
+  }, [formData?.colores]);
 
   const steps = [
     { id: 1, name: 'Clase', desc: 'Arquetipo' },
@@ -416,7 +618,7 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                   <button
                     type="button"
                     onClick={() => {
-                      if (step.id < currentStep || (step.id === 2 && formData.archetype) || (step.id === 3 && formData.archetype && (formData.colores.length > 0 || formData.archetype === 'legacy-eldrazi')) || (step.id === 4 && formData.archetype && (formData.colores.length > 0 || formData.archetype === 'legacy-eldrazi'))) {
+                      if (step.id < currentStep || (step.id === 2 && formData.archetype) || (step.id === 3 && formData.archetype && ((formData?.colores || []).length > 0 || formData.archetype === 'legacy-eldrazi')) || (step.id === 4 && formData.archetype && ((formData?.colores || []).length > 0 || formData.archetype === 'legacy-eldrazi'))) {
                         setCurrentStep(step.id);
                       }
                     }}
@@ -596,7 +798,8 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {filteredArchetypes.map((arch) => {
                       const isSelected = formData.archetype === arch.value;
-                      const speedStyles = getSpeedStyles(arch.speed);
+                      const safeSpeed = arch.speed || 'Media';
+                      const speedStyles = getSpeedStyles(safeSpeed);
                       
                       return (
                         <motion.div
@@ -637,15 +840,15 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                             <div className="flex items-center gap-1.5">
                               <div className={cn("flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider border", speedStyles.bg, speedStyles.color)}>
                                 {speedStyles.icon}
-                                <span>{arch.speed}</span>
+                                <span>{safeSpeed}</span>
                               </div>
                               <div className="flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-bold bg-black/65 border border-white/25 text-white">
-                                <span>T{arch.winTurn}</span>
+                                <span>T{arch.winTurn || '?'}</span>
                               </div>
                             </div>
                             
                             <div className="flex -space-x-1.5">
-                              {arch.recommendedColors.map(c => {
+                              {(arch.recommendedColors || []).map(c => {
                                 const colObj = COLORS.find(co => co.id === c);
                                 return (
                                   <div key={c} className="w-4 h-4 rounded-full border border-black/50 overflow-hidden shadow" title={colObj?.name}>
@@ -716,7 +919,7 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                   </p>
                 </div>
                 
-                {currentArchetype && !arraysEqual(formData.colores, currentArchetype.recommendedColors) && (
+                {currentArchetype && !arraysEqual(formData?.colores || [], currentArchetype.recommendedColors || []) && (
                   <button
                     type="button"
                     onClick={resetColors}
@@ -727,93 +930,126 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                 )}
               </div>
 
-              {/* Glowing Mana Orbs Grid */}
-              <div className="flex flex-wrap gap-6 justify-center py-6 bg-black/20 border border-white/10 rounded-2xl relative">
-                {COLORS.map(color => {
-                  const isSelected = formData.colores.includes(color.id);
-                  const isRecommended = currentArchetype?.recommendedColors?.includes(color.id);
-                  const isAllowed = allowedColorsInfo.allowed.length === 6 || allowedColorsInfo.allowed.includes(color.id);
-                  
-                  // Brillo de orbe dinámico premium
-                  let shadowGlow = "";
-                  if (isSelected) {
-                    if (color.id === 'W') shadowGlow = 'shadow-[0_0_25px_rgba(248,246,216,0.6)] border-[#f8f6d8]/60';
-                    else if (color.id === 'U') shadowGlow = 'shadow-[0_0_25px_rgba(14,104,171,0.7)] border-[#0e68ab]/60';
-                    else if (color.id === 'B') shadowGlow = 'shadow-[0_0_25px_rgba(255,255,255,0.3)] border-white/40';
-                    else if (color.id === 'R') shadowGlow = 'shadow-[0_0_25px_rgba(211,32,42,0.7)] border-[#d3202a]/60';
-                    else if (color.id === 'G') shadowGlow = 'shadow-[0_0_25px_rgba(0,115,62,0.7)] border-[#00733e]/60';
-                    else if (color.id === 'C') shadowGlow = 'shadow-[0_0_25px_rgba(150,153,154,0.6)] border-[#96999a]/60';
-                  }
+              {/* Grid Responsivo de Doble Columna */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 relative z-10 items-start">
+                {/* Lado Izquierdo: Controles */}
+                <div className="lg:col-span-2 space-y-6">
+                  {/* Glowing Mana Orbs Grid */}
+                  <div className="flex flex-wrap gap-6 justify-center py-6 bg-black/20 border border-white/10 rounded-2xl relative">
+                    {COLORS.map(color => {
+                      const isSelected = (formData?.colores || []).includes(color.id);
+                      const isRecommended = currentArchetype?.recommendedColors?.includes(color.id);
+                      const allowedList = allowedColorsInfo?.allowed || [];
+                      const isAllowed = allowedList.length === 6 || allowedList.includes(color.id);
+                      
+                      // Brillo de orbe dinámico premium
+                      let shadowGlow = "";
+                      if (isSelected) {
+                        if (color.id === 'W') shadowGlow = 'shadow-[0_0_25px_rgba(248,246,216,0.6)] border-[#f8f6d8]/60';
+                        else if (color.id === 'U') shadowGlow = 'shadow-[0_0_25px_rgba(14,104,171,0.7)] border-[#0e68ab]/60';
+                        else if (color.id === 'B') shadowGlow = 'shadow-[0_0_25px_rgba(255,255,255,0.3)] border-white/40';
+                        else if (color.id === 'R') shadowGlow = 'shadow-[0_0_25px_rgba(211,32,42,0.7)] border-[#d3202a]/60';
+                        else if (color.id === 'G') shadowGlow = 'shadow-[0_0_25px_rgba(0,115,62,0.7)] border-[#00733e]/60';
+                        else if (color.id === 'C') shadowGlow = 'shadow-[0_0_25px_rgba(150,153,154,0.6)] border-[#96999a]/60';
+                      }
 
-                  return (
-                    <div key={color.id} className="flex flex-col items-center gap-3">
-                      <motion.button
-                        type="button"
-                        disabled={!isAllowed}
-                        onClick={() => toggleColor(color.id)}
-                        whileHover={{ scale: isAllowed ? 1.12 : 1 }}
-                        whileTap={{ scale: isAllowed ? 0.95 : 1 }}
-                        className={cn(
-                          "transition-all duration-300 relative flex items-center justify-center rounded-full focus:outline-none border-2 border-transparent p-0.5",
-                          !isAllowed ? "opacity-10 grayscale cursor-not-allowed" :
-                          isSelected
-                            ? "scale-110 z-10"
-                            : "opacity-35 grayscale-[0.3] hover:opacity-100 hover:grayscale-0"
-                        )}
-                      >
-                        <ManaOrb 
-                          color={color.id} 
-                          size="w-14 h-14 md:w-16 md:h-16" 
-                          className={cn(
-                            "transition-shadow duration-300",
-                            shadowGlow
-                          )}
-                        />
-                        {isRecommended && (
-                          <span className="absolute -top-1 -right-1 text-[9px] w-5 h-5 bg-[#ffca58] text-black rounded-full flex items-center justify-center font-bold shadow-lg border border-black/20 z-20" title="Recomendado">
-                            ★
+                      return (
+                        <div 
+                          key={color.id} 
+                          className="flex flex-col items-center gap-3"
+                          title={!isAllowed ? `La senda del color ${color.name} está vedada para la naturaleza de ${currentArchetype?.label || 'este arquetipo'}` : isRecommended ? `Color recomendado para ${currentArchetype?.label}` : ''}
+                        >
+                          <motion.button
+                            type="button"
+                            disabled={!isAllowed}
+                            onClick={() => toggleColor(color.id)}
+                            whileHover={{ scale: isAllowed ? 1.12 : 1 }}
+                            whileTap={{ scale: isAllowed ? 0.95 : 1 }}
+                            className={cn(
+                              "transition-all duration-300 relative flex items-center justify-center rounded-full focus:outline-none border-2 border-transparent p-0.5",
+                              !isAllowed ? "opacity-20 grayscale cursor-not-allowed" :
+                              isSelected
+                                ? "scale-110 z-10"
+                                : "opacity-35 grayscale-[0.3] hover:opacity-100 hover:grayscale-0"
+                            )}
+                          >
+                            <ManaOrb 
+                              color={color.id} 
+                              size="w-14 h-14 md:w-16 md:h-16" 
+                              className={cn(
+                                "transition-shadow duration-300",
+                                shadowGlow
+                              )}
+                            />
+                            {isRecommended && isAllowed && (
+                              <span className="absolute -top-1 -right-1 text-[9px] w-5 h-5 bg-[#ffca58] text-black rounded-full flex items-center justify-center font-bold shadow-lg border border-black/20 z-20" title="Recomendado">
+                                ★
+                              </span>
+                            )}
+                            {!isAllowed && (
+                              <div className="absolute inset-0 flex items-center justify-center bg-black/85 rounded-full border border-red-500/20 shadow-[inset_0_0_8px_rgba(239,68,68,0.2)]">
+                                <span className="text-[10px] text-red-500 font-extrabold select-none">🔒</span>
+                              </div>
+                            )}
+                          </motion.button>
+                          <span className={cn(
+                            "px-3 py-1 rounded-full text-[9px] uppercase tracking-widest font-black transition-all duration-300 shadow-md border",
+                            !isAllowed ? "bg-stone-950/40 text-stone-600 border-stone-900/30 line-through opacity-40" :
+                            isSelected
+                              ? "bg-[#ffca58] text-black border-[#ffca58] shadow-[0_0_10px_rgba(255,202,88,0.4)]"
+                              : "bg-black/90 text-white/95 border-white/20"
+                          )}>
+                            {color.name}
                           </span>
-                        )}
-                      </motion.button>
-                      <span className={cn(
-                        "px-3 py-1 rounded-full text-[9px] uppercase tracking-widest font-black transition-all duration-300 shadow-md border",
-                        isSelected
-                          ? "bg-[#ffca58] text-black border-[#ffca58] shadow-[0_0_10px_rgba(255,202,88,0.4)]"
-                          : "bg-black/90 text-white/95 border-white/20"
-                      )}>
-                        {color.name}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
+                        </div>
+                      );
+                    })}
+                  </div>
 
-              {/* Guild Presets */}
-              <div className="space-y-3 pt-2">
-                <span className="text-[10px] text-[#ffca58] uppercase tracking-[0.15em] font-extrabold block drop-shadow-md">
-                  Presets Rápidos (Pactos de Gremio y Alianzas):
-                </span>
-                <div className="flex flex-wrap gap-2 justify-center max-h-[140px] overflow-y-auto p-2 bg-black/35 rounded-xl border border-white/5">
-                  {PACTOS_DE_GREMIO.filter(pact => pact.colors.every(c => allowedColorsInfo.allowed.length === 6 || allowedColorsInfo.allowed.includes(c))).map(pact => {
-                    const isSelected = activePreset === pact.id;
-                    return (
-                      <button
-                        key={pact.id}
-                        type="button"
-                        onClick={() => applyGuildPreset(pact.colors)}
-                        className={cn(
-                          "px-3 py-1.5 rounded-lg text-[9.5px] font-extrabold uppercase tracking-wider border transition-all duration-300 cursor-pointer shadow-md",
-                          isSelected
-                            ? "bg-[#ffca58] border-[#ffca58] text-black shadow-[0_0_12px_rgba(255,202,88,0.4)] font-black"
-                            : "bg-black/90 border-white/20 text-white/95 hover:border-white/50 hover:bg-black hover:text-white"
-                        )}
-                      >
-                        {pact.label}
-                      </button>
-                    );
-                  })}
+                  {/* Guild Presets */}
+                  <div className="space-y-3 pt-2">
+                    <span className="text-[10px] text-[#ffca58] uppercase tracking-[0.15em] font-extrabold block drop-shadow-md">
+                      Presets Rápidos (Pactos de Gremio y Alianzas):
+                    </span>
+                    <div className="flex flex-wrap gap-2 justify-center max-h-[140px] overflow-y-auto p-2 bg-black/35 rounded-xl border border-white/5">
+                      {PACTOS_DE_GREMIO.filter(pact => pact.colors.every(c => {
+                        const allowedList = allowedColorsInfo?.allowed || [];
+                        return allowedList.length === 6 || allowedList.includes(c);
+                      })).map(pact => {
+                        const isSelected = activePreset === pact.id;
+                        return (
+                          <button
+                            key={pact.id}
+                            type="button"
+                            onClick={() => applyGuildPreset(pact.colors)}
+                            className={cn(
+                              "px-3 py-1.5 rounded-lg text-[9.5px] font-extrabold uppercase tracking-wider border transition-all duration-300 cursor-pointer shadow-md",
+                              isSelected
+                                ? "bg-[#ffca58] border-[#ffca58] text-black shadow-[0_0_12px_rgba(255,202,88,0.4)] font-black"
+                                : "bg-black/90 border-white/20 text-white/95 hover:border-white/50 hover:bg-black hover:text-white"
+                            )}
+                          >
+                            {pact.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Lado Derecho: Vistazo Rápido */}
+                <div className="lg:col-span-1">
+                  <QuickGlancePanel
+                    formData={formData}
+                    currentArchetype={currentArchetype}
+                    selectedTribeInfo={selectedTribeInfo}
+                    selectedStrategyInfo={selectedStrategyInfo}
+                    isCustomTribe={isCustomTribe}
+                    isCustomStrategy={isCustomStrategy}
+                  />
                 </div>
               </div>
+
 
               {errors.colores && (
                 <p className="text-[#ff4d4d] text-xs text-center font-bold animate-pulse">
@@ -832,9 +1068,9 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                 </button>
                 <button
                   type="button"
-                  disabled={formData.colores.length === 0 && formData.archetype !== 'legacy-eldrazi'}
+                  disabled={(formData?.colores || []).length === 0 && formData.archetype !== 'legacy-eldrazi'}
                   onClick={() => {
-                    if (formData.colores.length > 0 || formData.archetype === 'legacy-eldrazi') {
+                    if ((formData?.colores || []).length > 0 || formData.archetype === 'legacy-eldrazi') {
                       setCurrentStep(4);
                     } else {
                       setErrors({ colores: 'Selecciona al menos un color' });
@@ -842,7 +1078,7 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                   }}
                   className={cn(
                     "px-6 py-2.5 rounded-xl font-cinzel text-xs font-black uppercase tracking-widest transition-all duration-300 border shadow-lg flex items-center gap-2",
-                    (formData.colores.length > 0 || formData.archetype === 'legacy-eldrazi')
+                    ((formData?.colores || []).length > 0 || formData.archetype === 'legacy-eldrazi')
                       ? "bg-[#ffca58] border-[#ffca58] text-black hover:shadow-[0_0_15px_rgba(255,202,88,0.4)]"
                       : "bg-black/50 border-white/10 text-white/30 cursor-not-allowed"
                   )}
@@ -873,215 +1109,249 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* Tribu Section */}
-                <div className="space-y-4 bg-black/35 p-5 rounded-2xl border border-white/5 relative overflow-hidden">
-                  <div className="absolute inset-0 bg-[url('/ASSETS/FrostedGlass.webp')] bg-cover opacity-5 pointer-events-none" />
-                  <div className="flex justify-between items-center border-b border-white/10 pb-2 relative z-10">
-                    <label className="text-xs font-cinzel font-bold text-[#ffca58] uppercase tracking-wider flex items-center gap-1.5">
-                      <Wand2 size={12} className="text-magic-gold" /> Identidad Tribal (Raza)
-                    </label>
-                    {formData.tribe && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setFormData(prev => ({ ...prev, tribe: '' }));
-                          setIsCustomTribe(false);
-                        }}
-                        className="text-[9px] text-red-400 hover:text-red-300 uppercase tracking-widest font-black"
-                      >
-                        ✕ Quitar
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Subcategories Selector */}
-                  <div className="flex flex-wrap gap-1 border-b border-white/5 pb-2 relative z-10">
-                    {Object.entries(groupedTribes).map(([catKey, tribes]) => (
-                      <button
-                        key={catKey}
-                        type="button"
-                        onClick={() => {
-                          setIsCustomTribe(false);
-                          setActiveTribeTab(catKey);
-                        }}
-                        className={cn(
-                          "px-2.5 py-1.5 rounded-lg text-[9px] font-extrabold uppercase tracking-wider border transition-all duration-300",
-                          activeTribeTab === catKey && !isCustomTribe
-                            ? "bg-[#ffca58] text-black border-[#ffca58] font-black"
-                            : "bg-black/90 border-white/20 text-[#f4ece0]/70 hover:text-white"
+              {/* Grid Responsivo de Doble Columna */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 relative z-10 items-start">
+                {/* Lado Izquierdo: Controles */}
+                <div className="lg:col-span-2 space-y-6">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    {/* Tribu Section */}
+                    <div className="space-y-4 bg-black/35 p-5 rounded-2xl border border-white/5 relative overflow-hidden">
+                      <div className="absolute inset-0 bg-[url('/ASSETS/FrostedGlass.webp')] bg-cover opacity-5 pointer-events-none" />
+                      <div className="flex justify-between items-center border-b border-white/10 pb-2 relative z-10">
+                        <label className="text-xs font-cinzel font-bold text-[#ffca58] uppercase tracking-wider flex items-center gap-1.5">
+                          <Wand2 size={12} className="text-magic-gold" /> Identidad Tribal (Raza)
+                        </label>
+                        {formData.tribe && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFormData(prev => ({ ...prev, tribe: '' }));
+                              setIsCustomTribe(false);
+                            }}
+                            className="text-[9px] text-red-400 hover:text-red-300 uppercase tracking-widest font-black"
+                          >
+                            ✕ Quitar
+                          </button>
                         )}
-                      >
-                        {TRIBE_CATEGORIES[catKey]?.split(' ').slice(1).join(' ') || catKey}
-                      </button>
-                    ))}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsCustomTribe(true);
-                        setActiveTribeTab('custom');
-                      }}
-                      className={cn(
-                        "px-2.5 py-1.5 rounded-lg text-[9px] font-extrabold uppercase tracking-wider border transition-all duration-300",
-                        isCustomTribe
-                          ? "bg-[#ffca58] text-black border-[#ffca58] font-black"
-                          : "bg-black/90 border-white/20 text-[#f4ece0]/70 hover:text-white"
-                      )}
-                    >
-                      Manual
-                    </button>
-                  </div>
+                      </div>
 
-                  {/* Tribe Grid selector */}
-                  <div className="h-[210px] overflow-y-auto p-2 bg-black/60 border border-white/10 rounded-xl relative z-10">
-                    {!isCustomTribe ? (
-                      <div className="grid grid-cols-2 gap-2">
-                        {groupedTribes[activeTribeTab] && groupedTribes[activeTribeTab].map(tribe => {
-                          const isTribeSelected = formData.tribe === tribe.label;
-                          return (
-                            <button
-                              key={tribe.id}
-                              type="button"
-                              onClick={() => {
-                                setFormData(prev => ({
-                                  ...prev,
-                                  tribe: tribe.label
-                                }));
-                              }}
-                              className={cn(
-                                "p-2 rounded-lg border text-center transition-all duration-200 flex flex-col items-center justify-center gap-1",
-                                isTribeSelected
-                                  ? "bg-gradient-to-b from-[#ffca58]/20 to-black border-[#ffca58] text-[#ffca58] shadow-[0_0_8px_rgba(255,202,88,0.2)] font-black"
-                                  : "bg-black/75 border-white/10 text-[#f4ece0]/80 hover:text-white hover:border-white/30"
-                              )}
-                            >
-                              <span className="text-[10px] font-cinzel font-bold tracking-wide leading-tight">
-                                {tribe.label}
-                              </span>
-                              <div className="flex gap-0.5">
-                                {tribe.colors.map(col => {
-                                  const cObj = COLORS.find(co => co.id === col);
-                                  return (
-                                    <div key={col} className="w-2.5 h-2.5 rounded-full overflow-hidden shadow-inner border border-black/30" title={cObj?.name}>
-                                      <img src={cObj?.icon} alt={col} className="w-full h-full object-cover" />
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <div className="flex flex-col items-center justify-center h-full p-2 space-y-2">
-                        <span className="text-[10px] text-white/50 text-center font-medium">Escribe tu subtipo manual de criatura preferido:</span>
-                        <input
-                          type="text"
-                          value={formData.tribe}
-                          onChange={(e) => setFormData(prev => ({ ...prev, tribe: e.target.value }))}
-                          placeholder="Ej: Sliver, Pirate, Soldier..."
-                          className="w-full px-3 py-2 bg-black border border-white/20 rounded-lg text-white placeholder-white/35 text-xs font-semibold focus:border-[#ffca58] text-center focus:outline-none"
-                        />
-                      </div>
-                    )}
-                  </div>
-
-                  {selectedTribeInfo && (
-                    <div className="p-2.5 bg-emerald-950/20 border border-emerald-500/20 rounded-lg flex items-center justify-between relative z-10">
-                      <div>
-                        <p className="text-emerald-400 text-[9px] font-black uppercase tracking-wider mb-0.5">Tribu Seleccionada</p>
-                        <p className="text-[10px] text-[#f4ece0]/60 font-serif leading-none">Los {selectedTribeInfo.label} son ideales.</p>
-                      </div>
-                      <div className="flex gap-0.5">
-                        {selectedTribeInfo.colors.map(c => (
-                          <div key={c} className="w-4 h-4 rounded-full overflow-hidden border border-black/40">
-                            <img src={COLORS.find(co => co.id === c)?.icon} alt={c} className="w-full h-full object-cover" />
-                          </div>
+                      {/* Subcategories Selector */}
+                      <div className="flex flex-wrap gap-1 border-b border-white/10 pb-2 relative z-10">
+                        {Object.entries(groupedTribes).map(([catKey, tribes]) => (
+                          <button
+                            key={catKey}
+                            type="button"
+                            onClick={() => {
+                              setIsCustomTribe(false);
+                              setActiveTribeTab(catKey);
+                            }}
+                            className={cn(
+                              "px-2.5 py-1.5 rounded-lg text-[9px] font-extrabold uppercase tracking-wider border transition-all duration-300",
+                              activeTribeTab === catKey && !isCustomTribe
+                                ? "bg-magic-gold text-black border-magic-gold font-black shadow-[0_0_10px_rgba(255,202,88,0.25)] scale-[1.02]"
+                                : "bg-black/85 border-white/10 text-white/80 hover:border-white/30 hover:text-white"
+                            )}
+                          >
+                            {TRIBE_CATEGORIES[catKey]?.split(' ').slice(1).join(' ') || catKey}
+                          </button>
                         ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Estrategia Section */}
-                <div className="space-y-4 bg-black/35 p-5 rounded-2xl border border-white/5 relative overflow-hidden">
-                  <div className="absolute inset-0 bg-[url('/ASSETS/FrostedGlass.webp')] bg-cover opacity-5 pointer-events-none" />
-                  <div className="flex justify-between items-center border-b border-white/10 pb-2 relative z-10">
-                    <label className="text-xs font-cinzel font-bold text-[#ffca58] uppercase tracking-wider flex items-center gap-1.5">
-                      <Swords size={12} className="text-magic-gold" /> Motor Táctico (Estrategia)
-                    </label>
-                    {formData.strategy && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setFormData(prev => ({ ...prev, strategy: '' }));
-                          setIsCustomStrategy(false);
-                        }}
-                        className="text-[9px] text-red-400 hover:text-red-300 uppercase tracking-widest font-black"
-                      >
-                        ✕ Quitar
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Strategies List Selector */}
-                  <div className="h-[210px] overflow-y-auto p-2 bg-black/60 border border-white/10 rounded-xl space-y-2 relative z-10">
-                    {availableStrategies.map(strat => {
-                      const isSelected = formData.strategy === strat.label;
-                      return (
-                        <div
-                          key={strat.id}
+                        <button
+                          type="button"
                           onClick={() => {
-                            setIsCustomStrategy(false);
-                            setFormData(prev => ({ ...prev, strategy: strat.label }));
+                            setIsCustomTribe(true);
+                            setActiveTribeTab('custom');
                           }}
                           className={cn(
-                            "p-2.5 rounded-lg border transition-all duration-200 cursor-pointer flex flex-col justify-between min-h-[70px]",
-                            isSelected
-                              ? "border-[#ffca58] bg-gradient-to-b from-[#ffca58]/15 to-black/90 shadow-[0_0_8px_rgba(255,202,88,0.2)]"
-                              : "bg-black/75 border-white/10 text-white/80 hover:text-white hover:border-white/30"
+                            "px-2.5 py-1.5 rounded-lg text-[9px] font-extrabold uppercase tracking-wider border transition-all duration-300",
+                            isCustomTribe
+                              ? "bg-magic-gold text-black border-magic-gold font-black shadow-[0_0_10px_rgba(255,202,88,0.25)] scale-[1.02]"
+                              : "bg-black/85 border-white/10 text-[#ffca58] hover:border-[#ffca58]/30 hover:text-white"
                           )}
                         >
-                          <div className="flex justify-between items-start gap-1">
-                            <span className={cn("font-cinzel text-[10.5px] font-black", isSelected ? "text-magic-gold" : "text-white")}>
-                              {strat.label}
-                            </span>
-                            <div className="flex -space-x-1">
-                              {strat.colors.map(col => (
-                                <div key={col} className="w-3 h-3 rounded-full overflow-hidden border border-black/20">
-                                  <img src={COLORS.find(co => co.id === col)?.icon} alt={col} className="w-full h-full object-cover" />
-                                </div>
-                              ))}
-                            </div>
+                          Manual
+                        </button>
+                      </div>
+
+                      {/* Tribe Grid selector */}
+                      <div className="h-[210px] overflow-y-auto p-2 bg-black/60 border border-white/10 rounded-xl relative z-10">
+                        {!isCustomTribe ? (
+                          <div className="grid grid-cols-2 gap-2">
+                            {groupedTribes[activeTribeTab] && groupedTribes[activeTribeTab].map(tribe => {
+                              const isTribeSelected = formData.tribe === tribe.label;
+                              const isCompatible = isTribeCompatible(tribe);
+                              
+                              return (
+                                <button
+                                  key={tribe.id}
+                                  type="button"
+                                  disabled={!isCompatible}
+                                  onClick={() => {
+                                    setFormData(prev => ({
+                                      ...prev,
+                                      tribe: tribe.label
+                                    }));
+                                  }}
+                                  title={!isCompatible ? `Incompatible con la estrategia "${formData.strategy}"` : `Seleccionar ${tribe.label}`}
+                                  className={cn(
+                                    "p-2 rounded-lg border text-center transition-all duration-300 flex flex-col items-center justify-center gap-1 relative min-h-[56px]",
+                                    isTribeSelected
+                                      ? "bg-gradient-to-b from-[#ffca58]/20 to-black border-[#ffca58] text-[#ffca58] shadow-[0_0_8px_rgba(255,202,88,0.2)] font-black scale-[1.02]"
+                                      : !isCompatible
+                                        ? "bg-black/30 border-white/5 text-[#f4ece0]/30 opacity-40 grayscale pointer-events-none"
+                                        : "bg-black/75 border-white/10 text-[#f4ece0]/80 hover:text-white hover:border-white/30"
+                                  )}
+                                >
+                                  <span className="text-[10px] font-cinzel font-bold tracking-wide leading-tight flex items-center gap-1">
+                                    {!isCompatible && <Lock size={9} className="text-magic-gold/60 shrink-0" />}
+                                    {tribe.label}
+                                  </span>
+                                  <div className="flex gap-0.5 mt-0.5">
+                                    {tribe.colors.map(col => {
+                                      const cObj = COLORS.find(co => co.id === col);
+                                      return (
+                                        <div key={col} className={cn("w-2.5 h-2.5 rounded-full overflow-hidden shadow-inner border border-black/35", !isCompatible && "opacity-50")} title={cObj?.name}>
+                                          <img src={cObj?.icon} alt={col} className="w-full h-full object-cover" />
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </button>
+                              );
+                            })}
                           </div>
-                          <p className="text-[9.5px] text-white/50 font-serif leading-tight mt-1">{strat.mechanics}</p>
+                        ) : (
+                          <div className="flex flex-col items-center justify-center h-full p-2 space-y-2">
+                            <span className="text-[10px] text-white/50 text-center font-medium">Escribe tu subtipo manual de criatura preferido:</span>
+                            <input
+                              type="text"
+                              value={formData.tribe}
+                              onChange={(e) => setFormData(prev => ({ ...prev, tribe: e.target.value }))}
+                              placeholder="Ej: Sliver, Pirate, Soldier..."
+                              className="w-full px-3 py-2 bg-black border border-white/20 rounded-lg text-white placeholder-white/35 text-xs font-semibold focus:border-[#ffca58] text-center focus:outline-none"
+                            />
+                          </div>
+                        )}
+                      </div>
+
+                      {selectedTribeInfo && (
+                        <div className="p-2.5 bg-emerald-950/20 border border-emerald-500/20 rounded-lg flex items-center justify-between relative z-10">
+                          <div>
+                            <p className="text-emerald-400 text-[9px] font-black uppercase tracking-wider mb-0.5">Tribu Seleccionada</p>
+                            <p className="text-[10px] text-[#f4ece0]/60 font-serif leading-none">Los {selectedTribeInfo.label} son ideales.</p>
+                          </div>
+                          <div className="flex gap-0.5">
+                            {selectedTribeInfo.colors.map(c => (
+                              <div key={c} className="w-4 h-4 rounded-full overflow-hidden border border-black/40">
+                                <img src={COLORS.find(co => co.id === c)?.icon} alt={c} className="w-full h-full object-cover" />
+                              </div>
+                            ))}
+                          </div>
                         </div>
-                      );
-                    })}
-                    <div
-                      onClick={() => {
-                        setIsCustomStrategy(true);
-                        setFormData(prev => ({ ...prev, strategy: '' }));
-                      }}
-                      className={cn(
-                        "p-2.5 rounded-lg border border-dashed text-center transition-all duration-200 cursor-pointer flex flex-col items-center justify-center min-h-[70px]",
-                        isCustomStrategy ? "border-[#ffca58] bg-gradient-to-b from-[#ffca58]/15 to-black/95 text-[#ffca58]" : "bg-black/75 border-white/10 text-white/40 hover:text-white"
                       )}
-                    >
-                      <Plus size={14} className="mb-0.5 text-magic-gold" />
-                      <span className="font-cinzel text-[10px] font-bold">Personalizar Manualmente</span>
+                    </div>
+
+                    {/* Estrategia Section */}
+                    <div className="space-y-4 bg-black/35 p-5 rounded-2xl border border-white/5 relative overflow-hidden">
+                      <div className="absolute inset-0 bg-[url('/ASSETS/FrostedGlass.webp')] bg-cover opacity-5 pointer-events-none" />
+                      <div className="flex justify-between items-center border-b border-white/10 pb-2 relative z-10">
+                        <label className="text-xs font-cinzel font-bold text-[#ffca58] uppercase tracking-wider flex items-center gap-1.5">
+                          <Swords size={12} className="text-magic-gold" /> Motor Táctico (Estrategia)
+                        </label>
+                        {formData.strategy && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFormData(prev => ({ ...prev, strategy: '' }));
+                              setIsCustomStrategy(false);
+                            }}
+                            className="text-[9px] text-red-400 hover:text-red-300 uppercase tracking-widest font-black"
+                          >
+                            ✕ Quitar
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Strategies List Selector */}
+                      <div className="h-[210px] overflow-y-auto p-2 bg-black/60 border border-white/10 rounded-xl space-y-2 relative z-10">
+                        {availableStrategies.map(strat => {
+                          const isSelected = formData.strategy === strat.label;
+                          const isCompatible = isStrategyCompatible(strat);
+                          
+                          return (
+                            <div
+                              key={strat.id}
+                              onClick={() => {
+                                if (!isCompatible) return;
+                                setIsCustomStrategy(false);
+                                setFormData(prev => ({ ...prev, strategy: strat.label }));
+                              }}
+                              title={!isCompatible ? `Incompatible con la raza/tribu "${formData.tribe}"` : `Seleccionar ${strat.label}`}
+                              className={cn(
+                                "p-2.5 rounded-lg border transition-all duration-300 flex flex-col justify-between min-h-[70px]",
+                                isSelected
+                                  ? "border-[#ffca58] bg-gradient-to-b from-[#ffca58]/15 to-black/90 shadow-[0_0_8px_rgba(255,202,88,0.2)] cursor-pointer"
+                                  : !isCompatible
+                                    ? "bg-black/30 border-white/5 text-white/30 opacity-40 grayscale cursor-not-allowed pointer-events-none"
+                                    : "bg-black/75 border-white/10 text-white/80 hover:text-white hover:border-white/30 cursor-pointer"
+                              )}
+                            >
+                              <div className="flex justify-between items-start gap-1">
+                                <span className={cn("font-cinzel text-[10.5px] font-black flex items-center gap-1", isSelected ? "text-magic-gold" : "text-white", !isCompatible && "text-white/30")}>
+                                  {!isCompatible && <Lock size={9} className="text-magic-gold/60 shrink-0" />}
+                                  {strat.label}
+                                </span>
+                                <div className="flex -space-x-1 shrink-0">
+                                  {strat.colors.map(col => (
+                                    <div key={col} className={cn("w-3 h-3 rounded-full overflow-hidden border border-black/20", !isCompatible && "opacity-50")}>
+                                      <img src={COLORS.find(co => co.id === col)?.icon} alt={col} className="w-full h-full object-cover" />
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                              <p className={cn("text-[9.5px] font-serif leading-tight mt-1", isSelected ? "text-white/70" : "text-white/50", !isCompatible && "text-white/20")}>{strat.mechanics}</p>
+                            </div>
+                          );
+                        })}
+                        <div
+                          onClick={() => {
+                            setIsCustomStrategy(true);
+                            setFormData(prev => ({ ...prev, strategy: '' }));
+                          }}
+                          className={cn(
+                            "p-2.5 rounded-lg border-2 border-dashed text-center transition-all duration-200 cursor-pointer flex flex-col items-center justify-center min-h-[70px]",
+                            isCustomStrategy 
+                              ? "border-magic-gold bg-[#ffca58]/10 text-magic-gold shadow-[0_0_12px_rgba(255,202,88,0.2)] font-black" 
+                              : "bg-black/80 border-white/10 text-white/60 hover:text-white hover:border-white/30"
+                          )}
+                        >
+                          <Plus size={14} className="mb-0.5 text-magic-gold" />
+                          <span className="font-cinzel text-[10px] font-black">Personalizar Manualmente</span>
+                        </div>
+                      </div>
+
+                      {isCustomStrategy && (
+                        <input
+                          type="text"
+                          value={formData.strategy}
+                          onChange={(e) => setFormData(prev => ({ ...prev, strategy: e.target.value }))}
+                          placeholder="Ej: Dredge, Affinity, Enchanter..."
+                          className="w-full px-3 py-2 bg-black border border-white/20 rounded-lg text-white placeholder-white/35 text-xs font-semibold focus:border-[#ffca58] text-center focus:outline-none relative z-10"
+                        />
+                      )}
                     </div>
                   </div>
+                </div>
 
-                  {isCustomStrategy && (
-                    <input
-                      type="text"
-                      value={formData.strategy}
-                      onChange={(e) => setFormData(prev => ({ ...prev, strategy: e.target.value }))}
-                      placeholder="Ej: Dredge, Affinity, Enchanter..."
-                      className="w-full px-3 py-2 bg-black border border-white/20 rounded-lg text-white placeholder-white/35 text-xs font-semibold focus:border-[#ffca58] text-center focus:outline-none relative z-10"
-                    />
-                  )}
+                {/* Lado Derecho: Vistazo Rápido */}
+                <div className="lg:col-span-1">
+                  <QuickGlancePanel
+                    formData={formData}
+                    currentArchetype={currentArchetype}
+                    selectedTribeInfo={selectedTribeInfo}
+                    selectedStrategyInfo={selectedStrategyInfo}
+                    isCustomTribe={isCustomTribe}
+                    isCustomStrategy={isCustomStrategy}
+                  />
                 </div>
               </div>
 
@@ -1128,111 +1398,130 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
               </div>
 
               {/* Prompts and Rules */}
-              <div className="space-y-5">
-                {/* Restricción de Rareza */}
-                <div className="space-y-3 bg-black/45 p-5 rounded-2xl border border-white/5 relative overflow-hidden">
-                  <div className="absolute inset-0 bg-[url('/ASSETS/FrostedGlass.webp')] bg-cover opacity-5 pointer-events-none" />
-                  <label className="block text-[#ffca58] text-xs font-bold uppercase tracking-[0.15em] drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)] flex items-center gap-1.5 relative z-10">
-                    🛡️ Restricción Global de Rareza
-                  </label>
-                  <p className="text-[10px] text-[#f4ece0]/60 tracking-wide leading-relaxed relative z-10 font-sans">
-                    Establece el límite de rareza máximo permitido para todas las cartas propuestas e hidratadas del mazo. El Juez de Estado transmutará automáticamente las infracciones.
-                  </p>
-                  
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-1 relative z-10">
-                    {RARITY_MODES.map(mode => {
-                      const isSelected = formData.rarityMode === mode.value;
-                      return (
-                        <div
-                          key={mode.value}
-                          onClick={() => setFormData(prev => ({ ...prev, rarityMode: mode.value }))}
-                          className={cn(
-                            "p-3 rounded-xl border cursor-pointer transition-all duration-300 flex flex-col justify-between items-start min-h-[90px] backdrop-blur-md relative overflow-hidden group",
-                            isSelected
-                              ? "border-[#ffca58] bg-gradient-to-b from-[#ffca58]/15 via-black/80 to-black shadow-[0_0_12px_rgba(255,202,88,0.25)] scale-[1.02]"
-                              : "bg-black/60 border-white/10 hover:border-white/25 hover:bg-black/80 hover:scale-[1.01]"
-                          )}
-                        >
-                          <div className="flex justify-between items-center w-full mb-1">
-                            <span className="text-lg">{mode.icon}</span>
-                            {isSelected && (
-                              <span className="text-[9px] font-black uppercase text-magic-gold px-1.5 py-0.5 rounded bg-magic-gold/10 border border-magic-gold/30 tracking-widest animate-pulse">
-                                Activo
-                              </span>
-                            )}
-                          </div>
-                          <div>
-                            <h4 className={cn("font-cinzel text-[10px] font-black tracking-wider transition-colors", isSelected ? "text-magic-gold" : "text-white/80")}>
-                              {mode.label}
-                            </h4>
-                            <p className="text-[8.5px] text-white/40 leading-tight mt-0.5 group-hover:text-white/60 transition-colors font-sans">
-                              {mode.desc}
-                            </p>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+              {/* Grid Responsivo de Doble Columna */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 relative z-10 items-start">
+                {/* Lado Izquierdo: Controles */}
+                <div className="lg:col-span-2 space-y-6">
+                  {/* Prompts and Rules */}
+                  <div className="space-y-5">
+                    {/* Restricción de Rareza */}
+                    <div className="space-y-3 bg-black/45 p-5 rounded-2xl border border-white/5 relative overflow-hidden">
+                      <div className="absolute inset-0 bg-[url('/ASSETS/FrostedGlass.webp')] bg-cover opacity-5 pointer-events-none" />
+                      <label className="block text-[#ffca58] text-xs font-bold uppercase tracking-[0.15em] drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)] flex items-center gap-1.5 relative z-10">
+                        🛡️ Restricción Global de Rareza
+                      </label>
+                      <p className="text-[10px] text-[#f4ece0]/60 tracking-wide leading-relaxed relative z-10 font-sans">
+                        Establece el límite de rareza máximo permitido para todas las cartas propuestas e hidratadas del mazo. El Juez de Estado transmutará automáticamente las infracciones.
+                      </p>
+                      
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-1 relative z-10">
+                        {RARITY_MODES.map(mode => {
+                          const isSelected = formData.rarityMode === mode.value;
+                          return (
+                            <div
+                              key={mode.value}
+                              onClick={() => setFormData(prev => ({ ...prev, rarityMode: mode.value }))}
+                              className={cn(
+                                "p-3 rounded-xl border cursor-pointer transition-all duration-300 flex flex-col justify-between items-start min-h-[90px] backdrop-blur-md relative overflow-hidden group",
+                                isSelected
+                                  ? "border-[#ffca58] bg-gradient-to-b from-[#ffca58]/15 via-black/80 to-black shadow-[0_0_12px_rgba(255,202,88,0.25)] scale-[1.02]"
+                                  : "bg-black/60 border-white/10 hover:border-white/25 hover:bg-black/80 hover:scale-[1.01]"
+                              )}
+                            >
+                              <div className="flex justify-between items-center w-full mb-1">
+                                <span className="text-lg">{mode.icon}</span>
+                                {isSelected && (
+                                  <span className="text-[9px] font-black uppercase text-magic-gold px-1.5 py-0.5 rounded bg-magic-gold/10 border border-magic-gold/30 tracking-widest animate-pulse">
+                                    Activo
+                                  </span>
+                                )}
+                              </div>
+                              <div>
+                                <h4 className={cn("font-cinzel text-[10px] font-black tracking-wider transition-colors", isSelected ? "text-magic-gold" : "text-white/80")}>
+                                  {mode.label}
+                                </h4>
+                                <p className="text-[8.5px] text-white/40 leading-tight mt-0.5 group-hover:text-white/60 transition-colors font-sans">
+                                  {mode.desc}
+                                </p>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
 
-                  {/* Explicación Mística del Modo de Rareza Activo */}
-                  <div className="p-3 rounded-lg bg-black/60 border border-white/5 relative z-10 transition-all duration-300">
-                    <p className="text-[10px] text-[#f4ece0]/70 font-serif leading-relaxed flex items-start gap-2">
-                      <span className="text-magic-gold font-bold">↳</span>
-                      <span>
-                        {RARITY_MODES.find(m => m.value === formData.rarityMode)?.detail}
-                      </span>
-                    </p>
+                      {/* Explicación Mística del Modo de Rareza Activo */}
+                      <div className="p-3 rounded-lg bg-black/60 border border-white/5 relative z-10 transition-all duration-300">
+                        <p className="text-[10px] text-[#f4ece0]/70 font-serif leading-relaxed flex items-start gap-2">
+                          <span className="text-magic-gold font-bold">↳</span>
+                          <span>
+                            {RARITY_MODES.find(m => m.value === formData.rarityMode)?.detail}
+                          </span>
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="block text-[#ffca58] text-xs font-bold uppercase tracking-[0.15em] drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)] flex items-center gap-1.5">
+                        <Sparkles size={12} className="text-magic-gold animate-pulse" /> Visión Creativa / Temática
+                      </label>
+                      <textarea
+                        value={formData.prompt}
+                        onChange={(e) => setFormData(prev => ({ ...prev, prompt: e.target.value }))}
+                        placeholder="Ej: 'Un mazo de vampiros y aristócratas letales que sacrifican a sus siervos para drenar vidas desde las sombras.'"
+                        rows={3}
+                        className="w-full px-3 py-2 bg-black border border-white/35 rounded-xl text-white placeholder-white/40 text-xs font-medium focus:border-[#ffca58] focus:shadow-[0_0_10px_rgba(255,202,88,0.2)] focus:outline-none transition-all resize-none font-serif"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2 bg-black/45 p-4 rounded-xl border border-white/5 relative overflow-hidden">
+                        <div className="absolute inset-0 bg-[url('/ASSETS/FrostedGlass.webp')] bg-cover opacity-5 pointer-events-none" />
+                        <label className="flex items-center gap-1.5 text-xs font-bold text-emerald-400 uppercase tracking-wider relative z-10">
+                          <PlusCircle size={12} /> Incluir Obligatoriamente
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.mustInclude}
+                          onChange={(e) => setFormData(prev => ({ ...prev, mustInclude: e.target.value }))}
+                          placeholder="Ej: Grief, Solitude, Sliver Queen"
+                          className="w-full px-3 py-2 bg-black border border-white/20 rounded-lg text-white placeholder-white/35 text-xs font-medium focus:border-emerald-500 focus:outline-none relative z-10"
+                        />
+                        <p className="text-[9px] text-white/40 relative z-10">Nombres separados por comas que se incluirán sí o sí en el mazo.</p>
+                      </div>
+
+                      <div className="space-y-2 bg-black/45 p-4 rounded-xl border border-white/5 relative overflow-hidden">
+                        <div className="absolute inset-0 bg-[url('/ASSETS/FrostedGlass.webp')] bg-cover opacity-5 pointer-events-none" />
+                        <label className="flex items-center gap-1.5 text-xs font-bold text-red-400 uppercase tracking-wider relative z-10">
+                          <MinusCircle size={12} /> Prohibiciones de la Casa
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.customBanlist}
+                          onChange={(e) => setFormData(prev => ({ ...prev, customBanlist: e.target.value }))}
+                          placeholder="Ej: Ragavan, Black Lotus"
+                          className="w-full px-3 py-2 bg-black border border-white/20 rounded-lg text-white placeholder-white/35 text-xs font-medium focus:border-red-500 focus:outline-none relative z-10"
+                        />
+                        <p className="text-[9px] text-white/40 relative z-10">Nombres separados por comas que se prohibirán por completo en la forja.</p>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <label className="block text-[#ffca58] text-xs font-bold uppercase tracking-[0.15em] drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)] flex items-center gap-1.5">
-                    <Sparkles size={12} className="text-magic-gold animate-pulse" /> Visión Creativa / Temática
-                  </label>
-                  <textarea
-                    value={formData.prompt}
-                    onChange={(e) => setFormData(prev => ({ ...prev, prompt: e.target.value }))}
-                    placeholder="Ej: 'Un mazo de vampiros y aristócratas letales que sacrifican a sus siervos para drenar vidas desde las sombras.'"
-                    rows={3}
-                    className="w-full px-3 py-2 bg-black border border-white/35 rounded-xl text-white placeholder-white/40 text-xs font-medium focus:border-[#ffca58] focus:shadow-[0_0_10px_rgba(255,202,88,0.2)] focus:outline-none transition-all resize-none font-serif"
+                {/* Lado Derecho: Vistazo Rápido */}
+                <div className="lg:col-span-1">
+                  <QuickGlancePanel
+                    formData={formData}
+                    currentArchetype={currentArchetype}
+                    selectedTribeInfo={selectedTribeInfo}
+                    selectedStrategyInfo={selectedStrategyInfo}
+                    isCustomTribe={isCustomTribe}
+                    isCustomStrategy={isCustomStrategy}
                   />
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2 bg-black/45 p-4 rounded-xl border border-white/5 relative overflow-hidden">
-                    <div className="absolute inset-0 bg-[url('/ASSETS/FrostedGlass.webp')] bg-cover opacity-5 pointer-events-none" />
-                    <label className="flex items-center gap-1.5 text-xs font-bold text-emerald-400 uppercase tracking-wider relative z-10">
-                      <PlusCircle size={12} /> Incluir Obligatoriamente
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.mustInclude}
-                      onChange={(e) => setFormData(prev => ({ ...prev, mustInclude: e.target.value }))}
-                      placeholder="Ej: Grief, Solitude, Sliver Queen"
-                      className="w-full px-3 py-2 bg-black border border-white/20 rounded-lg text-white placeholder-white/35 text-xs font-medium focus:border-emerald-500 focus:outline-none relative z-10"
-                    />
-                    <p className="text-[9px] text-white/40 relative z-10">Nombres separados por comas que se incluirán sí o sí en el mazo.</p>
-                  </div>
-
-                  <div className="space-y-2 bg-black/45 p-4 rounded-xl border border-white/5 relative overflow-hidden">
-                    <div className="absolute inset-0 bg-[url('/ASSETS/FrostedGlass.webp')] bg-cover opacity-5 pointer-events-none" />
-                    <label className="flex items-center gap-1.5 text-xs font-bold text-red-400 uppercase tracking-wider relative z-10">
-                      <MinusCircle size={12} /> Prohibiciones de la Casa
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.customBanlist}
-                      onChange={(e) => setFormData(prev => ({ ...prev, customBanlist: e.target.value }))}
-                      placeholder="Ej: Ragavan, Black Lotus"
-                      className="w-full px-3 py-2 bg-black border border-white/20 rounded-lg text-white placeholder-white/35 text-xs font-medium focus:border-red-500 focus:outline-none relative z-10"
-                    />
-                    <p className="text-[9px] text-white/40 relative z-10">Nombres separados por comas que se prohibirán por completo en la forja.</p>
-                  </div>
                 </div>
               </div>
 
               {/* Navigation and Final Button */}
-              <div className="flex flex-col sm:flex-row justify-between items-center gap-4 pt-4 border-t border-white/10">
+              <div className="flex flex-col sm:flex-row justify-between items-center gap-4 pt-4 border-t border-white/10 relative z-10">
                 <button
                   type="button"
                   onClick={() => setCurrentStep(3)}
