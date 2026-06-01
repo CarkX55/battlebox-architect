@@ -17,7 +17,7 @@ import { PowerLevelMeter } from '../components/forge/PowerLevelMeter';
 import RadarChart from '../components/forge/RadarChart';
 import ManaCurve from '../components/forge/ManaCurve';
 import { AlertTriangle, Shield, Lightbulb, Target, Scroll, PenTool, CheckCircle2, XCircle, Info, Zap, Sparkles, Copy, PlusCircle, MinusCircle, GitFork, Share2, Download } from 'lucide-react';
-import { calculateKarstenProbability, calculateLandDropProbability, calculateManaCoverage } from '../services/deckCalculator';
+import { calculateKarstenProbability, calculateLandDropProbability, calculateManaCoverage, calculateTurnoDeOro } from '../services/deckCalculator';
 import { generateSideboard } from '../services/sideboardService';
 import SynergyGraphVisualizer from '../components/forge/SynergyGraphVisualizer';
 import DeckVisualExporter from '../components/forge/DeckVisualExporter';
@@ -349,6 +349,39 @@ const KarstenMatrix = ({ deck, validationEngine = 'local', validationData = null
           </div>
         </div>
       )}
+    </div>
+  );
+};
+
+// Componente Visual para Simulación de Turno de Oro
+const TurnoDeOroSim = ({ deck }) => {
+  const result = useMemo(() => calculateTurnoDeOro(deck), [deck]);
+  if (!result || result.avgTurn === 0) return null;
+  
+  return (
+    <div className="bg-black/60 border border-[#D4AF37]/20 rounded-2xl p-5 space-y-4 glassmorphic-panel mt-6 relative overflow-hidden backdrop-blur-md group">
+      <div className="absolute top-0 right-0 w-64 h-64 bg-[#D4AF37]/5 rounded-full blur-3xl group-hover:bg-[#D4AF37]/10 transition-colors" />
+      <div className="flex items-center gap-3 mb-2 relative z-10">
+        <Sparkles className="text-[#D4AF37] animate-pulse" size={20} />
+        <h3 className="font-cinzel text-lg text-[#D4AF37] tracking-wider">Simulación "Turno de Oro" (Montecarlo)</h3>
+      </div>
+      <p className="text-xs text-gray-400 font-serif mb-4 relative z-10">
+        Basado en 1,000 partidas solitarias generadas algorítmicamente, este es el rendimiento esperado para alcanzar el "Turno de Oro" (lanzar la mayor amenaza del mazo de forma óptima).
+      </p>
+      <div className="grid grid-cols-3 gap-4 relative z-10">
+        <div className="bg-white/5 border border-white/10 rounded-xl p-4 flex flex-col items-center justify-center shadow-lg">
+          <span className="text-[10px] text-gray-400 uppercase tracking-widest font-bold mb-1 text-center">Turno Clave<br/>Promedio</span>
+          <span className="text-3xl font-cinzel text-emerald-400 font-bold drop-shadow-[0_0_10px_rgba(52,211,153,0.3)]">{result.avgTurn}</span>
+        </div>
+        <div className="bg-white/5 border border-white/10 rounded-xl p-4 flex flex-col items-center justify-center shadow-lg">
+          <span className="text-[10px] text-gray-400 uppercase tracking-widest font-bold mb-1 text-center">Win Rate<br/>(En Curva)</span>
+          <span className="text-3xl font-cinzel text-[#D4AF37] font-bold drop-shadow-[0_0_10px_rgba(212,175,55,0.3)]">{result.winRate}%</span>
+        </div>
+        <div className="bg-white/5 border border-white/10 rounded-xl p-4 flex flex-col items-center justify-center shadow-lg">
+          <span className="text-[10px] text-gray-400 uppercase tracking-widest font-bold mb-1 text-center">Índice de<br/>Consistencia</span>
+          <span className="text-3xl font-cinzel text-blue-400 font-bold drop-shadow-[0_0_10px_rgba(96,165,250,0.3)]">{result.consistency}%</span>
+        </div>
+      </div>
     </div>
   );
 };
@@ -990,6 +1023,60 @@ export default function DeckForge() {
     }
   };
 
+  const handlePanicButton = () => {
+    setRenderDeck(prev => {
+      let nextDeck = [...prev];
+      // 1. Eliminar baneadas
+      nextDeck = nextDeck.filter(c => !BATTLEBOX_BANLIST.includes(c.name));
+      // 2. Ajustar límite a 4
+      nextDeck = nextDeck.map(c => (!isBasicLand(c.name) && c.quantity > BATTLEBOX_RULES.maxCopies) ? { ...c, quantity: BATTLEBOX_RULES.maxCopies } : c);
+      
+      let count = nextDeck.reduce((sum, c) => sum + (c.quantity || 0), 0);
+      
+      if (count < 60) {
+        // 3. Rellenar con tierras básicas
+        const missing = 60 - count;
+        const basic = nextDeck.find(c => isBasicLand(c.name));
+        if (basic) {
+          basic.quantity += missing;
+        } else {
+          nextDeck.push({
+            name: "Plains",
+            quantity: missing,
+            category: 'Land',
+            type_line: 'Basic Land — Plains',
+            color_identity: ["W"]
+          });
+        }
+      } else if (count > 60) {
+        // 4. Recortar
+        let excess = count - 60;
+        const lands = nextDeck.filter(isLandCard).sort((a,b) => b.quantity - a.quantity);
+        for (let land of lands) {
+          if (excess > 0 && land.quantity > 1) {
+             const toRemove = Math.min(land.quantity - 1, excess);
+             const idx = nextDeck.findIndex(c => c.name === land.name);
+             nextDeck[idx].quantity -= toRemove;
+             excess -= toRemove;
+          }
+        }
+        if (excess > 0) {
+          for (let i = nextDeck.length - 1; i >= 0; i--) {
+            if (excess > 0 && nextDeck[i].quantity > 0) {
+               const toRemove = Math.min(nextDeck[i].quantity, excess);
+               nextDeck[i].quantity -= toRemove;
+               excess -= toRemove;
+            }
+          }
+        }
+        nextDeck = nextDeck.filter(c => c.quantity > 0);
+      }
+      
+      return nextDeck;
+    });
+    setWarning("⚖️ El Juez ha aplicado heurísticas locales de urgencia: Banlist eliminada y forzado a 60 cartas.");
+  };
+
   return (
 
     <div className="max-w-7xl mx-auto px-4 py-8">
@@ -1154,6 +1241,13 @@ export default function DeckForge() {
                   className="btn-magic-glass btn-glass-gold shadow-lg flex items-center gap-1.5 border-[#D4AF37]/30 text-[#D4AF37]"
                 >
                   <GitFork size={14} className="rotate-90" /> Grafo RAG
+                </button>
+                <button
+                  onClick={handlePanicButton}
+                  className="btn-magic-glass btn-glass-blue shadow-lg flex items-center gap-1.5 border-blue-500/30 text-blue-400 bg-blue-900/20 hover:bg-blue-800/40"
+                  title="Auto-corregir problemas de legalidad y tamaño del mazo"
+                >
+                  <Shield size={14} /> Juez de Urgencia
                 </button>
                 <button
                   onClick={() => setShowVisualGrid(true)}
@@ -1364,6 +1458,9 @@ export default function DeckForge() {
                 
                 {/* Matriz de Probabilidades de Frank Karsten */}
                 <KarstenMatrix deck={renderDeck} validationEngine={aiMetadata?.validationEngine} validationData={aiMetadata?.validationData} />
+                
+                {/* Simulación del Turno de Oro */}
+                <TurnoDeOroSim deck={renderDeck} />
                 
                 {/* Sideboard Section */}
                 <div className="mt-12 pt-8 border-t border-white/10">

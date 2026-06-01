@@ -172,7 +172,7 @@ const BASIC_LAND_NAMES = {
   G: 'Forest'
 };
 
-export function calculatePerfectLandCount(nonLandCards, formData) {
+export function calculatePerfectLandCount(nonLandCards, formData, isYorion = false) {
   const vmp = calculateVMP(nonLandCards);
   
   // Separar los aceleradores (Mana Dorks/Rocks de CMC <= 2)
@@ -208,7 +208,11 @@ export function calculatePerfectLandCount(nonLandCards, formData) {
     lands = Math.max(lands, 24);
   }
   
-  return Math.round(Math.max(18, Math.min(26, lands)));
+  if (isYorion) {
+      lands = lands * (80 / 60);
+  }
+  
+  return Math.round(Math.max(isYorion ? 24 : 18, Math.min(isYorion ? 35 : 26, lands)));
 }
 
 export async function generateManaBase(pipBalance, totalLands, colorIdentity, formData, nonLandSpells = [], aiUtilityLands = []) {
@@ -1012,4 +1016,96 @@ export function calculateManaCoverage(sourcesObj, colorsNeeded, deckSize = 60) {
   
   if (activeColorsCount === 0) return 100;
   return Math.round(totalProb / activeColorsCount);
+}
+
+// === CARACTERÍSTICA C: SIMULACIÓN DEL TURNO DE ORO (Montecarlo) ===
+// Ejecuta 1,000 partidas solitarias automatizadas (Hand + Draws)
+// para calcular en qué turno el mazo lanza consistentemente su jugada clave/finisher.
+export function calculateTurnoDeOro(deckList, iterations = 1000) {
+  if (!deckList || deckList.length === 0) return { avgTurn: 0, winRate: 0, consistency: 0 };
+  
+  let successCount = 0;
+  let turnResults = [];
+  
+  const cmcList = [];
+  const landsList = [];
+  
+  deckList.forEach(c => {
+    const qty = c.quantity || 1;
+    for (let i = 0; i < qty; i++) {
+      if (c.category === 'Land') {
+        landsList.push(c);
+      } else {
+        cmcList.push(getManaValue(c));
+      }
+    }
+  });
+  
+  const totalCards = cmcList.length + landsList.length;
+  if (totalCards < 40) return { avgTurn: 0, winRate: 0, consistency: 0 };
+  
+  // Turno de Oro: lanzar hechizos del top de la curva del mazo.
+  // Filtramos amenazas reales (ignoramos picos absurdos aislados de coste 10+ si hay muy pocos)
+  const validCmcs = cmcList.filter(c => c > 0 && c <= 8).sort((a,b) => a - b);
+  const maxThreatCmc = validCmcs.length > 0 ? validCmcs[Math.floor(validCmcs.length * 0.90)] || 4 : 4;
+  
+  for (let i = 0; i < iterations; i++) {
+    // 1. Barajar el mazo simplificado (L = Tierra, S = Hechizo)
+    const deck = [...Array(landsList.length).fill('L'), ...Array(cmcList.length).fill('S')];
+    for (let j = deck.length - 1; j > 0; j--) {
+      const k = Math.floor(Math.random() * (j + 1));
+      [deck[j], deck[k]] = [deck[k], deck[j]];
+    }
+    
+    // 2. Robar mano inicial (7 cartas)
+    let handLands = 0;
+    for (let j = 0; j < 7; j++) {
+      if (deck[j] === 'L') handLands++;
+    }
+    
+    // 3. Simular turnos hasta lanzar maxThreatCmc
+    let landsInPlay = 0;
+    let currentTurn = 1;
+    let cardIndex = 7;
+    
+    while (currentTurn <= 10) {
+      if (handLands > 0) {
+        landsInPlay++;
+        handLands--;
+      }
+      
+      if (landsInPlay >= maxThreatCmc) {
+        turnResults.push(currentTurn);
+        // "Success" es lograr lanzar el finisher antes o en el turno óptimo (maxThreatCmc + 1)
+        if (currentTurn <= maxThreatCmc + 1) successCount++;
+        break;
+      }
+      
+      // Draw per turn
+      if (cardIndex < deck.length) {
+        if (deck[cardIndex] === 'L') handLands++;
+        cardIndex++;
+      }
+      currentTurn++;
+    }
+  }
+  
+  if (turnResults.length > 0) {
+    const totalTurns = turnResults.reduce((a, b) => a + b, 0);
+    const avgTurn = totalTurns / turnResults.length;
+    const winRate = (successCount / iterations) * 100;
+    
+    // Consistencia basada en desviación estándar
+    const variance = turnResults.reduce((sq, n) => sq + Math.pow(n - avgTurn, 2), 0) / turnResults.length;
+    const stdDev = Math.sqrt(variance);
+    const consistency = Math.max(0, Math.min(100, 100 - (stdDev * 15)));
+    
+    return {
+      avgTurn: Math.round(avgTurn * 10) / 10,
+      winRate: Math.round(winRate),
+      consistency: Math.round(consistency)
+    };
+  }
+  
+  return { avgTurn: 0, winRate: 0, consistency: 0 };
 }

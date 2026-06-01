@@ -115,7 +115,9 @@ export default function SynergyGraphVisualizer({ deck, isOpen, onClose, archetyp
 
   // Construir sub-grafo a partir de synergy_graph.json de Obsidian
   const buildLocalSubGraph = (fullGraph) => {
-    const list = deck.slice(0, 18); // Usar top 18 cartas del mazo
+    const isYorionDeck = deck.length > 65;
+    const sliceCount = isYorionDeck ? 26 : 18;
+    const list = deck.slice(0, sliceCount); // Usar top N cartas del mazo
     const newNodes = [
       { id: 'root', name: `${archetype.toUpperCase()} Engine`, type: 'archetype', color: '#D4AF37', x: width / 2, y: height / 2, fx: width / 2, fy: height / 2, size: 24 }
     ];
@@ -125,12 +127,13 @@ export default function SynergyGraphVisualizer({ deck, isOpen, onClose, archetyp
     // 1. Agregar las cartas del mazo que existen en el Grafo Semántico RAG
     list.forEach((c, idx) => {
       const angle = (idx / list.length) * Math.PI * 2;
-      const radius = 160;
+      const radius = isYorionDeck ? 180 : 160;
       const x = width / 2 + Math.cos(angle) * radius + (Math.random() - 0.5) * 15;
       const y = height / 2 + Math.sin(angle) * radius + (Math.random() - 0.5) * 15;
       
       const isLand = isLandCard(c);
-      const nodeColor = isLand ? '#4B5563' : '#2563EB';
+      const isCritical = c.name.includes("Yorion") || c.name.includes("Urza's") || c.name.includes("Lightning Bolt");
+      const nodeColor = isCritical ? '#D4AF37' : (isLand ? '#4B5563' : '#2563EB');
 
       newNodes.push({
         id: c.name,
@@ -138,8 +141,9 @@ export default function SynergyGraphVisualizer({ deck, isOpen, onClose, archetyp
         type: 'card',
         category: c.category || 'Spell',
         color: nodeColor,
+        isCritical: isCritical,
         x, y,
-        size: 14
+        size: isCritical ? 18 : 14
       });
       addedNodeIds.add(c.name);
 
@@ -458,11 +462,12 @@ export default function SynergyGraphVisualizer({ deck, isOpen, onClose, archetyp
                     >
                       {/* Sombra / Halo externo interactivo */}
                       <circle
-                        r={node.size + (isHovered ? 4 : 0)}
+                        r={node.size + (node.isCritical ? 6 : (isHovered ? 4 : 0))}
                         fill="transparent"
-                        stroke={isSelected ? '#F59E0B' : isHovered ? node.color : 'transparent'}
-                        strokeWidth={2}
-                        className="transition-all duration-300"
+                        stroke={node.isCritical ? '#F59E0B' : (isSelected ? '#F59E0B' : isHovered ? node.color : 'transparent')}
+                        strokeWidth={node.isCritical ? 1.5 : 2}
+                        className={cn("transition-all duration-300", node.isCritical ? "animate-pulse" : "")}
+                        filter={node.isCritical ? "url(#glow-synergy)" : undefined}
                       />
 
                       {/* Núcleo del nodo */}

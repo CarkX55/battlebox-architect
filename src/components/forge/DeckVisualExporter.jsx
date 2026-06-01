@@ -135,7 +135,7 @@ export default function DeckVisualExporter({ deck, sideboard = [], isOpen, onClo
 
         {/* Visual Poster Card Container (El Canvas Hermoso) */}
         <div className="flex-1 overflow-y-auto pr-1 select-none flex flex-col justify-start">
-          <div className="border border-grimorio-gold/20 rounded-2xl p-6 bg-gradient-to-b from-[#13110f] via-[#090807] to-[#0c0a09] relative shadow-2xl overflow-hidden flex flex-col gap-6">
+          <div className="border border-grimorio-gold/20 rounded-2xl p-6 bg-gradient-to-b from-[#13110f] via-[#090807] to-[#0c0a09] relative shadow-2xl overflow-hidden flex flex-col gap-6 shrink-0">
             
             {/* Background glowing light for aesthetics */}
             <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-[#D4AF37]/5 blur-[120px] rounded-full -z-10" />
@@ -222,13 +222,13 @@ export default function DeckVisualExporter({ deck, sideboard = [], isOpen, onClo
                         </div>
 
                         {/* Cartas Apiladas (Casada) */}
-                        <div className="flex-1 flex flex-col relative min-h-0">
+                        <div className="flex-1 flex flex-col relative min-h-0 pb-4">
                           {colCards.length === 0 ? (
                             <div className="h-24 border border-dashed border-white/5 rounded-xl flex items-center justify-center text-[9px] text-gray-600 font-serif italic text-center p-2">
                               Vacío
                             </div>
                           ) : (
-                            <div className="space-y-[-115px] hover:space-y-[-70px] transition-all duration-300">
+                            <div className="space-y-[-110%] hover:space-y-[-80%] transition-all duration-300">
                               {colCards.map((c, index) => {
                                 const imageUrl = c.image_uris?.normal || c.image_uris?.small || `https://api.scryfall.com/cards/named?exact=${encodeURIComponent(c.name)}&format=image`;
                                 const isFoil = c.rarity === 'mythic' || c.rarity === 'rare';

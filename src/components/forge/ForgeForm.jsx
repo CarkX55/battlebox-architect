@@ -1,9 +1,9 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../../utils/cn';
-import { Sparkles, Swords, Shield, Zap, Flame, Crown, BookOpen, Search, Check, Plus, AlertCircle, Wand2, Compass, PlusCircle, MinusCircle, Scroll, TrendingUp, Lock } from 'lucide-react';
+import { Sparkles, Swords, Shield, Zap, Flame, Crown, BookOpen, Search, Check, Plus, AlertCircle, Wand2, Compass, PlusCircle, MinusCircle, Scroll, TrendingUp, Lock, Unlock } from 'lucide-react';
 
-import { BATTLEBOX_ARCHETYPES, getBattleBoxFormatName, BATTLEBOX_FORMAT_NAME, MTG_TRIBES, MTG_STRATEGIES, TRIBE_CATEGORIES, COLORS } from '../../constants/legacyBattleBox';
+import { BATTLEBOX_BANLIST, BATTLEBOX_ARCHETYPES, getBattleBoxFormatName, BATTLEBOX_FORMAT_NAME, MTG_TRIBES, MTG_STRATEGIES, TRIBE_CATEGORIES, COLORS } from '../../constants/legacyBattleBox';
 import ManaOrb from '../atoms/ManaOrb';
 import { getDynamicArchetypes } from '../../services/ragService';
 
@@ -183,9 +183,42 @@ function QuickGlancePanel({ formData, currentArchetype, selectedTribeInfo, selec
         />
       </div>
 
+      {/* Reglas Especiales y Excepciones Tácticas (Pro Tour) */}
+      <div className="space-y-2 relative z-10">
+        {formData?.companero?.toLowerCase().includes("yorion") && (
+          <div className="p-2.5 bg-blue-500/10 border border-blue-500/30 rounded-lg flex items-center gap-2">
+            <Sparkles size={14} className="text-blue-400 animate-pulse" />
+            <div>
+              <span className="text-[10px] font-bold text-blue-400 block uppercase tracking-wide">Companion: Yorion</span>
+              <span className="text-[9px] text-blue-200/70 leading-tight block">El mazo escalará a 80 cartas.</span>
+            </div>
+          </div>
+        )}
+        
+        {(currentArchetype.id === 'legacy-eldrazi' || (formData?.strategy || '').toLowerCase().includes('tron')) && (
+          <div className="p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-lg flex items-center gap-2">
+            <span className="text-sm">⚙️</span>
+            <div>
+              <span className="text-[10px] font-bold text-amber-400 block uppercase tracking-wide">Motor Tron Asegurado</span>
+              <span className="text-[9px] text-amber-200/70 leading-tight block">El Juez inyectará 12 Urza Lands obligatoriamente.</span>
+            </div>
+          </div>
+        )}
+
+        {(currentArchetype.id === 'aggro' || (formData?.strategy || '').toLowerCase().includes('burn')) && (
+          <div className="p-2.5 bg-red-500/10 border border-red-500/30 rounded-lg flex items-center gap-2">
+            <Flame size={14} className="text-red-400" />
+            <div>
+              <span className="text-[10px] font-bold text-red-400 block uppercase tracking-wide">Inmunidad Agresiva</span>
+              <span className="text-[9px] text-red-200/70 leading-tight block">El daño directo no será recortado por el Juez.</span>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Nota sutil de tierras */}
       <div className="text-[9px] text-[#ffdf91]/50 text-center font-sans font-semibold tracking-wide drop-shadow-[0_1px_1px_rgba(0,0,0,0.9)]">
-        El Juez Supremo optimizará la base de maná para {currentArchetype.landCount} tierras.
+        El Juez Supremo optimizará la base de maná para un total de {formData?.companero?.toLowerCase().includes("yorion") ? 80 : 60} cartas.
       </div>
     </div>
   );
@@ -331,6 +364,8 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
 
   const handleArchetypeChange = (val) => {
     const arch = archetypesList.find(a => a.value === val);
+    const isDynamic = arch?.isDynamic;
+
     setFormData(prev => ({
       ...prev,
       archetype: val,
@@ -343,9 +378,13 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
     setIsCustomStrategy(false);
     setErrors(prev => ({ ...prev, colores: null }));
     
-    // Auto-avance místico a paso 2
+    // Auto-avance místico inteligente (Piloto Automático)
     setTimeout(() => {
-      setCurrentStep(2);
+      if (isDynamic) {
+        setCurrentStep(4); // Si es un mazo Meta/Dinámico, salta directo al final con todo rellenado
+      } else {
+        setCurrentStep(2); // Flujo normal para arquetipos genéricos
+      }
     }, 450);
   };
 
@@ -463,16 +502,10 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
   // Filtrado de Tribus viables para el Arquetipo
   const availableTribes = useMemo(() => {
     if (!formData.archetype) return [];
+    if (formData.isFreeMode) return MTG_TRIBES;
     
-    let tribes = MTG_TRIBES.filter(t => t && t.archetypes && t.archetypes.includes(formData.archetype));
-    
-    // Fallback dinámico inteligente para arquetipos específicos/RAG:
-    if (tribes.length === 0) {
-      const allowedColors = allowedColorsInfo?.allowed || [];
-      tribes = MTG_TRIBES.filter(t => t && t.colors && t.colors.some(c => allowedColors.includes(c)));
-    }
-    return tribes;
-  }, [formData.archetype, allowedColorsInfo]);
+    return MTG_TRIBES.filter(t => t && t.archetypes && t.archetypes.includes(formData.archetype));
+  }, [formData.archetype, formData.isFreeMode]);
 
   // Agrupar por categoría
   const groupedTribes = useMemo(() => {
@@ -490,16 +523,10 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
   // Estrategias viables para el Arquetipo
   const availableStrategies = useMemo(() => {
     if (!formData.archetype) return [];
+    if (formData.isFreeMode) return MTG_STRATEGIES;
     
-    let strategies = MTG_STRATEGIES.filter(s => s && s.archetypes && s.archetypes.includes(formData.archetype));
-    
-    // Fallback dinámico inteligente para arquetipos específicos/RAG:
-    if (strategies.length === 0) {
-      const allowedColors = allowedColorsInfo?.allowed || [];
-      strategies = MTG_STRATEGIES.filter(s => s && s.colors && s.colors.some(c => allowedColors.includes(c)));
-    }
-    return strategies;
-  }, [formData.archetype, allowedColorsInfo]);
+    return MTG_STRATEGIES.filter(s => s && s.archetypes && s.archetypes.includes(formData.archetype));
+  }, [formData.archetype, formData.isFreeMode]);
 
   // Autoselección reactiva inteligente cuando queda un único camino habilitado
   useEffect(() => {
@@ -801,6 +828,11 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                       const safeSpeed = arch.speed || 'Media';
                       const speedStyles = getSpeedStyles(safeSpeed);
                       
+                      let bannedCount = 0;
+                      if (arch.allCards && arch.allCards.length > 0) {
+                        bannedCount = arch.allCards.filter(c => BATTLEBOX_BANLIST.includes(c.toLowerCase())).length;
+                      }
+                      
                       return (
                         <motion.div
                           key={arch.value}
@@ -831,19 +863,57 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                               )}
                             </div>
                             
-                            <p className="text-[11.5px] text-white/90 leading-relaxed mb-4 font-serif relative z-10 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] font-medium line-clamp-3">
+                            <p className="text-[11.5px] text-white/90 leading-relaxed mb-3 font-serif relative z-10 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] font-medium line-clamp-3">
                               {arch.description}
                             </p>
+                            
+                            {/* Salud de la Banlist (Característica B) */}
+                            {arch.isDynamic && (
+                              <div className="mb-3 relative z-10">
+                                {bannedCount === 0 ? (
+                                  <div className="flex items-center gap-1.5 px-2 py-1 bg-green-950/40 border border-green-500/30 rounded-lg inline-flex">
+                                    <Shield size={12} className="text-green-400" />
+                                    <span className="text-[9px] font-bold text-green-400 uppercase tracking-widest">🟢 100% Legal</span>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center gap-1.5 px-2 py-1 bg-yellow-950/40 border border-yellow-500/30 rounded-lg inline-flex" title="El Juez Supremo transmutará estas cartas automáticamente durante la forja.">
+                                    <AlertCircle size={12} className="text-yellow-400 animate-pulse" />
+                                    <span className="text-[9px] font-bold text-yellow-400 uppercase tracking-widest">🟡 {bannedCount} Baneadas (A sustituir)</span>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                            
+                            {arch.signatureCards && arch.signatureCards.length > 0 && (
+                              <div className="mb-4 relative z-10">
+                                <span className="text-[8.5px] text-white/40 uppercase tracking-widest font-sans mb-1 block">Cartas Insignia:</span>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {arch.signatureCards.map((sc, i) => (
+                                    <span key={i} className="px-1.5 py-0.5 bg-[#D4AF37]/10 border border-[#D4AF37]/20 text-[#D4AF37] text-[9px] rounded font-mono font-semibold" title="Carta representativa de este arquetipo">
+                                      {sc}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
                           </div>
 
                           <div className="flex flex-wrap items-center justify-between gap-2 mt-auto relative z-10 pt-2 border-t border-white/5">
-                            <div className="flex items-center gap-1.5">
-                              <div className={cn("flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider border", speedStyles.bg, speedStyles.color)}>
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              {/* Dificultad */}
+                              <div className={cn(
+                                "flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border cursor-help",
+                                arch.difficulty === 1 ? "bg-green-500/10 border-green-500/20 text-green-400" :
+                                arch.difficulty === 3 ? "bg-red-500/10 border-red-500/20 text-red-400" :
+                                "bg-yellow-500/10 border-yellow-500/20 text-yellow-400"
+                              )} title={`Dificultad de Juego: ${arch.difficulty === 1 ? 'Ideal para principiantes' : arch.difficulty === 3 ? 'Requiere mucha experiencia' : 'Dificultad moderada'}`}>
+                                <span>{arch.difficulty === 1 ? '🟢 Fácil' : arch.difficulty === 3 ? '🔴 Difícil' : '🟡 Medio'}</span>
+                              </div>
+                              
+                              {/* Velocidad */}
+                              <div className={cn("flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider border cursor-help", speedStyles.bg, speedStyles.color)} title="Cadencia y velocidad del mazo">
                                 {speedStyles.icon}
                                 <span>{safeSpeed}</span>
-                              </div>
-                              <div className="flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-bold bg-black/65 border border-white/25 text-white">
-                                <span>T{arch.winTurn || '?'}</span>
                               </div>
                             </div>
                             
@@ -1100,13 +1170,31 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
             >
               <div className="absolute inset-0 bg-[url('/ASSETS/FrostedGlass.webp')] bg-cover opacity-5 pointer-events-none" />
               
-              <div className="border-b border-white/10 pb-4">
-                <h3 className="text-xl md:text-2xl font-cinzel text-magic-gold uppercase tracking-[0.15em] mb-1">
-                  Núcleo y Sinergia Táctica
-                </h3>
-                <p className="text-xs text-[#f4ece0]/50 tracking-wider font-semibold">
-                  Paso 2: Define la raza y el motor estratégico que dominará el ecosistema
-                </p>
+              <div className="border-b border-white/10 pb-4 flex flex-col md:flex-row md:items-end justify-between gap-4">
+                <div>
+                  <h3 className="text-xl md:text-2xl font-cinzel text-magic-gold uppercase tracking-[0.15em] mb-1">
+                    Núcleo y Sinergia Táctica
+                  </h3>
+                  <p className="text-xs text-[#f4ece0]/50 tracking-wider font-semibold">
+                    Paso 2: Define la raza y el motor estratégico que dominará el ecosistema
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 bg-black/60 px-3 py-2 rounded-xl border border-white/10 relative overflow-hidden group">
+                  <div className="absolute inset-0 bg-red-500/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+                  <label className="text-[10px] text-white/70 font-sans font-bold uppercase tracking-wider cursor-pointer flex items-center gap-2">
+                    {formData.isFreeMode ? <Unlock size={14} className="text-red-400" /> : <Lock size={14} className="text-emerald-400" />}
+                    <span>{formData.isFreeMode ? 'Modo Herejía (Libre)' : 'Filtro Estricto'}</span>
+                    <input
+                      type="checkbox"
+                      checked={!!formData.isFreeMode}
+                      onChange={(e) => setFormData(prev => ({ ...prev, isFreeMode: e.target.checked }))}
+                      className="sr-only"
+                    />
+                    <div className={cn("w-7 h-4 rounded-full transition-colors relative", formData.isFreeMode ? "bg-red-500/40" : "bg-emerald-500/40")}>
+                      <div className={cn("absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full transition-transform", formData.isFreeMode ? "translate-x-3" : "translate-x-0")} />
+                    </div>
+                  </label>
+                </div>
               </div>
 
               {/* Grid Responsivo de Doble Columna */}
@@ -1176,6 +1264,21 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                       <div className="h-[210px] overflow-y-auto p-2 bg-black/60 border border-white/10 rounded-xl relative z-10">
                         {!isCustomTribe ? (
                           <div className="grid grid-cols-2 gap-2">
+                            {/* Botón Sin Tribu Genérico */}
+                            <button
+                              type="button"
+                              onClick={() => setFormData(prev => ({ ...prev, tribe: '' }))}
+                              className={cn(
+                                "p-2 rounded-lg border text-center transition-all duration-300 flex flex-col items-center justify-center gap-1 relative min-h-[56px]",
+                                !formData.tribe
+                                  ? "bg-gradient-to-b from-gray-500/20 to-black border-gray-400 text-gray-300 shadow-[0_0_8px_rgba(156,163,175,0.2)] font-black scale-[1.02]"
+                                  : "bg-black/85 border-white/10 text-white/80 hover:border-white/30 hover:bg-black/95 hover:scale-[1.01]"
+                              )}
+                            >
+                              <span className="text-[10px] uppercase tracking-wider font-cinzel text-gray-400">Sin Tribu / Omitir</span>
+                              <div className="text-[9px] text-gray-500 font-sans font-medium line-clamp-1">Base de mazo genérica</div>
+                            </button>
+
                             {groupedTribes[activeTribeTab] && groupedTribes[activeTribeTab].map(tribe => {
                               const isTribeSelected = formData.tribe === tribe.label;
                               const isCompatible = isTribeCompatible(tribe);
@@ -1273,6 +1376,24 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
 
                       {/* Strategies List Selector */}
                       <div className="h-[210px] overflow-y-auto p-2 bg-black/60 border border-white/10 rounded-xl space-y-2 relative z-10">
+                        {/* Botón Sin Estrategia Genérico */}
+                        <div
+                          onClick={() => setFormData(prev => ({ ...prev, strategy: '' }))}
+                          className={cn(
+                            "p-2.5 rounded-lg border transition-all duration-300 flex flex-col justify-between min-h-[70px] cursor-pointer",
+                            !formData.strategy
+                              ? "border-gray-400 bg-gradient-to-b from-gray-500/15 to-black/90 shadow-[0_0_8px_rgba(156,163,175,0.2)]"
+                              : "bg-black/75 border-white/10 text-white/80 hover:text-white hover:border-white/30"
+                          )}
+                        >
+                          <p className={cn("text-[10px] font-black uppercase tracking-wider", !formData.strategy ? "text-gray-300" : "text-white/60")}>
+                            Sin Mecánica / Omitir
+                          </p>
+                          <p className="text-[9px] text-[#f4ece0]/40 font-serif leading-tight line-clamp-2 mt-1">
+                            Plan de juego genérico sin especialización.
+                          </p>
+                        </div>
+
                         {availableStrategies.map(strat => {
                           const isSelected = formData.strategy === strat.label;
                           const isCompatible = isStrategyCompatible(strat);
@@ -1458,6 +1579,43 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                           </span>
                         </p>
                       </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3 bg-black/45 p-5 rounded-2xl border border-white/5 relative overflow-hidden">
+                      <label className="block text-[#ffca58] text-xs font-bold uppercase tracking-[0.15em] drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)] flex items-center gap-1.5 relative z-10">
+                        <Crown size={12} className="text-magic-gold" /> Compañero (Companion)
+                      </label>
+                      <p className="text-[10px] text-[#f4ece0]/60 tracking-wide leading-relaxed relative z-10 font-sans">
+                        Si seleccionas a Yorion, el Juez Supremo cambiará drásticamente todas sus fórmulas matemáticas para construir una biblioteca competitiva de 80 cartas exactas.
+                      </p>
+                      <div 
+                        onClick={() => {
+                          const isYorion = formData?.companero?.toLowerCase().includes("yorion");
+                          setFormData(prev => ({ ...prev, companero: isYorion ? '' : 'Yorion, Sky Nomad' }));
+                        }}
+                        className={cn(
+                          "p-3 rounded-xl border cursor-pointer transition-all duration-300 flex items-center justify-between relative z-10",
+                          formData?.companero?.toLowerCase().includes("yorion")
+                            ? "border-blue-500/50 bg-blue-500/10 shadow-[0_0_15px_rgba(59,130,246,0.3)]"
+                            : "border-white/10 bg-black/40 hover:bg-black/60 hover:border-white/30"
+                        )}
+                      >
+                        <div className="flex items-center gap-3">
+                          <img src="https://cards.scryfall.io/art_crop/front/2/7/275426c4-c14e-47d0-a9d4-24da7f6f6911.jpg?1616182288" alt="Yorion" className="w-10 h-10 rounded-full object-cover border border-white/20" />
+                          <div>
+                            <span className={cn("text-xs font-bold uppercase block", formData?.companero?.toLowerCase().includes("yorion") ? "text-blue-400" : "text-white")}>
+                              Yorion, Sky Nomad
+                            </span>
+                            <span className="text-[10px] text-gray-400 font-sans block mt-0.5">Regla Pro Tour: 80 Cartas.</span>
+                          </div>
+                        </div>
+                        {formData?.companero?.toLowerCase().includes("yorion") && (
+                          <span className="text-[10px] font-black uppercase text-blue-400 px-2 py-1 rounded bg-blue-500/20 border border-blue-500/40 tracking-widest animate-pulse">
+                            Activo
+                          </span>
+                        )}
+                      </div>
                     </div>
 
                     <div className="space-y-2">
@@ -1505,7 +1663,6 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                       </div>
                     </div>
                   </div>
-                </div>
 
                 {/* Lado Derecho: Vistazo Rápido */}
                 <div className="lg:col-span-1">

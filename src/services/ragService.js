@@ -1211,6 +1211,12 @@ export const getDynamicArchetypes = async () => {
       if (nameLower.includes('mono-blue') || nameLower.includes('mono blue') || nameLower.includes('merfolk')) guildColors.push('U');
       if (nameLower.includes('tron') || nameLower.includes('eldrazi')) guildColors.push('C');
 
+      // Overrides post-baneos / Meta actual:
+      if (nameLower.includes('cascade') || nameLower.includes('rhinos') || nameLower.includes('crash')) guildColors.push('W', 'U', 'R', 'G');
+      if (nameLower.includes('living end')) guildColors.push('U', 'B', 'R', 'G');
+      if (nameLower.includes('yawgmoth')) guildColors.push('B', 'G');
+      if (nameLower.includes('scam') || nameLower.includes('grief')) guildColors.push('B', 'R', 'W');
+
       guildColors.forEach(col => colorsSet.add(col));
 
       let recommendedColors = [...colorsSet];
@@ -1247,7 +1253,9 @@ export const getDynamicArchetypes = async () => {
         colorHint: `Velocidad: ${speed} • Victoria: Turno ${winTurn}`,
         isDynamic: true,
         formats,
-        colorGroup
+        colorGroup,
+        allCards: arch.cards ? arch.cards.map(c => c.name) : [],
+        signatureCards: arch.cards ? arch.cards.slice(0, 3).map(c => c.name) : []
       });
     }
     return transformed;

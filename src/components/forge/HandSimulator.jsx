@@ -460,7 +460,14 @@ export default function HandSimulator({ deck, isOpen, onClose, aiConfig }) {
                     <h3 className="font-cinzel text-xs text-magic-gold flex items-center gap-2">
                       <BarChart2 size={14} className="text-[#D4AF37]" /> Calculadora Hipergeométrica
                     </h3>
-                    <span className="text-[10px] text-[#D4AF37] bg-[#D4AF37]/10 border border-[#D4AF37]/30 px-1.5 py-0.5 rounded font-mono font-bold animate-pulse">PRO DATA</span>
+                    <div className="flex gap-1.5 items-center">
+                      {deck.length > 65 && (
+                        <span className="text-[9px] text-blue-400 bg-blue-500/10 border border-blue-500/30 px-1.5 py-0.5 rounded font-mono font-bold" title="Matemáticas escaladas a 80 cartas (Companion)">
+                          BASE: 80 CARTAS
+                        </span>
+                      )}
+                      <span className="text-[10px] text-[#D4AF37] bg-[#D4AF37]/10 border border-[#D4AF37]/30 px-1.5 py-0.5 rounded font-mono font-bold animate-pulse">PRO DATA</span>
+                    </div>
                   </div>
 
                   {statsSummary && (

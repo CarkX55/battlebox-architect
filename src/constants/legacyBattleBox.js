@@ -203,7 +203,10 @@ export const BATTLEBOX_ARCHETYPES = [
     description: 'Curva extremadamente baja. Presión rápida con criaturas de coste 1-2 e interacción directa de daño.',
     recommendedColors: ['R', 'W', 'G', 'B'],
     landCount: 22,
-    spellCount: 38
+    spellCount: 38,
+    difficulty: 1,
+    signatureCards: ['Lightning Bolt', 'Monastery Swiftspear'],
+    jargonTags: ['Aggro', 'Burn']
   },
   {
     id: 'tempo',
@@ -213,7 +216,10 @@ export const BATTLEBOX_ARCHETYPES = [
     description: 'Pocas amenazas extremadamente eficientes (coste 1-2) defendidas con counterspells y remoción reactiva rápida.',
     recommendedColors: ['U', 'R', 'B', 'W'],
     landCount: 20,
-    spellCount: 40
+    spellCount: 40,
+    difficulty: 2,
+    signatureCards: ['Murktide Regent', 'Death\'s Shadow'],
+    jargonTags: ['Tempo', 'Cantrips']
   },
   {
     id: 'midrange',
@@ -223,7 +229,10 @@ export const BATTLEBOX_ARCHETYPES = [
     description: 'El equilibrio perfecto. Máximo valor en curva con disrupción selectiva (descarte/remoción) y amenazas sólidas de 2x1.',
     recommendedColors: ['B', 'G', 'W', 'R'],
     landCount: 24,
-    spellCount: 36
+    spellCount: 36,
+    difficulty: 2,
+    signatureCards: ['Tarmogoyf', 'Thoughtseize'],
+    jargonTags: ['Midrange', 'Value']
   },
   {
     id: 'combo',
@@ -231,9 +240,12 @@ export const BATTLEBOX_ARCHETYPES = [
     speed: 'Variable',
     winTurn: '5-8',
     description: 'Ensambla motores sinérgicos complejos o escala maná hacia amenazas gigantes e interactivas.',
-    recommendedColors: ['U', 'B', 'R', 'G', 'C'],
+    recommendedColors: ['W', 'U', 'B', 'R', 'G', 'C'],
     landCount: 22,
-    spellCount: 38
+    spellCount: 38,
+    difficulty: 3,
+    signatureCards: ['Yawgmoth, Thran Physician', 'Primeval Titan'],
+    jargonTags: ['Combo', 'Engine']
   },
   {
     id: 'control',
@@ -243,7 +255,10 @@ export const BATTLEBOX_ARCHETYPES = [
     description: 'Neutraliza al oponente mediante contrahechizos, limpiamesas eficientes y motores de robo consistentes, con pocos finishers.',
     recommendedColors: ['U', 'W', 'B', 'R'],
     landCount: 26,
-    spellCount: 34
+    spellCount: 34,
+    difficulty: 2,
+    signatureCards: ['Teferi, Hero of Dominaria', 'Supreme Verdict'],
+    jargonTags: ['Control', 'Boardwipe']
   },
   {
     id: 'prison',
@@ -253,7 +268,10 @@ export const BATTLEBOX_ARCHETYPES = [
     description: 'Asfixia el ritmo de juego del rival usando impuestos de maná (Thalia) y elementos fiscales que rompen la simetría.',
     recommendedColors: ['W', 'C', 'U', 'R'],
     landCount: 25,
-    spellCount: 35
+    spellCount: 35,
+    difficulty: 3,
+    signatureCards: ['Thalia, Guardian of Thraben', 'Chalice of the Void'],
+    jargonTags: ['Stax', 'Tax']
   },
   {
     id: 'ramp',
@@ -263,7 +281,10 @@ export const BATTLEBOX_ARCHETYPES = [
     description: 'Acelera el desarrollo de maná utilizando dorks, rocks y hechizos de búsqueda de tierras para lanzar amenazas masivas de coste 5+ en turnos tempranos.',
     recommendedColors: ['G', 'C', 'U', 'R', 'B'],
     landCount: 25,
-    spellCount: 35
+    spellCount: 35,
+    difficulty: 1,
+    signatureCards: ['Karn Liberated', 'Cultivate'],
+    jargonTags: ['Ramp', 'Tron']
   }
 ];
 
@@ -434,7 +455,7 @@ export const MTG_STRATEGIES = [
     label: 'Big Mana (Tron, Eldrazi & Titans)', 
     colors: ['G', 'C', 'R', 'U'], 
     primaryColor: ['G', 'C'],
-    archetypes: ['ramp', 'combo', 'midrange'],
+    archetypes: ['ramp', 'combo', 'midrange', 'prison'],
     mechanics: 'Ensambla el trío de tierras de Urza o acelera masivamente en los primeros turnos para encadenar Eldrazis legendarios o Titanes devastadores.',
     keywords: ["urza's", 'power plant', 'mine', 'tower', 'expedition map', 'sylvan scrying', 'ancient stirrings', 'chromatic star', 'chromatic sphere', 'karn', 'wurmcoil', 'ulamog', 'titan']
   },
@@ -446,6 +467,15 @@ export const MTG_STRATEGIES = [
     archetypes: ['aggro', 'tempo', 'midrange'],
     mechanics: 'Tripula vehículos evasivos o destructivos (Smuggler\'s Copter) esquivando limpiamesas conjuros.',
     keywords: ['crew', 'vehicle', 'smuggler\'s copter', 'heart of kiran', 'pilot']
+  },
+  { 
+    id: 'cascade', 
+    label: 'Cascade (Rhinos / Living End)', 
+    colors: ['W', 'U', 'R', 'G', 'B'], 
+    primaryColor: ['U', 'G'],
+    archetypes: ['combo', 'tempo'],
+    mechanics: 'Ensambla cascadas de coste 3 para castear automáticamente hechizos demoledores de coste 0.',
+    keywords: ['cascade', 'suspend', 'crashing footfalls', 'living end', 'shardless agent', 'ardent plea'] 
   }
 ];
 

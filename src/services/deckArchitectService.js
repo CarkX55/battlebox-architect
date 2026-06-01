@@ -291,6 +291,21 @@ const ARCHETYPE_DNA = {
     prioridad: "Grandes amenazas incoloras Eldrazi (Thought-Knot Seer, Reality Smasher) aceleradas con tierras de utilidad y Damping Sphere.",
     estilo: "Midrange Incoloro / Ramp / Control",
     regla_de_oro: "Las amenazas e interactores deben ser incoloros o interactuar de forma favorable con tierras de utilidad incoloras."
+  },
+  tron: {
+    prioridad: "Grandes amenazas incoloras Eldrazi (Thought-Knot Seer, Reality Smasher) aceleradas con tierras de utilidad y Damping Sphere.",
+    estilo: "Midrange Incoloro / Ramp / Control",
+    regla_de_oro: "Las amenazas e interactores deben ser incoloros o interactuar de forma favorable con tierras de utilidad incoloras."
+  },
+  cascade: {
+    prioridad: "Hechizos interactivos de coste 3+ y habilitadores de cascada para asegurar que siempre se revele un payoff de coste 0 (Crashing Footfalls, Living End).",
+    estilo: "Combo / Cascada Consistente",
+    regla_de_oro: "PROHIBICIÓN ABSOLUTA: No puedes incluir ninguna carta de coste 1 o 2. Toda la interacción debe costar 3 o más, o usar mecánicas alternativas (Split, Elementales)."
+  },
+  ramp: {
+    prioridad: "Aceleradores de maná rápidos (Mana Dorks como Llanowar Elves, Birds of Paradise o hechizos de búsqueda como Farseek, Cultivate) combinados con payoffs masivos e interactivos de coste 5 o más (Primeval Titan, Wurmcoil Engine, Karn).",
+    estilo: "Desarrollo y Aceleración / Big Mana",
+    regla_de_oro: "Las cartas de coste 1-3 DEBEN acelerar tu maná, buscar tierras o proveer interacción defensiva para sobrevivir hasta lanzar tus amenazas de coste 5+."
   }
 };
 
@@ -309,6 +324,20 @@ function getDeckBlueprint(archetype, strategyId, formData) {
   const hasGreen = colores.includes('G');
   
   const hasTribe = !!(formData?.tribe && formData.tribe !== 'none' && formData.tribe !== 'ninguna');
+
+  if (strategyId === 'cascade') {
+    return {
+      totalSpells: 38,
+      roles: { cascade_enablers_cmc3: 8, zero_cost_payoffs: 8, interaction_cmc3plus: 10, heavy_finishers_cmc4plus: 4, stabilizers_cmc3plus: 8 }
+    };
+  }
+
+  if (strategyId === 'tron' || strategyId === 'eldrazi_tron') {
+    return {
+      totalSpells: 36,
+      roles: { artifact_mana_accelerators: 10, colorless_eldrazi_threats: 10, heavy_finishers_planeswalkers: 6, colorless_interaction_and_removal: 10 }
+    };
+  }
 
   if (strategyId === 'reanimator') {
     return { 
@@ -802,7 +831,8 @@ function esRolProtegido(role) {
         "landfall_creatures", "prowess_creatures", "value_creatures", 
         "synergetic_threats", "fast_creatures", "tutors", "blood_artist_payoffs",
         "team_anthem_buffs", "etb_value_creatures", "auras_and_enchantments",
-        "graveyard_payoffs", "cheap_threats"
+        "graveyard_payoffs", "cheap_threats", "cascade_enablers", "cascade_payoffs",
+        "burn_spells", "urza_lands", "discard_enablers", "artifact_lands"
     ];
     if (protectedRoles.includes(r)) return true;
     if (r.includes("finisher") || r.includes("win_cond") || r.includes("combo_piece")) return true;
@@ -819,6 +849,16 @@ function obtenerPrioridadDeRecorte(card) {
     }
     
     const nameLower = card.name.toLowerCase();
+
+    // Excepciones explícitas de arquetipos Pro Tour (Burn, Tron, Graveyard, Affinity)
+    const intocables = [
+        "urza's tower", "urza's power plant", "urza's mine", "urza's saga", "darksteel citadel",
+        "lava spike", "skewer the critics", "rift bolt", "boros charm", "goblin guide", "monastery swiftspear",
+        "faithless looting", "cathartic reunion", "thrill of possibility", "stinkweed imp", "golgari grave-troll"
+    ];
+    if (intocables.some(inv => nameLower === inv)) {
+        return 0; // SAGRADA - NUNCA RECORTAR
+    }
     
     // Tier-1 Sacred Interaction Staples that must NEVER be cut below 3 copies unless absolutely forced
     const sacredStaples = [
@@ -1623,7 +1663,8 @@ export function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ragPool 
                 "archon of cruelty", "atraxa", "griselbrand", "primeval titan", "wurmcoil engine", "ulamog", "kozilek", "emrakul", "force of will", "force of negation"
             ];
             const isCheatable = cheatableKeywords.some(kw => nameLower.includes(kw)) ||
-                (strategyId === 'reanimator' && c.role === "reanimation_creature_targets") ||
+                (strategyId === 'reanimator') ||
+                (strategyId === 'graveyard') ||
                 (strategyId === 'ramp' && c.cmc >= 6) ||
                 (c.role && (c.role.includes("finisher") || c.role.includes("win_con") || c.role.includes("top_end"))) ||
                 (isControl && c.category === 'Creature'); // Control legitima criaturas CMC≥5 como finishers (Koma, Hullbreaker, Toxrill)
@@ -1781,7 +1822,13 @@ export function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ragPool 
     }
 
     // === DIMENSIÓN C: VELOCITY ===
-    if (colors.has("U")) {
+    const isCascadeDeck = strategyId === 'cascade' || formData.arquetipo?.toLowerCase().includes("cascade") || formData.arquetipo?.toLowerCase().includes("living end") || formData.arquetipo?.toLowerCase().includes("crashing footfalls");
+
+    if (isCascadeDeck) {
+        const logMsgC = `[DIMENSIÓN C] Velocity Bypass: Mazo Cascade detectado. Evitando inyección de cantrips de coste 1.`;
+        console.log(logMsgC);
+        if (addLog) addLog(logMsgC);
+    } else if (colors.has("U")) {
         const cantripCount = cards.filter(c => ["preordain", "consider", "ponder", "brainstorm"].includes(c.name.toLowerCase())).reduce((sum, s) => sum + s.quantity, 0);
         if (cantripCount < 4) {
             const gap = 4 - cantripCount;
@@ -1799,7 +1846,7 @@ export function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ragPool 
             }
             cards = inyectarCartaDirecta(cards, { name: "Preordain", quantity: gap - needed, category: "Sorcery", cmc: 1, role: "cantrip" });
         }
-    } else if (!hasTribe) { // PRO TOUR TRIBAL FIX: No inyectar motores genéricos en mazos tribales puros
+    } else if (!hasTribe && !isCascadeDeck) { // PRO TOUR TRIBAL FIX: No inyectar motores genéricos en mazos tribales puros
         const advantageEngines = ["fable of the mirror-breaker", "up the beanstalk", "orcish bowmasters", "esper sentinel", "lead the stampede"];
         const engineCount = cards.filter(c => advantageEngines.some(ae => c.name.toLowerCase().includes(ae))).reduce((sum, s) => sum + s.quantity, 0);
         if (engineCount < 4) {
@@ -1961,6 +2008,42 @@ export function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ragPool 
         else if (colors.has("U")) spellName = "Preordain";
 
         cards = inyectarCartaDirecta(cards, { name: spellName, quantity: deducted, category: "Instant", cmc: 1, role: "interaction" });
+    }
+
+    // === EXCEPCIÓN TRON: INYECCIÓN OBLIGATORIA DE TIERRAS DE URZA ===
+    const isTronDeck = strategyId === 'tron' || formData?.arquetipo?.toLowerCase().includes("tron");
+    if (isTronDeck) {
+        const urzaLands = ["Urza's Tower", "Urza's Power Plant", "Urza's Mine"];
+        let injectedUrza = 0;
+        urzaLands.forEach(uName => {
+            const existing = cards.find(c => c.name.toLowerCase() === uName.toLowerCase());
+            if (existing) {
+                if (existing.quantity < 4) {
+                    injectedUrza += (4 - existing.quantity);
+                    existing.quantity = 4;
+                }
+            } else {
+                injectedUrza += 4;
+                cards.push({ name: uName, quantity: 4, category: "Land", cmc: 0, role: "urza_lands" });
+            }
+        });
+        
+        if (injectedUrza > 0) {
+            // Deduct from other lands to make space
+            let otherLands = cards.filter(c => c.category === 'Land' && !urzaLands.map(u => u.toLowerCase()).includes(c.name.toLowerCase()));
+            let removed = 0;
+            for (let l of otherLands) {
+                if (removed >= injectedUrza) break;
+                const take = Math.min(l.quantity, injectedUrza - removed);
+                l.quantity -= take;
+                removed += take;
+            }
+            cards = cards.filter(c => c.quantity > 0);
+            
+            const logMsgTron = `[JUEZ TRON] Excepción Tron: Forzando 12 Urza Lands. Reemplazadas ${injectedUrza} tierras genéricas para hacer espacio.`;
+            console.log(logMsgTron);
+            if (addLog) addLog(logMsgTron);
+        }
     }
 
     // === DIMENSIÓN A: KARSTEN CURVES & SOURCES ===
@@ -2734,8 +2817,11 @@ La suma de las cantidades de todos los roles debe ser exactamente igual a totalS
    console.log(logDelta);
 
   // 3.5. THE SUPREME JUDGE AI (Relleno de Huecos y Arreglo de Redundancias)
-  const metricalTargetLnd = calculatePerfectLandCount(sanitizedFinals_ArraySpells, formData);
-  let maxRequired = 60 - metricalTargetLnd;
+  const hasYorion = sanitizedFinals_ArraySpells.some(s => s.name.toLowerCase().includes("yorion, sky nomad")) || (formData?.companero && formData.companero.toLowerCase().includes("yorion"));
+  const deckSize = hasYorion ? 80 : 60;
+  
+  const metricalTargetLnd = calculatePerfectLandCount(sanitizedFinals_ArraySpells, formData, hasYorion);
+  let maxRequired = deckSize - metricalTargetLnd;
   let countAct = sanitizedFinals_ArraySpells.reduce( (acc , b) => acc+(b.quantity || 1), 0 ); 
   let gap = maxRequired - countAct;
 
@@ -2898,8 +2984,11 @@ Analiza profundamente el mazo. Devuelve el JSON requerido con 'additions' (para 
   // escaneamos los hechizos finales de forma determinista y sobreescribimos los pips técnicos reales.
   let recalculatedPips = { W: 0, U: 0, B: 0, R: 0, G: 0 };
   sanitizedFinals_ArraySpells.forEach(card => {
-      let cost = card.mana_cost || '';
-      if (card.card_faces && card.card_faces[0] && typeof card.card_faces[0].mana_cost === 'string') {
+      const poolCard = (ragResult?.pool || []).find(c => c.name.trim().toLowerCase() === card.name.trim().toLowerCase()) || {};
+      let cost = poolCard.mana_cost || card.mana_cost || '';
+      if (poolCard.card_faces && poolCard.card_faces[0] && typeof poolCard.card_faces[0].mana_cost === 'string') {
+          cost = poolCard.card_faces[0].mana_cost;
+      } else if (card.card_faces && card.card_faces[0] && typeof card.card_faces[0].mana_cost === 'string') {
           cost = card.card_faces[0].mana_cost;
       }
       const qty = Number(card.quantity || 1);
@@ -2913,7 +3002,7 @@ Analiza profundamente el mazo. Devuelve el JSON requerido con 'additions' (para 
 
       // Fallback si no hay pips explícitos en coste (ej. cartas con Suspend como Crashing Footfalls de coste 0)
       if (!hasPips) {
-          let cardColors = card.colors || card.color_identity || [];
+          let cardColors = poolCard.colors || poolCard.color_identity || card.colors || card.color_identity || [];
           if (typeof cardColors === 'string') cardColors = [cardColors];
           cardColors.forEach(col => {
               const upperCol = String(col).toUpperCase();
@@ -2931,7 +3020,8 @@ Analiza profundamente el mazo. Devuelve el JSON requerido con 'additions' (para 
  
   onProgress('judge', '🌐 Trazando Matemática Perfecta del Flujo Natural Generando Pips Lands de JS Puro..'); 
   
-  let validCurrentGenUsedStrPipKeysBaseArrayDetected = Object.keys(metricsPIPsStruct).filter(mX => metricsPIPsStruct[mX] > 0);
+  const requestedColorsSet = new Set(formData?.colores || []);
+  let validCurrentGenUsedStrPipKeysBaseArrayDetected = Object.keys(metricsPIPsStruct).filter(mX => metricsPIPsStruct[mX] > 0 || requestedColorsSet.has(mX));
 
   // Llamada pura base interna Matemática: Se genera en fracción mileseg exactitud!
   const aiUtilityLands = validResultsStruct.utility_lands_recommendations || [];
@@ -2993,7 +3083,7 @@ Analiza profundamente el mazo. Devuelve el JSON requerido con 'additions' (para 
 
   // 4. Separar Hechizos y Tierras para forzar exactitud matemática
   const targetLandsCount = metricalTargetLnd;
-  const targetSpellsCount = 60 - targetLandsCount;
+  const targetSpellsCount = deckSize - targetLandsCount;
 
   let finalSpells = consolidatedList.filter(c => c.category !== 'Land');
   let finalLands = consolidatedList.filter(c => c.category === 'Land');
@@ -3040,7 +3130,7 @@ Analiza profundamente el mazo. Devuelve el JSON requerido con 'additions' (para 
   // 5. Re-consolidar y filtrar nulos/ceros por última vez
   validResultsStruct.cards = [...finalSpells, ...finalLands].filter(c => c && c.quantity > 0);
   const finalTotal = validResultsStruct.cards.reduce((sum, c) => sum + c.quantity, 0);
-  addLog(`[CONSOLIDACIÓN SUPREMA] Mazo verificado con éxito. Total absoluto de cartas: ${finalTotal}/60.`);
+  addLog(`[CONSOLIDACIÓN SUPREMA] Mazo verificado con éxito. Total absoluto de cartas: ${finalTotal}/${deckSize}.`);
     
     // Filtrar cartas que hayan quedado con cantidad 0
     validResultsStruct.cards = validResultsStruct.cards.filter(c => c.quantity > 0);
