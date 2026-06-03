@@ -1,6 +1,6 @@
 // src/services/ragService.js
 import { getBlueprint } from '../constants/blueprintTemplates.js';
-import { MTG_TRIBES, MTG_STRATEGIES, PARASITIC_RULES } from '../constants/legacyBattleBox.js';
+import { MTG_TRIBES, MTG_STRATEGIES, PARASITIC_RULES, inferStrategyFromArchetype } from '../constants/legacyBattleBox.js';
 import { getAllCards } from './dbIngestor.js';
 import { loadMetaFromDB } from './mtgtop8Service.js';
 
@@ -135,7 +135,8 @@ export const buildCardPool = async (formData) => {
   const tribeData = MTG_TRIBES.find(t => t.id === formData.tribe || t.label === formData.tribe) || null;
   const strategyData = MTG_STRATEGIES.find(s => s.id === formData.strategy || s.label === formData.strategy) || null;
   
-  const strategyId = strategyData ? strategyData.id : (formData.strategy || '');
+  let strategyId = strategyData ? strategyData.id : (formData.strategy || '');
+  strategyId = inferStrategyFromArchetype(formData.archetype, strategyId);
   
   // Respetamos los colores elegidos por el usuario de forma prioritaria
   const allowedColors = (formData.colores && formData.colores.length > 0) 

@@ -1,17 +1,22 @@
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Sparkles, Image, Check, Heart, Shield, Award, HelpCircle } from 'lucide-react';
+import { X, Sparkles, Image, Check, Heart, Shield, Award, HelpCircle, Activity } from 'lucide-react';
 import { cn } from '../../utils/cn';
+import { auditarMazo } from '../../services/deckAuditorService';
 
 /**
  * DeckVisualExporter: Generador de Grid Visual premium (Social Decklist Card)
  * Organiza las cartas en cascada apilada por coste de maná y tipo de carta
  * con gradientes dorados y orbes neón, permitiendo compartir tu creación.
  */
-export default function DeckVisualExporter({ deck, sideboard = [], isOpen, onClose, deckName = 'Mazo Forjado', archetype = 'Midrange', colors = [] }) {
-  const [activeTab, setActiveTab] = useState('main'); // 'main' | 'sideboard'
+export default function DeckVisualExporter({ deck, sideboard = [], isOpen, onClose, deckName = 'Mazo Forjado', archetype = 'Midrange', colors = [], formData = {}, onOptimize }) {
+  const [activeTab, setActiveTab] = useState('main'); // 'main' | 'sideboard' | 'audit'
   const [likeCount, setLikeCount] = useState(12);
   const [hasLiked, setHasLiked] = useState(false);
+
+  const auditReport = useMemo(() => {
+    return auditarMazo(deck || [], sideboard || [], formData);
+  }, [deck, sideboard, formData]);
 
   // Clasificar las cartas del mazo principal por Coste de Maná Convertido (CMC)
   const columnsByCmc = useMemo(() => {
@@ -108,7 +113,7 @@ export default function DeckVisualExporter({ deck, sideboard = [], isOpen, onClo
           </div>
           
           <div className="flex items-center gap-3">
-            {/* Selector de Pestañas Mazo/Side */}
+            {/* Selector de Pestañas Mazo/Side/Audit */}
             <div className="flex bg-white/5 border border-white/10 rounded-lg p-0.5 text-[10px]">
               <button 
                 onClick={() => setActiveTab('main')}
@@ -121,6 +126,13 @@ export default function DeckVisualExporter({ deck, sideboard = [], isOpen, onClo
                 className={cn("px-3 py-1.5 rounded transition-all font-bold font-sans uppercase", activeTab === 'sideboard' ? "bg-grimorio-gold text-black shadow-lg" : "text-gray-400 hover:text-gray-200")}
               >
                 Banquillo
+              </button>
+              <button 
+                onClick={() => setActiveTab('audit')}
+                className={cn("px-3 py-1.5 rounded transition-all font-bold font-sans uppercase flex items-center gap-1", activeTab === 'audit' ? "bg-purple-600 text-white shadow-lg" : "text-gray-400 hover:text-gray-200")}
+              >
+                <Activity size={12} />
+                Auditoría
               </button>
             </div>
 
@@ -143,12 +155,22 @@ export default function DeckVisualExporter({ deck, sideboard = [], isOpen, onClo
             {/* Poster Header */}
             <div className="flex flex-col sm:flex-row justify-between items-center gap-4 border-b border-grimorio-gold/10 pb-4 shrink-0">
               <div className="flex items-center gap-4">
-                {/* Logo o Icono de Duelista */}
-                <div className="w-14 h-14 bg-gradient-to-br from-grimorio-gold to-[#4a3318] rounded-xl flex items-center justify-center border border-grimorio-gold/30 shadow-[0_0_15px_rgba(212,175,55,0.2)] shrink-0">
+                {/* Logo o Icono de Duelista con Sello de Grado */}
+                <div className="relative w-14 h-14 bg-gradient-to-br from-grimorio-gold to-[#4a3318] rounded-xl flex items-center justify-center border border-grimorio-gold/30 shadow-[0_0_15px_rgba(212,175,55,0.2)] shrink-0">
                   <Award className="text-black w-8 h-8 font-black" />
+                  <div className={cn(
+                    "absolute -bottom-2 -right-2 w-7 h-7 rounded-full border-2 flex items-center justify-center font-black text-sm shadow-xl",
+                    auditReport.grade === 'S' ? "bg-yellow-400 border-white text-black" :
+                    auditReport.grade === 'A' ? "bg-emerald-500 border-black text-white" :
+                    auditReport.grade === 'B' ? "bg-blue-500 border-black text-white" :
+                    auditReport.grade === 'C' ? "bg-orange-500 border-black text-white" :
+                    "bg-red-600 border-black text-white"
+                  )}>
+                    {auditReport.grade}
+                  </div>
                 </div>
                 <div>
-                  <h4 className="font-cinzel text-2xl text-magic-gold tracking-wide leading-tight drop-shadow-md">
+                  <h4 className="font-cinzel text-2xl text-magic-gold tracking-wide leading-tight drop-shadow-md flex items-center gap-2">
                     {deckName}
                   </h4>
                   <div className="flex items-center gap-2 mt-1">
@@ -158,6 +180,10 @@ export default function DeckVisualExporter({ deck, sideboard = [], isOpen, onClo
                     <span className="w-1 h-1 bg-white/20 rounded-full" />
                     <span className="text-[10px] text-[#D4AF37] uppercase font-bold font-sans">
                       {deck.reduce((sum, c) => sum + (c.quantity || 1), 0)} Cartas
+                    </span>
+                    <span className="w-1 h-1 bg-white/20 rounded-full" />
+                    <span className="text-[10px] text-purple-400 uppercase font-bold font-sans cursor-pointer hover:underline" onClick={() => setActiveTab('audit')}>
+                      Score: {auditReport.score}/100
                     </span>
                   </div>
                 </div>
@@ -267,6 +293,92 @@ export default function DeckVisualExporter({ deck, sideboard = [], isOpen, onClo
                       </div>
                     );
                   })}
+                </motion.div>
+              ) : activeTab === 'audit' ? (
+                // --- VISTA AUDITORIA ---
+                <motion.div 
+                  key="audit"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="space-y-6 min-h-[400px] text-white"
+                >
+                  <div className="flex items-center justify-between border-b border-white/10 pb-4">
+                    <div className="flex items-center gap-2">
+                      <Activity className="text-purple-400" />
+                      <h3 className="text-xl font-cinzel text-purple-300">Auditoría del Juez Supremo</h3>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-3xl font-black text-magic-gold drop-shadow-md">{auditReport.score}/100</div>
+                      <div className="text-xs uppercase tracking-widest text-gray-400">Grado Competitivo</div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Fortalezas */}
+                    <div className="bg-emerald-950/20 border border-emerald-500/20 p-4 rounded-xl">
+                      <h4 className="text-emerald-400 font-bold uppercase text-xs mb-3 flex items-center gap-2">
+                        <Check size={14} /> Puntos Fuertes ({auditReport.strengths.length})
+                      </h4>
+                      <ul className="space-y-2 text-sm text-emerald-100/70 list-disc pl-4 font-serif">
+                        {auditReport.strengths.length > 0 ? (
+                          auditReport.strengths.map((str, i) => <li key={i}>{str}</li>)
+                        ) : (
+                          <li className="italic opacity-50">No hay puntos fuertes destacables.</li>
+                        )}
+                      </ul>
+                    </div>
+
+                    {/* Debilidades */}
+                    <div className="bg-rose-950/20 border border-rose-500/20 p-4 rounded-xl">
+                      <h4 className="text-rose-400 font-bold uppercase text-xs mb-3 flex items-center gap-2">
+                        <X size={14} /> Advertencias ({auditReport.warnings.length})
+                      </h4>
+                      <ul className="space-y-2 text-sm text-rose-100/70 list-disc pl-4 font-serif">
+                        {auditReport.warnings.length > 0 ? (
+                          auditReport.warnings.map((warn, i) => <li key={i}>{warn}</li>)
+                        ) : (
+                          <li className="italic opacity-50 text-emerald-400">¡Ninguna! Tu mazo es perfecto.</li>
+                        )}
+                      </ul>
+                    </div>
+                  </div>
+
+                  {/* Metricas */}
+                  <div className="grid grid-cols-4 gap-4 mt-6">
+                    <div className="bg-black/50 p-3 rounded-lg border border-white/5 text-center">
+                      <div className="text-[10px] text-gray-500 uppercase font-bold mb-1">Maná Score</div>
+                      <div className="text-xl font-black text-white">{auditReport.metrics.manaScore}/30</div>
+                    </div>
+                    <div className="bg-black/50 p-3 rounded-lg border border-white/5 text-center">
+                      <div className="text-[10px] text-gray-500 uppercase font-bold mb-1">Curva (VMP)</div>
+                      <div className="text-xl font-black text-white">{auditReport.metrics.vmp}</div>
+                    </div>
+                    <div className="bg-black/50 p-3 rounded-lg border border-white/5 text-center">
+                      <div className="text-[10px] text-gray-500 uppercase font-bold mb-1">Consistencia</div>
+                      <div className="text-xl font-black text-white">{auditReport.metrics.consistencyScore}/20</div>
+                    </div>
+                    <div className="bg-black/50 p-3 rounded-lg border border-white/5 text-center">
+                      <div className="text-[10px] text-gray-500 uppercase font-bold mb-1">Estructura</div>
+                      <div className="text-xl font-black text-white">{auditReport.metrics.structureScore}/30</div>
+                    </div>
+                  </div>
+
+                  {/* Botón de Optimización Automática */}
+                  {auditReport.grade !== 'S' && onOptimize && (
+                    <div className="mt-6 flex justify-center border-t border-white/10 pt-6">
+                      <button
+                        onClick={() => {
+                          onOptimize(auditReport);
+                          setActiveTab('main'); // Volver al grid para ver los cambios
+                        }}
+                        className="btn-magic-glass shadow-[0_0_20px_rgba(212,175,55,0.3)] hover:shadow-[0_0_30px_rgba(212,175,55,0.6)] flex items-center gap-2 border-[#D4AF37]/50 text-[#D4AF37] px-6 py-3 text-sm bg-gradient-to-r from-yellow-900/40 to-yellow-600/20 rounded-xl font-bold uppercase tracking-wider"
+                      >
+                        <Sparkles size={16} /> Optimizar Mazo Automáticamente
+                      </button>
+                    </div>
+                  )}
+
                 </motion.div>
               ) : (
                 // --- VISTA SIDEBOARD COLLAGE ---

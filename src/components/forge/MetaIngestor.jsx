@@ -20,6 +20,7 @@ export default function MetaIngestor({ selectedFormat, onFormatChange }) {
   const [syncStatus, setSyncStatus] = useState('idle');
   const [syncError, setSyncError] = useState(null);
   const [progress, setProgress] = useState(0);
+  const [syncProgressText, setSyncProgressText] = useState('');
   const [ingestMode, setIngestMode] = useState('auto'); // 'auto' | 'moxfield' | 'manual'
   const [manualText, setManualText] = useState('');
   const [moxfieldUrl, setMoxfieldUrl] = useState('');
@@ -152,55 +153,29 @@ export default function MetaIngestor({ selectedFormat, onFormatChange }) {
       return;
     }
 
-    // Modo automático / Apify MTGTop8 API
-    const useMock = !apifyToken.trim();
-
-    if (useMock) {
-      // Simulación animada para datos Mock
-      console.log(`[MetaIngestor] Apify Token ausente. Sincronizando con Mock de ${selectedFormat}...`);
-      let currentProgress = 10;
-      const interval = setInterval(() => {
-        currentProgress += 15;
-        if (currentProgress >= 100) {
-          clearInterval(interval);
-          setProgress(100);
-          setTimeout(() => {
-            // Calcular y guardar el metajuego simulado real para que se persista en localStorage
-            try {
-              const key = `mtgtop8_meta_${selectedFormat.toUpperCase()}`;
-              const existing = localStorage.getItem(key);
-              if (existing && JSON.parse(existing).totalDecks > 3) {
-                console.log(`[MetaIngestor] Se omitió sobrescribir el metajuego en modo mock porque existen ${JSON.parse(existing).totalDecks} mazos de una sincronización rica anterior.`);
-              } else {
-                const mockDecks = MOCK_METAGAME_DECKS[selectedFormat.toUpperCase()] || MOCK_METAGAME_DECKS.MODERN;
-                const mockMeta = computeMetaFromDecklistsList(mockDecks);
-                mockMeta.source = `Mock Local (${selectedFormat} - Sincronizado)`;
-                mockMeta.lastIngestionDate = Date.now();
-                saveMetaToDB(selectedFormat, mockMeta);
-                console.log(`[MetaIngestor] Metajuego simulado de ${selectedFormat} guardado exitosamente.`);
-              }
-            } catch (err) {
-              console.error("[MetaIngestor] Error al generar/guardar metajuego mock:", err);
-            }
-            setSyncStatus('success');
-            setTimeout(() => setSyncStatus('idle'), 3000);
-          }, 400);
-        } else {
-          setProgress(currentProgress);
+    // Modo automático / Scraping en Vivo (Directo o Apify)
+    try {
+      setSyncProgressText('Inicializando...');
+      await fetchMTGTop8Decklists(
+        apifyToken, 
+        selectedFormat, 
+        30, 
+        timeWindow,
+        (pct, text) => {
+          setProgress(pct);
+          setSyncProgressText(text);
         }
-      }, 200);
-    } else {
-      // Llamada real a la API de Apify MTGTop8
-      try {
-        setProgress(30);
-        await fetchMTGTop8Decklists(apifyToken, selectedFormat, 30, timeWindow);
-        setProgress(100);
-        setSyncStatus('success');
-        setTimeout(() => setSyncStatus('idle'), 3000);
-      } catch (err) {
-        setSyncStatus('error');
-        setSyncError(err.message || 'Error al conectar con el scraper de MTGTop8');
-      }
+      );
+      setProgress(100);
+      setSyncStatus('success');
+      setTimeout(() => {
+        setSyncStatus('idle');
+        setSyncProgressText('');
+      }, 3000);
+    } catch (err) {
+      setSyncStatus('error');
+      setSyncError(err.message || 'Error al sincronizar con MTGTop8');
+      setSyncProgressText('');
     }
   };
 
@@ -314,7 +289,7 @@ export default function MetaIngestor({ selectedFormat, onFormatChange }) {
                 type={showKey ? 'text' : 'password'}
                 value={apifyToken}
                 onChange={handleApifyTokenChange}
-                placeholder="Token API (Opcional - Sincroniza con Mocks si está vacío)"
+                placeholder="Token API Apify (Opcional - Usa raspador directo gratis si está vacío)"
                 className="w-full pl-3 pr-10 py-2 bg-black/60 border border-magic-gold/20 rounded-xl text-xs text-[#f4ece0] placeholder-magic-gold/30 font-mono focus:border-magic-gold focus:ring-2 focus:ring-magic-gold/20 focus:shadow-[0_0_15px_rgba(255,202,88,0.2)] focus:outline-none transition-all duration-300"
               />
               <button
@@ -326,7 +301,9 @@ export default function MetaIngestor({ selectedFormat, onFormatChange }) {
               </button>
             </div>
             <p className="text-[9px] text-[#f4ece0]/40 leading-tight">
-              El token se almacena localmente de forma segura en tu navegador y nunca se envía a servidores de terceros.
+              {apifyToken.trim() 
+                ? "El token se almacena localmente. Se utilizará el motor de Apify (rápido y paralelo)." 
+                : "Sin token: se utilizará el Raspador Directo gratuito vía proxy CORS."}
             </p>
           </div>
 
@@ -460,7 +437,7 @@ export default function MetaIngestor({ selectedFormat, onFormatChange }) {
                 </motion.div>
               </div>
               <div className="flex justify-between text-[8.5px] font-mono text-magic-gold/80">
-                <span>Absorbiendo Matrices de Coocurrencia...</span>
+                <span>{syncProgressText || 'Absorbiendo Matrices de Coocurrencia...'}</span>
                 <span>{progress}%</span>
               </div>
             </motion.div>

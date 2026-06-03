@@ -314,7 +314,7 @@ export const MTG_TRIBES = [
   { id: 'rogue', label: 'Pícaros (Rogues)', category: 'vocacion', colors: ['U', 'B'], primaryColor: ['U', 'B'], strategies: ['aristocrats'], archetypes: ['aggro', 'tempo', 'midrange', 'combo'], subtypes: ['rogue'] },
   { id: 'shaman', label: 'Chamanes', category: 'vocacion', colors: ['G', 'R', 'B'], primaryColor: 'G', strategies: ['tokens', 'landfall'], archetypes: ['midrange', 'combo'], subtypes: ['shaman'] },
   { id: 'druid', label: 'Druidas', category: 'vocacion', colors: ['G', 'W'], primaryColor: 'G', strategies: ['tokens', 'landfall'], archetypes: ['midrange', 'combo', 'ramp'], subtypes: ['druid'] },
-  { id: 'ninja', label: 'Ninjas', category: 'vocacion', colors: ['U', 'B'], primaryColor: ['U', 'B'], strategies: ['tempo', 'blink'], archetypes: ['tempo', 'midrange'], subtypes: ['ninja'] },
+  { id: 'ninja', label: 'Ninjas', category: 'vocacion', colors: ['U', 'B'], primaryColor: ['U', 'B'], strategies: ['tempo', 'blink'], archetypes: ['tempo', 'midrange'], subtypes: ['ninja'], formats: ['MODERN'] },
 
   // MONSTRUOS
   { id: 'angel', label: 'Ángeles', category: 'monstruo', colors: ['W', 'R', 'B'], primaryColor: 'W', strategies: ['lifegain', 'blink', 'reanimator'], archetypes: ['midrange', 'combo', 'control'], subtypes: ['angel'] },
@@ -324,11 +324,11 @@ export const MTG_TRIBES = [
   { id: 'elemental', label: 'Elementales', category: 'monstruo', colors: ['R', 'G', 'U', 'W', 'B'], primaryColor: ['R', 'G'], strategies: ['landfall', 'blink', 'reanimator'], archetypes: ['aggro', 'midrange', 'combo', 'ramp'], subtypes: ['elemental'] },
 
   // EXÓTICAS
-  { id: 'eldrazi', label: 'Eldrazi (Eldrazi Tron / Aggro)', category: 'exotica', colors: ['W', 'U', 'B', 'R', 'G', 'C'], primaryColor: 'C', strategies: ['tokens', 'blink'], archetypes: ['aggro', 'midrange', 'prison', 'ramp'], subtypes: ['eldrazi'] },
+  { id: 'eldrazi', label: 'Eldrazi (Eldrazi Tron / Aggro)', category: 'exotica', colors: ['W', 'U', 'B', 'R', 'G', 'C'], primaryColor: 'C', strategies: ['tokens', 'blink'], archetypes: ['aggro', 'midrange', 'prison', 'ramp'], subtypes: ['eldrazi'], formats: ['MODERN'] },
   { id: 'faerie', label: 'Hadas (Faeries)', category: 'exotica', colors: ['U', 'B'], primaryColor: 'U', strategies: ['blink', 'tempo'], archetypes: ['tempo', 'midrange', 'control'], subtypes: ['faerie', 'fairy'] },
-  { id: 'constructs', label: 'Constructos & Myr (Affinity)', category: 'exotica', colors: ['C', 'U', 'R', 'W'], primaryColor: 'C', strategies: ['tokens', 'vehicles'], archetypes: ['aggro', 'midrange', 'combo', 'prison'], subtypes: ['construct', 'myr', 'golem', 'thopter'] },
-  { id: 'sliver-5c', label: 'Slivers (Pentacolor 5C)', category: 'exotica', colors: ['W', 'U', 'B', 'R', 'G'], primaryColor: ['W', 'U', 'B', 'R', 'G'], strategies: ['tokens', 'combo'], archetypes: ['aggro', 'midrange', 'combo', 'tempo'], subtypes: ['sliver'] },
-  { id: 'sliver-bant', label: 'Slivers (Bant/Naya Base)', category: 'exotica', colors: ['W', 'U', 'G', 'R'], primaryColor: ['G', 'W'], strategies: ['tokens', 'combo'], archetypes: ['aggro', 'midrange', 'combo', 'tempo'], subtypes: ['sliver'] },
+  { id: 'constructs', label: 'Constructos & Myr (Affinity)', category: 'exotica', colors: ['C', 'U', 'R', 'W'], primaryColor: 'C', strategies: ['tokens', 'vehicles'], archetypes: ['aggro', 'midrange', 'combo', 'prison'], subtypes: ['construct', 'myr', 'golem', 'thopter'], formats: ['MODERN'] },
+  { id: 'sliver-5c', label: 'Slivers (Pentacolor 5C)', category: 'exotica', colors: ['W', 'U', 'B', 'R', 'G'], primaryColor: ['W', 'U', 'B', 'R', 'G'], strategies: ['tokens', 'combo'], archetypes: ['aggro', 'midrange', 'combo', 'tempo'], subtypes: ['sliver'], formats: ['MODERN'] },
+  { id: 'sliver-bant', label: 'Slivers (Bant/Naya Base)', category: 'exotica', colors: ['W', 'U', 'G', 'R'], primaryColor: ['G', 'W'], strategies: ['tokens', 'combo'], archetypes: ['aggro', 'midrange', 'combo', 'tempo'], subtypes: ['sliver'], formats: ['MODERN'] },
 
   // ALIANZAS Y MEZCLAS TEMÁTICAS
   { id: 'outlaws', label: '⚖️ Forajidos (Asesinos, Mercenarios, Piratas, Pícaros)', category: 'alianza', colors: ['B', 'R', 'U'], primaryColor: 'B', strategies: ['aristocrats', 'tempo', 'tokens'], archetypes: ['aggro', 'tempo', 'midrange'], subtypes: ['assassin', 'mercenary', 'pirate', 'rogue', 'warlock'] },
@@ -336,10 +336,10 @@ export const MTG_TRIBES = [
   { id: 'human_army', label: '⚔️ Ejército (Humanos, Soldados, Caballeros)', category: 'alianza', colors: ['W', 'R'], primaryColor: 'W', strategies: ['tokens', 'voltron'], archetypes: ['aggro', 'midrange', 'prison'], subtypes: ['human', 'soldier', 'knight'] },
   { id: 'goblin_horde', label: '🔥 Horda (Goblins, Orcos, Ogros)', category: 'alianza', colors: ['R', 'B'], primaryColor: 'R', strategies: ['tokens', 'aristocrats'], archetypes: ['aggro', 'midrange'], subtypes: ['goblin', 'orc', 'ogre'] },
   { id: 'elf_druid', label: '🌿 Naturaleza (Elfos, Druidas, Elementales)', category: 'alianza', colors: ['G', 'R', 'U'], primaryColor: 'G', strategies: ['tokens', 'landfall'], archetypes: ['midrange', 'combo', 'ramp'], subtypes: ['elf', 'druid', 'elemental'] },
-  { id: 'sea_monsters', label: '🌊 Terrores Marinos (Tritones, Krakens, Leviatanes)', category: 'alianza', colors: ['U', 'G'], primaryColor: 'U', strategies: ['tempo', 'combo', 'blink'], archetypes: ['tempo', 'midrange', 'combo', 'control'], subtypes: ['merfolk', 'kraken', 'leviathan', 'octopus', 'serpent'] },
+  { id: 'sea_monsters', label: '🌊 Terrores Marinos (Tritones, Krakens, Leviatanes)', category: 'alianza', colors: ['U', 'G'], primaryColor: 'U', strategies: ['tempo', 'combo', 'blink'], archetypes: ['tempo', 'midrange', 'combo', 'control'], subtypes: ['merfolk', 'kraken', 'leviathan', 'octopus', 'serpent'], formats: ['MODERN'] },
   { id: 'undead_scourge', label: '💀 Plaga (Zombies, Esqueletos, Horrores)', category: 'alianza', colors: ['B', 'U'], primaryColor: 'B', strategies: ['aristocrats', 'reanimator', 'graveyard'], archetypes: ['midrange', 'combo', 'control'], subtypes: ['zombie', 'skeleton', 'horror', 'vampire', 'shade'] },
   { id: 'apex_predators', label: '🦖 Depredadores del Ápice (Dinosaurios, Bestias, Hidras)', category: 'alianza', colors: ['G', 'R', 'W'], primaryColor: 'G', strategies: ['landfall', 'tokens', 'lifegain'], archetypes: ['midrange', 'ramp'], subtypes: ['dinosaur', 'beast', 'hydra', 'wurm', 'dragon'] },
-  { id: 'sliver', label: 'Slivers (Fectidios Sinérgicos)', category: 'exotica', colors: ['W', 'U', 'B', 'R', 'G'], primaryColor: ['W', 'U', 'B', 'R', 'G'], strategies: ['tokens', 'voltron'], archetypes: ['aggro', 'midrange', 'combo'], subtypes: ['sliver'] }
+  { id: 'sliver', label: 'Slivers (Fectidios Sinérgicos)', category: 'exotica', colors: ['W', 'U', 'B', 'R', 'G'], primaryColor: ['W', 'U', 'B', 'R', 'G'], strategies: ['tokens', 'voltron'], archetypes: ['aggro', 'midrange', 'combo'], subtypes: ['sliver'], formats: ['MODERN'] }
 ];
 
 export const TRIBE_CATEGORIES = {
@@ -367,7 +367,8 @@ export const MTG_STRATEGIES = [
     primaryColor: 'B',
     archetypes: ['combo', 'midrange', 'control', 'tempo'],
     mechanics: 'Usa efectos de descarte para mandar monstruos al cementerio y revivirlos a ritmo instantáneo o con Persist.',
-    keywords: ['persist', 'goryo\'s vengeance', 'unburial rites', 'discard', 'put target creature', 'graveyard onto the battlefield', 'priest of fell rites', 'late to dinner', 'archon of cruelty', 'atraxa']
+    keywords: ['persist', 'goryo\'s vengeance', 'unburial rites', 'discard', 'put target creature', 'graveyard onto the battlefield', 'priest of fell rites', 'late to dinner', 'archon of cruelty', 'atraxa'],
+    formats: ['MODERN']
   },
   { 
     id: 'tokens', 
@@ -448,7 +449,8 @@ export const MTG_STRATEGIES = [
     primaryColor: 'W',
     archetypes: ['aggro', 'midrange', 'combo'],
     mechanics: 'Equipa instantáneamente Colossus Hammer o auras sobre amenazas baratas imbloqueables.',
-    keywords: ['equipped creature', 'enchanted creature', 'equipment', 'aura', 'colossus hammer', 'sigarda\'s aid', 'puresteel paladin']
+    keywords: ['equipped creature', 'enchanted creature', 'equipment', 'aura', 'colossus hammer', 'sigarda\'s aid', 'puresteel paladin'],
+    formats: ['MODERN']
   },
   { 
     id: 'tron', 
@@ -457,7 +459,8 @@ export const MTG_STRATEGIES = [
     primaryColor: ['G', 'C'],
     archetypes: ['ramp', 'combo', 'midrange', 'prison'],
     mechanics: 'Ensambla el trío de tierras de Urza o acelera masivamente en los primeros turnos para encadenar Eldrazis legendarios o Titanes devastadores.',
-    keywords: ["urza's", 'power plant', 'mine', 'tower', 'expedition map', 'sylvan scrying', 'ancient stirrings', 'chromatic star', 'chromatic sphere', 'karn', 'wurmcoil', 'ulamog', 'titan']
+    keywords: ["urza's", 'power plant', 'mine', 'tower', 'expedition map', 'sylvan scrying', 'ancient stirrings', 'chromatic star', 'chromatic sphere', 'karn', 'wurmcoil', 'ulamog', 'titan'],
+    formats: ['MODERN']
   },
   { 
     id: 'vehicles', 
@@ -475,7 +478,8 @@ export const MTG_STRATEGIES = [
     primaryColor: ['U', 'G'],
     archetypes: ['combo', 'tempo'],
     mechanics: 'Ensambla cascadas de coste 3 para castear automáticamente hechizos demoledores de coste 0.',
-    keywords: ['cascade', 'suspend', 'crashing footfalls', 'living end', 'shardless agent', 'ardent plea'] 
+    keywords: ['cascade', 'suspend', 'crashing footfalls', 'living end', 'shardless agent', 'ardent plea'],
+    formats: ['MODERN']
   }
 ];
 
@@ -658,4 +662,65 @@ export const COMPETITIVE_ANTI_SYNERGIES = [
     reason: "Grafdigger's Cage bloquea la reanimación de criaturas de tu propio cementerio."
   }
 ];
+
+export function inferStrategyFromArchetype(archetypeId, currentStrategyId) {
+  if (currentStrategyId && currentStrategyId !== '') {
+    return currentStrategyId;
+  }
+  if (!archetypeId) return '';
+  const archLower = archetypeId.toLowerCase().trim();
+  
+  if (archLower.includes('prowess') || archLower.includes('spellslinger') || archLower.includes('phoenix') || archLower.includes('murktide') || archLower.includes('delver') || archLower.includes('lesson')) {
+    return 'spellslinger';
+  }
+  if (archLower.includes('reanimator') || archLower.includes('reanim') || archLower.includes('superior reanimator')) {
+    return 'reanimator';
+  }
+  if (archLower.includes('aristocrats') || archLower.includes('sacrifice') || archLower.includes('yawgmoth') || archLower.includes('broodscale') || archLower.includes('bloodchief')) {
+    return 'aristocrats';
+  }
+  if (archLower.includes('blink') || archLower.includes('flicker') || archLower.includes('ephemerate')) {
+    return 'blink';
+  }
+  if (archLower.includes('hammer') || archLower.includes('voltron') || archLower.includes('sigarda') || archLower.includes('momo') || archLower.includes('flier')) {
+    return 'voltron';
+  }
+  if (archLower.includes('tron') || archLower.includes('amulet') || archLower.includes('titan') || archLower.includes('valakut')) {
+    return 'tron';
+  }
+  if (archLower.includes('cascade') || archLower.includes('living end') || archLower.includes('footfalls') || archLower.includes('rhinos')) {
+    return 'cascade';
+  }
+  if (archLower.includes('landfall') || archLower.includes('rhythm') || archLower.includes('harmonizer') || archLower.includes('nature')) {
+    return 'landfall';
+  }
+  if (archLower.includes('dredge') || archLower.includes('delirium') || archLower.includes('graveyard') || archLower.includes('underworld')) {
+    return 'graveyard';
+  }
+  if (archLower.includes('lifegain') || archLower.includes('sisters') || archLower.includes('soul sisters')) {
+    return 'lifegain';
+  }
+  if (archLower.includes('prison') || archLower.includes('taxes') || archLower.includes('stax') || archLower.includes('death and taxes')) {
+    return 'prison';
+  }
+  if (archLower.includes('enchantress') || archLower.includes('bogles') || archLower.includes('auras')) {
+    return 'enchantress';
+  }
+  if (archLower.includes('affinity') || archLower.includes('ciampolini') || archLower.includes('pinnacle')) {
+    return 'affinity';
+  }
+  if (archLower.includes('vehicles') || archLower.includes('vehiculos') || archLower.includes('crew') || archLower.includes('copter')) {
+    return 'vehicles';
+  }
+  if (archLower.includes('sea monsters') || archLower.includes('sea_monsters') || archLower.includes('krakens') || archLower.includes('leviatanes')) {
+    return 'sea_monsters';
+  }
+  if (archLower.includes('tokens') || archLower.includes('token') || archLower.includes('enjambre') || archLower.includes('convoke')) {
+    return 'tokens';
+  }
+  if (archLower.includes('superior') || archLower.includes('doomsday')) {
+    return 'prison'; // O control/lock pieces
+  }
+  return '';
+}
 

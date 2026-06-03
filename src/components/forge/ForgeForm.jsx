@@ -439,30 +439,30 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
   }, [formData.strategy, isCustomStrategy]);
 
   const allowedColorsInfo = useMemo(() => {
-    // Si hay un arquetipo seleccionado, nos basamos 100% en sus colores recomendados (identidad del arquetipo)
-    if (currentArchetype) {
-      const allowed = currentArchetype.recommendedColors || [];
-      return { allowed, primary: allowed };
-    }
-
     let allowed = [];
     let primary = [];
-    if (selectedTribeInfo) {
+
+    if (currentArchetype) {
+      allowed = [...(currentArchetype.recommendedColors || [])];
+      primary = [...allowed];
+    }
+
+    // Unimos los colores de la tribu seleccionada para permitir combinaciones como Slivers 5C en Tempo
+    if (selectedTribeInfo && selectedTribeInfo.colors) {
       allowed = [...new Set([...allowed, ...selectedTribeInfo.colors])];
-      const pc = Array.isArray(selectedTribeInfo.primaryColor) ? selectedTribeInfo.primaryColor : [selectedTribeInfo.primaryColor];
-      primary = [...new Set([...primary, ...pc])];
     }
-    if (selectedStrategyInfo) {
+
+    // Unimos los colores de la estrategia seleccionada
+    if (selectedStrategyInfo && selectedStrategyInfo.colors) {
       allowed = [...new Set([...allowed, ...selectedStrategyInfo.colors])];
-      const pc = Array.isArray(selectedStrategyInfo.primaryColor) ? selectedStrategyInfo.primaryColor : [selectedStrategyInfo.primaryColor];
-      primary = [...new Set([...primary, ...pc])];
     }
-    
-    if (!selectedTribeInfo && !selectedStrategyInfo) {
+
+    // Fallback por si no queda ningún color habilitado
+    if (allowed.length === 0) {
       allowed = ['W', 'U', 'B', 'R', 'G', 'C'];
-      primary = [];
     }
-    return { allowed, primary };
+
+    return { allowed, primary: primary.length > 0 ? primary : allowed };
   }, [currentArchetype, selectedTribeInfo, selectedStrategyInfo]);
 
   // Si cambia el arquetipo, reseteamos tribu y estrategia
@@ -499,13 +499,20 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
     return Array.isArray(strat.colors) && Array.isArray(tribeData.colors) && strat.colors.some(c => tribeData.colors.includes(c));
   }, [formData.tribe, isCustomTribe]);
 
-  // Filtrado de Tribus viables para el Arquetipo
+  // Filtrado de Tribus viables para el Arquetipo y Formato
   const availableTribes = useMemo(() => {
+    const list = MTG_TRIBES.filter(t => {
+      if (!t) return false;
+      // Si la tribu especifica formatos y no incluye el seleccionado, se descarta
+      if (t.formats && !t.formats.includes(selectedFormat)) return false;
+      return true;
+    });
+
     if (!formData.archetype) return [];
-    if (formData.isFreeMode) return MTG_TRIBES;
+    if (formData.isFreeMode) return list;
     
-    return MTG_TRIBES.filter(t => t && t.archetypes && t.archetypes.includes(formData.archetype));
-  }, [formData.archetype, formData.isFreeMode]);
+    return list.filter(t => t.archetypes && t.archetypes.includes(formData.archetype));
+  }, [formData.archetype, formData.isFreeMode, selectedFormat]);
 
   // Agrupar por categoría
   const groupedTribes = useMemo(() => {
@@ -520,13 +527,20 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
     return groups;
   }, [availableTribes]);
 
-  // Estrategias viables para el Arquetipo
+  // Estrategias viables para el Arquetipo y Formato
   const availableStrategies = useMemo(() => {
+    const list = MTG_STRATEGIES.filter(s => {
+      if (!s) return false;
+      // Si la estrategia especifica formatos y no incluye el seleccionado, se descarta
+      if (s.formats && !s.formats.includes(selectedFormat)) return false;
+      return true;
+    });
+
     if (!formData.archetype) return [];
-    if (formData.isFreeMode) return MTG_STRATEGIES;
+    if (formData.isFreeMode) return list;
     
-    return MTG_STRATEGIES.filter(s => s && s.archetypes && s.archetypes.includes(formData.archetype));
-  }, [formData.archetype, formData.isFreeMode]);
+    return list.filter(s => s.archetypes && s.archetypes.includes(formData.archetype));
+  }, [formData.archetype, formData.isFreeMode, selectedFormat]);
 
   // Autoselección reactiva inteligente cuando queda un único camino habilitado
   useEffect(() => {

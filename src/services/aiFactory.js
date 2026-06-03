@@ -37,7 +37,7 @@ Convierte el plan en un objeto JSON.
 === FORMATO ===
 {
   "deckName": "...",
-  "cards": [ {"name": "Carta", "count": 4, "type": "...", "cmc": 1} ],
+  "cards": [ {"name": "Carta", "quantity": 4, "category": "...", "cmc": 1} ],
   "sideboard": [ ... ]
 }`;
 

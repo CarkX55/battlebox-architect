@@ -201,11 +201,17 @@ export function calculatePerfectLandCount(nonLandCards, formData, isYorion = fal
   if (strategy === 'landfall') {
     lands += 2.0;
   }
+  
+  // Limites estrictos por arquetipo competitivo
   if (archetype === 'aggro') {
     lands = Math.min(lands, 20);
-  }
-  if (archetype === 'control') {
-    lands = Math.max(lands, 24);
+  } else if (archetype === 'control') {
+    lands = Math.min(Math.max(lands, 24), 26);
+  } else if (archetype === 'combo' || archetype === 'midrange') {
+    lands = Math.min(lands, 24);
+  } else {
+    // Por defecto si no detectamos arquetipo claro, limitamos a 24 para evitar mazos injugables
+    lands = Math.min(lands, 24);
   }
   
   if (isYorion) {
@@ -282,6 +288,9 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
           // Doble pip en coste >= 4 -> 16 fuentes
           requiredSources = Math.max(requiredSources, 16);
         }
+      } else if (pipsCount === 1 && mv === 1) {
+        // Monocolor de coste 1 (ej. Ragavan, Consider) -> Requiere 14 fuentes del color para lanzarse consistentemente en T1
+        requiredSources = Math.max(requiredSources, 14);
       }
     });
 
@@ -299,6 +308,14 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
   const archetype = (formData?.archetype || '').toLowerCase();
   const tribe = (formData?.tribe || '').toLowerCase();
   const formColors = formData?.colores || [];
+  const format = (formData?.format || 'MODERN').toUpperCase();
+
+  const hasTribe = !!(formData?.tribe && formData.tribe !== 'none' && formData.tribe !== 'ninguna');
+  let minBasics = 3;
+  if (actualColors.length === 1) minBasics = 12;
+  else if (actualColors.length === 2) minBasics = 4;
+  else if (actualColors.length === 3) minBasics = 3;
+  else minBasics = 3;
   
   // 1. INYECCIÓN INTELIGENTE DE TIERRAS DE UTILIDAD (AI TOP 1 RECOMMENDATIONS)
   if (aiUtilityLands && aiUtilityLands.length > 0) {
@@ -337,7 +354,7 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
   // 1. DYNAMIC CONFIGURATION OF KEY UTILITY / COMBOS OF LANDS
   
   // A. ELDRAZI TRON (Urza Lands Suite)
-  if (strategy === 'tron' || tribe === 'eldrazi' || (archetype === 'ramp' && formColors.includes('C')) || (formColors.includes('C') && actualColors.length === 0) || formColors.length === 0) {
+  if (strategy === 'tron' || (tribe === 'eldrazi' && strategy === 'tron') || (archetype === 'ramp' && formColors.includes('C')) || (formColors.includes('C') && actualColors.length === 0) || formColors.length === 0) {
     const tronSuite = [
       { name: "Urza's Tower", quantity: 4, type_line: "Land — Urza's Tower" },
       { name: "Urza's Power Plant", quantity: 4, type_line: "Land — Urza's Power Plant" },
@@ -367,6 +384,26 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
       manaBase.push({ name: "Otawara, Soaring City", quantity: 1, category: "Land", type_line: "Legendary Land", color_identity: ["U"] });
       remainingLands--;
     }
+  }
+  // A2. ELDRAZI AGGRO/MIDRANGE (No Urza lands, but Eldrazi Temple and Wastes are mandatory)
+  else if (tribe === 'eldrazi') {
+    const eldraziSuite = [
+      { name: "Eldrazi Temple", quantity: 4, type_line: "Land — Eldrazi" },
+      { name: "Wastes", quantity: 1, type_line: "Basic Land — Wastes" }
+    ];
+    
+    eldraziSuite.forEach(land => {
+      if (remainingLands >= land.quantity) {
+        manaBase.push({
+          name: land.name,
+          quantity: land.quantity,
+          category: 'Land',
+          type_line: land.type_line,
+          color_identity: []
+        });
+        remainingLands -= land.quantity;
+      }
+    });
   }
   // B. AFFINITY
   else if (strategy === 'affinity' || strategy === 'vehicles' || tribe === 'constructs') {
@@ -447,9 +484,80 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
     });
   }
 
+  // Calculate non-creature spells count to determine if we should scale down tribal lands
+  const nonCreatureSpells = (nonLandSpells || []).filter(s => {
+    const cat = (s.category || '').toLowerCase();
+    const type = (s.type_line || '').toLowerCase();
+    return !cat.includes('creature') && !type.includes('creature');
+  });
+  const nonCreatureCount = nonCreatureSpells.reduce((sum, s) => sum + (s.quantity || 1), 0);
+
+  // --- TRIBAL LANDS GUARANTEE FOR MULTICOLOR TRIBAL DECKS ---
+  if (hasTribe && isMulticolor && (format === 'MODERN' || format === 'LEGACY' || format === 'PIONEER' || format === 'STANDARD')) {
+      const tribalLands = [];
+      
+      // Cavern of Souls is legal in Modern, Legacy, Pioneer, Standard
+      if (!BATTLEBOX_BANLIST.includes('Cavern of Souls')) {
+          tribalLands.push({ name: "Cavern of Souls", quantity: 4 });
+      }
+      // Secluded Courtyard is legal in Modern, Pioneer, Legacy
+      if (!BATTLEBOX_BANLIST.includes('Secluded Courtyard') && format !== 'STANDARD') {
+          tribalLands.push({ name: "Secluded Courtyard", quantity: 4 });
+      }
+      // Unclaimed Territory is legal in Modern, Pioneer, Legacy
+      if (!BATTLEBOX_BANLIST.includes('Unclaimed Territory') && format !== 'STANDARD') {
+          tribalLands.push({ name: "Unclaimed Territory", quantity: 4 });
+      }
+      
+      let maxTribalCopies = actualColors.length >= 4 ? 12 : (actualColors.length === 3 ? 8 : 4);
+      
+      // Scale down tribal lands if there are non-creature spells that require normal colored sources
+      if (nonCreatureCount > 0) {
+          if (nonCreatureCount >= 12) {
+              maxTribalCopies = Math.min(maxTribalCopies, 4); // High non-creature count (Tempo / Control) -> Max 4 tribal lands
+          } else if (nonCreatureCount >= 6) {
+              maxTribalCopies = Math.min(maxTribalCopies, 6); // Moderate non-creature count -> Max 6 tribal lands
+          } else {
+              maxTribalCopies = Math.min(maxTribalCopies, 8); // Low non-creature count -> Max 8 tribal lands
+          }
+      }
+
+      let tribalAdded = manaBase.filter(l => ["cavern of souls", "secluded courtyard", "unclaimed territory"].includes(l.name.toLowerCase())).reduce((sum, l) => sum + l.quantity, 0);
+      const currentMinBasics = Math.max(1, Math.min(minBasics, remainingLands - 2));
+
+      tribalLands.forEach(tl => {
+          if (tribalAdded >= maxTribalCopies) return;
+          let qty = Math.min(tl.quantity, remainingLands - currentMinBasics);
+          qty = Math.min(qty, maxTribalCopies - tribalAdded);
+          
+          if (qty > 0) {
+              const existingIdx = manaBase.findIndex(l => l.name.toLowerCase() === tl.name.toLowerCase());
+              if (existingIdx !== -1) {
+                  const existingQty = manaBase[existingIdx].quantity;
+                  const addQty = Math.max(0, qty - existingQty);
+                  if (addQty > 0 && remainingLands >= addQty) {
+                      manaBase[existingIdx].quantity += addQty;
+                      remainingLands -= addQty;
+                      tribalAdded += addQty;
+                      console.log(`[MANABASE GENERATOR] Tribal: Aumentada tierra tribal a ${manaBase[existingIdx].quantity}x ${tl.name}`);
+                  }
+              } else {
+                  manaBase.push({
+                      name: tl.name,
+                      quantity: qty,
+                      category: 'Land',
+                      type_line: 'Land — Tribal',
+                      color_identity: []
+                  });
+                  remainingLands -= qty;
+                  tribalAdded += qty;
+                  console.log(`[MANABASE GENERATOR] Tribal: Inyectada tierra tribal ${qty}x ${tl.name}`);
+              }
+          }
+      });
+  }
 
   // 2. DETECCIÓN DE FORMATO Y GENERACIÓN DE DUAL LANDS PROFESIONALES
-  const format = (formData?.format || 'MODERN').toUpperCase();
   console.log(`[MANABASE GENERATOR] Generando base de maná profesional para formato: ${format}`);
 
   // Base de datos de dual lands por formato
@@ -545,64 +653,54 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
   ].filter(land => !BATTLEBOX_BANLIST.includes(land.name));
 
   // --- MINIMUM BASIC LANDS GUARANTEE ---
-  let minBasics = 3;
-  if (actualColors.length === 1) minBasics = 12;
-  else if (actualColors.length === 2) minBasics = 4;
-  else if (actualColors.length === 3) minBasics = 3;
-  else minBasics = 3;
-
-  // Adapt to tight land budgets
-  minBasics = Math.max(1, Math.min(minBasics, remainingLands - 2));
-
-  const hasTribe = !!(formData?.tribe && formData.tribe !== 'none' && formData.tribe !== 'ninguna');
+  const currentMinBasics = Math.max(1, Math.min(minBasics, remainingLands - 2));
 
   if (isMulticolor) {
-    // Determine limits based on color count
-    const maxCopiesPerUnique = (actualColors.length >= 4) ? 1 : ((actualColors.length === 3) ? 2 : 4);
-    const maxTotalDuals = 6;
+    // Determine limits based on color count and non-creature spell density
+    let maxCopiesPerUnique;
+    if (actualColors.length >= 4) {
+      maxCopiesPerUnique = nonCreatureCount >= 8 ? 2 : 1;
+    } else if (actualColors.length === 3) {
+      maxCopiesPerUnique = nonCreatureCount >= 8 ? 3 : 2;
+    } else {
+      maxCopiesPerUnique = 4;
+    }
+
+    let maxTotalDuals = 6;
+    if (format === 'STANDARD' || format === 'PIONEER' || nonCreatureCount >= 8) {
+      maxTotalDuals = 10; // Allow more dual lands to support high non-creature/spellslinger requirements or formats without fetches
+    }
     let totalDualsInjected = 0;
 
-    // A. DUAL LANDS / SHOCKLANDS INJECTION
-    const targetDuals = (format === 'LEGACY') ? legacyDuals : (format === 'STANDARD' ? painLands : shockLands);
-    const validDuals = targetDuals.filter(d => d.colors.every(c => actualColors.includes(c)));
-
-    validDuals.forEach(dual => {
-      if (totalDualsInjected >= maxTotalDuals) return;
-      const hasReq = dual.colors.some(c => karstenRequirements[c]);
-      // If we have a Karsten requirement, prioritize injecting
-      let quantity = (actualColors.length === 2 || hasReq) ? maxCopiesPerUnique : Math.min(2, maxCopiesPerUnique);
-      
-      // Enforce remainingLands budget and basic guarantee
-      quantity = Math.min(quantity, remainingLands - minBasics);
-      quantity = Math.min(quantity, maxTotalDuals - totalDualsInjected);
-
-      if (quantity > 0) {
-        manaBase.push({
-          name: dual.name,
-          quantity: quantity,
-          category: 'Land',
-          type_line: (format === 'LEGACY') ? 'Land — Original Dual' : (format === 'STANDARD' ? 'Land — Pain' : 'Land — Shock'),
-          color_identity: dual.colors
-        });
-        remainingLands -= quantity;
-        totalDualsInjected += quantity;
-        console.log(`[MANABASE GENERATOR] Inyectada tierra dual: ${quantity}x ${dual.name} (Total Duals: ${totalDualsInjected}/${maxTotalDuals})`);
-      }
-    });
-
-    // B. FETCH LANDS INJECTION (Only Legacy and Modern)
+    // A. FETCH LANDS INJECTION (Only Legacy and Modern)
     if (format === 'LEGACY' || format === 'MODERN') {
       const validFetches = fetchLands.filter(f => f.colors.every(c => actualColors.includes(c)));
+      
+      // Sort fetches by the sum of their colors' pip counts to prioritize dominant colors
+      validFetches.sort((a, b) => {
+        const sumA = a.colors.reduce((sum, c) => sum + (pipBalance[c] || 0), 0);
+        const sumB = b.colors.reduce((sum, c) => sum + (pipBalance[c] || 0), 0);
+        return sumB - sumA;
+      });
+
       const maxFetches = (actualColors.length >= 3) ? 8 : 4;
       let fetchesAllocated = 0;
 
       validFetches.forEach(fetch => {
         if (fetchesAllocated >= maxFetches) return;
         const hasReq = fetch.colors.some(c => karstenRequirements[c]);
-        let quantity = (actualColors.length === 2 || hasReq) ? 4 : 3;
+        
+        let quantity;
+        if (actualColors.length >= 4) {
+          quantity = 1; // Toolbox approach: 1 copy of each fetch to cover all color pairs
+        } else if (actualColors.length === 3) {
+          quantity = hasReq ? 4 : 3; // Run 4 copies of critical fetches, 3 for others
+        } else {
+          quantity = 4; // In 2-color, run 4 of each
+        }
 
         // Ensure basic lands guarantee
-        quantity = Math.min(quantity, remainingLands - minBasics);
+        quantity = Math.min(quantity, remainingLands - currentMinBasics);
         quantity = Math.min(quantity, maxFetches - fetchesAllocated);
 
         if (quantity > 0) {
@@ -620,14 +718,93 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
       });
     }
 
+    // B. DUAL LANDS / SHOCKLANDS INJECTION
+    const targetDuals = (format === 'LEGACY') ? legacyDuals : (format === 'STANDARD' ? painLands : shockLands);
+    const validDuals = targetDuals.filter(d => d.colors.every(c => actualColors.includes(c)));
+
+    // Sort duals by the sum of their colors' pip counts to prioritize dominant colors
+    validDuals.sort((a, b) => {
+      const sumA = a.colors.reduce((sum, c) => sum + (pipBalance[c] || 0), 0);
+      const sumB = b.colors.reduce((sum, c) => sum + (pipBalance[c] || 0), 0);
+      return sumB - sumA;
+    });
+
+    // Two-pass injection to ensure we have at least 1 of each dual land for fetches, before adding second copies
+    const dualsToInject = validDuals.map(d => ({ ...d, quantityToInject: 0 }));
+    
+    // Pass 1: Greedy Color Coverage Sweep
+    const coveredColors = new Set();
+    
+    // Pass 1a: Greedy pass to cover all colors in actualColors with at least one dual land
+    dualsToInject.forEach(dual => {
+      if (totalDualsInjected >= maxTotalDuals || remainingLands <= currentMinBasics) return;
+      
+      const hasUncoveredColor = dual.colors.some(c => actualColors.includes(c) && !coveredColors.has(c));
+      if (hasUncoveredColor) {
+        dual.quantityToInject = 1;
+        dual.colors.forEach(c => {
+          if (actualColors.includes(c)) coveredColors.add(c);
+        });
+        totalDualsInjected += 1;
+        remainingLands -= 1;
+      }
+    });
+
+    // Pass 1b: Inject 1 copy of remaining valid dual lands up to maxTotalDuals (prioritizing sorted order)
+    dualsToInject.forEach(dual => {
+      if (totalDualsInjected >= maxTotalDuals || remainingLands <= currentMinBasics) return;
+      if (dual.quantityToInject === 0) {
+        dual.quantityToInject = 1;
+        dual.colors.forEach(c => {
+          if (actualColors.includes(c)) coveredColors.add(c);
+        });
+        totalDualsInjected += 1;
+        remainingLands -= 1;
+      }
+    });
+
+    // Pass 2: Inject remaining copies up to maxCopiesPerUnique
+    dualsToInject.forEach(dual => {
+      if (totalDualsInjected >= maxTotalDuals || remainingLands <= currentMinBasics) return;
+      const hasReq = dual.colors.some(c => karstenRequirements[c]);
+      const maxAllowed = (actualColors.length === 2 || hasReq) ? maxCopiesPerUnique : Math.min(2, maxCopiesPerUnique);
+      const remainingAllowed = maxAllowed - dual.quantityToInject;
+      
+      const qty = Math.min(remainingAllowed, remainingLands - currentMinBasics);
+      const qtyCapped = Math.min(qty, maxTotalDuals - totalDualsInjected);
+
+      if (qtyCapped > 0) {
+        dual.quantityToInject += qtyCapped;
+        totalDualsInjected += qtyCapped;
+        remainingLands -= qtyCapped;
+      }
+    });
+
+    // Actually push to manaBase
+    dualsToInject.forEach(dual => {
+      if (dual.quantityToInject > 0) {
+        manaBase.push({
+          name: dual.name,
+          quantity: dual.quantityToInject,
+          category: 'Land',
+          type_line: (format === 'LEGACY') ? 'Land — Original Dual' : (format === 'STANDARD' ? 'Land — Pain' : 'Land — Shock'),
+          color_identity: dual.colors
+        });
+        console.log(`[MANABASE GENERATOR] Inyectada tierra dual: ${dual.quantityToInject}x ${dual.name}`);
+      }
+    });
+
     // C. TRIOMES INJECTION (Only Modern/Pioneer and 3+ Colors)
-    if (actualColors.length >= 3 && (format === 'MODERN' || format === 'PIONEER') && remainingLands > minBasics) {
+    const curve = (formData?.curveProfile || '').toLowerCase();
+    const isAggressive = curve === 'aggressive' || curve === 'blitz' || archetype === 'aggro';
+    
+    if (actualColors.length >= 3 && (format === 'MODERN' || format === 'PIONEER') && remainingLands > currentMinBasics && !isAggressive) {
       const maxTriomes = (actualColors.length >= 4) ? 2 : 1;
       let triomesInjected = 0;
       const validTriomes = triomes.filter(t => t.colors.every(c => actualColors.includes(c)));
 
       validTriomes.forEach(t => {
-        if (triomesInjected >= maxTriomes || remainingLands <= minBasics) return;
+        if (triomesInjected >= maxTriomes || remainingLands <= currentMinBasics) return;
         manaBase.push({
           name: t.name,
           quantity: 1,
@@ -642,7 +819,7 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
     }
 
     // D. AUXILIARY LANDS (Fastlands & Slowlands: Optimización de Turno Crítico de Pips)
-    if (format === 'PIONEER' || format === 'STANDARD' || remainingLands > minBasics) {
+    if (format === 'PIONEER' || format === 'STANDARD' || remainingLands > currentMinBasics) {
       // 1. Deducir qué colores tienen pips de coste bajo (CMC <= 2)
       const lowCmcColors = new Set();
       nonLandSpells.forEach(s => {
@@ -657,20 +834,31 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
         }
       });
 
-      // 2. Filtrar tierras auxiliares válidas
+      // 2. Filtrar tierras auxiliares válidas y ordenarlas por pips
       const validFast = fastLands.filter(f => f.colors.every(c => actualColors.includes(c)));
+      validFast.sort((a, b) => {
+        const sumA = a.colors.reduce((sum, c) => sum + (pipBalance[c] || 0), 0);
+        const sumB = b.colors.reduce((sum, c) => sum + (pipBalance[c] || 0), 0);
+        return sumB - sumA;
+      });
+
       const validSlow = slowLands.filter(s => s.colors.every(c => actualColors.includes(c)));
+      validSlow.sort((a, b) => {
+        const sumA = a.colors.reduce((sum, c) => sum + (pipBalance[c] || 0), 0);
+        const sumB = b.colors.reduce((sum, c) => sum + (pipBalance[c] || 0), 0);
+        return sumB - sumA;
+      });
 
       // 3. Inyectar Fastlands primero si el par de colores tiene pips tempranos de CMC <= 2
       validFast.forEach(fast => {
-        if (remainingLands <= minBasics) return;
+        if (remainingLands <= currentMinBasics) return;
         
         // ¿Tiene pips tempranos?
         const hasEarlyPip = fast.colors.some(c => lowCmcColors.has(c));
         
         if (hasEarlyPip || archetype === 'aggro') {
           let quantity = (archetype === 'aggro' || format === 'STANDARD') ? 4 : 2;
-          quantity = Math.min(quantity, remainingLands - minBasics);
+          quantity = Math.min(quantity, remainingLands - currentMinBasics);
 
           if (quantity > 0) {
             manaBase.push({
@@ -688,14 +876,17 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
 
       // 4. Inyectar Slowlands si no se requería tempo temprano o si queda espacio
       validSlow.forEach(slow => {
-        if (remainingLands <= minBasics) return;
+        if (remainingLands <= currentMinBasics) return;
         
+        // Evitar slowlands en barajas ultra-agresivas/blitz para que no entren giradas en turnos críticos
+        if (isAggressive) return;
+
         const hasEarlyPip = slow.colors.some(c => lowCmcColors.has(c));
         
         // Priorizar slowlands si no se requiere velocidad inmediata (Control/Midrange o costes >= 3)
         if (!hasEarlyPip || archetype === 'control' || archetype === 'midrange') {
           let quantity = (archetype === 'control' || archetype === 'midrange') ? 4 : 2;
-          quantity = Math.min(quantity, remainingLands - minBasics);
+          quantity = Math.min(quantity, remainingLands - currentMinBasics);
 
           if (quantity > 0) {
             manaBase.push({
@@ -713,9 +904,9 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
     }
 
     // E. WASTELAND (Legacy only, Aggro/Midrange/Taxes/Tempo strategies)
-    if (format === 'LEGACY' && remainingLands > minBasics) {
+    if (format === 'LEGACY' && remainingLands > currentMinBasics) {
       if (['aggro', 'midrange', 'tempo', 'taxes'].includes(archetype) || ['aggro', 'midrange', 'prison'].includes(strategy)) {
-        const qtyWasteland = Math.min(3, remainingLands - minBasics);
+        const qtyWasteland = Math.min(3, remainingLands - currentMinBasics);
         if (qtyWasteland > 0 && !BATTLEBOX_BANLIST.includes('Wasteland')) {
           manaBase.push({
             name: 'Wasteland',
@@ -731,11 +922,11 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
     }
 
     // F. PAINLANDS FOR COLORLESS TIMING
-    if (formColors.includes('C') && remainingLands > minBasics) {
+    if (formColors.includes('C') && remainingLands > currentMinBasics) {
       const validPains = painLands.filter(p => p.colors.every(c => actualColors.includes(c)));
       validPains.forEach(pain => {
-        if (remainingLands <= minBasics) return;
-        let quantity = Math.min(4, remainingLands - minBasics);
+        if (remainingLands <= currentMinBasics) return;
+        let quantity = Math.min(4, remainingLands - currentMinBasics);
         if (quantity > 0) {
           manaBase.push({
             name: pain.name,
@@ -755,11 +946,11 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
     const utilityLandsToInject = [];
 
     // A. Tribal support for Mono-color
-    if (hasTribe && (format === 'LEGACY' || format === 'MODERN')) {
+    if (hasTribe) {
       if (!BATTLEBOX_BANLIST.includes('Cavern of Souls')) {
         utilityLandsToInject.push({ name: "Cavern of Souls", qty: 2, type: "Land — Cavern" });
       }
-      if (!BATTLEBOX_BANLIST.includes('Mutavault')) {
+      if (!BATTLEBOX_BANLIST.includes('Mutavault') && format !== 'STANDARD') {
         utilityLandsToInject.push({ name: "Mutavault", qty: 2, type: "Land" });
       }
     }
@@ -828,7 +1019,7 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
 
     utilityLandsToInject.forEach(land => {
       if (totalUtilityAdded >= maxUtilityAllowed) return;
-      let qty = Math.min(land.qty, remainingLands - minBasics);
+      let qty = Math.min(land.qty, remainingLands - currentMinBasics);
       qty = Math.min(qty, maxUtilityAllowed - totalUtilityAdded);
 
       if (qty > 0) {
@@ -846,10 +1037,10 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
     });
 
     // Incoloro explícito ('C') en Monocolor
-    if (formColors.includes('C') && remainingLands > minBasics) {
+    if (formColors.includes('C') && remainingLands > currentMinBasics) {
       const painMatch = painLands.find(p => p.colors.includes(monoColor));
       if (painMatch) {
-        let quantity = Math.min(4, remainingLands - minBasics);
+        let quantity = Math.min(4, remainingLands - currentMinBasics);
         if (quantity > 0) {
           manaBase.push({
             name: painMatch.name,
@@ -865,35 +1056,51 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
     }
   }
 
-  // 3. BASIC LANDS (Based on Pip Balance)
-  const sortedColors = [...actualColors].sort((a, b) => (pipBalance[b] || 0) - (pipBalance[a] || 0));
-  const initialRemainingForBasics = remainingLands;
+  // 3. BASIC LANDS (Based on Pip Balance using Largest Remainder Method)
+  const basicLandsDistribution = {};
+  actualColors.forEach(c => { basicLandsDistribution[c] = 0; });
+  
+  if (remainingLands > 0) {
+    const totalRemaining = remainingLands;
+    let allocated = 0;
+    const fractionalParts = [];
 
-  sortedColors.forEach((color, idx) => {
-    if (remainingLands <= 0) return;
-    
-    let count;
-    if (idx === sortedColors.length - 1) {
-      count = remainingLands;
-    } else {
+    // First pass: allocate floor
+    actualColors.forEach(color => {
       const percentage = (pipBalance[color] || 0) / totalPips;
-      count = Math.floor(percentage * initialRemainingForBasics);
-    }
+      const exact = percentage * totalRemaining;
+      const floorVal = Math.floor(exact);
+      basicLandsDistribution[color] = floorVal;
+      allocated += floorVal;
+      fractionalParts.push({ color, fraction: exact - floorVal });
+    });
+
+    // Second pass: allocate remaining to the largest fractional parts
+    let leftover = totalRemaining - allocated;
+    fractionalParts.sort((a, b) => b.fraction - a.fraction);
     
-    count = Math.max(0, count);
-    
-    if (count > 0) {
-      const landName = BASIC_LAND_NAMES[color] || 'Plains';
-      manaBase.push({
-        name: landName,
-        quantity: count,
-        category: 'Land',
-        type_line: `Basic Land — ${landName}`,
-        color_identity: [color]
-      });
-      remainingLands -= count;
+    for (let i = 0; i < leftover; i++) {
+      if (i < fractionalParts.length) {
+        basicLandsDistribution[fractionalParts[i].color]++;
+      }
     }
-  });
+
+    // Push to manaBase
+    Object.keys(basicLandsDistribution).forEach(color => {
+      const count = basicLandsDistribution[color];
+      if (count > 0) {
+        const landName = BASIC_LAND_NAMES[color] || 'Plains';
+        manaBase.push({
+          name: landName,
+          quantity: count,
+          category: 'Land',
+          type_line: `Basic Land — ${landName}`,
+          color_identity: [color]
+        });
+        remainingLands -= count;
+      }
+    });
+  }
 
   if (remainingLands > 0) {
     const fallbackLand = formColors.includes('C') ? 'Wastes' : (BASIC_LAND_NAMES[actualColors[0]] || 'Plains');
@@ -1108,4 +1315,72 @@ export function calculateTurnoDeOro(deckList, iterations = 1000) {
   }
   
   return { avgTurn: 0, winRate: 0, consistency: 0 };
+}
+
+export function getLandColors(landName) {
+  const nameLower = landName.toLowerCase().trim();
+  
+  // rainbow lands
+  const rainbowLands = [
+    "cavern of souls", "mana confluence", "city of brass", "reflecting pool", 
+    "exotic orchard", "forbidden orchard", "gemstone mine", "aether hub", 
+    "plaza of heroes", "spire of industry", "ancient ziggurat", "pillar of the paruns", 
+    "secluded courtyard", "unclaimed territory", "command tower", "ally encampment"
+  ];
+  if (rainbowLands.some(rl => nameLower.includes(rl))) {
+    return ["W", "U", "B", "R", "G"];
+  }
+
+  const res = [];
+  
+  // basic lands
+  if (nameLower.includes("plains") || nameLower === "eiganjo, seat of the empire") res.push("W");
+  if (nameLower.includes("island") || nameLower === "otawara, soaring city") res.push("U");
+  if (nameLower.includes("swamp") || nameLower === "takenuma, abandoned mire") res.push("B");
+  if (nameLower.includes("mountain") || nameLower === "sokenzan, crucible of defiance") res.push("R");
+  if (nameLower.includes("forest") || nameLower === "boseiju, who endures") res.push("G");
+  
+  // dual lands (check known patterns)
+  const uwLands = ["hallowed fountain", "flooded strand", "tundra", "seachrome coast", "deserted beach", "glacial fortress", "adarkar wastes", "port town", "prairie stream", "hengegate pathway", "celestial colonnade", "meandering river", "tranquil cove", "glacial floodplain"];
+  const ubLands = ["watery grave", "polluted delta", "underground sea", "darkslick shores", "shipwreck marsh", "drowned catacomb", "underground river", "choked estuary", "sunken hollow", "clearwater pathway", "creeping tar pit", "dismal backwater", "ice tunnel"];
+  const brLands = ["blood crypt", "bloodstained mire", "badlands", "blackcleave cliffs", "haunted ridge", "dragonskull summit", "sulfurous springs", "foreboding ruins", "smoldering marsh", "blightstep pathway", "lavaclaw reaches", "cinder barrens", "bloodfell caves", "sulfur mire"];
+  const rgLands = ["stomping ground", "wooded foothills", "taiga", "copperline gorge", "rockfall vale", "rootbound crag", "karplusan forest", "game trail", "cinder glade", "cragcrown pathway", "raging ravine", "timber gorge", "rugged highlands", "highland forest"];
+  const gwLands = ["temple garden", "windswept heath", "savannah", "razorverge thicket", "overgrown farmland", "sunpetal grove", "brushland", "fortified village", "canopy vista", "branchloft pathway", "stirring wildwood", "blossoming sands", "arctic treeline"];
+  const wbLands = ["godless shrine", "marsh flats", "scrubland", "concealed courtyard", "shattered sanctuary", "isolated chapel", "caves of koilos", "shineshadow temple", "fetid heath", "shambling vent", "brightclimb pathway", "scoured barrens", "snowfield sinkhole"];
+  const urLands = ["steam vents", "scalding tarn", "volcanic island", "spirebluff canal", "stormcarved coast", "sulfur falls", "shivan reef", "wandering fumarole", "riverglide pathway", "swiftwater cliffs", "volatile fjord"];
+  const bgLands = ["overgrown tomb", "verdant catacombs", "bayou", "blooming marsh", "deathcap glade", "woodland cemetery", "llanowar wastes", "hissing quagmire", "darkbore pathway", "jungle hollow", "woodland chasm"];
+  const rwLands = ["sacred foundry", "arid mesa", "plateau", "inspiring vantage", "sundown pass", "clifftop retreat", "battlefield forge", "needle spires", "needleverge pathway", "wind-scarred crag", "alpine meadow"];
+  const guLands = ["breeding pool", "misty rainforest", "tropical island", "botanical sanctum", "dreamroot cascade", "hinterland harbor", "yavimaya coast", "lumbering falls", "barkchannel pathway", "thornwood falls", "rimewood falls"];
+
+  if (uwLands.some(l => nameLower.includes(l))) { res.push("W", "U"); }
+  if (ubLands.some(l => nameLower.includes(l))) { res.push("U", "B"); }
+  if (brLands.some(l => nameLower.includes(l))) { res.push("B", "R"); }
+  if (rgLands.some(l => nameLower.includes(l))) { res.push("R", "G"); }
+  if (gwLands.some(l => nameLower.includes(l))) { res.push("G", "W"); }
+  if (wbLands.some(l => nameLower.includes(l))) { res.push("W", "B"); }
+  if (urLands.some(l => nameLower.includes(l))) { res.push("U", "R"); }
+  if (bgLands.some(l => nameLower.includes(l))) { res.push("B", "G"); }
+  if (rwLands.some(l => nameLower.includes(l))) { res.push("R", "W"); }
+  if (guLands.some(l => nameLower.includes(l))) { res.push("G", "U"); }
+
+  // triomes
+  if (nameLower.includes("raffine's tower") || nameLower.includes("raffine")) res.push("W", "U", "B");
+  if (nameLower.includes("xander's lounge") || nameLower.includes("xander")) res.push("U", "B", "R");
+  if (nameLower.includes("ziatora's proving ground") || nameLower.includes("ziatora")) res.push("B", "R", "G");
+  if (nameLower.includes("jetmir's garden") || nameLower.includes("jetmir")) res.push("R", "G", "W");
+  if (nameLower.includes("spara's headquarters") || nameLower.includes("spara")) res.push("G", "W", "U");
+  if (nameLower.includes("indatha")) res.push("W", "B", "G");
+  if (nameLower.includes("ketria")) res.push("U", "R", "G");
+  if (nameLower.includes("raugrin")) res.push("U", "R", "W");
+  if (nameLower.includes("savai")) res.push("W", "B", "R");
+  if (nameLower.includes("zagoth")) res.push("U", "B", "G");
+
+  // horizon canopy style lands
+  if (nameLower.includes("sunbaked canyon")) res.push("R", "W");
+  if (nameLower.includes("fiery islet")) res.push("U", "R");
+  if (nameLower.includes("silent clearing")) res.push("W", "B");
+  if (nameLower.includes("nurturing peatland")) res.push("B", "G");
+  if (nameLower.includes("waterlogged grove")) res.push("G", "U");
+
+  return [...new Set(res)];
 }

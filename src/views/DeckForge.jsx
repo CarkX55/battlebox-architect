@@ -21,6 +21,7 @@ import { calculateKarstenProbability, calculateLandDropProbability, calculateMan
 import { generateSideboard } from '../services/sideboardService';
 import SynergyGraphVisualizer from '../components/forge/SynergyGraphVisualizer';
 import DeckVisualExporter from '../components/forge/DeckVisualExporter';
+import { optimizarMazo } from '../services/deckOptimizerService';
 
 const FORGE_STORAGE_KEY = 'mtg_ai_config_forge';
 
@@ -1077,6 +1078,19 @@ export default function DeckForge() {
     setWarning("⚖️ El Juez ha aplicado heurísticas locales de urgencia: Banlist eliminada y forzado a 60 cartas.");
   };
 
+  const handleOptimizeDeck = async () => {
+    try {
+      setLoading(true);
+      const optimizedDeck = await optimizarMazo(renderDeck, lastFormData, aiConfig);
+      setRenderDeck(optimizedDeck);
+      setWarning("✨ ¡Mazo optimizado exitosamente! Matemáticas ajustadas y consistencia maximizada.");
+    } catch (e) {
+      setWarning(`❌ Error al optimizar: ${e.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
 
     <div className="max-w-7xl mx-auto px-4 py-8">
@@ -1696,7 +1710,7 @@ export default function DeckForge() {
 
             <HandSimulator deck={renderDeck} isOpen={showHandSim} onClose={() => setShowHandSim(false)} aiConfig={aiConfig} />
             <SynergyGraphVisualizer deck={renderDeck} isOpen={showRagGraph} onClose={() => setShowRagGraph(false)} archetype={aiMetadata?.archetype || lastFormData?.archetype} colors={lastFormData?.colores} />
-            <DeckVisualExporter deck={renderDeck} sideboard={renderSideboard} isOpen={showVisualGrid} onClose={() => setShowVisualGrid(false)} deckName={aiMetadata?.deckName || 'Mazo Forjado'} archetype={aiMetadata?.archetype || lastFormData?.archetype} colors={lastFormData?.colores} />
+            <DeckVisualExporter deck={renderDeck} sideboard={renderSideboard} isOpen={showVisualGrid} onClose={() => setShowVisualGrid(false)} deckName={aiMetadata?.deckName || 'Mazo Forjado'} archetype={aiMetadata?.archetype || lastFormData?.archetype} colors={lastFormData?.colores} formData={lastFormData} onOptimize={handleOptimizeDeck} />
           </motion.div>
         )}
       </AnimatePresence>

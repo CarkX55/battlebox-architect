@@ -305,13 +305,195 @@ export function computeMetaFromDecklistsList(decks) {
 }
 
 /**
- * Consulta la API de Apify para ejecutar el scraper de MTGTop8 y descargar torneos en tiempo real.
+ * Scraping directo de MTGTop8 a través de un proxy CORS (AllOrigins / corsproxy.io)
+ * Permite sincronizar metajuegos de forma gratuita, sin tokens de API.
  */
-export async function fetchMTGTop8Decklists(apifyToken, format, maxItems = 30, initialMetaWindow = 8) {
-  try {
-    if (!apifyToken) {
-      throw new Error("Se requiere un Token de API de Apify para llamadas en vivo.");
+export async function fetchMTGTop8DecklistsDirect(format, maxItems = 30, onProgress = null) {
+  const reportProgress = (pct, text) => {
+    if (onProgress) onProgress(pct, text);
+  };
+
+  reportProgress(5, "Iniciando raspado directo (sin token)...");
+
+  // Mapear el formato interno a los códigos de MTGTop8
+  const formatMapping = {
+    'STANDARD': 'ST',
+    'PIONEER': 'PI',
+    'MODERN': 'MO',
+    'LEGACY': 'LE'
+  };
+  const mtgFormat = formatMapping[format.toUpperCase()] || 'ST';
+
+  // Proxies CORS de respaldo para máxima fiabilidad
+  const proxies = [
+    (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+    (u) => `https://corsproxy.io/?${encodeURIComponent(u)}`
+  ];
+
+  async function fetchWithProxy(url) {
+    let lastError = null;
+    for (const proxyFn of proxies) {
+      try {
+        const proxiedUrl = proxyFn(url);
+        const res = await fetch(proxiedUrl);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const text = await res.text();
+        if (text && text.trim().length > 0) {
+          return text;
+        }
+        throw new Error("Respuesta vacía del proxy");
+      } catch (err) {
+        lastError = err;
+        console.warn(`Proxy falló para ${url}: ${err.message}. Intentando siguiente...`);
+      }
     }
+    throw lastError || new Error("Todos los proxys CORS fallaron.");
+  }
+
+  try {
+    reportProgress(10, `Conectando a MTGTop8 (${format})...`);
+    const formatHtml = await fetchWithProxy(`https://www.mtgtop8.com/format?f=${mtgFormat}`);
+
+    reportProgress(18, "Analizando torneos recientes...");
+    const eventRegex = /event\?e=(\d+)&(?:amp;)?f=/gi;
+    const foundEventIds = new Set();
+    let match;
+    while ((match = eventRegex.exec(formatHtml)) !== null) {
+      foundEventIds.add(match[1]);
+    }
+
+    const eventList = Array.from(foundEventIds).slice(0, 4); // Top 4 torneos más recientes
+    if (eventList.length === 0) {
+      throw new Error(`No se encontraron torneos recientes para ${format} en MTGTop8.`);
+    }
+
+    console.log(`[MTGTop8 Direct] Torneos detectados: ${eventList.join(', ')}`);
+    const decks = [];
+    const maxDecksPerEvent = 6;
+    
+    // Total de pasos = 1 (formato) + eventList.length (cargando detalles del torneo) + decks a descargar
+    const estimatedDecksCount = eventList.length * maxDecksPerEvent;
+    const totalSteps = 1 + eventList.length + estimatedDecksCount;
+    let completedSteps = 1;
+
+    for (let eIdx = 0; eIdx < eventList.length; eIdx++) {
+      const eventId = eventList[eIdx];
+      completedSteps++;
+      const currentPct = Math.min(92, Math.round((completedSteps / totalSteps) * 100));
+      reportProgress(currentPct, `Cargando torneo ${eIdx + 1}/${eventList.length}...`);
+
+      let eventHtml = "";
+      try {
+        eventHtml = await fetchWithProxy(`https://www.mtgtop8.com/event?e=${eventId}&f=${mtgFormat}`);
+      } catch (err) {
+        console.warn(`Error al cargar torneo ${eventId}: ${err.message}. Saltando...`);
+        continue;
+      }
+
+      // Extraer barajas y jugadores del HTML
+      const lines = eventHtml.split(/\r?\n/);
+      const eventDecks = [];
+      let currentDeck = null;
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const dMatch = /href=\??e=\d+&(?:amp;)?d=(\d+)&(?:amp;)?f=\w+>([^<]+)<\/a>/i.exec(line);
+        if (dMatch) {
+          const deckId = dMatch[1];
+          const deckName = dMatch[2].trim();
+          if (deckName && deckName !== '&rarr;' && !deckName.includes('→')) {
+            currentDeck = {
+              id: deckId,
+              name: deckName,
+              player: 'Unknown Player'
+            };
+            eventDecks.push(currentDeck);
+          }
+        }
+
+        const pMatch = /class=player href=search\?player=[^>]+>([^<]+)<\/a>/i.exec(line);
+        if (pMatch && currentDeck) {
+          currentDeck.player = pMatch[1].trim();
+        }
+      }
+
+      const decksToScrape = eventDecks.slice(0, maxDecksPerEvent);
+      console.log(`[MTGTop8 Direct] Torneo ${eventId}: ${decksToScrape.length} mazos en agenda.`);
+
+      for (let dIdx = 0; dIdx < decksToScrape.length; dIdx++) {
+        if (decks.length >= maxItems) break;
+
+        const deckInfo = decksToScrape[dIdx];
+        completedSteps++;
+        const deckPct = Math.min(94, Math.round((completedSteps / totalSteps) * 100));
+        reportProgress(deckPct, `Mazo ${dIdx + 1}/${decksToScrape.length} del Torneo ${eIdx + 1}...`);
+
+        try {
+          // Breve retardo
+          await new Promise(resolve => setTimeout(resolve, 60));
+          const decText = await fetchWithProxy(`https://www.mtgtop8.com/dec?d=${deckInfo.id}`);
+          
+          const mainCards = [];
+          const decLines = decText.split(/\r?\n/);
+          for (let decLine of decLines) {
+            decLine = decLine.trim();
+            if (!decLine || decLine.startsWith('//') || decLine.startsWith('SB:')) continue;
+            
+            const cardMatch = decLine.match(/^(\d+)\s*(?:\[[^\]]*\])?\s+(.+)$/);
+            if (cardMatch) {
+              mainCards.push({
+                name: cardMatch[2].trim(),
+                quantity: parseInt(cardMatch[1], 10)
+              });
+            }
+          }
+
+          if (mainCards.length > 0) {
+            decks.push({
+              name: deckInfo.name,
+              main: mainCards
+            });
+          }
+        } catch (deckErr) {
+          console.warn(`Error al descargar baraja ${deckInfo.id}: ${deckErr.message}. Saltando...`);
+        }
+      }
+    }
+
+    if (decks.length === 0) {
+      throw new Error("No se pudo extraer ningún mazo a través del raspador directo.");
+    }
+
+    reportProgress(96, `Analizando metajuego (${decks.length} mazos descargados)...`);
+    const metaProfile = computeMetaFromDecklistsList(decks);
+    metaProfile.source = `MTGTop8 Direct (Free CORS - ${eventList.length} Torneos)`;
+    metaProfile.lastIngestionDate = Date.now();
+
+    saveMetaToDB(format, metaProfile);
+    reportProgress(100, "Metajuego sincronizado con éxito.");
+
+    return metaProfile;
+  } catch (err) {
+    console.error("[MTGTop8 Direct] Error en sincronización directa:", err);
+    throw err;
+  }
+}
+
+/**
+ * Consulta la API de Apify para ejecutar el scraper de MTGTop8 y descargar torneos en tiempo real.
+ * Si no hay token de Apify, delega automáticamente en el motor directo gratuito.
+ */
+export async function fetchMTGTop8Decklists(apifyToken, format, maxItems = 30, initialMetaWindow = 8, onProgress = null) {
+  if (!apifyToken || !apifyToken.trim()) {
+    return await fetchMTGTop8DecklistsDirect(format, maxItems, onProgress);
+  }
+
+  const reportProgress = (pct, text) => {
+    if (onProgress) onProgress(pct, text);
+  };
+
+  try {
+    reportProgress(10, "Iniciando motor de sincronización de Apify...");
 
     // Mapear el formato interno a los códigos de MTGTop8
     const formatMapping = {
@@ -332,6 +514,7 @@ export async function fetchMTGTop8Decklists(apifyToken, format, maxItems = 30, i
     for (let windowSize of windowsToTry) {
       currentWindowUsed = windowSize;
       console.log(`[MTGTop8 Apify] Paso 1: Intentando obtener torneos de ${format} con ventana de ${windowSize} semanas...`);
+      reportProgress(20, `Buscando torneos de ${format} (ventana: ${windowSize} semanas)...`);
 
       try {
         const eventsResponse = await fetch(runSyncUrl, {
@@ -391,6 +574,7 @@ export async function fetchMTGTop8Decklists(apifyToken, format, maxItems = 30, i
     }).filter(Boolean);
 
     console.log(`[MTGTop8 Apify] Paso 2: Raspando barajas de los torneos:`, eventUrls);
+    reportProgress(50, `Raspando barajas de ${eventUrls.length} torneos...`);
 
     if (eventUrls.length === 0) {
       throw new Error("No se pudo extraer ninguna URL de torneo válida de los metadatos recibidos.");
@@ -419,6 +603,7 @@ export async function fetchMTGTop8Decklists(apifyToken, format, maxItems = 30, i
 
     const items = await decksResponse.json();
     console.log(`[MTGTop8 Apify] Recibidos ${items?.length || 0} registros de barajas.`);
+    reportProgress(80, "Procesando y parseando barajas de Apify...");
 
     if (!items || items.length === 0) {
       throw new Error("No se encontraron registros de barajas en los torneos seleccionados.");
@@ -475,6 +660,8 @@ export async function fetchMTGTop8Decklists(apifyToken, format, maxItems = 30, i
       throw new Error("No se pudo parsear ninguna carta del metajuego de MTGTop8.");
     }
 
+    reportProgress(95, "Calculando estadísticas de staples y sinergias...");
+    
     // Calcular perfil del metagame real
     const metaProfile = computeMetaFromDecklistsList(processedDecks);
     metaProfile.source = `MTGTop8 (Apify API - ${targetEvents.length} Torneos)`;
@@ -482,6 +669,7 @@ export async function fetchMTGTop8Decklists(apifyToken, format, maxItems = 30, i
 
     // Guardar en la base de datos de metajuegos locales
     saveMetaToDB(format, metaProfile);
+    reportProgress(100, "Sincronización con Apify completada.");
 
     return metaProfile;
   } catch (err) {
