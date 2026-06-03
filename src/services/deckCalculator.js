@@ -226,7 +226,30 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
     pipBalance = { W: 20, U: 20, B: 20, R: 20, G: 20 };
   }
   
-  const colors = colorIdentity.filter(c => c !== 'C' && c !== '');
+  // Extraer colores basándonos en colorIdentity
+  let colors = colorIdentity.filter(c => c !== 'C' && c !== '');
+  
+  // Robust fallback: Si el colorIdentity es incompleto (menos de 2 colores) pero el mazo tiene hechizos
+  // de múltiples colores, inferimos la identidad real analizando las cartas de hechizos no-tierra
+  if (colors.length < 5 && nonLandSpells && nonLandSpells.length > 0) {
+    const inferredColors = new Set(colors);
+    nonLandSpells.forEach(s => {
+      // Buscar coste de maná
+      const cost = (s.mana_cost || '').toUpperCase();
+      if (cost.includes('W')) inferredColors.add('W');
+      if (cost.includes('U')) inferredColors.add('U');
+      if (cost.includes('B')) inferredColors.add('B');
+      if (cost.includes('R')) inferredColors.add('R');
+      if (cost.includes('G')) inferredColors.add('G');
+      
+      // Fallback a color_identity de la carta si está pre-hidratada
+      if (s.color_identity && Array.isArray(s.color_identity)) {
+        s.color_identity.forEach(c => inferredColors.add(c.toUpperCase()));
+      }
+    });
+    colors = Array.from(inferredColors);
+  }
+
   const actualColors = colors.length > 0 ? colors : ['W'];
   const totalPips = Object.keys(pipBalance).reduce((sum, key) => key !== 'C' ? sum + pipBalance[key] : sum, 0) || 1;
   const isMulticolor = actualColors.length >= 2;
