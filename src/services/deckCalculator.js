@@ -192,6 +192,12 @@ export function calculatePerfectLandCount(nonLandCards, formData, isYorion = fal
   // 1 Cantrip = -0.25 Tierras (Previene inundaciones de tierras en curvas bajas)
   let lands = 16 + (3.00 * vmp) - (0.50 * aceleradores) - (0.25 * cantrips);
   
+  // Deducción de tierras virtuales por MDFC/Cicladoras de tierras (ej: Lorien Revealed, Bala Ged Recovery)
+  const mdfcAndCyclers = ["malakir rebirth", "bala ged recovery", "shatterskull smashing", "agadeem's awakening", "sejiri shelter", "lorien revealed"];
+  const mdfcCount = nonLandCards.filter(c => mdfcAndCyclers.some(mac => c.name.toLowerCase().includes(mac))).reduce((sum, c) => sum + (c.quantity || 1), 0);
+  const mdfcLandReduction = Math.floor(mdfcCount / 2);
+  lands -= mdfcLandReduction;
+  
   const strategy = (formData?.strategy || '').toLowerCase();
   const archetype = (formData?.archetype || '').toLowerCase();
   

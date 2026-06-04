@@ -1081,8 +1081,28 @@ export default function DeckForge() {
   const handleOptimizeDeck = async () => {
     try {
       setLoading(true);
-      const optimizedDeck = await optimizarMazo(renderDeck, lastFormData, aiConfig);
-      setRenderDeck(optimizedDeck);
+      const result = await optimizarMazo(renderDeck, lastFormData, aiConfig, true);
+      if (result && result.cards) {
+        setRenderDeck(result.cards);
+        if (result.sideboard && result.sideboard.length > 0) {
+          setRenderSideboard(result.sideboard);
+        }
+        if (result.lore) {
+          setAiMetadata(prev => {
+            const base = prev || {};
+            return {
+              ...base,
+              lore: result.lore,
+              deckName: result.deckName || base.deckName || 'Mazo Optimizado',
+              mulligan: result.mulligan || base.mulligan,
+              strategy: result.strategy || base.strategy,
+              archetype: result.archetype || base.archetype
+            };
+          });
+        }
+      } else {
+        setRenderDeck(result);
+      }
       setWarning("✨ ¡Mazo optimizado exitosamente! Matemáticas ajustadas y consistencia maximizada.");
     } catch (e) {
       setWarning(`❌ Error al optimizar: ${e.message}`);

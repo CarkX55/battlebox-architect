@@ -1,4 +1,4 @@
-import { aplicarJuezFinal, getMaxAllowedCopies } from './deckArchitectService.js';
+import { aplicarJuezFinal, getMaxAllowedCopies, cleanAndParseJSON } from './deckArchitectService.js';
 import { buildCardPool } from './ragService.js';
 import { BATTLEBOX_BANLIST } from '../constants/legacyBattleBox.js';
 import { hydrateDeckCards } from './cardHydrator.js';
@@ -48,7 +48,7 @@ const isLandCard = (c) => {
  * Corrige el tamaño de la baraja principal y regenera/rebalancea la base de tierras
  * para asegurar que sume exactamente targetDeckSize (60 u 80).
  */
-async function corregirTamañoYBaseDeMana(cards, targetDeckSize, formData, ragPool) {
+async function corregirTamañoYBaseDeMana(cards, targetDeckSize, formData, ragPool, preserveLands = false) {
   // Asegurar normalización de cantidades antes de procesar
   const normalizedCards = cards.map(c => ({
     ...c,
@@ -60,7 +60,9 @@ async function corregirTamañoYBaseDeMana(cards, targetDeckSize, formData, ragPo
   const lands = normalizedCards.filter(c => isLandCard(c));
 
   // 2. Calcular objetivos matemáticos perfectos
-  const targetLandCount = calculatePerfectLandCount(spells, formData, targetDeckSize === 80);
+  const targetLandCount = preserveLands 
+    ? lands.reduce((sum, c) => sum + c.quantity, 0)
+    : calculatePerfectLandCount(spells, formData, targetDeckSize === 80);
   const targetSpellCount = targetDeckSize - targetLandCount;
 
   // 3. Ajustar cantidad de Hechizos a targetSpellCount
@@ -234,20 +236,23 @@ async function corregirTamañoYBaseDeMana(cards, targetDeckSize, formData, ragPo
 
   // 4. Regenerar la base de tierras matemáticamente según Karsten
   let finalLands = [];
-  try {
-    const colorsArray = Array.from(new Set(formData?.colores || []));
-    const pips = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 };
-    spells.forEach(s => {
-      const cost = (s.mana_cost || '').toUpperCase();
-      if (cost.includes('W')) pips.W += s.quantity || 1;
-      if (cost.includes('U')) pips.U += s.quantity || 1;
-      if (cost.includes('B')) pips.B += s.quantity || 1;
-      if (cost.includes('R')) pips.R += s.quantity || 1;
-      if (cost.includes('G')) pips.G += s.quantity || 1;
-    });
+  if (preserveLands) {
+    finalLands = lands;
+  } else {
+    try {
+      const colorsArray = Array.from(new Set(formData?.colores || []));
+      const pips = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 };
+      spells.forEach(s => {
+        const cost = (s.mana_cost || '').toUpperCase();
+        if (cost.includes('W')) pips.W += s.quantity || 1;
+        if (cost.includes('U')) pips.U += s.quantity || 1;
+        if (cost.includes('B')) pips.B += s.quantity || 1;
+        if (cost.includes('R')) pips.R += s.quantity || 1;
+        if (cost.includes('G')) pips.G += s.quantity || 1;
+      });
 
-    finalLands = await generateManaBase(pips, targetLandCount, colorsArray, formData, spells, []);
-  } catch (err) {
+      finalLands = await generateManaBase(pips, targetLandCount, colorsArray, formData, spells, []);
+    } catch (err) {
     console.error("Fallo al regenerar base de tierras en optimizador:", err);
     // Fallback: simple ajuste proporcional de tierras existentes
     let currentLandCount = lands.reduce((sum, c) => sum + (c.quantity || 1), 0);
@@ -278,9 +283,10 @@ async function corregirTamañoYBaseDeMana(cards, targetDeckSize, formData, ragPo
       if (excessLands > 0 && lands.length > 0) {
         lands[0].quantity = Math.max(1, lands[0].quantity - excessLands);
       }
+      finalLands = lands;
     }
-    finalLands = lands;
   }
+}
 
   // Filtrar cartas de cantidad vacía
   const cleanSpells = spells.filter(s => s.quantity > 0);
@@ -339,15 +345,11 @@ Optimiza la baraja principal y devuelve el resultado en JSON que cumpla con el e
   ];
 
   const response = await callAI(messages, aiConfig, { forceJSON: true, schema: DECK_SCHEMA, maxTokens: 8000 });
-  let cleanResponse = response;
-  if (cleanResponse.includes('```json')) {
-    cleanResponse = cleanResponse.replace(/```json/g, '').replace(/```/g, '').trim();
-  }
-  const parsed = JSON.parse(cleanResponse);
-  const rawCards = parsed.cards || parsed.mainDeck || [];
+  const parsed = cleanAndParseJSON(response);
+  const rawCards = parsed?.cards || parsed?.mainDeck || [];
   
   // Normalización robusta de la respuesta de la IA
-  return rawCards.map(c => ({
+  const normalizedCards = rawCards.map(c => ({
     name: c.name,
     quantity: Number(c.quantity || c.count || 1),
     category: c.category || c.type || '',
@@ -356,6 +358,24 @@ Optimiza la baraja principal y devuelve el resultado en JSON que cumpla con el e
     type_line: c.type_line || '',
     role: c.role || ''
   }));
+
+  const rawSideboard = parsed?.sideboard || [];
+  const normalizedSideboard = rawSideboard.map(c => ({
+    name: c.name,
+    quantity: Number(c.quantity || c.count || 1),
+    category: c.category || c.type || '',
+    cmc: Number(c.cmc || c.mana_value || 0)
+  }));
+
+  return {
+    cards: normalizedCards,
+    sideboard: normalizedSideboard,
+    lore: parsed?.lore || null,
+    deckName: parsed?.deckName || null,
+    mulligan: parsed?.mulligan || null,
+    strategy: parsed?.strategy || null,
+    archetype: parsed?.archetype || null
+  };
 }
 
 /**
@@ -363,7 +383,7 @@ Optimiza la baraja principal y devuelve el resultado en JSON que cumpla con el e
  * Realiza una optimización inteligente de la baraja, ya sea con IA (si está configurada)
  * o con heurísticas locales deterministas, garantizando el tamaño exacto del mazo.
  */
-export async function optimizarMazo(deckList, formData, aiConfig) {
+export async function optimizarMazo(deckList, formData, aiConfig, preserveLands = true) {
   // 1. Limpieza y normalización de la lista de entrada (forzar quantity numérica)
   let nextDeck = [...deckList]
     .filter(c => !BATTLEBOX_BANLIST.includes(c.name))
@@ -386,11 +406,24 @@ export async function optimizarMazo(deckList, formData, aiConfig) {
 
   let optimizedCards = [];
   let usedAI = false;
+  let aiLore = null;
+  let aiSideboard = null;
+  let aiDeckName = null;
+  let aiMulligan = null;
+  let aiStrategy = null;
+  let aiArchetype = null;
 
   // Intentar optimizar con IA de forma inteligente si está configurada
   if (aiConfig && aiConfig.selectedModel && aiConfig.apiKey) {
     try {
-      optimizedCards = await optimizarConIA(nextDeck, formData, aiConfig, ragPool);
+      const parsedResult = await optimizarConIA(nextDeck, formData, aiConfig, ragPool);
+      optimizedCards = parsedResult.cards;
+      aiLore = parsedResult.lore;
+      aiSideboard = parsedResult.sideboard;
+      aiDeckName = parsedResult.deckName;
+      aiMulligan = parsedResult.mulligan;
+      aiStrategy = parsedResult.strategy;
+      aiArchetype = parsedResult.archetype;
       usedAI = true;
     } catch (e) {
       console.warn("Fallo al optimizar con IA, recurriendo a fallback local heurístico", e);
@@ -405,9 +438,13 @@ export async function optimizarMazo(deckList, formData, aiConfig) {
           null, 
           formData, 
           (msg) => console.log(msg), 
-          ragPool
+          ragPool,
+          preserveLands,
+          false
       );
       optimizedCards = optimizedResult.cards;
+      aiSideboard = optimizedResult.sideboard;
+      aiLore = "Optimización determinista heurística basada en los estándares Pro Tour.";
     } catch (e) {
       console.error("Fallo durante la optimización con el Juez Supremo:", e);
       optimizedCards = nextDeck;
@@ -415,9 +452,24 @@ export async function optimizarMazo(deckList, formData, aiConfig) {
   }
 
   // 3. Aplicar paracaídas matemático para corregir cualquier anomalía de tamaño
-  const finalDeck = await corregirTamañoYBaseDeMana(optimizedCards, targetDeckSize, formData, ragPool);
+  if (preserveLands) {
+    const originalLands = nextDeck.filter(c => isLandCard(c));
+    const optimizedSpellsOnly = optimizedCards.filter(c => !isLandCard(c));
+    optimizedCards = [...optimizedSpellsOnly, ...originalLands];
+  }
+
+  const finalDeck = await corregirTamañoYBaseDeMana(optimizedCards, targetDeckSize, formData, ragPool, preserveLands);
 
   // 4. Hidratar las cartas nuevas para garantizar que tengan todas las propiedades Scryfall
   const hydratedDeck = await hydrateDeckCards(finalDeck, 'fast', () => {});
-  return hydratedDeck;
+  
+  return {
+    cards: hydratedDeck,
+    lore: aiLore,
+    sideboard: aiSideboard,
+    deckName: aiDeckName,
+    mulligan: aiMulligan,
+    strategy: aiStrategy,
+    archetype: aiArchetype
+  };
 }

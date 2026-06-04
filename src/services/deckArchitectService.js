@@ -9,7 +9,7 @@ import { generateSideboardGuide } from './sideboardService.js';
 /**
  * Limpia y parsea de forma segura respuestas JSON de la IA que puedan incluir cercas de código de markdown.
  */
-function cleanAndParseJSON(str) {
+export function cleanAndParseJSON(str) {
     if (!str) return null;
     let clean = typeof str === 'string' ? str.trim() : str;
     if (typeof clean !== 'string') return clean;
@@ -25,15 +25,16 @@ function cleanAndParseJSON(str) {
         }
     }
     
-    // Búsqueda defensiva del primer corchete/llave y el último corchete/llave correspondiente
-    const firstBrace = clean.search(/[\{\["']/);
+    // Búsqueda defensiva del primer corchete/llave (ignorar comillas previas al JSON de la conversación)
+    const firstBrace = clean.search(/[\{\[]/);
     if (firstBrace !== -1) {
         clean = clean.substring(firstBrace);
-    }
-    const startChar = clean.charAt(0);
-    const endBrace = clean.lastIndexOf(startChar === '{' ? '}' : (startChar === '[' ? ']' : startChar));
-    if (endBrace !== -1) {
-        clean = clean.substring(0, endBrace + 1);
+        const startChar = clean.charAt(0);
+        const endChar = startChar === '{' ? '}' : ']';
+        const endBrace = clean.lastIndexOf(endChar);
+        if (endBrace !== -1) {
+            clean = clean.substring(0, endBrace + 1);
+        }
     }
     
     return JSON.parse(clean);
@@ -649,7 +650,7 @@ export const getMaxAllowedCopies = (cardName, category, cmc, ragPool = []) => {
 
 export function obtenerMejorCartaDeRemplazo(category, targetCmc, allowedColors, format = 'MODERN', ragPool = [], excludeNames = []) {
     const formatUpper = (format || 'MODERN').toUpperCase();
-    const colorsSet = new Set(allowedColors || []);
+    const colorsSet = new Set(allowedColors && allowedColors.length > 0 ? allowedColors : ['W', 'U', 'B', 'R', 'G']);
     const excludeSet = new Set(excludeNames.map(n => n.toLowerCase().trim()));
     
     // 1. Intentar buscar en el RAG pool de la baraja (que ya está filtrado por formato)
@@ -703,40 +704,84 @@ export function obtenerMejorCartaDeRemplazo(category, targetCmc, allowedColors, 
     // 2. Si no hay candidatos en el pool, usar staples estáticos de fallback según formato
     const isStandard = formatUpper === 'STANDARD';
     
-    if (category === 'Creature') {
-        if (isStandard) {
-            if (colorsSet.has("W")) return { name: "Novice Inspector", cmc: 1, category: "Creature" };
-            if (colorsSet.has("R")) return { name: "Monastery Swiftspear", cmc: 1, category: "Creature" };
-            if (colorsSet.has("B")) return { name: "Deep-Cavern Bat", cmc: 2, category: "Creature" };
-            if (colorsSet.has("G")) return { name: "Llanowar Elves", cmc: 1, category: "Creature" };
-            if (colorsSet.has("U")) return { name: "Spyglass Siren", cmc: 1, category: "Creature" };
-            return { name: "Tough Cookie", cmc: 2, category: "Creature" };
-        } else {
-            if (colorsSet.has("W")) return { name: "Esper Sentinel", cmc: 1, category: "Creature" };
-            if (colorsSet.has("R")) return { name: "Ragavan, Nimble Pilferer", cmc: 1, category: "Creature" };
-            if (colorsSet.has("B")) return { name: "Orcish Bowmasters", cmc: 2, category: "Creature" };
-            if (colorsSet.has("G")) return { name: "Tarmogoyf", cmc: 2, category: "Creature" };
-            if (colorsSet.has("U")) return { name: "Delver of Secrets", cmc: 1, category: "Creature" };
-            return { name: "Steel Overseer", cmc: 2, category: "Creature" };
+    const lists = {
+        creature_standard: {
+            W: [{ name: "Novice Inspector", cmc: 1, category: "Creature" }, { name: "Thraben Inspector", cmc: 1, category: "Creature" }, { name: "Recruitment Officer", cmc: 1, category: "Creature" }],
+            R: [{ name: "Monastery Swiftspear", cmc: 1, category: "Creature" }, { name: "Kumano Faces Kakkazan", cmc: 1, category: "Creature" }, { name: "Slickshot Show-off", cmc: 2, category: "Creature" }],
+            B: [{ name: "Deep-Cavern Bat", cmc: 2, category: "Creature" }, { name: "Glint-Sleeve Siphoner", cmc: 2, category: "Creature" }, { name: "Evolved Sleeper", cmc: 1, category: "Creature" }],
+            G: [{ name: "Llanowar Elves", cmc: 1, category: "Creature" }, { name: "Elvish Mystic", cmc: 1, category: "Creature" }, { name: "Tough Cookie", cmc: 2, category: "Creature" }],
+            U: [{ name: "Spyglass Siren", cmc: 1, category: "Creature" }, { name: "Delver of Secrets", cmc: 1, category: "Creature" }, { name: "Faerie Dreamthief", cmc: 1, category: "Creature" }],
+            colorless: [{ name: "Tough Cookie", cmc: 2, category: "Creature" }, { name: "Ornithopter", cmc: 0, category: "Creature" }]
+        },
+        creature_modern: {
+            W: [{ name: "Esper Sentinel", cmc: 1, category: "Creature" }, { name: "Giver of Runes", cmc: 1, category: "Creature" }, { name: "Thalia, Guardian of Thraben", cmc: 2, category: "Creature" }],
+            R: [{ name: "Ragavan, Nimble Pilferer", cmc: 1, category: "Creature" }, { name: "Dragon's Rage Channeler", cmc: 1, category: "Creature" }, { name: "Monastery Swiftspear", cmc: 1, category: "Creature" }],
+            B: [{ name: "Orcish Bowmasters", cmc: 2, category: "Creature" }, { name: "Dauthi Voidwalker", cmc: 2, category: "Creature" }, { name: "Dark Confidant", cmc: 2, category: "Creature" }],
+            G: [{ name: "Tarmogoyf", cmc: 2, category: "Creature" }, { name: "Ignoble Hierarch", cmc: 1, category: "Creature" }, { name: "Noble Hierarch", cmc: 1, category: "Creature" }],
+            U: [{ name: "Delver of Secrets", cmc: 1, category: "Creature" }, { name: "Snapcaster Mage", cmc: 2, category: "Creature" }, { name: "Faerie Mastermind", cmc: 2, category: "Creature" }],
+            colorless: [{ name: "Steel Overseer", cmc: 2, category: "Creature" }, { name: "Hangarback Walker", cmc: 2, category: "Creature" }, { name: "Walking Ballista", cmc: 0, category: "Creature" }]
+        },
+        spell_standard: {
+            B: [{ name: "Go for the Throat", cmc: 2, category: "Instant" }, { name: "Cut Down", cmc: 1, category: "Instant" }, { name: "Duress", cmc: 1, category: "Sorcery" }],
+            R: [{ name: "Play with Fire", cmc: 1, category: "Instant" }, { name: "Lightning Strike", cmc: 2, category: "Instant" }, { name: "Abrade", cmc: 2, category: "Instant" }],
+            W: [{ name: "Get Lost", cmc: 2, category: "Instant" }, { name: "Lay Down Arms", cmc: 1, category: "Instant" }, { name: "Ossification", cmc: 2, category: "Enchantment" }],
+            U: [{ name: "Sleight of Hand", cmc: 1, category: "Sorcery" }, { name: "Consider", cmc: 1, category: "Instant" }, { name: "Make Disappear", cmc: 2, category: "Instant" }],
+            G: [{ name: "Pick Your Poison", cmc: 1, category: "Sorcery" }, { name: "Tear Asunder", cmc: 2, category: "Instant" }, { name: "Audacity", cmc: 1, category: "Enchantment" }],
+            colorless: [{ name: "Collector's Vault", cmc: 2, category: "Artifact" }]
+        },
+        spell_modern: {
+            B: [{ name: "Fatal Push", cmc: 1, category: "Instant" }, { name: "Thoughtseize", cmc: 1, category: "Sorcery" }, { name: "Inquisition of Kozilek", cmc: 1, category: "Sorcery" }, { name: "Collective Brutality", cmc: 2, category: "Sorcery" }],
+            R: [{ name: "Lightning Bolt", cmc: 1, category: "Instant" }, { name: "Unholy Heat", cmc: 1, category: "Instant" }, { name: "Galvanic Discharge", cmc: 1, category: "Instant" }, { name: "Abrade", cmc: 2, category: "Instant" }],
+            W: [{ name: "Prismatic Ending", cmc: 1, category: "Sorcery" }, { name: "Path to Exile", cmc: 1, category: "Instant" }, { name: "Swords to Plowshares", cmc: 1, category: "Instant" }],
+            U: [{ name: "Preordain", cmc: 1, category: "Sorcery" }, { name: "Brainstorm", cmc: 1, category: "Instant" }, { name: "Ponder", cmc: 1, category: "Sorcery" }, { name: "Spell Pierce", cmc: 1, category: "Instant" }, { name: "Counterspell", cmc: 2, category: "Instant" }],
+            G: [{ name: "Veil of Summer", cmc: 1, category: "Instant" }, { name: "Abundant Growth", cmc: 1, category: "Enchantment" }, { name: "Ancient Stirrings", cmc: 1, category: "Sorcery" }],
+            colorless: [{ name: "Relic of Progenitus", cmc: 1, category: "Artifact" }, { name: "Mishra's Bauble", cmc: 0, category: "Artifact" }, { name: "Tormod's Crypt", cmc: 0, category: "Artifact" }]
         }
-    } else {
-        // Spells (Instant/Sorcery)
-        if (isStandard) {
-            if (colorsSet.has("B")) return { name: "Go for the Throat", cmc: 2, category: "Instant" };
-            if (colorsSet.has("R")) return { name: "Play with Fire", cmc: 1, category: "Instant" };
-            if (colorsSet.has("W")) return { name: "Get Lost", cmc: 2, category: "Instant" };
-            if (colorsSet.has("U")) return { name: "Sleight of Hand", cmc: 1, category: "Sorcery" };
-            if (colorsSet.has("G")) return { name: "Pick Your Poison", cmc: 1, category: "Sorcery" };
-            return { name: "Collector's Vault", cmc: 2, category: "Artifact" };
-        } else {
-            if (colorsSet.has("B")) return { name: "Fatal Push", cmc: 1, category: "Instant" };
-            if (colorsSet.has("R")) return { name: "Lightning Bolt", cmc: 1, category: "Instant" };
-            if (colorsSet.has("W")) return { name: "Prismatic Ending", cmc: 1, category: "Sorcery" };
-            if (colorsSet.has("U")) return { name: "Preordain", cmc: 1, category: "Sorcery" };
-            if (colorsSet.has("G")) return { name: "Veil of Summer", cmc: 1, category: "Instant" };
-            return { name: "Relic of Progenitus", cmc: 1, category: "Artifact" };
+    };
+
+    const activeListGroup = category === 'Creature'
+        ? (isStandard ? lists.creature_standard : lists.creature_modern)
+        : (isStandard ? lists.spell_standard : lists.spell_modern);
+
+    const getFallback = (candidatesList) => {
+        for (const card of candidatesList) {
+            if (!excludeSet.has(card.name.toLowerCase().trim())) {
+                return card;
+            }
+        }
+        return null;
+    };
+
+    // 1. Intentar colores permitidos en orden
+    for (const col of Array.from(colorsSet)) {
+        const list = activeListGroup[col];
+        if (list) {
+            const found = getFallback(list);
+            if (found) return found;
         }
     }
+
+    // 2. Intentar incoloro
+    if (activeListGroup.colorless) {
+        const found = getFallback(activeListGroup.colorless);
+        if (found) return found;
+    }
+
+    // 3. Intentar cualquier color como último recurso desesperado
+    for (const col of ["W", "U", "B", "R", "G"]) {
+        const list = activeListGroup[col];
+        if (list) {
+            const found = getFallback(list);
+            if (found) return found;
+        }
+    }
+
+    // 4. Último recurso absoluto indestructible (para no fallar nunca)
+    return { 
+        name: category === 'Creature' ? "Ornithopter" : "Relic of Progenitus", 
+        cmc: category === 'Creature' ? 0 : 1, 
+        category: category === 'Creature' ? "Creature" : "Artifact" 
+    };
 }
 
 // Helper para inyectar carta directamente sin forzar reducción de otras cartas (Module Level)
@@ -791,6 +836,11 @@ const distribuirOInyectarHechizosFaltantes = (spellList, targetCount, colors, ad
             if (gap <= 0) break;
 
             const nameLower = poolCard.name.trim().toLowerCase();
+            
+            // Excluir cartas de odio estrecho de banquillo del mazo principal
+            const narrowHateCards = ["rest in peace", "surgical extraction", "leyline of the void", "tormod's crypt", "grafdigger's cage", "stony silence"];
+            if (narrowHateCards.includes(nameLower)) continue;
+
             const existing = adjustedList.find(c => c.name.trim().toLowerCase() === nameLower);
             if (existing) continue;
 
@@ -1117,7 +1167,7 @@ function recortarHechizosExcedentesInteligente(spells, targetSpellsCount, addLog
  * Esta función asegura que antes de mostrar el mazo al usuario,
  * se cumplan los mínimos de estrategia y haya criaturas válidas.
  */
-export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ragPool = []) {
+export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ragPool = [], preserveLands = false, spellAuditOnly = false) {
     let { cards } = deckResult;
     const strategyObj = MTG_STRATEGIES.find(s => s.id === formData?.strategy || s.label === formData?.strategy) || null;
     let strategyId = strategyObj ? strategyObj.id : (formData?.strategy || '');
@@ -1176,6 +1226,17 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
         return list;
     };
 
+    const getCappedCardsList = () => {
+        const list = [];
+        cards.forEach(existCard => {
+            const limit = getMaxAllowedCopies(existCard.name, existCard.category, existCard.cmc, ragPool);
+            if (existCard.quantity >= limit) {
+                list.push(existCard.name.toLowerCase());
+            }
+        });
+        return list;
+    };
+
     // =========================================================================
     // ⚔️ EL CUERPO SUPREMO DE LEYES DEL PRO TOUR (AUDITORÍA DE INCOMPATIBILIDADES)
     // =========================================================================
@@ -1198,7 +1259,14 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
         if (addLog) addLog(logHate);
 
         // Rellenar con interacción genérica
-        const rep = obtenerMejorCartaDeRemplazo("Instant", 1, Array.from(colors), formData?.format, ragPool, narrowHateCards);
+        const excludeHate = [...narrowHateCards];
+        cards.forEach(existCard => {
+            const limit = getMaxAllowedCopies(existCard.name, existCard.category, existCard.cmc, ragPool);
+            if (existCard.quantity >= limit) {
+                excludeHate.push(existCard.name.toLowerCase());
+            }
+        });
+        const rep = obtenerMejorCartaDeRemplazo("Instant", 1, Array.from(colors), formData?.format, ragPool, excludeHate);
         cards = inyectarCartaDirecta(cards, { name: rep.name, quantity: totalHateQty, category: rep.category, cmc: rep.cmc, role: "interaction" }, ragPool);
     }
 
@@ -1249,6 +1317,45 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
         }
     }
 
+    // === REGLA H: VETO A CRIATURAS GIGANTES INCASTEABLES (UNCASTABLE CREATURES) ===
+    const allowedHeavyStrategies = ['reanimator', 'ramp', 'tron', 'landfall'];
+    const isHeavyStrategy = allowedHeavyStrategies.includes(strategyId) ||
+                            allowedHeavyStrategies.some(s => archLower.includes(s)) ||
+                            (tribeId && tribeId !== 'none' && tribeId !== 'ninguna' && ['sea_monsters', 'eldrazi', 'dragons', 'dinosaurs'].includes(tribeId.toLowerCase()));
+    
+    if (!isHeavyStrategy) {
+        const mustIncludeNamesList = parseUserRulesString(formData?.mustInclude || '').map(item => item.name.toLowerCase());
+        
+        // Encontrar criaturas de CMC >= 6 que no sean must-includes
+        const uncastables = cards.filter(c => c.category === 'Creature' && c.cmc >= 6 && !mustIncludeNamesList.includes(c.name.toLowerCase()) && c.role !== 'must-include');
+        
+        for (const c of uncastables) {
+            const qty = c.quantity;
+            const logUncastable = `[JUEZ PRO TOUR] Veto de Criatura Gigante: Criatura pesada incasteable "${c.name}" (CMC ${c.cmc}) interceptada en estrategia "${strategyId || 'desconocida'}". Transmutando a staple eficiente de coste bajo/medio.`;
+            console.log(logUncastable);
+            if (addLog) addLog(logUncastable);
+            
+            // Remover la criatura incasteable
+            cards = removerCarta(cards, c.name, qty);
+            
+            // Excluir de la búsqueda el propio nombre y cualquier carta que ya esté al máximo
+            const excludeNames = [c.name.toLowerCase(), ...getCappedCardsList()];
+            
+            // Decidir si reemplazamos por un hechizo reactivo (Instant) de coste 1-2 o criatura de coste 2-3
+            const replacementCategory = Math.random() > 0.5 ? "Creature" : "Instant";
+            const targetCmc = replacementCategory === "Creature" ? 2 : 1;
+            
+            const rep = obtenerMejorCartaDeRemplazo(replacementCategory, targetCmc, Array.from(colors), formData?.format, ragPool, excludeNames);
+            cards = inyectarCartaDirecta(cards, {
+                name: rep.name,
+                quantity: qty,
+                category: rep.category,
+                cmc: rep.cmc,
+                role: "utility"
+            });
+        }
+    }
+
     // D. COMPATIBILIDAD DE DELIRIO CON MISHRA'S BAUBLE
     const hasDelirium = cards.some(c => c.name.toLowerCase() === "dragon's rage channeler" || c.name.toLowerCase() === "tarmogoyf");
     if (hasDelirium && (strategyId === 'graveyard' || strategyId === 'delirium')) {
@@ -1294,7 +1401,7 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
 
     // F. SOPORTE DE DOMAIN PARA LEYLINE BINDING
     const hasLeylineBinding = cards.some(c => c.name.toLowerCase() === "leyline binding");
-    if (hasLeylineBinding && colors.size >= 2) {
+    if (hasLeylineBinding && colors.size >= 2 && !spellAuditOnly && !preserveLands) {
         const triomes = ["Raffine's Tower", "Xander's Lounge", "Ziatora's Proving Ground", "Jetmir's Garden", "Spara's Headquarters", "Indatha Triome", "Ketria Triome", "Raugrin Triome", "Savai Triome", "Zagoth Triome"];
         const hasTriome = cards.some(c => c.category === 'Land' && triomes.includes(c.name));
         if (!hasTriome) {
@@ -1313,7 +1420,7 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
     }
 
     // G. PROTECCIÓN CONTRA BLOOD MOON EN MAZOS MULTICOLORES (3+ COLORES)
-    if (colors.size >= 3 && !hasTribe && (formData?.format || '').toUpperCase() !== 'STANDARD') {
+    if (colors.size >= 3 && !hasTribe && (formData?.format || '').toUpperCase() !== 'STANDARD' && !spellAuditOnly && !preserveLands) {
         const basicLands = cards.filter(c => c.category === 'Land' && ["plains", "island", "swamp", "mountain", "forest"].includes(c.name.toLowerCase()));
         const uniqueBasics = new Set(basicLands.map(b => b.name.toLowerCase()));
         
@@ -1838,7 +1945,7 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
 
             // Inyectar respuestas genéricas solo si aún faltan
             if (toAddAnswers > 0) {
-                const rep = obtenerMejorCartaDeRemplazo("Instant", 1, Array.from(colors), formData?.format, ragPool);
+                const rep = obtenerMejorCartaDeRemplazo("Instant", 1, Array.from(colors), formData?.format, ragPool, getCappedCardsList());
                 cards = inyectarCartaDirecta(cards, { name: rep.name, quantity: toAddAnswers, category: rep.category, cmc: rep.cmc, role: "interaction" }, ragPool);
             }
         } else {
@@ -1874,7 +1981,7 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
             // Si ya tiene suficiente variedad de amenazas, es mejor subir copias de las existentes
             const uniqueThreatsInDeck = cards.filter(c => c.category !== 'Land' && clasificarSpell(c) === 'Threat');
             if (toAddThreats > 0 && uniqueThreatsInDeck.length < 4 && !hasTribe) {
-                const rep = obtenerMejorCartaDeRemplazo("Creature", 2, Array.from(colors), formData?.format, ragPool);
+                const rep = obtenerMejorCartaDeRemplazo("Creature", 2, Array.from(colors), formData?.format, ragPool, getCappedCardsList());
                 cards = inyectarCartaDirecta(cards, { name: rep.name, quantity: toAddThreats, category: rep.category, cmc: rep.cmc, role: "threat" }, ragPool);
             } else if (toAddThreats > 0) {
                 // Subir copias de amenazas existentes a 4x en vez de inyectar genéricas fuera de sinergia
@@ -2016,7 +2123,27 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
         }
     }
 
-    // === DIMENSIÓN G: UTILITY LANDS & MDFCS ===
+    if (spellAuditOnly) {
+        // Final unique deduplication of spells
+        const uniqueCards = [];
+        cards.forEach(c => {
+            if (c.quantity <= 0) return; // Cleanup cards that were fully removed
+            const existing = uniqueCards.find(uc => uc.name.toLowerCase() === c.name.toLowerCase());
+            if (existing) {
+                const isBasic = ["plains", "island", "swamp", "mountain", "forest", "wastes", "llanura", "isla", "pantano", "montaña", "bosque", "yermo"].includes(c.name.toLowerCase());
+                existing.quantity = isBasic ? (existing.quantity + c.quantity) : Math.min(4, existing.quantity + c.quantity);
+            } else {
+                uniqueCards.push(c);
+            }
+        });
+        return {
+            ...deckResult,
+            cards: uniqueCards
+        };
+    }
+
+    if (!preserveLands) {
+        // === DIMENSIÓN G: UTILITY LANDS & MDFCS ===
     const legendChannelLands = [
         { name: "Boseiju, Who Endures", color: "G", cmc: 0, category: "Land" },
         { name: "Otawara, Soaring City", color: "U", cmc: 0, category: "Land" },
@@ -2068,7 +2195,9 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
         }
 
         // Add spells
-        const rep = obtenerMejorCartaDeRemplazo("Instant", 1, Array.from(colors), formData?.format, ragPool);
+        const excludeNamesL = getCappedCardsList();
+
+        const rep = obtenerMejorCartaDeRemplazo("Instant", 1, Array.from(colors), formData?.format, ragPool, excludeNamesL);
         let spellName = rep.name;
 
         cards = inyectarCartaDirecta(cards, { name: spellName, quantity: deducted, category: rep.category, cmc: rep.cmc, role: "interaction" }, ragPool);
@@ -2206,6 +2335,7 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
             }
         }
     });
+    }
 
     // === DIMENSIÓN J: SIDEBOARD EXCELLENCE ===
     const isStandard = (formData?.format || '').toUpperCase() === 'STANDARD';
@@ -2977,7 +3107,7 @@ La suma de las cantidades de todos los roles debe ser exactamente igual a totalS
   const hasYorion = sanitizedFinals_ArraySpells.some(s => s.name.toLowerCase().includes("yorion, sky nomad")) || (formData?.companero && formData.companero.toLowerCase().includes("yorion"));
   const deckSize = hasYorion ? 80 : 60;
   
-  const metricalTargetLnd = calculatePerfectLandCount(sanitizedFinals_ArraySpells, formData, hasYorion);
+  let metricalTargetLnd = calculatePerfectLandCount(sanitizedFinals_ArraySpells, formData, hasYorion);
   let maxRequired = deckSize - metricalTargetLnd;
   let countAct = sanitizedFinals_ArraySpells.reduce( (acc , b) => acc+(b.quantity || 1), 0 ); 
   let gap = maxRequired - countAct;
@@ -3126,21 +3256,48 @@ Analiza profundamente el mazo. Devuelve el JSON requerido con 'additions' (para 
         addLog(`[JUEZ SUPREMO] Omitido (${err.message}). Activando paracaídas matemático JS...`);
       }
 
-      // 4. PARACAÍDAS JS FINAL (Infalibilidad Matemática)
+      // 4. FASE 1: AUDITORÍA DE HECHIZOS (Spell Audit Only)
+      addLog("[FASE 1] Ejecutando Auditoría de Hechizos...");
+      const spellAuditResult = await aplicarJuezFinal(
+          { cards: sanitizedFinals_ArraySpells },
+          dnaData,
+          formData,
+          addLog,
+          ragResult.pool,
+          true, // preserveLands
+          true  // spellAuditOnly
+      );
+      sanitizedFinals_ArraySpells = spellAuditResult.cards;
+
+      // PARACAÍDAS JS FINAL (Infalibilidad Matemática sobre Hechizos)
+      const metricalTargetLnd_local = calculatePerfectLandCount(sanitizedFinals_ArraySpells, formData, hasYorion);
+      let targetSpellsCount = deckSize - metricalTargetLnd_local;
       let finalCheckCount = sanitizedFinals_ArraySpells.reduce((acc, b) => acc + (b.quantity || 1), 0);
-      let finalGap = maxRequired - finalCheckCount;
+      let finalGap = targetSpellsCount - finalCheckCount;
       if (finalGap > 0) {
-          addLog(`[PARACAÍDAS JS] El Juez se quedó corto por ${finalGap} cartas. Forzando relleno matemático.`);
-          sanitizedFinals_ArraySpells = distribuirOInyectarHechizosFaltantes(sanitizedFinals_ArraySpells, maxRequired, formData?.colores || [], addLog, ragResult.pool, formData);
+          addLog(`[PARACAÍDAS JS] El Juez de Hechizos se quedó corto por ${finalGap} cartas. Forzando relleno matemático.`);
+          sanitizedFinals_ArraySpells = distribuirOInyectarHechizosFaltantes(sanitizedFinals_ArraySpells, targetSpellsCount, formData?.colores || [], addLog, ragResult.pool, formData);
       } else if (finalGap < 0) {
-          addLog(`[PARACAÍDAS JS] El Juez se pasó por ${Math.abs(finalGap)} cartas. Forzando recorte matemático.`);
-          sanitizedFinals_ArraySpells = recortarHechizosExcedentesInteligente(sanitizedFinals_ArraySpells, maxRequired, addLog, mustIncludeNamesList);
+          addLog(`[PARACAÍDAS JS] El Juez de Hechizos se pasó por ${Math.abs(finalGap)} cartas. Forzando recorte matemático.`);
+          sanitizedFinals_ArraySpells = recortarHechizosExcedentesInteligente(sanitizedFinals_ArraySpells, targetSpellsCount, addLog, mustIncludeNamesList);
+      }
+  } else {
+      // Si no hay Juez Supremo, aún necesitamos calcular variables
+      const metricalTargetLnd_local = calculatePerfectLandCount(sanitizedFinals_ArraySpells, formData, hasYorion);
+      let targetSpellsCount = deckSize - metricalTargetLnd_local;
+      let finalCheckCount = sanitizedFinals_ArraySpells.reduce((acc, b) => acc + (b.quantity || 1), 0);
+      let finalGap = targetSpellsCount - finalCheckCount;
+      if (finalGap > 0) {
+          sanitizedFinals_ArraySpells = distribuirOInyectarHechizosFaltantes(sanitizedFinals_ArraySpells, targetSpellsCount, formData?.colores || [], addLog, ragResult.pool, formData);
+      } else if (finalGap < 0) {
+          sanitizedFinals_ArraySpells = recortarHechizosExcedentesInteligente(sanitizedFinals_ArraySpells, targetSpellsCount, addLog, mustIncludeNamesList);
       }
   }
+
+  // Ahora recalculamos pips reales con la lista final de hechizos sanitizada
+  metricalTargetLnd = calculatePerfectLandCount(sanitizedFinals_ArraySpells, formData, hasYorion);
  
   // === AUDITORÍA DETERMINISTA DE PIPS REALES ===
-  // Para evitar que las alucinaciones del JSON de Gemini (como marcar B:0 teniendo Fatal Push) corrompan la manabase,
-  // escaneamos los hechizos finales de forma determinista y sobreescribimos los pips técnicos reales.
   let recalculatedPips = { W: 0, U: 0, B: 0, R: 0, G: 0 };
   sanitizedFinals_ArraySpells.forEach(card => {
       const poolCard = (ragResult?.pool || []).find(c => c.name.trim().toLowerCase() === card.name.trim().toLowerCase()) || {};
@@ -3159,7 +3316,7 @@ Analiza profundamente el mazo. Devuelve el JSON requerido con 'additions' (para 
       if (cost.includes('{R}')) { recalculatedPips.R += (cost.match(/\{R\}/g) || []).length * qty; hasPips = true; }
       if (cost.includes('{G}')) { recalculatedPips.G += (cost.match(/\{G\}/g) || []).length * qty; hasPips = true; }
 
-      // Fallback si no hay pips explícitos en coste (ej. cartas con Suspend como Crashing Footfalls de coste 0)
+      // Fallback si no hay pips explícitos en coste
       if (!hasPips) {
           let cardColors = poolCard.colors || poolCard.color_identity || card.colors || card.color_identity || [];
           if (typeof cardColors === 'string') cardColors = [cardColors];
@@ -3185,21 +3342,22 @@ Analiza profundamente el mazo. Devuelve el JSON requerido con 'additions' (para 
   // Llamada pura base interna Matemática: Se genera en fracción mileseg exactitud!
   const aiUtilityLands = validResultsStruct.utility_lands_recommendations || [];
   addLog(`Generando lands con pipBalance: ${JSON.stringify(metricsPIPsStruct)} y total lands: ${metricalTargetLnd}, utility recomendadas: ${aiUtilityLands.join(', ')}`);
-  const finalCalculated_RealJsBaseLandsArraysInjectionObjListReady_FromDecCalc =  await generateManaBase(metricsPIPsStruct ,  metricalTargetLnd , validCurrentGenUsedStrPipKeysBaseArrayDetected , formData, sanitizedFinals_ArraySpells, aiUtilityLands );
+  const finalCalculated_RealJsBaseLandsArraysInjectionObjListReady_FromDecCalc = await generateManaBase(metricsPIPsStruct, metricalTargetLnd, validCurrentGenUsedStrPipKeysBaseArrayDetected, formData, sanitizedFinals_ArraySpells, aiUtilityLands);
 
   // === LOG 6: KARSTEN MATH (Lands) ===
   const logKarsten = `═══ KARSTEN MATH (Tierras inyectadas) ═══\n  Pips Base: ${JSON.stringify(metricsPIPsStruct)}\n${finalCalculated_RealJsBaseLandsArraysInjectionObjListReady_FromDecCalc.map(l => `  ${l.quantity}x ${l.name}`).join('\n')}`;
   addLog(logKarsten);
   console.log(logKarsten);
 
-  // Final Merging y devolver Listo Frontend Render!! 
-  validResultsStruct.cards = [ ...sanitizedFinals_ArraySpells , ...finalCalculated_RealJsBaseLandsArraysInjectionObjListReady_FromDecCalc ];
+  // Final Merging
+  validResultsStruct.cards = [ ...sanitizedFinals_ArraySpells, ...finalCalculated_RealJsBaseLandsArraysInjectionObjListReady_FromDecCalc ];
 
-  // Aplicar el Juez Final de Estado
-  const juezResult = await aplicarJuezFinal(validResultsStruct, dnaData, formData, addLog, ragResult.pool);
-  validResultsStruct.cards = juezResult.cards;
-  validResultsStruct.sideboard = juezResult.sideboard;
-  validResultsStruct.sideboard_strategy = juezResult.sideboard_strategy;
+  // FASE 2: AUDITORÍA DE TIERRAS Y SIDEBOARD (aplicarJuezFinal con preserveLands=false, spellAuditOnly=false)
+  addLog("[FASE 2] Ejecutando Auditoría de Tierras y Sideboard...");
+  const finalJuezResult = await aplicarJuezFinal(validResultsStruct, dnaData, formData, addLog, ragResult.pool, false, false);
+  validResultsStruct.cards = finalJuezResult.cards;
+  validResultsStruct.sideboard = finalJuezResult.sideboard;
+  validResultsStruct.sideboard_strategy = finalJuezResult.sideboard_strategy;
 
   // =========================================================================
   // ⚔️ SANITIZACIÓN Y CONSOLIDACIÓN SUPREMA FINAL (EL JUEZ INVICTO)

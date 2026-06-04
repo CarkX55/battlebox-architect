@@ -751,12 +751,15 @@ export const buildCardPool = async (formData) => {
     }
 
     // B) Auto-Alineación de Estrategias y Tipos (Gatillos Cruzados)
-    if (strategyId === 'spellslinger') {
-      if (oracleText.includes('instant') || oracleText.includes('sorcery') || oracleText.includes('cast a spell')) {
+    if (strategyId === 'spellslinger' || strategyId === 'storm') {
+      if (oracleText.includes('instant') || oracleText.includes('sorcery') || oracleText.includes('cast a spell') || oracleText.includes('storm')) {
         relationalBoost += densityMetrics.instantSorcery * 2.5;
       }
       if (typeLine.includes('instant') || typeLine.includes('sorcery')) {
         relationalBoost += 20; 
+      }
+      if (strategyId === 'storm' && (oracleText.includes('storm') || oracleText.includes('add ') || oracleText.includes('ritual') || oracleText.includes('unturn') || oracleText.includes('untap'))) {
+        relationalBoost += 50; // Sinergia directa para enablers y rituales de Tormenta
       }
     } else if (strategyId === 'enchantress') {
       if (oracleText.includes('enchantment') || oracleText.includes('constellation')) {
@@ -893,7 +896,8 @@ export const buildCardPool = async (formData) => {
     prison:       { cmc1: 0.15, cmc2: 0.45, cmc3: 0.30, cmc4: 0.10, cmc5Plus: 0.00 },
     voltron:      { cmc1: 0.45, cmc2: 0.40, cmc3: 0.10, cmc4: 0.05, cmc5Plus: 0.00 },
     vehicles:     { cmc1: 0.30, cmc2: 0.40, cmc3: 0.20, cmc4: 0.10, cmc5Plus: 0.00 },
-    sea_monsters: { cmc1: 0.25, cmc2: 0.30, cmc3: 0.15, cmc4: 0.10, cmc5Plus: 0.20 }
+    sea_monsters: { cmc1: 0.25, cmc2: 0.30, cmc3: 0.15, cmc4: 0.10, cmc5Plus: 0.20 },
+    storm:        { cmc1: 0.40, cmc2: 0.40, cmc3: 0.15, cmc4: 0.05, cmc5Plus: 0.00 }
   };
 
   const archetypeCurveMap = {
@@ -937,6 +941,8 @@ export const buildCardPool = async (formData) => {
   
   if (strategyId === 'spellslinger') {
     creatureRatio = 0.3; // 30% criaturas, 70% hechizos
+  } else if (strategyId === 'storm') {
+    creatureRatio = 0.15; // 15% criaturas (dorks/reducers), 85% hechizos (rituales/cantrips/payoffs)
   } else if (strategyId === 'reanimator') {
     creatureRatio = 0.4; // 40% criaturas, 60% hechizos
   } else if (strategyId === 'aristocrats') {

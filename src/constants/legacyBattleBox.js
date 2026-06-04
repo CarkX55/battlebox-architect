@@ -480,6 +480,16 @@ export const MTG_STRATEGIES = [
     mechanics: 'Ensambla cascadas de coste 3 para castear automáticamente hechizos demoledores de coste 0.',
     keywords: ['cascade', 'suspend', 'crashing footfalls', 'living end', 'shardless agent', 'ardent plea'],
     formats: ['MODERN']
+  },
+  { 
+    id: 'storm', 
+    label: 'Storm Combo (Ruby Storm / Grapeshot)', 
+    colors: ['R', 'U', 'B'], 
+    primaryColor: ['R', 'U'],
+    archetypes: ['combo'],
+    mechanics: 'Encadena múltiples rituales y hechizos cantrips de coste bajo en un solo turno para finalizar con un hechizo con la mecánica de Tormenta (Grapeshot, Empty the Warrens).',
+    keywords: ['storm', 'grapeshot', 'empty the warrens', 'add {r}', 'add {u}', 'ritual', 'manamorphose', 'ruby medallion', 'ral, monsoon mage', 'baral', 'electromancer', 'past in flames', 'wish', 'tendrils of agony', 'desperate ritual', 'pyretic ritual', 'seething song', 'strike', 'draw'],
+    formats: ['MODERN']
   }
 ];
 
@@ -670,6 +680,9 @@ export function inferStrategyFromArchetype(archetypeId, currentStrategyId) {
   if (!archetypeId) return '';
   const archLower = archetypeId.toLowerCase().trim();
   
+  if (archLower.includes('storm') || archLower.includes('grapeshot') || archLower.includes('past in flames') || archLower.includes('ruby storm')) {
+    return 'storm';
+  }
   if (archLower.includes('prowess') || archLower.includes('spellslinger') || archLower.includes('phoenix') || archLower.includes('murktide') || archLower.includes('delver') || archLower.includes('lesson')) {
     return 'spellslinger';
   }
