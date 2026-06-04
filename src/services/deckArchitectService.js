@@ -81,41 +81,41 @@ export function parseCustomBanlistString(inputStr) {
 
 // 1. EL ESQUEMA CERRADO DE GEMINI (Exclusivo para Hechizos, Prohibidas Tierras)
 const GEMINI_NONLAND_SCHEMA = {
-  type: "OBJECT",
+  type: "object",
   properties: {
-    deckName: { type: "STRING", description: "A concise, thematic name for the deck." },
-    archetype: { type: "STRING" },
-    strategy: { type: "STRING" },
+    deckName: { type: "string", description: "A concise, thematic name for the deck." },
+    archetype: { type: "string" },
+    strategy: { type: "string" },
     technical_metrics: {
-        type: "OBJECT",
+        type: "object",
         properties: {
-             land_target: { type: "NUMBER", description: "Mathematical target for lands (e.g., 20, 22, 24 depending on curve aggressiveness)" },
+             land_target: { type: "number", description: "Mathematical target for lands (e.g., 20, 22, 24 depending on curve aggressiveness)" },
              pips_balance: {
-                type: "OBJECT",
+                type: "object",
                 description: "Proportion of mana pips required -> E.g., B: 20, W:0, U:10, R:5, G:0",
-                properties: { "W": {type:"NUMBER"}, "U": {type:"NUMBER"}, "B": {type:"NUMBER"}, "R": {type:"NUMBER"}, "G": {type:"NUMBER"} }
+                properties: { "W": {type:"number"}, "U": {type:"number"}, "B": {type:"number"}, "R": {type:"number"}, "G": {type:"number"} }
              }
         }
     },
     spells: {
-      type: "ARRAY",
+      type: "array",
       description: "ARRAY OF SPELLS (Creatures, Sorceries, etc). 0 LANDS HERE. Use OFFICIAL SCRYFALL ENGLISH NAMES ONLY.",
       items: {
-        type: "OBJECT",
+        type: "object",
         properties: {
-          name: { type: "STRING" },
-          quantity: { type: "NUMBER", description: "Min 1, Max 4 copies." },
-          category: { type: "STRING", description: "Elige entre: Spell, Creature, Sorcery, Instant, Artifact, Enchantment, Planeswalker." },
-          cmc: { type: "NUMBER" },
-          role: { type: "STRING", description: "Rol estratégico: Debe coincidir exactamente con uno de los roles definidos en el PLANO de construcción." }
+          name: { type: "string" },
+          quantity: { type: "number", description: "Min 1, Max 4 copies." },
+          category: { type: "string", description: "Elige entre: Spell, Creature, Sorcery, Instant, Artifact, Enchantment, Planeswalker." },
+          cmc: { type: "number" },
+          role: { type: "string", description: "Rol estratégico: Debe coincidir exactamente con uno de los roles definidos en el PLANO de construcción." }
         },
         required: ["name", "quantity", "category", "cmc", "role"]
       }
     },
     utility_lands_recommendations: {
-        type: "ARRAY",
-        description: "List 0 to 4 names of crucial utility or special lands perfect for this specific strategy (e.g., 'Cavern of Souls', 'Mutavault', 'Boseiju, Who Endures'). DO NOT include basics, fetches, or duals.",
-        items: { type: "STRING" }
+      type: "array",
+      description: "List 0 to 4 names of crucial utility or special lands perfect for this specific strategy (e.g., 'Cavern of Souls', 'Mutavault', 'Boseiju, Who Endures'). DO NOT include basics, fetches, or duals.",
+      items: { type: "string" }
     }
   },
   required: ["deckName", "strategy", "technical_metrics", "spells", "utility_lands_recommendations"]
@@ -123,31 +123,31 @@ const GEMINI_NONLAND_SCHEMA = {
 
 // 2. EL ESQUEMA DE REPOSICIONAMIENTO Y RELLENO (SUPREME JUDGE)
 const GEMINI_SUPREME_JUDGE_SCHEMA = {
-  type: "OBJECT",
+  type: "object",
   properties: {
     additions: {
-      type: "ARRAY",
+      type: "array",
       description: "List of new cards to add to reach the EXACT required spell count. Total quantities added here MUST exactly equal the requested gap.",
       items: {
-        type: "OBJECT",
+        type: "object",
         properties: {
-          name: { type: "STRING", description: "Name of the competitive card from the RAG pool." },
-          quantity: { type: "INTEGER", description: "Number of copies to add." },
-          reason: { type: "STRING", description: "Why this card is necessary to fill the gap strategically." }
+          name: { type: "string", description: "Name of the competitive card from the RAG pool." },
+          quantity: { type: "integer", description: "Number of copies to add." },
+          reason: { type: "string", description: "Why this card is necessary to fill the gap strategically." }
         },
         required: ["name", "quantity", "reason"]
       }
     },
     swaps: {
-      type: "ARRAY",
+      type: "array",
       description: "List of strategic card swaps to optimize the deck and remove functional redundancies (e.g., swapping redundant mana dorks for lords).",
       items: {
-        type: "OBJECT",
+        type: "object",
         properties: {
-          replace: { type: "STRING", description: "Name of the card currently in the deck to remove." },
-          with: { type: "STRING", description: "Name of the card from the RAG pool to inject." },
-          quantity: { type: "INTEGER", description: "Number of copies to swap." },
-          reason: { type: "STRING", description: "Tactical explanation of why this swap improves functional diversity." }
+          replace: { type: "string", description: "Name of the card currently in the deck to remove." },
+          with: { type: "string", description: "Name of the card from the RAG pool to inject." },
+          quantity: { type: "integer", description: "Number of copies to swap." },
+          reason: { type: "string", description: "Tactical explanation of why this swap improves functional diversity." }
         },
         required: ["replace", "with", "quantity", "reason"]
       }
@@ -158,26 +158,26 @@ const GEMINI_SUPREME_JUDGE_SCHEMA = {
 
 // 3. EL ESQUEMA DE CONSTRUCCIÓN DINÁMICA DE PLANTILLAS (BLUEPRINT ARCHITECT)
 const GEMINI_BLUEPRINT_SCHEMA = {
-  type: "OBJECT",
+  type: "object",
   properties: {
-    totalSpells: { type: "NUMBER", description: "Target total non-land spells, typically 36 to 40 depending on curve." },
+    totalSpells: { type: "number", description: "Target total non-land spells, typically 36 to 40 depending on curve." },
     roles: {
-      type: "ARRAY",
+      type: "array",
       description: "List of highly specific strategic roles/slots. The sum of all 'quantity' fields MUST exactly equal totalSpells.",
       items: {
-        type: "OBJECT",
+        type: "object",
         properties: {
-          name: { type: "STRING", description: "A highly descriptive, CamelCase or snake_case key for the role, e.g. 'core_tribal_lords', 'premium_finisher', 'early_interaction'." },
-          quantity: { type: "NUMBER", description: "Exact number of card copies allocated for this role." },
+          name: { type: "string", description: "A highly descriptive, CamelCase or snake_case key for the role, e.g. 'core_tribal_lords', 'premium_finisher', 'early_interaction'." },
+          quantity: { type: "number", description: "Exact number of card copies allocated for this role." },
           cmcCategory: { 
-            type: "STRING", 
+            type: "string", 
             description: "Target CMC bracket for this role. MUST be one of: '1', '2', '3', '4', '4+', '5+', 'any'." 
           },
           finisherQuality: { 
-            type: "STRING", 
+            type: "string", 
             description: "Required quality level. Use 'finisher' for high-impact game-ending threats (which should be Legendary or Mythic if possible), or 'standard' for regular utility and support cards." 
           },
-          purposeDescription: { type: "STRING", description: "Clear explanation of what these cards do and how they fit the archetype curve." }
+          purposeDescription: { type: "string", description: "Clear explanation of what these cards do and how they fit the archetype curve." }
         },
         required: ["name", "quantity", "cmcCategory", "finisherQuality", "purposeDescription"]
       }

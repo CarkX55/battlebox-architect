@@ -42,47 +42,47 @@ Convierte el plan en un objeto JSON.
 }`;
 
 export const DECK_SCHEMA = {
-  type: "OBJECT",
+  type: "object",
   properties: {
-    deckName: { type: "STRING" },
-    archetype: { type: "STRING" },
-    lore: { type: "STRING" },
-    strategy: { type: "STRING" },
-    mulligan: { type: "STRING" },
+    deckName: { type: "string" },
+    archetype: { type: "string" },
+    lore: { type: "string" },
+    strategy: { type: "string" },
+    mulligan: { type: "string" },
     pip_balance: {
-      type: "OBJECT",
+      type: "object",
       properties: {
-        W: { type: "INTEGER" },
-        U: { type: "INTEGER" },
-        B: { type: "INTEGER" },
-        R: { type: "INTEGER" },
-        G: { type: "INTEGER" },
-        C: { type: "INTEGER" }
+        W: { type: "integer" },
+        U: { type: "integer" },
+        B: { type: "integer" },
+        R: { type: "integer" },
+        G: { type: "integer" },
+        C: { type: "integer" }
       },
       required: ["W", "U", "B", "R", "G", "C"]
     },
     cards: {
-      type: "ARRAY",
+      type: "array",
       items: {
-        type: "OBJECT",
+        type: "object",
         properties: {
-          name: { type: "STRING" },
-          quantity: { type: "INTEGER" },
-          category: { type: "STRING" },
-          cmc: { type: "INTEGER" }
+          name: { type: "string" },
+          quantity: { type: "integer" },
+          category: { type: "string" },
+          cmc: { type: "integer" }
         },
         required: ["name", "quantity", "category", "cmc"]
       }
     },
     sideboard: {
-      type: "ARRAY",
+      type: "array",
       items: {
-        type: "OBJECT",
+        type: "object",
         properties: {
-          name: { type: "STRING" },
-          quantity: { type: "INTEGER" },
-          category: { type: "STRING" },
-          cmc: { type: "INTEGER" }
+          name: { type: "string" },
+          quantity: { type: "integer" },
+          category: { type: "string" },
+          cmc: { type: "integer" }
         },
         required: ["name", "quantity", "category", "cmc"]
       }
