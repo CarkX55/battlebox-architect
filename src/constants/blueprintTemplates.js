@@ -177,6 +177,32 @@ export const BLUEPRINTS = {
       boost: ['search your library for a land card', 'add', 'mana', 'put onto the battlefield', 'trample', 'vigilance', 'reach'],
       penalty: []
     }
+  },
+  
+  storm: {
+    id: 'storm',
+    deckSize: 60,
+    lands: { total: 17 },
+    spells: {
+      total: 43,
+      distribution: {
+        cost_reducers: { min: 4, max: 8 },
+        rituals: { min: 8, max: 12 },
+        cantrips_draw: { min: 12, max: 16 },
+        storm_finishers: { min: 2, max: 4 },
+        protection: { min: 2, max: 4 }
+      },
+      curve: {
+        mv1: { min: 16, max: 22 },
+        mv2: { min: 14, max: 18 },
+        mv3: { min: 4, max: 8 },
+        mv4_plus: { min: 0, max: 2 }
+      }
+    },
+    ragModifiers: {
+      boost: ['storm', 'add {r}', 'add {u}', 'ritual', 'draw a card', 'scry', 'cost', 'less to cast', 'untap'],
+      penalty: ['defender', 'enters the battlefield tapped', 'graveyard']
+    }
   }
 };
 
@@ -190,6 +216,9 @@ export const getBlueprint = (archetypeId) => {
   }
   
   // Heurísticas inteligentes para arquetipos dinámicos
+  if (idLower.includes('storm') || idLower.includes('grapeshot') || idLower.includes('past in flames') || idLower.includes('ruby storm')) {
+    return BLUEPRINTS['storm'];
+  }
   if (idLower.includes('aggro') || idLower.includes('burn') || idLower.includes('affinity') || idLower.includes('prowess') || idLower.includes('scales') || idLower.includes('sligh')) {
     return BLUEPRINTS['aggro'];
   }
@@ -202,7 +231,7 @@ export const getBlueprint = (archetypeId) => {
   if (idLower.includes('control') || idLower.includes('miracles') || idLower.includes('taxes')) {
     return BLUEPRINTS['control'];
   }
-  if (idLower.includes('combo') || idLower.includes('storm') || idLower.includes('creativity') || idLower.includes('reanimator') || idLower.includes('titan') || idLower.includes('belcher')) {
+  if (idLower.includes('combo') || idLower.includes('creativity') || idLower.includes('reanimator') || idLower.includes('titan') || idLower.includes('belcher')) {
     return BLUEPRINTS['combo'];
   }
   if (idLower.includes('ramp') || idLower.includes('tron') || idLower.includes('amulet') || idLower.includes('valakut')) {

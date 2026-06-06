@@ -256,6 +256,28 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
     colors = Array.from(inferredColors);
   }
 
+  // --- REDUCCIÓN DE PIPS POR MANA DORKS ---
+  // Si el mazo contiene cartas que generan maná, reducimos la dependencia de lands básicas para esos colores.
+  if (nonLandSpells && nonLandSpells.length > 0) {
+    nonLandSpells.forEach(s => {
+      if (hasRampEffect(s)) {
+        const text = (s.oracle_text || '').toLowerCase();
+        const qty = s.quantity || 1;
+        // Si produce de cualquier color, restamos un poco a todos
+        if (text.includes('add one mana of any color') || text.includes('add {w} or {u} or {b} or {r} or {g}')) {
+          ['W', 'U', 'B', 'R', 'G'].forEach(c => { pipBalance[c] = Math.max(0, pipBalance[c] - qty * 0.3); });
+        } else {
+          // Si produce colores específicos
+          if (text.includes('add {w}')) pipBalance['W'] = Math.max(0, pipBalance['W'] - qty * 0.5);
+          if (text.includes('add {u}')) pipBalance['U'] = Math.max(0, pipBalance['U'] - qty * 0.5);
+          if (text.includes('add {b}')) pipBalance['B'] = Math.max(0, pipBalance['B'] - qty * 0.5);
+          if (text.includes('add {r}')) pipBalance['R'] = Math.max(0, pipBalance['R'] - qty * 0.5);
+          if (text.includes('add {g}')) pipBalance['G'] = Math.max(0, pipBalance['G'] - qty * 0.5);
+        }
+      }
+    });
+  }
+
   const actualColors = colors.length > 0 ? colors : ['W'];
   const totalPips = Object.keys(pipBalance).reduce((sum, key) => key !== 'C' ? sum + pipBalance[key] : sum, 0) || 1;
   const isMulticolor = actualColors.length >= 2;
@@ -950,12 +972,52 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
       }
     }
 
-    // F. PAINLANDS FOR COLORLESS TIMING
+    // F. UNIVERSAL 5-COLOR LANDS (If 4 or 5 colors)
+    if (actualColors.length >= 4 && remainingLands > currentMinBasics) {
+      const rainbowLands = [
+        { name: "City of Brass", quantity: 4 },
+        { name: "Mana Confluence", quantity: 4 }
+      ].filter(land => !BATTLEBOX_BANLIST.includes(land.name));
+      
+      let rainbowAdded = 0;
+      const maxRainbow = 6;
+
+      rainbowLands.forEach(rb => {
+        if (remainingLands <= currentMinBasics || rainbowAdded >= maxRainbow) return;
+        let quantity = Math.min(rb.quantity, remainingLands - currentMinBasics);
+        quantity = Math.min(quantity, maxRainbow - rainbowAdded);
+        if (quantity > 0) {
+          manaBase.push({
+            name: rb.name,
+            quantity: quantity,
+            category: 'Land',
+            type_line: 'Land — 5-Color',
+            color_identity: []
+          });
+          remainingLands -= quantity;
+          rainbowAdded += quantity;
+          console.log(`[MANABASE GENERATOR] Inyectada tierra universal 5C: ${quantity}x ${rb.name}`);
+        }
+      });
+    }
+
+    // G. PAINLANDS FOR COLORLESS TIMING
     if (formColors.includes('C') && remainingLands > currentMinBasics) {
       const validPains = painLands.filter(p => p.colors.every(c => actualColors.includes(c)));
+      // Ordenar validPains por los pips que más falten, igual que arriba
+      validPains.sort((a, b) => {
+        const sumA = a.colors.reduce((sum, c) => sum + (pipBalance[c] || 0), 0);
+        const sumB = b.colors.reduce((sum, c) => sum + (pipBalance[c] || 0), 0);
+        return sumB - sumA;
+      });
+
+      let painLandsAdded = 0;
+      // Límite estricto de painlands en total para evitar matar al jugador
+      const maxPainLands = actualColors.length >= 3 ? 2 : 4; 
+
       validPains.forEach(pain => {
-        if (remainingLands <= currentMinBasics) return;
-        let quantity = Math.min(4, remainingLands - currentMinBasics);
+        if (remainingLands <= currentMinBasics || painLandsAdded >= maxPainLands) return;
+        let quantity = Math.min(maxPainLands - painLandsAdded, remainingLands - currentMinBasics);
         if (quantity > 0) {
           manaBase.push({
             name: pain.name,
@@ -965,6 +1027,7 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
             color_identity: pain.colors
           });
           remainingLands -= quantity;
+          painLandsAdded += quantity;
           console.log(`[MANABASE GENERATOR] Inyectada pain land para incoloro: ${quantity}x ${pain.name}`);
         }
       });

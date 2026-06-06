@@ -16,8 +16,8 @@ import HandSimulator from '../components/forge/HandSimulator';
 import { PowerLevelMeter } from '../components/forge/PowerLevelMeter';
 import RadarChart from '../components/forge/RadarChart';
 import ManaCurve from '../components/forge/ManaCurve';
-import { AlertTriangle, Shield, Lightbulb, Target, Scroll, PenTool, CheckCircle2, XCircle, Info, Zap, Sparkles, Copy, PlusCircle, MinusCircle, GitFork, Share2, Download } from 'lucide-react';
-import { calculateKarstenProbability, calculateLandDropProbability, calculateManaCoverage, calculateTurnoDeOro } from '../services/deckCalculator';
+import { AlertTriangle, Shield, Lightbulb, Target, Scroll, PenTool, CheckCircle2, XCircle, Info, Zap, Sparkles, Copy, PlusCircle, MinusCircle, GitFork, Share2, Download, Droplet } from 'lucide-react';
+import { calculateKarstenProbability, calculateLandDropProbability, calculateManaCoverage, calculateTurnoDeOro, generateManaBase, calculatePerfectLandCount } from '../services/deckCalculator';
 import { generateSideboard } from '../services/sideboardService';
 import SynergyGraphVisualizer from '../components/forge/SynergyGraphVisualizer';
 import DeckVisualExporter from '../components/forge/DeckVisualExporter';
@@ -1111,6 +1111,109 @@ export default function DeckForge() {
     }
   };
 
+  const handleRegenerateMana = async () => {
+    if (!renderDeck || renderDeck.length === 0) return;
+    
+    setLoading(true);
+    setForgePhase({ phase: 'mana', message: '🌐 Recalculando pips y regenerando base de maná perfecta...' });
+    
+    try {
+      // 1. Filtrar las cartas de hechizos (quitar tierras)
+      const spells = renderDeck.filter(c => !isLandCard(c));
+      
+      if (spells.length === 0) {
+        setWarning("⚠️ No hay hechizos suficientes para calcular la base de maná.");
+        setLoading(false);
+        setForgePhase(null);
+        return;
+      }
+      
+      // 2. Determinar si hay un Yorion para ajustar el total de cartas
+      const hasYorion = spells.some(s => s.name.toLowerCase().includes("yorion, sky nomad")) || 
+                       (lastFormData?.companero && lastFormData.companero.toLowerCase().includes("yorion"));
+      const deckSize = hasYorion ? 80 : 60;
+      
+      // 3. Calcular la cantidad de tierras perfecta
+      const targetLandCount = calculatePerfectLandCount(spells, lastFormData, hasYorion);
+      const targetSpellsCount = deckSize - targetLandCount;
+      
+      // Determinar la cantidad de tierras para cuadrar el mazo exacto de deckSize sin alterar hechizos
+      let currentSpellsCount = spells.reduce((acc, c) => acc + (c.quantity || 1), 0);
+      let finalLandCount = targetLandCount;
+      
+      const neededLands = deckSize - currentSpellsCount;
+      if (neededLands >= 12 && neededLands <= 38) {
+        finalLandCount = neededLands;
+      }
+      
+      // 4. Calcular pips de maná reales de los hechizos
+      const recalculatedPips = { W: 0, U: 0, B: 0, R: 0, G: 0 };
+      spells.forEach(card => {
+        let cost = card.mana_cost || '';
+        if (card.card_faces && card.card_faces[0] && typeof card.card_faces[0].mana_cost === 'string') {
+          cost = card.card_faces[0].mana_cost;
+        }
+        const qty = Number(card.quantity || 1);
+        
+        let hasPips = false;
+        if (cost.includes('{W}')) { recalculatedPips.W += (cost.match(/\{W\}/g) || []).length * qty; hasPips = true; }
+        if (cost.includes('{U}')) { recalculatedPips.U += (cost.match(/\{U\}/g) || []).length * qty; hasPips = true; }
+        if (cost.includes('{B}')) { recalculatedPips.B += (cost.match(/\{B\}/g) || []).length * qty; hasPips = true; }
+        if (cost.includes('{R}')) { recalculatedPips.R += (cost.match(/\{R\}/g) || []).length * qty; hasPips = true; }
+        if (cost.includes('{G}')) { recalculatedPips.G += (cost.match(/\{G\}/g) || []).length * qty; hasPips = true; }
+
+        if (!hasPips && card.color_identity) {
+          card.color_identity.forEach(col => {
+            const upperCol = String(col).toUpperCase();
+            if (recalculatedPips[upperCol] !== undefined) {
+              recalculatedPips[upperCol] += 1 * qty;
+            }
+          });
+        }
+      });
+      
+      // 5. Generar la base de tierras
+      const requestedColors = lastFormData?.colores || [];
+      const usedColors = Object.keys(recalculatedPips).filter(color => recalculatedPips[color] > 0 || requestedColors.includes(color));
+      
+      // Extraer nombres de tierras de utilidad que ya tenga el mazo
+      const existingUtilityNames = renderDeck
+        .filter(c => isLandCard(c) && !['plains', 'island', 'swamp', 'mountain', 'forest', 'wastes', 'llanura', 'isla', 'pantano', 'montaña', 'bosque', 'yermo'].includes(c.name.toLowerCase()))
+        .map(c => c.name);
+      
+      const utilityLandsToRecommend = existingUtilityNames.length > 0 ? existingUtilityNames : (aiMetadata?.utility_lands_recommendations || []);
+      
+      const newLands = await generateManaBase(
+        recalculatedPips, 
+        finalLandCount, 
+        usedColors, 
+        lastFormData, 
+        spells, 
+        utilityLandsToRecommend
+      );
+      
+      // 6. Hidratar las tierras nuevas
+      const hydratedLands = await hydrateDeckCards(newLands, lastFormData?.rarityMode || 'high-power');
+      
+      // 7. Actualizar el mazo
+      setRenderDeck([...spells, ...hydratedLands]);
+      setWarning("✨ Base de maná regenerada perfectamente según los pips de tus hechizos.");
+      
+      if (lastGenerationLogs) {
+        setLastGenerationLogs(prev => ({
+          ...prev,
+          logs: [...(prev?.logs || []), `[MANA PERFECTO] Regeneradas ${finalLandCount} tierras basadas en los nuevos pips: ${JSON.stringify(recalculatedPips)}`]
+        }));
+      }
+    } catch (err) {
+      console.error(err);
+      setWarning(`❌ Error al regenerar maná: ${err.message}`);
+    } finally {
+      setLoading(false);
+      setForgePhase(null);
+    }
+  };
+
   return (
 
     <div className="max-w-7xl mx-auto px-4 py-8">
@@ -1282,6 +1385,13 @@ export default function DeckForge() {
                   title="Auto-corregir problemas de legalidad y tamaño del mazo"
                 >
                   <Shield size={14} /> Juez de Urgencia
+                </button>
+                <button
+                  onClick={handleRegenerateMana}
+                  className="btn-magic-glass btn-glass-blue shadow-lg flex items-center gap-1.5 border-cyan-500/30 text-cyan-400 bg-cyan-900/20 hover:bg-cyan-800/40"
+                  title="Regenerar base de tierras perfecta basada en los pips del mazo"
+                >
+                  <Droplet size={14} className="text-cyan-400 fill-cyan-400/20 animate-pulse" /> Maná Perfecto
                 </button>
                 <button
                   onClick={() => setShowVisualGrid(true)}

@@ -691,6 +691,24 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
       </div>
 
       <form onSubmit={handleSubmit}>
+        {error && (
+          <div className="mb-6 p-4 bg-red-950/40 border-l-4 border-red-500 rounded-r-lg text-red-200 text-sm shadow-xl flex items-start gap-3 backdrop-blur-md relative z-10">
+            <AlertCircle className="text-red-400 mt-0.5" size={16} />
+            <div className="flex-1">
+              <p className="font-bold text-red-400 mb-1">El Oráculo ha fallado</p>
+              <p className="text-red-200/80">{error}</p>
+            </div>
+            {lastGenerationLogs && onOpenOracleLog && (
+              <button
+                type="button"
+                onClick={onOpenOracleLog}
+                className="px-3 py-1.5 bg-red-900/40 hover:bg-red-800/60 border border-red-500/30 rounded text-xs transition-colors whitespace-nowrap flex items-center gap-1.5 font-bold"
+              >
+                <Scroll size={12} /> Ver Bitácora
+              </button>
+            )}
+          </div>
+        )}
         <AnimatePresence mode="wait">
           {currentStep === 1 && (
             <motion.div
@@ -750,24 +768,6 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                 </div>
               </div>
 
-              {error && (
-                <div className="p-4 bg-red-950/40 border-l-4 border-red-500 rounded-r-lg text-red-200 text-sm shadow-xl flex items-start gap-3 backdrop-blur-md relative z-10">
-                  <AlertCircle className="text-red-400 mt-0.5" size={16} />
-                  <div className="flex-1">
-                    <p className="font-bold text-red-400 mb-1">El Oráculo ha fallado</p>
-                    <p className="text-red-200/80">{error}</p>
-                  </div>
-                  {lastGenerationLogs && onOpenOracleLog && (
-                    <button
-                      type="button"
-                      onClick={onOpenOracleLog}
-                      className="btn-magic-glass btn-glass-gold text-xs px-3 py-1.5 border-[#D4AF37]/30 text-[#D4AF37] self-center ml-2"
-                    >
-                      🔮 Ver Bitácora
-                    </button>
-                  )}
-                </div>
-              )}
 
               {/* Categorization & Search Panel */}
               <div className="space-y-4 relative z-10">
@@ -1194,91 +1194,131 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                   </p>
                 </div>
                 <div className="flex items-center gap-2 bg-black/60 px-3 py-2 rounded-xl border border-white/10 relative overflow-hidden group">
-                  <div className="absolute inset-0 bg-red-500/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+                  <div className="absolute inset-0 bg-magic-gold/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
                   <label className="text-[10px] text-white/70 font-sans font-bold uppercase tracking-wider cursor-pointer flex items-center gap-2">
-                    {formData.isFreeMode ? <Unlock size={14} className="text-red-400" /> : <Lock size={14} className="text-emerald-400" />}
-                    <span>{formData.isFreeMode ? 'Modo Herejía (Libre)' : 'Filtro Estricto'}</span>
+                    {formData.isExpertMode ? <Wand2 size={14} className="text-[#ffca58]" /> : <Compass size={14} className="text-emerald-400" />}
+                    <span>{formData.isExpertMode ? '🔮 Modo Oráculo (Experto)' : 'Modo Guía (Principiante)'}</span>
                     <input
                       type="checkbox"
-                      checked={!!formData.isFreeMode}
-                      onChange={(e) => setFormData(prev => ({ ...prev, isFreeMode: e.target.checked }))}
+                      checked={!!formData.isExpertMode}
+                      onChange={(e) => {
+                        setFormData(prev => ({ ...prev, isExpertMode: e.target.checked }));
+                      }}
                       className="sr-only"
                     />
-                    <div className={cn("w-7 h-4 rounded-full transition-colors relative", formData.isFreeMode ? "bg-red-500/40" : "bg-emerald-500/40")}>
-                      <div className={cn("absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full transition-transform", formData.isFreeMode ? "translate-x-3" : "translate-x-0")} />
+                    <div className={cn("w-7 h-4 rounded-full transition-colors relative", formData.isExpertMode ? "bg-[#ffca58]/40" : "bg-emerald-500/40")}>
+                      <div className={cn("absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full transition-transform", formData.isExpertMode ? "translate-x-3" : "translate-x-0")} />
                     </div>
                   </label>
                 </div>
               </div>
 
-              {/* Grid Responsivo de Doble Columna */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 relative z-10 items-start">
-                {/* Lado Izquierdo: Controles */}
-                <div className="lg:col-span-2 space-y-6">
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                    {/* Tribu Section */}
-                    <div className="space-y-4 bg-black/35 p-5 rounded-2xl border border-white/5 relative overflow-hidden">
-                      <div className="absolute inset-0 bg-[url('/ASSETS/FrostedGlass.webp')] bg-cover opacity-5 pointer-events-none" />
-                      <div className="flex justify-between items-center border-b border-white/10 pb-2 relative z-10">
-                        <label className="text-xs font-cinzel font-bold text-[#ffca58] uppercase tracking-wider flex items-center gap-1.5">
-                          <Wand2 size={12} className="text-magic-gold" /> Identidad Tribal (Raza)
+              {formData.isExpertMode ? (
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 relative z-10 items-start">
+                  <div className="lg:col-span-2 space-y-6">
+                    <div className="bg-black/40 border border-[#ffca58]/30 p-6 rounded-2xl shadow-[0_0_15px_rgba(255,202,88,0.1)]">
+                      <h4 className="text-[#ffca58] font-cinzel text-lg font-bold mb-4 flex items-center gap-2">
+                        <Wand2 size={18} /> Petición Directa al Oráculo
+                      </h4>
+                      <p className="text-white/60 text-xs mb-6">
+                        Has desactivado las ruedas de entrenamiento. El motor algorítmico leerá exactamente lo que escribas aquí.
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+                        <div>
+                          <label className="text-[10px] uppercase font-bold text-white/40 mb-1.5 block">Tribu / Raza Base (Opcional)</label>
+                          <input
+                            type="text"
+                            value={formData.tribe}
+                            onChange={(e) => setFormData(prev => ({ ...prev, tribe: e.target.value }))}
+                            placeholder="Ej: Merfolk, Pirate..."
+                            className="w-full px-3 py-2 bg-black/60 border border-white/20 rounded-lg text-white placeholder-white/20 text-xs focus:border-[#ffca58] focus:outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] uppercase font-bold text-white/40 mb-1.5 block">Estrategia Base (Opcional)</label>
+                          <input
+                            type="text"
+                            value={formData.strategy}
+                            onChange={(e) => setFormData(prev => ({ ...prev, strategy: e.target.value }))}
+                            placeholder="Ej: Ad Nauseam, Doomsday..."
+                            className="w-full px-3 py-2 bg-black/60 border border-white/20 rounded-lg text-white placeholder-white/20 text-xs focus:border-[#ffca58] focus:outline-none"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-[10px] uppercase font-bold text-[#ffca58] mb-1.5 block flex items-center gap-1">
+                          <Crown size={12} /> Directriz Estricta (Prompt del Sistema)
                         </label>
-                        {formData.tribe && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setFormData(prev => ({ ...prev, tribe: '' }));
-                              setIsCustomTribe(false);
-                            }}
-                            className="text-[9px] text-red-400 hover:text-red-300 uppercase tracking-widest font-black"
-                          >
-                            ✕ Quitar
-                          </button>
-                        )}
+                        <textarea
+                          value={formData.customPrompt || ''}
+                          onChange={(e) => setFormData(prev => ({ ...prev, customPrompt: e.target.value }))}
+                          placeholder="Ej: Quiero un combo de maná infinito usando exclusivamente a Kiki-Jiki y Deceiver Exarch. Asegúrate de incluir muchísima protección y no uses otras win conditions. Ignora restricciones de costes."
+                          className="w-full h-40 px-4 py-3 bg-black/80 border border-[#ffca58]/40 rounded-xl text-white placeholder-[#ffca58]/20 text-xs focus:border-[#ffca58] focus:shadow-[0_0_15px_rgba(255,202,88,0.2)] focus:outline-none resize-none leading-relaxed"
+                        ></textarea>
                       </div>
-
-                      {/* Subcategories Selector */}
-                      <div className="flex flex-wrap gap-1 border-b border-white/10 pb-2 relative z-10">
-                        {Object.entries(groupedTribes).map(([catKey, tribes]) => (
-                          <button
-                            key={catKey}
-                            type="button"
-                            onClick={() => {
-                              setIsCustomTribe(false);
-                              setActiveTribeTab(catKey);
-                            }}
-                            className={cn(
-                              "px-2.5 py-1.5 rounded-lg text-[9px] font-extrabold uppercase tracking-wider border transition-all duration-300",
-                              activeTribeTab === catKey && !isCustomTribe
-                                ? "bg-magic-gold text-black border-magic-gold font-black shadow-[0_0_10px_rgba(255,202,88,0.25)] scale-[1.02]"
-                                : "bg-black/85 border-white/10 text-white/80 hover:border-white/30 hover:text-white"
-                            )}
-                          >
-                            {TRIBE_CATEGORIES[catKey]?.split(' ').slice(1).join(' ') || catKey}
-                          </button>
-                        ))}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsCustomTribe(true);
-                            setActiveTribeTab('custom');
-                          }}
-                          className={cn(
-                            "px-2.5 py-1.5 rounded-lg text-[9px] font-extrabold uppercase tracking-wider border transition-all duration-300",
-                            isCustomTribe
-                              ? "bg-magic-gold text-black border-magic-gold font-black shadow-[0_0_10px_rgba(255,202,88,0.25)] scale-[1.02]"
-                              : "bg-black/85 border-white/10 text-[#ffca58] hover:border-[#ffca58]/30 hover:text-white"
+                    </div>
+                  </div>
+                  <div className="lg:col-span-1">
+                    <QuickGlancePanel
+                      formData={formData}
+                      currentArchetype={currentArchetype}
+                      selectedTribeInfo={null}
+                      selectedStrategyInfo={null}
+                      isCustomTribe={true}
+                      isCustomStrategy={true}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 relative z-10 items-start">
+                  <div className="lg:col-span-2 space-y-6">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                      {/* Tribu Section (Guided Mode) */}
+                      <div className="space-y-4 bg-black/35 p-5 rounded-2xl border border-white/5 relative overflow-hidden">
+                        <div className="absolute inset-0 bg-[url('/ASSETS/FrostedGlass.webp')] bg-cover opacity-5 pointer-events-none" />
+                        <div className="flex justify-between items-center border-b border-white/10 pb-2 relative z-10">
+                          <label className="text-xs font-cinzel font-bold text-[#ffca58] uppercase tracking-wider flex items-center gap-1.5">
+                            <Wand2 size={12} className="text-magic-gold" /> Identidad Tribal (Raza)
+                          </label>
+                          {formData.tribe && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setFormData(prev => ({ ...prev, tribe: '' }));
+                                setIsCustomTribe(false);
+                              }}
+                              className="text-[9px] text-red-400 hover:text-red-300 uppercase tracking-widest font-black"
+                            >
+                              ✕ Quitar
+                            </button>
                           )}
-                        >
-                          Manual
-                        </button>
-                      </div>
+                        </div>
 
-                      {/* Tribe Grid selector */}
-                      <div className="h-[210px] overflow-y-auto p-2 bg-black/60 border border-white/10 rounded-xl relative z-10">
-                        {!isCustomTribe ? (
+                        {/* Subcategories Selector */}
+                        <div className="flex flex-wrap gap-1 border-b border-white/10 pb-2 relative z-10">
+                          {Object.entries(groupedTribes).map(([catKey, tribes]) => (
+                            <button
+                              key={catKey}
+                              type="button"
+                              onClick={() => {
+                                setIsCustomTribe(false);
+                                setActiveTribeTab(catKey);
+                              }}
+                              className={cn(
+                                "px-2.5 py-1.5 rounded-lg text-[9px] font-extrabold uppercase tracking-wider border transition-all duration-300",
+                                activeTribeTab === catKey && !isCustomTribe
+                                  ? "bg-magic-gold text-black border-magic-gold font-black shadow-[0_0_10px_rgba(255,202,88,0.25)] scale-[1.02]"
+                                  : "bg-black/85 border-white/10 text-white/80 hover:border-white/30 hover:text-white"
+                              )}
+                            >
+                              {TRIBE_CATEGORIES[catKey]?.split(' ').slice(1).join(' ') || catKey}
+                            </button>
+                          ))}
+                        </div>
+
+                        {/* Tribe Grid selector */}
+                        <div className="h-[210px] overflow-y-auto p-2 bg-black/60 border border-white/10 rounded-xl relative z-10">
                           <div className="grid grid-cols-2 gap-2">
-                            {/* Botón Sin Tribu Genérico */}
                             <button
                               type="button"
                               onClick={() => setFormData(prev => ({ ...prev, tribe: '' }))}
@@ -1336,160 +1376,144 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                               );
                             })}
                           </div>
-                        ) : (
-                          <div className="flex flex-col items-center justify-center h-full p-2 space-y-2">
-                            <span className="text-[10px] text-white/50 text-center font-medium">Escribe tu subtipo manual de criatura preferido:</span>
-                            <input
-                              type="text"
-                              value={formData.tribe}
-                              onChange={(e) => setFormData(prev => ({ ...prev, tribe: e.target.value }))}
-                              placeholder="Ej: Sliver, Pirate, Soldier..."
-                              className="w-full px-3 py-2 bg-black border border-white/20 rounded-lg text-white placeholder-white/35 text-xs font-semibold focus:border-[#ffca58] text-center focus:outline-none"
-                            />
-                          </div>
-                        )}
-                      </div>
-
-                      {selectedTribeInfo && (
-                        <div className="p-2.5 bg-emerald-950/20 border border-emerald-500/20 rounded-lg flex items-center justify-between relative z-10">
-                          <div>
-                            <p className="text-emerald-400 text-[9px] font-black uppercase tracking-wider mb-0.5">Tribu Seleccionada</p>
-                            <p className="text-[10px] text-[#f4ece0]/60 font-serif leading-none">Los {selectedTribeInfo.label} son ideales.</p>
-                          </div>
-                          <div className="flex gap-0.5">
-                            {selectedTribeInfo.colors.map(c => (
-                              <div key={c} className="w-4 h-4 rounded-full overflow-hidden border border-black/40">
-                                <img src={COLORS.find(co => co.id === c)?.icon} alt={c} className="w-full h-full object-cover" />
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Estrategia Section */}
-                    <div className="space-y-4 bg-black/35 p-5 rounded-2xl border border-white/5 relative overflow-hidden">
-                      <div className="absolute inset-0 bg-[url('/ASSETS/FrostedGlass.webp')] bg-cover opacity-5 pointer-events-none" />
-                      <div className="flex justify-between items-center border-b border-white/10 pb-2 relative z-10">
-                        <label className="text-xs font-cinzel font-bold text-[#ffca58] uppercase tracking-wider flex items-center gap-1.5">
-                          <Swords size={12} className="text-magic-gold" /> Motor Táctico (Estrategia)
-                        </label>
-                        {formData.strategy && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setFormData(prev => ({ ...prev, strategy: '' }));
-                              setIsCustomStrategy(false);
-                            }}
-                            className="text-[9px] text-red-400 hover:text-red-300 uppercase tracking-widest font-black"
-                          >
-                            ✕ Quitar
-                          </button>
-                        )}
-                      </div>
-
-                      {/* Strategies List Selector */}
-                      <div className="h-[210px] overflow-y-auto p-2 bg-black/60 border border-white/10 rounded-xl space-y-2 relative z-10">
-                        {/* Botón Sin Estrategia Genérico */}
-                        <div
-                          onClick={() => setFormData(prev => ({ ...prev, strategy: '' }))}
-                          className={cn(
-                            "p-2.5 rounded-lg border transition-all duration-300 flex flex-col justify-between min-h-[70px] cursor-pointer",
-                            !formData.strategy
-                              ? "border-gray-400 bg-gradient-to-b from-gray-500/15 to-black/90 shadow-[0_0_8px_rgba(156,163,175,0.2)]"
-                              : "bg-black/75 border-white/10 text-white/80 hover:text-white hover:border-white/30"
-                          )}
-                        >
-                          <p className={cn("text-[10px] font-black uppercase tracking-wider", !formData.strategy ? "text-gray-300" : "text-white/60")}>
-                            Sin Mecánica / Omitir
-                          </p>
-                          <p className="text-[9px] text-[#f4ece0]/40 font-serif leading-tight line-clamp-2 mt-1">
-                            Plan de juego genérico sin especialización.
-                          </p>
                         </div>
 
-                        {availableStrategies.map(strat => {
-                          const isSelected = formData.strategy === strat.label;
-                          const isCompatible = isStrategyCompatible(strat);
-                          
-                          return (
-                            <div
-                              key={strat.id}
-                              onClick={() => {
-                                if (!isCompatible) return;
-                                setIsCustomStrategy(false);
-                                setFormData(prev => ({ ...prev, strategy: strat.label }));
-                              }}
-                              title={!isCompatible ? `Incompatible con la raza/tribu "${formData.tribe}"` : `Seleccionar ${strat.label}`}
-                              className={cn(
-                                "p-2.5 rounded-lg border transition-all duration-300 flex flex-col justify-between min-h-[70px]",
-                                isSelected
-                                  ? "border-[#ffca58] bg-gradient-to-b from-[#ffca58]/15 to-black/90 shadow-[0_0_8px_rgba(255,202,88,0.2)] cursor-pointer"
-                                  : !isCompatible
-                                    ? "bg-black/30 border-white/5 text-white/30 opacity-40 grayscale cursor-not-allowed pointer-events-none"
-                                    : "bg-black/75 border-white/10 text-white/80 hover:text-white hover:border-white/30 cursor-pointer"
-                              )}
-                            >
-                              <div className="flex justify-between items-start gap-1">
-                                <span className={cn("font-cinzel text-[10.5px] font-black flex items-center gap-1", isSelected ? "text-magic-gold" : "text-white", !isCompatible && "text-white/30")}>
-                                  {!isCompatible && <Lock size={9} className="text-magic-gold/60 shrink-0" />}
-                                  {strat.label}
-                                </span>
-                                <div className="flex -space-x-1 shrink-0">
-                                  {strat.colors.map(col => (
-                                    <div key={col} className={cn("w-3 h-3 rounded-full overflow-hidden border border-black/20", !isCompatible && "opacity-50")}>
-                                      <img src={COLORS.find(co => co.id === col)?.icon} alt={col} className="w-full h-full object-cover" />
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                              <p className={cn("text-[9.5px] font-serif leading-tight mt-1", isSelected ? "text-white/70" : "text-white/50", !isCompatible && "text-white/20")}>{strat.mechanics}</p>
+                        {selectedTribeInfo && (
+                          <div className="p-2.5 bg-emerald-950/20 border border-emerald-500/20 rounded-lg flex items-center justify-between relative z-10">
+                            <div>
+                              <p className="text-emerald-400 text-[9px] font-black uppercase tracking-wider mb-0.5">Tribu Seleccionada</p>
+                              <p className="text-[10px] text-[#f4ece0]/60 font-serif leading-none">Los {selectedTribeInfo.label} son ideales.</p>
                             </div>
-                          );
-                        })}
-                        <div
-                          onClick={() => {
-                            setIsCustomStrategy(true);
-                            setFormData(prev => ({ ...prev, strategy: '' }));
-                          }}
-                          className={cn(
-                            "p-2.5 rounded-lg border-2 border-dashed text-center transition-all duration-200 cursor-pointer flex flex-col items-center justify-center min-h-[70px]",
-                            isCustomStrategy 
-                              ? "border-magic-gold bg-[#ffca58]/10 text-magic-gold shadow-[0_0_12px_rgba(255,202,88,0.2)] font-black" 
-                              : "bg-black/80 border-white/10 text-white/60 hover:text-white hover:border-white/30"
-                          )}
-                        >
-                          <Plus size={14} className="mb-0.5 text-magic-gold" />
-                          <span className="font-cinzel text-[10px] font-black">Personalizar Manualmente</span>
-                        </div>
+                            <div className="flex gap-0.5">
+                              {selectedTribeInfo.colors.map(c => (
+                                <div key={c} className="w-4 h-4 rounded-full overflow-hidden border border-black/40">
+                                  <img src={COLORS.find(co => co.id === c)?.icon} alt={c} className="w-full h-full object-cover" />
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
 
-                      {isCustomStrategy && (
-                        <input
-                          type="text"
-                          value={formData.strategy}
-                          onChange={(e) => setFormData(prev => ({ ...prev, strategy: e.target.value }))}
-                          placeholder="Ej: Dredge, Affinity, Enchanter..."
-                          className="w-full px-3 py-2 bg-black border border-white/20 rounded-lg text-white placeholder-white/35 text-xs font-semibold focus:border-[#ffca58] text-center focus:outline-none relative z-10"
-                        />
-                      )}
+                      {/* Estrategia Section (Guided Mode) */}
+                      <div className="space-y-4 bg-black/35 p-5 rounded-2xl border border-white/5 relative overflow-hidden">
+                        <div className="absolute inset-0 bg-[url('/ASSETS/FrostedGlass.webp')] bg-cover opacity-5 pointer-events-none" />
+                        <div className="flex justify-between items-center border-b border-white/10 pb-2 relative z-10">
+                          <label className="text-xs font-cinzel font-bold text-[#ffca58] uppercase tracking-wider flex items-center gap-1.5">
+                            <Swords size={12} className="text-magic-gold" /> Estrategia (Guía Visual)
+                          </label>
+                          {formData.strategy && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setFormData(prev => ({ ...prev, strategy: '' }));
+                                setIsCustomStrategy(false);
+                              }}
+                              className="text-[9px] text-red-400 hover:text-red-300 uppercase tracking-widest font-black"
+                            >
+                              ✕ Quitar
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Strategies List Selector */}
+                        <div className="h-[210px] overflow-y-auto p-2 bg-black/60 border border-white/10 rounded-xl space-y-2 relative z-10">
+                          <div
+                            onClick={() => setFormData(prev => ({ ...prev, strategy: '' }))}
+                            className={cn(
+                              "p-2.5 rounded-lg border transition-all duration-300 flex flex-col justify-between min-h-[70px] cursor-pointer",
+                              !formData.strategy
+                                ? "border-gray-400 bg-gradient-to-b from-gray-500/15 to-black/90 shadow-[0_0_8px_rgba(156,163,175,0.2)]"
+                                : "bg-black/75 border-white/10 text-white/80 hover:text-white hover:border-white/30"
+                            )}
+                          >
+                            <p className={cn("text-[10px] font-black uppercase tracking-wider", !formData.strategy ? "text-gray-300" : "text-white/60")}>
+                              Sin Mecánica Específica
+                            </p>
+                            <p className="text-[9px] text-[#f4ece0]/40 font-serif leading-tight mt-1">
+                              El mazo operará de forma versátil sin atarse a un combo o sinergia en particular.
+                            </p>
+                          </div>
+
+                          {availableStrategies.map(strat => {
+                            const isSelected = formData.strategy === strat.label;
+                            const isCompatible = isStrategyCompatible(strat);
+                            
+                            return (
+                              <div
+                                key={strat.id}
+                                onClick={() => {
+                                  if (!isCompatible) return;
+                                  setIsCustomStrategy(false);
+                                  setFormData(prev => ({ ...prev, strategy: strat.label }));
+                                }}
+                                title={!isCompatible ? `Incompatible con la raza/tribu "${formData.tribe}"` : `Seleccionar ${strat.label}`}
+                                className={cn(
+                                  "p-3 rounded-xl border transition-all duration-300 flex flex-col gap-2 relative overflow-hidden",
+                                  isSelected
+                                    ? "border-[#ffca58] bg-gradient-to-b from-[#ffca58]/20 to-black/95 shadow-[0_0_15px_rgba(255,202,88,0.3)] cursor-pointer scale-[1.02] z-10"
+                                    : !isCompatible
+                                      ? "bg-black/30 border-white/5 text-white/30 opacity-40 grayscale cursor-not-allowed pointer-events-none"
+                                      : "bg-black/80 border-white/10 text-white/80 hover:text-white hover:border-white/30 hover:bg-black cursor-pointer"
+                                )}
+                              >
+                                {isSelected && <div className="absolute top-0 right-0 w-16 h-16 bg-[#ffca58]/10 blur-xl rounded-full" />}
+                                
+                                <div className="flex justify-between items-start gap-1 relative z-10">
+                                  <span className={cn("font-cinzel text-xs font-black flex items-center gap-1.5", isSelected ? "text-magic-gold drop-shadow-md" : "text-white", !isCompatible && "text-white/30")}>
+                                    {!isCompatible && <Lock size={10} className="text-magic-gold/60 shrink-0" />}
+                                    {strat.label}
+                                  </span>
+                                  <div className="flex -space-x-1 shrink-0">
+                                    {strat.colors.map(col => (
+                                      <div key={col} className={cn("w-3.5 h-3.5 rounded-full overflow-hidden border border-black/20 shadow-sm", !isCompatible && "opacity-50")}>
+                                        <img src={COLORS.find(co => co.id === col)?.icon} alt={col} className="w-full h-full object-cover" />
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                                <p className={cn("text-[10px] font-serif leading-relaxed relative z-10", isSelected ? "text-white/90 font-medium" : "text-white/60", !isCompatible && "text-white/20")}>
+                                  {strat.mechanics}
+                                </p>
+                                
+                                {strat.keywords && strat.keywords.length > 0 && (
+                                  <div className="flex flex-wrap gap-1 mt-1 relative z-10">
+                                    {strat.keywords.slice(0, 3).map((kw, idx) => (
+                                      <span key={idx} className={cn(
+                                        "px-1.5 py-0.5 text-[8px] uppercase tracking-widest font-bold rounded border",
+                                        isSelected ? "bg-[#ffca58]/20 text-[#ffca58] border-[#ffca58]/30" : "bg-white/5 text-white/40 border-white/10"
+                                      )}>
+                                        {kw}
+                                      </span>
+                                    ))}
+                                    {strat.keywords.length > 3 && (
+                                      <span className="px-1.5 py-0.5 text-[8px] uppercase tracking-widest font-bold rounded border bg-transparent text-white/30 border-transparent">
+                                        +{strat.keywords.length - 3}
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                {/* Lado Derecho: Vistazo Rápido */}
-                <div className="lg:col-span-1">
-                  <QuickGlancePanel
-                    formData={formData}
-                    currentArchetype={currentArchetype}
-                    selectedTribeInfo={selectedTribeInfo}
+                  {/* Lado Derecho: Vistazo Rápido */}
+                  <div className="lg:col-span-1">
+                    <QuickGlancePanel
+                      formData={formData}
+                      currentArchetype={currentArchetype}
+                      selectedTribeInfo={selectedTribeInfo}
                     selectedStrategyInfo={selectedStrategyInfo}
                     isCustomTribe={isCustomTribe}
                     isCustomStrategy={isCustomStrategy}
                   />
                 </div>
               </div>
-
+            )}
               {/* Curve Profile Selector Removed as per user request */}
 
               {/* Navigation buttons */}

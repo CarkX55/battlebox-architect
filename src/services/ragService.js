@@ -502,13 +502,14 @@ export const buildCardPool = async (formData) => {
       score += countKeywords(oracleText, rgKeywords) * 8;
     }
     // === ARCHETYPE ESSENCE BOOST ===
-    if (formData.archetype === 'prison') {
+    const archLower = (formData.archetype || '').toLowerCase();
+    if (archLower.includes('prison') || archLower.includes('taxes')) {
       const matches = countKeywords(oracleText, taxKeywords) + countKeywords(cardNameLower, taxKeywords);
       if (matches > 0) {
         score += 55; // Potente base para superar el bono tribal puro
         score += matches * 15;
       }
-    } else if (formData.archetype === 'control') {
+    } else if (archLower.includes('control') || archLower.includes('miracles')) {
       const matches = countKeywords(oracleText, controlKeywords) + countKeywords(cardNameLower, controlKeywords);
       if (matches > 0) {
         score += 45;
@@ -524,25 +525,25 @@ export const buildCardPool = async (formData) => {
       if (trueControlFinishers.includes(cardNameLower)) {
         score += 60; // Gran empuje para que encabecen el pool RAG
       }
-    } else if (formData.archetype === 'aggro') {
+    } else if (archLower.includes('aggro') || archLower.includes('burn') || archLower.includes('sligh')) {
       const matches = countKeywords(oracleText, aggroKeywords) + countKeywords(cardNameLower, aggroKeywords);
       if (matches > 0) {
         score += 35;
         score += matches * 8;
       }
-    } else if (formData.archetype === 'combo') {
+    } else if (archLower.includes('combo') || archLower.includes('storm')) {
       const matches = countKeywords(oracleText, comboKeywords) + countKeywords(cardNameLower, comboKeywords);
       if (matches > 0) {
         score += 45;
         score += matches * 12;
       }
-    } else if (formData.archetype === 'tempo') {
+    } else if (archLower.includes('tempo') || archLower.includes('delver')) {
       const matches = countKeywords(oracleText, tempoKeywords) + countKeywords(cardNameLower, tempoKeywords);
       if (matches > 0) {
         score += 45;
         score += matches * 12;
       }
-    } else if (formData.archetype === 'ramp') {
+    } else if (archLower.includes('ramp') || archLower.includes('tron') || archLower.includes('amulet')) {
       const matches = countKeywords(oracleText, rampKeywords) + countKeywords(cardNameLower, rampKeywords);
       if (matches > 0) {
         score += 55;
@@ -910,9 +911,17 @@ export const buildCardPool = async (formData) => {
     default:     { cmc1: 0.20, cmc2: 0.35, cmc3: 0.25, cmc4: 0.15, cmc5Plus: 0.05 }
   };
 
-  let activeCurve = strategyCurveMap[strategyId] || 
-                      archetypeCurveMap[formData.archetype] || 
-                      archetypeCurveMap.default;
+  let activeCurve = strategyCurveMap[strategyId];
+  if (!activeCurve && formData.archetype) {
+    const archLower = formData.archetype.toLowerCase();
+    const foundKey = Object.keys(archetypeCurveMap).find(k => archLower.includes(k));
+    if (foundKey) {
+      activeCurve = archetypeCurveMap[foundKey];
+    }
+  }
+  if (!activeCurve) {
+    activeCurve = archetypeCurveMap.default;
+  }
 
   // Si es la tribu, estrategia o arquetipo "Terrores Marinos" (sea_monsters), forzamos una curva específica de rampa y control temprano
   if (formData.tribe === 'sea_monsters' || strategyId === 'sea_monsters' || formData.archetype === 'sea_monsters') {
@@ -971,9 +980,9 @@ export const buildCardPool = async (formData) => {
       const maxCreatures = blueprint.spells.distribution.creatures.max;
       const totalSpells = blueprint.spells.total || 36;
       creatureRatio = Math.min(0.8, Math.max(0.2, maxCreatures / totalSpells));
-    } else if (formData.archetype === 'control') {
+    } else if (formData.archetype && formData.archetype.toLowerCase().includes('control')) {
       creatureRatio = 0.25; // Control tradicional corre muy pocas criaturas
-    } else if (formData.archetype === 'ramp-tron') {
+    } else if (formData.archetype && (formData.archetype.toLowerCase().includes('ramp') || formData.archetype.toLowerCase().includes('tron'))) {
       creatureRatio = 0.4; // Ramp corre aceleradores no criatura mayormente
     }
   }
