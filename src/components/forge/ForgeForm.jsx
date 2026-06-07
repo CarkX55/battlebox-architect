@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../../utils/cn';
 import { Sparkles, Swords, Shield, Zap, Flame, Crown, BookOpen, Search, Check, Plus, AlertCircle, Wand2, Compass, PlusCircle, MinusCircle, Scroll, TrendingUp, Lock, Unlock } from 'lucide-react';
 
-import { BATTLEBOX_BANLIST, BATTLEBOX_ARCHETYPES, getBattleBoxFormatName, BATTLEBOX_FORMAT_NAME, MTG_TRIBES, MTG_STRATEGIES, TRIBE_CATEGORIES, COLORS } from '../../constants/legacyBattleBox';
+import { BATTLEBOX_BANLIST, BATTLEBOX_ARCHETYPES, getBattleBoxFormatName, BATTLEBOX_FORMAT_NAME, MTG_TRIBES, MTG_STRATEGIES, TRIBE_CATEGORIES, COLORS, HISTORICAL_DECKS_CATALOG } from '../../constants/legacyBattleBox';
 import ManaOrb from '../atoms/ManaOrb';
 import { getDynamicArchetypes } from '../../services/ragService';
 
@@ -296,6 +296,8 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
   };
 
   const [archetypesList, setArchetypesList] = useState(LEGACY_ARCHETYPES);
+  const [isGuidedMode, setIsGuidedMode] = useState(true);
+  const [lockedColors, setLockedColors] = useState(false);
 
   useEffect(() => {
     const loadDynamic = async () => {
@@ -1003,7 +1005,16 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                   </p>
                 </div>
                 
-                {currentArchetype && !arraysEqual(formData?.colores || [], currentArchetype.recommendedColors || []) && (
+                {lockedColors && (
+                  <button
+                    type="button"
+                    onClick={() => setLockedColors(false)}
+                    className="bg-black/60 hover:bg-black/90 px-3 py-1.5 rounded-full text-red-400 hover:text-white border border-red-500/30 hover:border-red-500/65 transition-all text-[9.5px] uppercase tracking-wider font-extrabold flex items-center gap-1 shadow-md self-end md:self-center"
+                  >
+                    <Unlock size={12} /> Desbloquear Colores
+                  </button>
+                )}
+                {currentArchetype && !arraysEqual(formData?.colores || [], currentArchetype.recommendedColors || []) && !lockedColors && (
                   <button
                     type="button"
                     onClick={resetColors}
@@ -1045,13 +1056,13 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                         >
                           <motion.button
                             type="button"
-                            disabled={!isAllowed}
+                            disabled={!isAllowed || lockedColors}
                             onClick={() => toggleColor(color.id)}
-                            whileHover={{ scale: isAllowed ? 1.12 : 1 }}
-                            whileTap={{ scale: isAllowed ? 0.95 : 1 }}
+                            whileHover={{ scale: isAllowed && !lockedColors ? 1.12 : 1 }}
+                            whileTap={{ scale: isAllowed && !lockedColors ? 0.95 : 1 }}
                             className={cn(
                               "transition-all duration-300 relative flex items-center justify-center rounded-full focus:outline-none border-2 border-transparent p-0.5",
-                              !isAllowed ? "opacity-20 grayscale cursor-not-allowed" :
+                              (!isAllowed || lockedColors) ? "opacity-20 grayscale cursor-not-allowed" :
                               isSelected
                                 ? "scale-110 z-10"
                                 : "opacity-35 grayscale-[0.3] hover:opacity-100 hover:grayscale-0"
@@ -1202,7 +1213,13 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                       type="checkbox"
                       checked={!!formData.isExpertMode}
                       onChange={(e) => {
-                        setFormData(prev => ({ ...prev, isExpertMode: e.target.checked }));
+                        setFormData(prev => ({ 
+                          ...prev, 
+                          isExpertMode: e.target.checked,
+                          tribe: '',
+                          strategy: ''
+                        }));
+                        setLockedColors(false);
                       }}
                       className="sr-only"
                     />
@@ -1272,6 +1289,61 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
               ) : (
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 relative z-10 items-start">
                   <div className="lg:col-span-2 space-y-6">
+                    {/* Historical Modules Carousel */}
+                    {HISTORICAL_DECKS_CATALOG[formData.archetype] && HISTORICAL_DECKS_CATALOG[formData.archetype].filter(deck => !deck.formats || deck.formats.includes(selectedFormat)).length > 0 && (
+                      <div className="bg-black/40 border border-magic-gold/30 p-5 rounded-2xl shadow-[0_0_15px_rgba(255,202,88,0.1)] relative overflow-hidden">
+                        <div className="absolute inset-0 bg-[url('/ASSETS/FrostedGlass.webp')] bg-cover opacity-5 pointer-events-none" />
+                        <h4 className="text-magic-gold font-cinzel text-sm font-bold mb-3 flex items-center gap-2 relative z-10">
+                          <BookOpen size={16} /> Tomos Históricos (Principiantes)
+                        </h4>
+                        <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-magic-gold/50 scrollbar-track-black/50 relative z-10 snap-x">
+                          {HISTORICAL_DECKS_CATALOG[formData.archetype].filter(deck => !deck.formats || deck.formats.includes(selectedFormat)).map(deck => {
+                            const isSelected = formData.strategy === deck.title;
+                            return (
+                              <button
+                                key={deck.id}
+                                type="button"
+                                onClick={() => {
+                                  setFormData(prev => ({
+                                    ...prev,
+                                    strategy: deck.title,
+                                    colores: deck.colors,
+                                    tribe: '' // Clear tribe when selecting a historical deck
+                                  }));
+                                  setLockedColors(true);
+                                  setIsCustomStrategy(false);
+                                  setIsCustomTribe(false);
+                                }}
+                                className={cn(
+                                  "min-w-[220px] max-w-[220px] p-4 rounded-xl border transition-all duration-300 text-left flex flex-col gap-2 snap-center relative",
+                                  isSelected
+                                    ? "bg-gradient-to-b from-magic-gold/20 to-black border-magic-gold text-white shadow-[0_0_10px_rgba(255,202,88,0.3)] scale-[1.02]"
+                                    : "bg-black/60 border-white/10 text-white/70 hover:border-white/30 hover:bg-black/80"
+                                )}
+                              >
+                                <div className="flex justify-between items-start">
+                                  <span className="font-cinzel font-bold text-sm text-magic-gold whitespace-nowrap overflow-hidden text-ellipsis mr-2">{deck.title}</span>
+                                  {deck.difficulty === 'Fácil' && <span className="text-[9px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-500/30 font-bold uppercase shrink-0">Fácil</span>}
+                                  {deck.difficulty === 'Media' && <span className="text-[9px] bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded border border-amber-500/30 font-bold uppercase shrink-0">Media</span>}
+                                  {deck.difficulty === 'Difícil' && <span className="text-[9px] bg-rose-500/20 text-rose-400 px-1.5 py-0.5 rounded border border-rose-500/30 font-bold uppercase shrink-0">Difícil</span>}
+                                </div>
+                                <p className="text-[10px] font-serif leading-tight text-white/50 min-h-[30px]">{deck.description}</p>
+                                <div className="flex gap-1 mt-auto pt-2 border-t border-white/5">
+                                  {deck.colors.map(col => {
+                                    const cObj = COLORS.find(co => co.id === col);
+                                    return (
+                                      <div key={col} className="w-3.5 h-3.5 rounded-full overflow-hidden shadow-inner border border-black/50" title={cObj?.name}>
+                                        <img src={cObj?.icon} alt={col} className="w-full h-full object-cover" />
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                       {/* Tribu Section (Guided Mode) */}
                       <div className="space-y-4 bg-black/35 p-5 rounded-2xl border border-white/5 relative overflow-hidden">

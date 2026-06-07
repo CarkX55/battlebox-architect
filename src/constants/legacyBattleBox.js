@@ -737,3 +737,57 @@ export function inferStrategyFromArchetype(archetypeId, currentStrategyId) {
   return '';
 }
 
+export const HISTORICAL_DECKS_CATALOG = {
+  combo: [
+    { id: 'cascade_rhinos', title: '🦏 Cascade Rhinos', description: 'Ensambla piezas de coste 3 para lanzar gratis manadas de rinocerontes arrolladores.', colors: ['U', 'R', 'G'], difficulty: 'Fácil', formats: ['MODERN'] },
+    { id: 'living_end', title: '💀 Living End', description: 'Cicla enormes bestias al cementerio y resucítalas todas a la vez barriendo la mesa.', colors: ['U', 'B', 'G'], difficulty: 'Media', formats: ['MODERN'] },
+    { id: 'storm', title: '⚡ Storm (Tormenta)', description: 'Encadena múltiples rituales y cantrips para finalizar con metralla letal.', colors: ['U', 'R'], difficulty: 'Difícil', formats: ['MODERN'] },
+    { id: 'hammer_time', title: '🔨 Hammer Time', description: 'Usa pura magia blanca para equipar un martillo gigante gratis y matar en turno 2.', colors: ['W'], difficulty: 'Media', formats: ['MODERN'] },
+    { id: 'creativity', title: '🎨 Indomitable Creativity', description: 'Destruye tus propias fichas para invocar Arcontes de la Crueldad directamente del mazo.', colors: ['U', 'R', 'B', 'G'], difficulty: 'Media', formats: ['MODERN'] },
+    { id: 'standard_atraxa', title: '🔮 Reanimator Atraxa', description: 'Descarta a Atraxa y revívela en los primeros turnos para tomar el control absoluto.', colors: ['W', 'U', 'B', 'G'], difficulty: 'Media', formats: ['STANDARD'] }
+  ],
+  ramp: [
+    { id: 'tron', title: '⚙️ Urzatron', description: 'Reúne las 3 tierras de Urza para lanzar gigantescos Eldrazis y Titanes.', colors: ['G', 'C'], difficulty: 'Fácil', formats: ['MODERN'] },
+    { id: 'titan_shift', title: '🌋 Titan Shift', description: 'Rampa agresivamente y lanza a Primeval Titan o Scapeshift para daño letal con Valakut.', colors: ['R', 'G'], difficulty: 'Media', formats: ['MODERN'] },
+    { id: 'amulet_titan', title: '🧭 Amulet Titan', description: 'Usa Amulet of Vigor y tierras rebotadoras para generar maná infinito y lanzar Titanes.', colors: ['G'], difficulty: 'Difícil', formats: ['MODERN'] },
+    { id: 'standard_domain', title: '🌈 Domain Ramp', description: 'Acelera todas las tierras básicas para dominar con Leyline Binding y Atraxa.', colors: ['W', 'U', 'B', 'R', 'G'], difficulty: 'Media', formats: ['STANDARD'] }
+  ],
+  aggro: [
+    { id: 'burn', title: '🔥 Burn', description: 'Usa hechizos de daño directo a la cara del rival para ganar rápidamente.', colors: ['R', 'W'], difficulty: 'Fácil', formats: ['MODERN', 'STANDARD'] },
+    { id: 'affinity', title: '🤖 Affinity', description: 'Despliega rápidamente un enjambre de criaturas artefacto sinérgicas.', colors: ['U', 'R', 'W'], difficulty: 'Media', formats: ['MODERN'] },
+    { id: 'merfolk', title: '🐟 Merfolk', description: 'Inunda la mesa con tritones imbloqueables que se potencian unos a otros.', colors: ['U'], difficulty: 'Media', formats: ['MODERN'] },
+    { id: 'prowess', title: '🥋 Izzet Prowess', description: 'Lanza cantrips veloces para hinchar a tus criaturas y atacar con fuerza masiva.', colors: ['U', 'R'], difficulty: 'Media', formats: ['MODERN'] },
+    { id: 'standard_mono_red', title: '👺 Mono-Red Aggro', description: 'Criaturas rápidas con prisa y chispas letales para finalizar el combate.', colors: ['R'], difficulty: 'Fácil', formats: ['STANDARD'] },
+    { id: 'standard_convoke', title: '⚔️ Boros Convoke', description: 'Crea fichas en los primeros turnos para invocar criaturas gigantes gratuitamente.', colors: ['W', 'R'], difficulty: 'Media', formats: ['STANDARD'] }
+  ],
+  control: [
+    { id: 'uw_control', title: '⚖️ Azorius Control', description: 'Respuestas puras. Contrarresta, limpia la mesa y gana con Planeswalkers.', colors: ['W', 'U'], difficulty: 'Difícil', formats: ['MODERN', 'STANDARD'] },
+    { id: 'tron_blue', title: '❄️ Mono-Blue Tron', description: 'Versión controlera de Tron que usa Mindslaver y contrahechizos para dominar el lategame.', colors: ['U', 'C'], difficulty: 'Difícil', formats: ['MODERN'] },
+    { id: 'standard_dimir', title: '🦇 Dimir Control', description: 'Remoción barata, descarte selectivo y contrahechizos para ahogar al rival.', colors: ['U', 'B'], difficulty: 'Difícil', formats: ['STANDARD'] }
+  ],
+  midrange: [
+    { id: 'jund', title: '🦖 Jund', description: 'El mazo más eficiente carta por carta. Descarta, destruye y domina con Tarmogoyf.', colors: ['B', 'R', 'G'], difficulty: 'Difícil', formats: ['MODERN'] },
+    { id: 'rakdos_scam', title: '👺 Rakdos Scam', description: 'Obliga a descartar en turno 1 con Grief y revívelo inmediatamente.', colors: ['B', 'R'], difficulty: 'Fácil', formats: ['MODERN'] },
+    { id: 'yawgmoth', title: '🩺 Yawgmoth Combo', description: 'Sinergia de criaturas con Persist y Undying para que Yawgmoth drene la vida del rival.', colors: ['B', 'G'], difficulty: 'Difícil', formats: ['MODERN'] },
+    { id: 'death_and_taxes', title: '⚖️ Death & Taxes', description: 'Entorpece la curva de maná del rival con Thalia y Leonin Arbiter mientras atacas por el aire.', colors: ['W'], difficulty: 'Difícil', formats: ['MODERN'] },
+    { id: 'standard_golgari', title: '🍄 Golgari Midrange', description: 'Valor puro con criaturas resilientes y la mejor remoción del formato.', colors: ['B', 'G'], difficulty: 'Media', formats: ['STANDARD'] }
+  ],
+  tribal: [
+    { id: 'elves', title: '🧝 Elves', description: 'Genera cantidades absurdas de maná y criaturas para ganar con Ezuri o Craterhoof.', colors: ['G'], difficulty: 'Media', formats: ['MODERN'] },
+    { id: 'goblins', title: '👺 Goblins', description: 'Invoca hordas de trasgos veloces o busca combos infinitos con Conspicuous Snoop.', colors: ['R', 'B'], difficulty: 'Media', formats: ['MODERN'] },
+    { id: 'spirits', title: '👻 Bant Spirits', description: 'Criaturas voladoras flash que protegen la mesa con Queller y Rattlechains.', colors: ['W', 'U', 'G'], difficulty: 'Media', formats: ['MODERN'] },
+    { id: 'humans', title: '🛡️ 5-Color Humans', description: 'Perturba al rival con criaturas humanas agresivas (Meddling Mage, Thalia) usando Cavern of Souls.', colors: ['W', 'U', 'B', 'R', 'G'], difficulty: 'Difícil', formats: ['MODERN'] },
+    { id: 'standard_soldiers', title: '⚔️ Azorius Soldiers', description: 'Un ejército de soldados sinérgicos que atacan juntos y protegen a sus comandantes.', colors: ['W', 'U'], difficulty: 'Fácil', formats: ['STANDARD'] }
+  ],
+  tempo: [
+    { id: 'murktide', title: '🐉 Izzet Murktide', description: 'Pocas criaturas súper eficientes, muchos cantrips y protección barata.', colors: ['U', 'R'], difficulty: 'Difícil', formats: ['MODERN'] },
+    { id: 'shadow', title: '💀 Death\'s Shadow', description: 'Baja tu propia vida rápidamente con Shocklands para invocar un Avatar letal por 1 maná.', colors: ['U', 'B', 'R'], difficulty: 'Difícil', formats: ['MODERN'] },
+    { id: 'standard_faeries', title: '🧚 Dimir Faeries', description: 'Criaturas con flash y contrahechizos para jugar siempre en el turno del rival.', colors: ['U', 'B'], difficulty: 'Difícil', formats: ['STANDARD'] }
+  ],
+  prison: [
+    { id: 'mono_red_prison', title: '⛓️ Mono-Red Prison', description: 'Bloquea el juego con Blood Moon y Chalice of the Void en turno 1.', colors: ['R'], difficulty: 'Media', formats: ['MODERN'] },
+    { id: 'eldrazi_tron', title: '🐙 Eldrazi Tron', description: 'Chalice of the Void y tierras de dolor para bajar Eldrazis destructivos.', colors: ['C'], difficulty: 'Media', formats: ['MODERN'] },
+    { id: 'enchantress', title: '🌿 Enchantress Lock', description: 'Prisión de encantamientos (Ghostly Prison, Blood Moon) hasta ahogar al oponente.', colors: ['W', 'G'], difficulty: 'Difícil', formats: ['MODERN'] }
+  ]
+};
+

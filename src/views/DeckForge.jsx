@@ -47,10 +47,10 @@ const isLandCard = (c) => {
 
 // Contador inteligente de fuentes de color de tierras para Frank Karsten
 const getManaSourcesCount = (deck) => {
-  if (!Array.isArray(deck)) return { W: 0, U: 0, B: 0, R: 0, G: 0 };
+  if (!Array.isArray(deck)) return { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 };
   const lands = deck.filter(isLandCard);
   
-  const counts = { W: 0, U: 0, B: 0, R: 0, G: 0 };
+  const counts = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 };
   
   lands.forEach(l => {
     if (!l) return;
@@ -94,12 +94,14 @@ const getManaSourcesCount = (deck) => {
       if (/verdant catacombs/i.test(name)) { counts.B += qty; counts.G += qty; }
       if (/arid mesa/i.test(name)) { counts.R += qty; counts.W += qty; }
       if (/misty rainforest/i.test(name)) { counts.G += qty; counts.U += qty; }
+      
+      // Colorless specific sources
+      if (/wastes|urza's|eldrazi temple|mutavault|cavern of souls|blast zone|ghost quarter|field of ruin|boseiju, who shelters all/i.test(name)) { counts.C += qty; }
     }
   });
   return counts;
 };
 
-// Componente Visual de la Matriz de Probabilidades de Frank Karsten
 // Componente Visual de la Matriz de Probabilidades de Frank Karsten
 const KarstenMatrix = ({ deck, validationEngine = 'local', validationData = null }) => {
   const [activeTab, setActiveTab] = useState('matrix'); // 'matrix' | 'details' | 'recs'
@@ -115,7 +117,8 @@ const KarstenMatrix = ({ deck, validationEngine = 'local', validationData = null
     { color: 'U', label: 'Azul', symbol: 'U' },
     { color: 'B', label: 'Negro', symbol: 'B' },
     { color: 'R', label: 'Rojo', symbol: 'R' },
-    { color: 'G', label: 'Verde', symbol: 'G' }
+    { color: 'G', label: 'Verde', symbol: 'G' },
+    { color: 'C', label: 'Incoloro', symbol: 'C' }
   ];
 
   const getProbColor = (p) => {
@@ -252,7 +255,7 @@ const KarstenMatrix = ({ deck, validationEngine = 'local', validationData = null
                   return (
                     <tr key={row.color} className="border-b border-white/5 hover:bg-white/5 transition-colors">
                       <td className="py-3 font-cinzel font-bold text-gray-200 flex items-center gap-2">
-                        <span className={`w-2.5 h-2.5 rounded-full bg-${row.color === 'W' ? 'yellow-100' : row.color === 'U' ? 'blue-500' : row.color === 'B' ? 'gray-700' : row.color === 'R' ? 'red-500' : 'green-500'} inline-block border border-white/10`} />
+                        <span className={`w-2.5 h-2.5 rounded-full bg-${row.color === 'W' ? 'yellow-100' : row.color === 'U' ? 'blue-500' : row.color === 'B' ? 'gray-700' : row.color === 'R' ? 'red-500' : row.color === 'C' ? 'gray-400' : 'green-500'} inline-block border border-white/10`} />
                         {row.label}
                       </td>
                       <td className="py-3 text-gray-400 font-sans font-bold">{srcCount} fuentes</td>

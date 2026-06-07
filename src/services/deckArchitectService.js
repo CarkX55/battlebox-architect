@@ -2686,121 +2686,154 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
 }
 
 const CRITICAL_SYNERGY_RULES = {
-  reanimator: {
-    name: "Reanimator (Persist / Goryo's)",
-    rules: [
-      "Si el mazo contiene cartas de reanimación baratas (como Unearth o Claim // Fame), éstas SOLO pueden revivir criaturas de coste 3 o menos. Asegúrate de tener criaturas útiles de coste <= 3 en el mazo principal.",
-      "Si el mazo tiene criaturas gigantes de coste 5+ o legendarias para reanimar, DEBES usar hechizos de reanimación sin restricciones de coste (Persist, Exhume, Animate Dead, Necromancy, Late to Dinner, Unburial Rites). NUNCA uses Unearth o Claim // Fame para criaturas gigantes.",
-      "Para que la reanimación funcione, DEBES incluir descartadores eficientes en los primeros turnos (Faithless Looting, Cathartic Reunion, Thrill of Possibility, Bitter Reunion, Collector's Vault)."
-    ]
-  },
-  aristocrats: {
-    name: "Aristocrats (Yawgmoth Sacrifice)",
-    rules: [
-      "Debes mantener un equilibrio de 3 componentes clave: 1. Criaturas sacrificables/fichas; 2. Motores de sacrificio sin coste de maná (Viscera Seer, Yawgmoth, Woe Strider, Goblin Bombardment, Carrion Feeder); 3. Beneficiadores de muerte/drenaje (Blood Artist, Zulaport Cutthroat, Cruel Celebrant).",
-      "No incluyas motores de sacrificio si no tienes generadores de fichas/criaturas recurrentes, ni drenadores si no tienes cómo sacrificar de forma gratuita."
-    ]
-  },
-  voltron: {
-    name: "Voltron (Hammer Time)",
-    rules: [
-      "Si incluyes Colossus Hammer u otros equipamientos masivos con costes de equipar altísimos, es obligatorio incluir cartas que los equipen gratis (Sigarda's Aid, Puresteel Paladin) o criaturas que se equipen solas. De lo contrario, los equipamientos serán inservibles."
-    ]
-  },
-  tron: {
-    name: "Big Mana (Tron)",
-    rules: [
-      "Si incluyes amenazas incoloras gigantes de coste 6+ (Karn Liberated, Wurmcoil Engine, Ulamog), la base de tierras debe incluir obligatoriamente el trío de Urza y cartas de búsqueda/estabilización (Expedition Map, Sylvan Scrying, Ancient Stirrings)."
-    ]
-  },
-  spellslinger: {
-    name: "Spellslinger (Prowess & Murktide)",
-    rules: [
-      "Mantén un alto número de instantáneos y conjuros baratos (coste 1-2) para disparar Prowess y alimentar el cementerio para Murktide Regent. Evita criaturas lentas que no se beneficien de lanzar hechizos."
-    ]
-  },
-  blink: {
-    name: "Blink / Flicker (Ephemerate Sinergia)",
-    rules: [
-      "Asegúrate de que tus criaturas tengan potentes efectos al entrar al campo de batalla (ETB) como Stonehorn Dignitary, Coiling Oracle, Eternal Witness, Mulldrifter. No pongas hechizos de parpadeo (Ephemerate, Soulherder) si tus criaturas solo tienen habilidades estáticas."
-    ]
-  },
-  storm: {
-    name: "Storm Combo (Ruby Storm)",
-    rules: [
-      "Debes incluir cost-reducers eficientes (Ruby Medallion, Ral, Monsoon Mage, Baral, Goblin Electromancer) para abaratar tus hechizos.",
-      "Debes incluir rituales de maná (Desperate Ritual, Pyretic Ritual, Manamorphose) para generar exceso de maná rojo/azul.",
-      "Debes incluir hechizos de robo/impulso rápidos para buscar más cartas y alimentar el contador de tormenta.",
-      "El finalizador principal debe ser un hechizo con Tormenta como Grapeshot o Empty the Warrens. No incluyas amenazas gigantes imposibles de castear de forma justa si no aportas maná para ellas."
-    ]
-  },
   cascade: {
     name: "Cascade (Rhinos / Living End)",
     rules: [
-      "CRÍTICO: No debes incluir NINGÚN hechizo (instantáneo, conjuro, criatura, artefacto, etc.) con coste de maná 1 o 2 en todo el mazo principal. Si lo haces, la mecánica de Cascada fallará miserablemente.",
+      "CRÍTICO: NO DEBES incluir NINGÚN hechizo (instantáneo, conjuro, criatura, artefacto, etc.) con coste de maná 1 o 2 en TODO el mazo principal. Si lo haces, la mecánica de Cascada fallará miserablemente.",
+      "Para la interacción temprana, usa EXCLUSIVAMENTE hechizos gratuitos (Force of Negation, Subtlety, Endurance, Force of Vigor) o cartas dobles (Fire // Ice, Dead // Gone) cuyo coste combinado sea 3 o mayor.",
       "Debes incluir hechizos con la habilidad de Cascada de coste 3 (Shardless Agent, Ardent Plea, Violent Outburst, Bloodbraid Marauder).",
-      "Debes incluir hechizos de coste 0 sin coste de maná para ser el objetivo garantizado de la Cascada (Crashing Footfalls, Living End, Ancestral Vision, Glimpse of Tomorrow, Restore Balance)."
+      "Debes incluir tu objetivo de coste 0 (Crashing Footfalls, Living End, Glimpse of Tomorrow)."
     ]
   },
-  landfall: {
-    name: "Landfall (Valakut / Amulet)",
+  storm: {
+    name: "Storm Combo",
     rules: [
-      "Debes incluir tierras que entren al campo de batalla o sacrificables (Fetchlands) para disparar Landfall múltiples veces por turno.",
-      "Debes incluir hechizos que pongan tierras adicionales en el campo (Explore, Growth Spiral, Sakura-Tribe Elder, Azusa).",
-      "Debes incluir payoffs poderosos por la entrada de tierras (Valakut, Omnath, Dryad of the Ilysian Grove, Scute Swarm, Lotus Cobra)."
+      "CRÍTICO: El mazo NO FUNCIONA sin motores de maná inmensos y hechizos de reducción. Debes incluir rituales (Desperate Ritual, Pyretic Ritual, Manamorphose, Rite of Flame) y reductores (Ruby Medallion, Ral, Monsoon Mage, Baral).",
+      "NUNCA incluyas grandes criaturas que cuesten maná de color múltiple. Tu condición de victoria DEBE ser Grapeshot, Empty the Warrens, o Tendrils of Agony.",
+      "El mazo debe estar compuesto principalmente de cantrips de coste 1 (Consider, Opt, Serum Visions) y rituales."
     ]
   },
-  enchantress: {
-    name: "Enchantress (Selesnya Bogles)",
+  creativity: {
+    name: "Indomitable Creativity",
     rules: [
-      "El núcleo del mazo son motores de robo por lanzar encantamientos (Sythis, Harvest's Hand, Argothian Enchantress, Enchantress's Presence).",
-      "La gran mayoría de los hechizos no-tierra deben ser encantamientos o auras de bajo coste.",
-      "Si usas Auras, debes incluir criaturas evasivas o con antimaleficio (Gladecover Scout, Slippery Bogle) para evitar ser castigado con un 2-por-1."
+      "CRÍTICO: Indomitable Creativity busca criaturas o artefactos. NUNCA incluyas criaturas o artefactos de bajo coste (como Llanowar Elves o Moxen), ya que arruinarán el combo.",
+      "Las ÚNICAS criaturas del mazo deben ser finalizadores masivos y letales (Archon of Cruelty, Emrakul, Primeval Titan).",
+      "Para generar objetivos sacrificables para Creativity, usa EXCLUSIVAMENTE Conjuros, Instantáneos o Tierras que generen fichas (Dwarven Mine, Hard Evidence, Fable of the Mirror-Breaker, Strike It Rich)."
     ]
   },
-  graveyard: {
-    name: "Graveyard Value (Dredge / Delirium)",
+  amulet_titan: {
+    name: "Amulet Titan",
     rules: [
-      "Debes incluir habilitadores rápidos de cementerio en los primeros turnos (Stitcher's Supplier, Hedron Crab, Faithless Looting, Dragon's Rage Channeler).",
-      "Aprovecha cartas que funcionen desde el cementerio (Flashback, Dredge, Unearth) o que escalen con el número de cartas/tipos allí (Tarmogoyf, Murktide Regent, Golgari Grave-Troll).",
-      "No incluyas piezas de odio de cementerio asimétricas propias (Rest in Peace) en el mazo principal, pues arruinarán tu propia estrategia."
+      "CRÍTICO: El mazo REQUIERE Amulet of Vigor y Primeval Titan. Son las piezas innegociables del combo.",
+      "CRÍTICO: La base de maná DEBE basarse en Bouncelands (Tierras que rebotan, como Simic Growth Chamber, Gruul Turf). No hagas un ramp verde estándar.",
+      "Debes incluir buscadores específicos (Summoner's Pact, Tolaria West) y tierras de utilidad masiva (Urza's Saga, Vesuva)."
     ]
   },
-  lifegain: {
-    name: "Lifegain (Heliod Sisters)",
+  deaths_shadow: {
+    name: "Death's Shadow",
     rules: [
-      "Necesitas generadores constantes de ganancia de vida pasiva (Soul Warden, Soul's Attendant, Authority of the Consuls).",
-      "Necesitas payoffs que escalen con cada instancia de ganancia de vida (Ajani's Pridemate, Voice of the Blessed, Heliod, Sun-Crowned, Archangel of Thune).",
-      "Evita hechizos puros de ganar vida sin impacto en mesa (como Healing Salve). La vida es el medio, no la victoria."
+      "CRÍTICO: Tu objetivo es perder vida rápida y deliberadamente. NUNCA incluyas hechizos de ganancia de vida.",
+      "DEBES incluir cartas que te dañen a ti mismo: Shocklands, Fetchlands, Street Wraith, Thoughtseize, Dismember.",
+      "Tus criaturas deben aprovechar la baja vida (Death's Shadow, Scourge of the Skyclaves) apoyadas por criaturas agresivas eficientes (Murktide Regent, Ragavan) e interrupciones (Grief, Fatal Push, Stubborn Denial)."
     ]
   },
   prison: {
-    name: "Prison / Stax",
+    name: "Prison / Taxes",
     rules: [
-      "El mazo debe basarse en piezas asimétricas que bloqueen o encarezcan el juego del rival (Thalia, Chalice of the Void, Ensnaring Bridge, Blood Moon).",
-      "Asegúrate de no bloquear tu propio mazo. Si usas Chalice of the Void a 1, no incluyas hechizos de coste 1. Si usas Ensnaring Bridge, mantén una mano baja de cartas.",
-      "Incluye un finalizador lento pero inevitable para cuando el oponente esté bloqueado."
+      "CRÍTICO: Tu objetivo es bloquear el juego en los turnos 1-2. DEBES incluir piezas asimétricas de Stax (Chalice of the Void, Blood Moon, Ensnaring Bridge, Trinisphere).",
+      "Si construyes Taxes (Blanco), incluye Thalia, Guardian of Thraben, Leonin Arbiter, y Ghost Quarter/Tectonic Edge. No abuses de hechizos no-criatura si llevas Thalia.",
+      "Si llevas Ensnaring Bridge, asegúrate de poder vaciar tu mano rápido. Usa aceleradores gratuitos (Simian Spirit Guide)."
     ]
   },
-  vehicles: {
-    name: "Vehicles",
+  scam: {
+    name: "Rakdos Scam",
     rules: [
-      "Asegúrate de tener un balance adecuado entre Vehículos (Smuggler's Copter) y Criaturas pequeñas/Pilotos (Toolcraft Exemplar, Depala) para poder tripularlos. Un mazo solo con vehículos no hace nada.",
-      "Prioriza vehículos con costes bajos o medios de tripulación. Evita costes de Crew masivos si no tienes criaturas de alta fuerza."
+      "CRÍTICO: El núcleo del mazo es forzar el descarte en turno 1. DEBES incluir Elementales con Evoke (Grief, Fury) u Orcish Bowmasters.",
+      "CRÍTICO: Debes acompañar los elementales con 'Scam spells' de coste 1 (Not Dead After All, Feign Death, Undying Malice, Ephemerate).",
+      "El resto del mazo debe ser disrupción eficiente (Thoughtseize, Fatal Push) y valor (Fable of the Mirror-Breaker)."
     ]
   },
-  tokens: {
-    name: "Tokens / Convoke",
+  affinity: {
+    name: "Affinity / Artifacts",
     rules: [
-      "Maximiza hechizos que generan múltiples fichas por una sola carta (Raise the Alarm, Lingering Souls, Spectral Procession).",
-      "Incluye potenciadores globales (Anthems como Intangible Virtue, Honor of the Pure) o hechizos con Convoke para aprovechar a los tokens."
+      "CRÍTICO: El mazo requiere una densidad abrumadora de artefactos. El 80% del mazo principal deben ser artefactos.",
+      "Incluye masivamente artefactos de coste 0-1 (Mox Opal, Ornithopter, Memnite, Shadowspear, Springleaf Drum).",
+      "Incluye potentes payoffs por tener artefactos (Cranial Plating, Urza's Saga, Kappa Cannoneer, Thought Monitor)."
+    ]
+  },
+  tribal_lords: {
+    name: "Tribal Lords",
+    rules: [
+      "CRÍTICO: Si el mazo es Tribal (Elfos, Tritones, Trasgos, Humanos, Espíritus), el 80% de tus criaturas DEBEN ser de ese tipo exacto.",
+      "Incluye innegociablemente a los 'Lords' que potencian al resto (ej. Lord of Atlantis, Elvish Archdruid, Goblin Chieftain, Supreme Phantom).",
+      "Utiliza piezas de soporte tribal incoloras de máximo nivel como Cavern of Souls y Aether Vial."
+    ]
+  },
+  reanimator: {
+    name: "Reanimator",
+    rules: [
+      "CRÍTICO: Para que la reanimación funcione, DEBES incluir descartadores o looters eficientes en los turnos 1-2 (Faithless Looting, Cathartic Reunion, Stitcher's Supplier, Careful Study).",
+      "Usa hechizos de reanimación poderosos (Persist, Exhume, Goryo's Vengeance, Animate Dead, Unburial Rites) apuntando a criaturas legendarias o gigantes que ganen la partida solas (Atraxa, Griselbrand, Archon of Cruelty)."
+    ]
+  },
+  yawgmoth: {
+    name: "Yawgmoth Combo",
+    rules: [
+      "CRÍTICO: Este es un combo basado en criaturas. Necesitas criaturas con Undying (Young Wolf, Strangleroot Geist, Geralf's Messenger).",
+      "Necesitas al motor (Yawgmoth, Thran Physician) y un payoff de drenaje (Blood Artist, Zulaport Cutthroat).",
+      "Utiliza buscadores de criaturas (Chord of Calling, Eldritch Evolution) para encontrar las piezas rápido."
+    ]
+  },
+  tron: {
+    name: "Big Mana (Urzatron)",
+    rules: [
+      "CRÍTICO: El mazo debe incluir obligatoriamente el trío de tierras de Urza (Urza's Tower, Urza's Mine, Urza's Power Plant).",
+      "DEBES incluir cartas para buscar tierras específicas temprano (Expedition Map, Sylvan Scrying, Ancient Stirrings).",
+      "NO incluyas hechizos con doble coste de color. Usa remoción incolora o verde de bajo coste (Dismember, Oblivion Stone) para llegar vivo al lategame y lanzar finalizadores incoloros gigantes (Karn, Ulamog, Wurmcoil)."
+    ]
+  },
+  spellslinger: {
+    name: "Spellslinger (Murktide / Prowess)",
+    rules: [
+      "Mantén una densidad extrema de instantáneos y conjuros baratos de coste 1-2 (cantrips, daño directo) para alimentar rápidamente el cementerio para Murktide Regent o potenciar las criaturas con Prowess (Monastery Swiftspear, Dragon's Rage Channeler)."
+    ]
+  },
+  burn: {
+    name: "Burn Aggro",
+    rules: [
+      "CRÍTICO: La curva de maná debe ser mínima (principalmente costes 1 y 2).",
+      "NUNCA incluyas criaturas lentas. Maximiza los hechizos que hagan daño directo a la cabeza del rival (Lightning Bolt, Lava Spike, Boros Charm, Rift Bolt) y criaturas extremadamente agresivas (Goblin Guide)."
+    ]
+  },
+  blink: {
+    name: "Blink / Flicker",
+    rules: [
+      "Asegúrate de que tus criaturas tengan potentes efectos al entrar al campo de batalla (ETB) como Stonehorn Dignitary, Coiling Oracle, Eternal Witness, Mulldrifter, Solitude.",
+      "Usa hechizos eficientes de parpadeo (Ephemerate, Soulherder, Cloudshift, Yorion)."
+    ]
+  },
+  aristocrats: {
+    name: "Aristocrats Sacrifice",
+    rules: [
+      "Mantén un equilibrio estricto de 3 piezas: Generadores de fichas/basura, Motores de sacrificio (Viscera Seer, Carrion Feeder) y Drenadores (Blood Artist, Meathook Massacre)."
     ]
   }
 };
 
+function getStrategyMatchKey(normalized) {
+  if (normalized.includes('cascade') || normalized.includes('rhinos') || normalized.includes('living end')) return 'cascade';
+  if (normalized.includes('storm')) return 'storm';
+  if (normalized.includes('creativity')) return 'creativity';
+  if (normalized.includes('amulet') || normalized.includes('titan shift') || normalized.includes('valakut')) return 'amulet_titan';
+  if (normalized.includes('shadow')) return 'deaths_shadow';
+  if (normalized.includes('prison') || normalized.includes('taxes') || normalized.includes('enchantress') || normalized.includes('stax')) return 'prison';
+  if (normalized.includes('scam')) return 'scam';
+  if (normalized.includes('affinity')) return 'affinity';
+  if (normalized.includes('merfolk') || normalized.includes('elves') || normalized.includes('goblins') || normalized.includes('spirits') || normalized.includes('humans') || normalized.includes('faeries') || normalized.includes('soldiers')) return 'tribal_lords';
+  if (normalized.includes('reanimator') || normalized.includes('atraxa') || normalized.includes('goryo')) return 'reanimator';
+  if (normalized.includes('yawgmoth')) return 'yawgmoth';
+  if (normalized.includes('tron')) return 'tron';
+  if (normalized.includes('murktide') || normalized.includes('prowess')) return 'spellslinger';
+  if (normalized.includes('burn')) return 'burn';
+  if (normalized.includes('blink') || normalized.includes('ephemerate')) return 'blink';
+  if (normalized.includes('aristocrat')) return 'aristocrats';
+  return normalized;
+}
+
 function getStrategySynergyPrompt(strategyId) {
   const normalized = (strategyId || '').toLowerCase();
-  const ruleObj = CRITICAL_SYNERGY_RULES[normalized];
+  const matchKey = getStrategyMatchKey(normalized);
+  const ruleObj = CRITICAL_SYNERGY_RULES[matchKey];
   if (!ruleObj) return "";
   
   return `
@@ -2812,39 +2845,22 @@ ${ruleObj.rules.map((r, i) => `${i + 1}. ${r}`).join('\n')}
 
 function performMechanicalAuditory(deckSpells, strategyId) {
   const normalized = (strategyId || '').toLowerCase();
+  const matchKey = getStrategyMatchKey(normalized);
   let alerts = [];
   
   const getNames = (arr) => arr.map(s => s.name.toLowerCase());
   const hasCard = (namesArr, targets) => namesArr.some(n => targets.includes(n));
   const spellNames = getNames(deckSpells);
 
-  if (normalized === 'reanimator') {
-    const hasRestrictiveReanimators = hasCard(spellNames, ['unearth', 'claim // fame', 'claim/fame', 'claim']);
-    const giantCreatures = deckSpells.filter(s => s.category === 'Creature' && s.cmc >= 4);
-    const hasGeneralReanimators = hasCard(spellNames, ['persist', 'exhume', 'animate dead', 'necromancy', 'unburial rites', 'late to dinner', "goryo's vengeance", 'dread return']);
+  if (matchKey === 'cascade') {
+    const oneTwoDrops = deckSpells.filter(s => (s.cmc === 1 || s.cmc === 2) && !s.type_line.toLowerCase().includes('land'));
+    const cascadeSpells = deckSpells.filter(s => ['shardless agent', 'ardent plea', 'violent outburst', 'bloodbraid marauder'].includes(s.name.toLowerCase()));
     
-    if (hasRestrictiveReanimators && giantCreatures.length > 0 && !hasGeneralReanimators) {
-      alerts.push(`CRITICAL WARNING: El mazo tiene criaturas gigantes para reanimar (como ${giantCreatures.slice(0, 2).map(c => c.name).join(', ')}) pero solo tiene hechizos de reanimación restrictivos de coste bajo (como Unearth). ¡ESTO ES INCOMPATIBLE! Reemplázalos por Persist, Exhume, Animate Dead, etc.`);
+    if (oneTwoDrops.length > 0) {
+      alerts.push(`CRITICAL WARNING: Mazo Cascade detectado con hechizos de coste 1 o 2 (ej. ${oneTwoDrops.slice(0,2).map(c=>c.name).join(', ')}). ¡ESTO ROMPE LA CASCADA! Elimina todo coste 1 o 2.`);
     }
-    
-    const discardOutlets = hasCard(spellNames, ['faithless looting', 'cathartic reunion', 'thrill of possibility', 'bitter reunion', "collector's vault", "stitcher's supplier", 'putrid imp']);
-    if (!discardOutlets) {
-      alerts.push(`WARNING: Mazo Reanimator sin suficientes facilitadores de descarte. Añade Faithless Looting o Cathartic Reunion.`);
-    }
-  } else if (normalized === 'aristocrats') {
-    const sacrificeOutlets = hasCard(spellNames, ['viscera seer', 'yawgmoth, thran physician', 'yawgmoth', 'woe strider', 'goblin bombardment', 'carrion feeder']);
-    const payoff = hasCard(spellNames, ['blood artist', 'zulaport cutthroat', 'cruel celebrant', 'bastion of remembrance', 'meathook massacre']);
-    
-    if (!sacrificeOutlets && payoff) {
-      alerts.push(`WARNING: Mazo Aristocrat detectado con drenadores de vidas pero sin motores de sacrificio gratuitos (como Viscera Seer o Yawgmoth).`);
-    }
-  } else if (normalized === 'voltron') {
-    const hasHammer = hasCard(spellNames, ['colossus hammer']);
-    const hasCheats = hasCard(spellNames, ["sigarda's aid", 'puresteel paladin', 'stoneforge mystic', "kemba's outfitter"]);
-    if (hasHammer && !hasCheats) {
-      alerts.push(`CRITICAL WARNING: El mazo tiene 'Colossus Hammer' pero carece de facilitadores de equipamiento gratuito (como Sigarda's Aid o Puresteel Paladin).`);
-    }
-  } else if (normalized === 'storm') {
+    if (cascadeSpells.length === 0) alerts.push('CRITICAL WARNING: Faltan hechizos con la habilidad de Cascada de coste 3 (ej. Shardless Agent).');
+  } else if (matchKey === 'storm') {
     const rituals = hasCard(spellNames, ['desperate ritual', 'pyretic ritual', 'manamorphose', 'seething song', 'rite of flame', 'cabal ritual', 'dark ritual']);
     const reducers = hasCard(spellNames, ['ruby medallion', 'baral, chief of compliance', 'goblin electromancer', 'ral, monsoon mage', 'helm of awakening']);
     const stormPayoffs = hasCard(spellNames, ['grapeshot', 'empty the warrens', 'tendrils of agony', 'brain freeze', 'chatterstorm']);
@@ -2852,73 +2868,63 @@ function performMechanicalAuditory(deckSpells, strategyId) {
     if (!rituals) alerts.push('CRITICAL WARNING: Storm deck sin rituales de maná (ej. Desperate Ritual).');
     if (!reducers) alerts.push('CRITICAL WARNING: Storm deck sin reductores de coste (ej. Ruby Medallion, Baral).');
     if (!stormPayoffs) alerts.push('CRITICAL WARNING: Storm deck sin finalizador de Tormenta (ej. Grapeshot).');
-  } else if (normalized === 'cascade') {
-    const oneTwoDrops = deckSpells.filter(s => (s.cmc === 1 || s.cmc === 2) && !s.type_line.toLowerCase().includes('land'));
-    const cascadeSpells = deckSpells.filter(s => ['shardless agent', 'ardent plea', 'violent outburst', 'bloodbraid marauder'].includes(s.name.toLowerCase()));
-    const cascadeTargets = deckSpells.filter(s => s.cmc === 0 && !s.type_line.toLowerCase().includes('land') && s.mana_cost === '');
-    
-    if (oneTwoDrops.length > 0) {
-      alerts.push(`CRITICAL WARNING: Mazo Cascade detectado con hechizos de coste 1 o 2 (ej. ${oneTwoDrops.slice(0,2).map(c=>c.name).join(', ')}). ¡ESTO ROMPE LA CASCADA! Elimina todo coste 1 o 2.`);
+  } else if (matchKey === 'creativity') {
+    const cheapTargets = deckSpells.filter(s => s.cmc <= 2 && (s.type_line.toLowerCase().includes('creature') || s.type_line.toLowerCase().includes('artifact')) && !s.type_line.toLowerCase().includes('land'));
+    if (cheapTargets.length > 0) {
+      alerts.push(`CRITICAL WARNING: Creativity detectado con objetivos baratos (ej. ${cheapTargets.slice(0,2).map(c=>c.name).join(', ')}). Indomitable Creativity golpeará estas cartas en lugar del finalizador.`);
     }
-    if (cascadeSpells.length === 0) alerts.push('CRITICAL WARNING: Faltan hechizos con la habilidad de Cascada de coste 3 (ej. Shardless Agent).');
-    if (cascadeTargets.length === 0) alerts.push('CRITICAL WARNING: Faltan hechizos de coste 0 como payoff de Cascada (ej. Crashing Footfalls, Living End).');
-  } else if (normalized === 'tron') {
-    const payoffs = deckSpells.filter(s => s.cmc >= 6 && s.color_identity && s.color_identity.length === 0); // Incoloro gigante
+  } else if (matchKey === 'tron') {
+    const payoffs = deckSpells.filter(s => s.cmc >= 6 && s.color_identity && s.color_identity.length === 0);
     const searchers = deckSpells.filter(s => ['expedition map', 'sylvan scrying', 'ancient stirrings', 'crop rotation'].includes(s.name.toLowerCase()));
     if (payoffs.length > 0 && searchers.length === 0) {
       alerts.push('WARNING: Tron deck sin buscadores de tierras de Urza (ej. Expedition Map, Sylvan Scrying).');
     }
-  } else if (normalized === 'spellslinger') {
-    const cheapSpells = deckSpells.filter(s => (s.cmc === 1 || s.cmc === 2) && (s.type_line.toLowerCase().includes('instant') || s.type_line.toLowerCase().includes('sorcery')));
-    if (cheapSpells.length < 12) {
-      alerts.push('WARNING: Spellslinger/Prowess necesita una alta densidad (>12) de instantáneos/conjuros de coste 1 o 2.');
+    const heavyColor = deckSpells.filter(s => /\{[WUBRG]\}.*\{[WUBRG]\}/i.test(s.mana_cost) && !s.type_line.toLowerCase().includes('land'));
+    if (heavyColor.length > 0) {
+      alerts.push(`CRITICAL WARNING: Mazo Tron con hechizos de doble coste colorido (ej. ${heavyColor.slice(0,2).map(c=>c.name).join(', ')}). Es casi imposible de castear con tierras incoloras.`);
     }
-  } else if (normalized === 'blink') {
-    const blinkers = deckSpells.filter(s => ['ephemerate', 'soulherder', 'cloudshift', 'ghostly flicker', 'momentary blink'].includes(s.name.toLowerCase()));
-    if (blinkers.length === 0) {
-      alerts.push('WARNING: Mazo Blink sin hechizos que parpadeen criaturas (ej. Ephemerate, Soulherder).');
+  } else if (matchKey === 'amulet_titan') {
+    const hasAmulet = hasCard(spellNames, ['amulet of vigor']);
+    const hasTitan = hasCard(spellNames, ['primeval titan']);
+    if (!hasAmulet || !hasTitan) {
+      alerts.push('CRITICAL WARNING: Amulet Titan requiere Amulet of Vigor y Primeval Titan de forma obligatoria.');
     }
-  } else if (normalized === 'enchantress') {
-    const enchantments = deckSpells.filter(s => s.type_line.toLowerCase().includes('enchantment'));
-    if (enchantments.length < 15) {
-      alerts.push('WARNING: Enchantress necesita una densidad muy alta de encantamientos/auras (>15).');
+  } else if (matchKey === 'deaths_shadow') {
+    const lifegain = deckSpells.filter(s => s.oracle_text && s.oracle_text.toLowerCase().includes('gain') && s.oracle_text.toLowerCase().includes('life') && !s.name.toLowerCase().includes('shadow'));
+    if (lifegain.length > 0) {
+      alerts.push(`WARNING: Death's Shadow detectado con cartas de ganar vida (ej. ${lifegain.slice(0,2).map(c=>c.name).join(', ')}). Esto va en contra de la estrategia del mazo.`);
     }
-  } else if (normalized === 'graveyard') {
-    const enablers = deckSpells.filter(s => ["stitcher's supplier", 'hedron crab', 'faithless looting', "dragon's rage channeler", 'thought scour', 'consider'].includes(s.name.toLowerCase()));
-    if (enablers.length === 0) {
-      alerts.push("WARNING: Mazo Graveyard detectado sin enablers baratos (ej. Stitcher's Supplier, Thought Scour).");
+  } else if (matchKey === 'prison') {
+    const hasLockPieces = hasCard(spellNames, ['chalice of the void', 'blood moon', 'ensnaring bridge', 'trinisphere', 'thalia, guardian of thraben']);
+    if (!hasLockPieces) {
+      alerts.push('WARNING: Prison/Taxes deck sin suficientes piezas de bloqueo simétricas o asimétricas.');
     }
-  } else if (normalized === 'lifegain') {
-    const lifegainers = deckSpells.filter(s => ['soul warden', "soul's attendant", 'essence warden', 'authority of the consuls', 'lunarch veteran'].includes(s.name.toLowerCase()));
-    if (lifegainers.length === 0) {
-      alerts.push('WARNING: Mazo Lifegain sin enablers de vida constante (ej. Soul Warden).');
+  } else if (matchKey === 'scam') {
+    const hasEvokeElementals = hasCard(spellNames, ['grief', 'fury', 'solitude', 'subtlety', 'endurance', 'orcish bowmasters']);
+    const hasScamSpells = hasCard(spellNames, ['not dead after all', 'feign death', 'undying malice', 'ephemerate', 'malakir rebirth']);
+    if (hasEvokeElementals && !hasScamSpells) {
+      alerts.push('CRITICAL WARNING: Mazo Scam sin hechizos de reanimación temporal (Not Dead After All, Ephemerate) para abusar del Evoke.');
     }
-  } else if (normalized === 'prison') {
-    const lockPieces = deckSpells.filter(s => ['chalice of the void', 'ensnaring bridge', 'blood moon', 'thalia, guardian of thraben', 'trinisphere', 'ghostly prison'].includes(s.name.toLowerCase()));
-    if (lockPieces.length === 0) {
-      alerts.push('WARNING: Mazo Prison sin suficientes candados/lock pieces (ej. Chalice of the Void, Blood Moon).');
+  } else if (matchKey === 'reanimator') {
+    const hasRestrictiveReanimators = hasCard(spellNames, ['unearth', 'claim // fame', 'claim/fame', 'claim']);
+    const giantCreatures = deckSpells.filter(s => s.category === 'Creature' && s.cmc >= 4);
+    const hasGeneralReanimators = hasCard(spellNames, ['persist', 'exhume', 'animate dead', 'necromancy', 'unburial rites', 'late to dinner', "goryo's vengeance", 'dread return']);
+    
+    if (hasRestrictiveReanimators && giantCreatures.length > 0 && !hasGeneralReanimators) {
+      alerts.push(`CRITICAL WARNING: El mazo tiene criaturas gigantes para reanimar pero solo tiene hechizos de reanimación restrictivos de coste bajo (como Unearth). ¡Reemplázalos por Persist, Exhume, etc!`);
     }
-  } else if (normalized === 'vehicles') {
-    const vehicles = deckSpells.filter(s => s.type_line.toLowerCase().includes('vehicle'));
+    const discardOutlets = hasCard(spellNames, ['faithless looting', 'cathartic reunion', 'thrill of possibility', 'bitter reunion', "collector's vault", "stitcher's supplier", 'putrid imp', 'careful study']);
+    if (!discardOutlets && hasGeneralReanimators) {
+      alerts.push(`WARNING: Mazo Reanimator sin suficientes facilitadores de descarte tempranos. Añade Faithless Looting o similares.`);
+    }
+  } else if (matchKey === 'tribal_lords') {
     const creatures = deckSpells.filter(s => s.type_line.toLowerCase().includes('creature'));
-    if (vehicles.length > 0 && creatures.length < 12) {
-      alerts.push('WARNING: Mazo de Vehículos detectado pero con pocas criaturas para tripularlos.');
-    }
-  } else if (normalized === 'tokens') {
-    const tokenMakers = deckSpells.filter(s => ['raise the alarm', 'lingering souls', 'spectral procession', 'young pyromancer', 'monastery mentor', 'bitterblossom'].includes(s.name.toLowerCase()) || s.name.toLowerCase().includes('token'));
-    if (tokenMakers.length === 0) {
-      alerts.push('WARNING: Mazo Tokens sin generadores eficientes de tokens.');
+    if (creatures.length < 20) {
+      alerts.push('WARNING: Mazo Tribal con muy baja densidad de criaturas (<20). Asegúrate de tener suficientes para que los Lords sirvan de algo.');
     }
   }
-
-  if (alerts.length > 0) {
-    return `
-=== PROGRAMMATIC MECHANICAL AUDIT ALERTS ===
-${alerts.map(a => `[ALERTA DE SEGURIDAD] ${a}`).join('\n')}
-=============================================
-`;
-  }
-  return "";
+  
+  return alerts;
 }
 
 export async function forgeMazoPerfecto(formData, aiConfig, onProgress = () => {}) {
