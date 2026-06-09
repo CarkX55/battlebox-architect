@@ -5,6 +5,48 @@ import {
   calculatePerfectLandCount 
 } from './deckCalculator.js';
 
+export const CURVE_BOUNDS = {
+  blitz: { min: 0.5, max: 1.8 },
+  aggressive: { min: 1.8, max: 2.4 },
+  balanced: { min: 2.2, max: 3.2 },
+  heavy: { min: 2.8, max: 3.8 }
+};
+
+/**
+ * EL BOTÓN DE PÁNICO: Interceptor de Curva en Tiempo Real
+ * Calcula el VMP de las cartas actuales y activa el 'panicMode' si la curva excede los límites seguros.
+ * @param {Array} currentSpells - Array temporal de hechizos ya insertados en el mazo.
+ * @param {string} curveProfile - Perfil de curva esperado (ej. 'aggressive', 'balanced').
+ * @returns {Object} Estado de alarma: { panicMode: boolean, currentVmp: number, maxAllowedCmc: number }
+ */
+export function calculateRealTimeVMPWarning(currentSpells, curveProfile = 'balanced') {
+  if (!currentSpells || currentSpells.length < 5) {
+    // No hay suficiente muestra para saltar la alarma
+    return { panicMode: false, currentVmp: 0, maxAllowedCmc: 99 };
+  }
+
+  const vmp = calculateVMP(currentSpells);
+  const bounds = CURVE_BOUNDS[curveProfile] || CURVE_BOUNDS.balanced;
+
+  // Si superamos el máximo absoluto tolerado para el arquetipo, entramos en pánico
+  if (vmp > bounds.max) {
+    // Si la curva está rota, forzamos a que solo se acepten costes muy bajos para equilibrar
+    let maxAllowed = 2; 
+    if (curveProfile === 'blitz' || curveProfile === 'aggressive') maxAllowed = 1;
+    if (curveProfile === 'heavy') maxAllowed = 3;
+
+    return { 
+      panicMode: true, 
+      currentVmp: vmp, 
+      maxAllowedCmc: maxAllowed 
+    };
+  }
+
+  return { panicMode: false, currentVmp: vmp, maxAllowedCmc: 99 };
+}
+
+
+
 /**
  * Evalúa la competitividad de un mazo y devuelve un Grade de Perfección.
  * @param {Array} deckList - Array de objetos carta en el mazo principal
@@ -40,20 +82,11 @@ export function auditarMazo(deckList, sideboardList, formData) {
 
   // --- STRUCTURE SCORE (Max 30) ---
   if (totalMain === targetMainSize) {
-    metrics.structureScore += 15;
+    metrics.structureScore = 30;
     strengths.push(`Tamaño del mazo perfecto (${targetMainSize} cartas).`);
   } else {
+    metrics.structureScore = 0;
     warnings.push(`El mazo principal tiene ${totalMain} cartas (debería tener ${targetMainSize}).`);
-  }
-
-  if (totalSide === 15) {
-    metrics.structureScore += 15;
-    strengths.push("Sideboard completo de 15 cartas.");
-  } else if (totalSide === 0) {
-    // Si no pasaron sideboard, quizás no se generó.
-    warnings.push("No hay Sideboard generado (0 cartas).");
-  } else {
-    warnings.push(`El sideboard tiene ${totalSide} cartas (debería tener 15).`);
   }
 
   score += metrics.structureScore;
@@ -92,32 +125,28 @@ export function auditarMazo(deckList, sideboardList, formData) {
     const vmp = calculateVMP(spells);
     metrics.vmp = Math.round(vmp * 100) / 100;
 
-    // Depende del arquetipo
-    const archetype = (formData?.archetype || '').toLowerCase();
-    let isAggro = archetype.includes('aggro') || archetype.includes('burn');
-    let isControl = archetype.includes('control');
-    let isMidrange = archetype.includes('midrange') || (!isAggro && !isControl);
+    // Obtener perfil de curva y rango objetivo
+    const profile = formData?.curveProfile || 'balanced';
+    const bounds = CURVE_BOUNDS[profile] || CURVE_BOUNDS.balanced;
 
     let curveDeviation = 0;
-    if (isAggro) {
-      curveDeviation = Math.max(0, vmp - 2.0); // Penalty if VMP > 2.0
-    } else if (isControl) {
-      curveDeviation = vmp < 2.2 ? (2.2 - vmp) : Math.max(0, vmp - 3.2); // Ideal 2.2 - 3.2
-    } else { // Midrange
-      curveDeviation = vmp < 1.8 ? (1.8 - vmp) : Math.max(0, vmp - 2.8); // Ideal 1.8 - 2.8
+    if (vmp < bounds.min) {
+      curveDeviation = bounds.min - vmp;
+    } else if (vmp > bounds.max) {
+      curveDeviation = vmp - bounds.max;
     }
 
     if (curveDeviation <= 0.2) {
       metrics.curveScore = 20;
-      strengths.push(`Curva de maná óptima para la estrategia (${metrics.vmp} VMP).`);
+      strengths.push(`Curva de maná óptima para la estrategia (${metrics.vmp} VMP en perfil ${profile}).`);
     } else if (curveDeviation <= 0.5) {
       metrics.curveScore = 15;
     } else if (curveDeviation <= 1.0) {
       metrics.curveScore = 10;
-      warnings.push(`Curva ligeramente ineficiente para el arquetipo (VMP: ${metrics.vmp}).`);
+      warnings.push(`Curva ligeramente ineficiente para el arquetipo (VMP: ${metrics.vmp}, perfil deseado: ${profile}).`);
     } else {
       metrics.curveScore = 0;
-      warnings.push(`Curva de maná muy desconectada de la estrategia seleccionada (VMP: ${metrics.vmp}).`);
+      warnings.push(`Curva de maná muy desconectada de la estrategia seleccionada (VMP: ${metrics.vmp}, perfil deseado: ${profile}).`);
     }
     score += metrics.curveScore;
   }

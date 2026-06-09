@@ -28,19 +28,7 @@ export const COLORS = [
   { id: 'C', name: 'Incoloro', icon: '/ASSETS/Manaincoloro.webp', color: MANA_COLORS.C, bg: 'bg-gray-400', text: 'text-black' }
 ];
 
-export const BATTLEBOX_BANLIST = [
-  // --- BANLIST OFICIAL DE MODERN ---
-  "Ancestral Vision", "Ancient Den", "Arcum's Astrolabe", "Birthing Pod", "Blazing Shoal", 
-  "Chrome Mox", "Cloudpost", "Dark Depths", "Deathrite Shaman", "Dig Through Time", 
-  "Dread Return", "Eye of Ugin", "Faithless Looting", "Field of the Dead", "Gitaxian Probe", 
-  "Glimpse of Nature", "Golgari Grave-Troll", "Great Furnace", "Green Sun's Zenith", "Grief", 
-  "Hogaak, Arisen Necropolis", "Hypergenesis", "Krark-Clan Ironworks", "Mental Misstep", 
-  "Mox Opal", "Mycosynth Lattice", "Mystic Sanctuary", "Oko, Thief of Crowns", "Once Upon a Time", 
-  "Ponder", "Punishing Fire", "Rite of Flame", "Seat of the Synod", "Second Sunrise", 
-  "Sensei's Divining Top", "Simian Spirit Guide", "Skullclamp", "Splinter Twin", "Summer Bloom", 
-  "Tibalt's Trickery", "Treasure Cruise", "Tree of Tales", "Uro, Titan of Nature's Wrath", 
-  "Vault of Whispers", "Violent Outburst", "Wrenn and Six", "Yorion, Sky Nomad",
-
+export const BATTLEBOX_VETOS = [
   // --- VETOS CASUALES / OPRESORES DEL FORMATO (Mecánicas Antideportivas) ---
   // 1. Efectos de "Vida a X" directos
   "Master of Cruelties", "Sorin Markov", "Magister Sphinx", "Tree of Perdition",
@@ -490,6 +478,16 @@ export const MTG_STRATEGIES = [
     mechanics: 'Encadena múltiples rituales y hechizos cantrips de coste bajo en un solo turno para finalizar con un hechizo con la mecánica de Tormenta (Grapeshot, Empty the Warrens).',
     keywords: ['storm', 'grapeshot', 'empty the warrens', 'add {r}', 'add {u}', 'ritual', 'manamorphose', 'ruby medallion', 'ral, monsoon mage', 'baral', 'electromancer', 'past in flames', 'wish', 'tendrils of agony', 'desperate ritual', 'pyretic ritual', 'seething song', 'strike', 'draw'],
     formats: ['MODERN']
+  },
+  { 
+    id: 'toolbox', 
+    label: 'Toolbox (Tutors & Silver Bullets)', 
+    colors: ['G', 'W', 'B', 'R'], 
+    primaryColor: 'G',
+    archetypes: ['midrange', 'combo'],
+    mechanics: 'Utiliza tutores y motores de búsqueda para encontrar criaturas específicas ("Silver Bullets") y responder a cualquier amenaza o ensamblar un combo letal.',
+    keywords: ['search your library for a creature card', 'chord of calling', 'eldritch evolution', 'birthing pod', 'tutor', 'silver bullet', 'toolbox', 'yisan', 'fauna shaman'],
+    formats: ['MODERN', 'STANDARD', 'PIONEER']
   }
 ];
 
@@ -791,3 +789,76 @@ export const HISTORICAL_DECKS_CATALOG = {
   ]
 };
 
+// --- EL IMÁN: GRAFO ESTRICTO DE MICRO-SINERGIAS ---
+// Mapea una "Carta Ancla" con sus "Piezas Combo" y un multiplicador de prioridad.
+// Si la Carta Ancla está en el mazo, la Pieza Combo verá su prioridad mejorada exponencialmente.
+export const MICRO_SYNERGIES_GRAPH = {
+  "yawgmoth, thran physician": [
+    { target: "young wolf", multiplier: 10.0 },
+    { target: "strangleroot geist", multiplier: 8.0 },
+    { target: "blood artist", multiplier: 5.0 },
+    { target: "chord of calling", multiplier: 5.0 }
+  ],
+  "thassa's oracle": [
+    { target: "demonic consultation", multiplier: 15.0 },
+    { target: "tainted pact", multiplier: 15.0 }
+  ],
+  "karn, the great creator": [
+    { target: "mycosynth lattice", multiplier: 10.0 },
+    { target: "liquimetal coating", multiplier: 8.0 },
+    { target: "ensnaring bridge", multiplier: 5.0 }
+  ],
+  "kiki-jiki, mirror breaker": [
+    { target: "restoration angel", multiplier: 10.0 },
+    { target: "deceiver exarch", multiplier: 10.0 },
+    { target: "pestermite", multiplier: 10.0 },
+    { target: "zealous conscripts", multiplier: 10.0 }
+  ],
+  "devoted druid": [
+    { target: "vizier of remedies", multiplier: 15.0 },
+    { target: "duskwatch recruiter", multiplier: 5.0 }
+  ],
+  "urza's tower": [
+    { target: "urza's mine", multiplier: 20.0 },
+    { target: "urza's power plant", multiplier: 20.0 },
+    { target: "expedition map", multiplier: 10.0 },
+    { target: "sylvan scrying", multiplier: 10.0 },
+    { target: "karn liberated", multiplier: 5.0 }
+  ],
+  "urza's mine": [
+    { target: "urza's tower", multiplier: 20.0 },
+    { target: "urza's power plant", multiplier: 20.0 }
+  ],
+  "urza's power plant": [
+    { target: "urza's tower", multiplier: 20.0 },
+    { target: "urza's mine", multiplier: 20.0 }
+  ],
+  "helkite tyrant": [
+    { target: "mycosynth lattice", multiplier: 10.0 }
+  ],
+  "cauldron familiar": [
+    { target: "witch's oven", multiplier: 15.0 },
+    { target: "trail of crumbs", multiplier: 8.0 }
+  ],
+  "witch's oven": [
+    { target: "cauldron familiar", multiplier: 15.0 }
+  ]
+};
+
+// --- DICCIONARIO OMNIPRESENTE DE DEPENDENCIAS (VETO CONTEXTUAL) ---
+// Define requisitos estrictos que una carta necesita en el ecosistema actual del mazo.
+// Si el mazo no cumple el requisito, la carta será vetada.
+export const CONTEXTUAL_DEPENDENCIES = [
+  // Encantamientos y Auras
+  { keywords: ['search your library for an enchantment', 'search your library for an aura', 'constellation', 'enchant target', 'enchanted creature'], requiresType: 'enchantment' },
+  // Artefactos y Equipos
+  { keywords: ['search your library for an artifact', 'sacrifice an artifact', 'affinity for artifacts', 'metalcraft'], requiresType: 'artifact' },
+  { keywords: ['equipped creature', 'equip {', 'search your library for an equipment'], requiresType: 'equipment' },
+  // Planeswalkers
+  { keywords: ['planeswalker you control', 'remove a loyalty counter'], requiresType: 'planeswalker' },
+  // Tribus o Subtipos muy específicos en hechizos de soporte
+  { keywords: ['dragon you control', 'reveal a dragon'], requiresType: 'dragon' },
+  { keywords: ['zombie you control'], requiresType: 'zombie' },
+  // Mecánicas que requieren enablers específicos
+  { keywords: ['madness'], requiresText: 'discard' }
+];

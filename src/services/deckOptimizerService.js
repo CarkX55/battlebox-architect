@@ -1,6 +1,6 @@
 import { aplicarJuezFinal, getMaxAllowedCopies, cleanAndParseJSON } from './deckArchitectService.js';
 import { buildCardPool } from './ragService.js';
-import { BATTLEBOX_BANLIST } from '../constants/legacyBattleBox.js';
+import { BATTLEBOX_VETOS } from '../constants/legacyBattleBox.js';
 import { hydrateDeckCards } from './cardHydrator.js';
 import { isLand, calculatePerfectLandCount, generateManaBase } from './deckCalculator.js';
 import { callAI, DECK_SCHEMA } from './aiFactory.js';
@@ -386,7 +386,7 @@ Optimiza la baraja principal y devuelve el resultado en JSON que cumpla con el e
 export async function optimizarMazo(deckList, formData, aiConfig, preserveLands = true) {
   // 1. Limpieza y normalización de la lista de entrada (forzar quantity numérica)
   let nextDeck = [...deckList]
-    .filter(c => !BATTLEBOX_BANLIST.includes(c.name))
+    .filter(c => !BATTLEBOX_VETOS.includes(c.name))
     .map(c => ({
       ...c,
       quantity: Number(c.quantity || c.count || 1)

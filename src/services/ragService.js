@@ -120,6 +120,9 @@ export const buildCardPool = async (formData) => {
   const selectedFormat = (formData.format || 'MODERN').toUpperCase();
   const formatKey = selectedFormat.toLowerCase();
   
+  const excludedNames = (formData.excludedNames || []).filter(n => typeof n === 'string').map(n => n.toLowerCase());
+  const injectedCoreNames = (formData.injectedCoreNames || []).filter(n => typeof n === 'string');
+  
   // Cargar datos de metagame del formato para scoring dinámico y coocurrencias
   const metaProfile = loadMetaFromDB(selectedFormat);
   const metaStaples = metaProfile?.staples || {};
@@ -197,12 +200,15 @@ export const buildCardPool = async (formData) => {
     // 1. FILTROS ESTRICTOS (HARD FILTERS)
     if (['token', 'vanguard', 'plane', 'scheme', 'phenomenon', 'art_series'].includes(card.layout)) continue;
     
+    // Excluir cartas que ya están en el Core o en Must-Include
+    if (card.name && typeof card.name === 'string' && excludedNames.includes(card.name.toLowerCase())) continue;
+    
     // Filtro dinámico estricto: Solo permitir cartas legales en el formato seleccionado
     if (!card.legalities || card.legalities[formatKey] !== 'legal') continue;
     
-    const cardNameLower = card.name ? card.name.toLowerCase() : '';
-    const typeLine = card.type_line ? card.type_line.toLowerCase() : '';
-    const oracleText = card.oracle_text ? card.oracle_text.toLowerCase() : '';
+    const cardNameLower = (card.name && typeof card.name === 'string') ? card.name.toLowerCase() : '';
+    const typeLine = (card.type_line && typeof card.type_line === 'string') ? card.type_line.toLowerCase() : '';
+    const oracleText = (card.oracle_text && typeof card.oracle_text === 'string') ? card.oracle_text.toLowerCase() : '';
     const isCreature = typeLine.includes('creature');
 
     // --- FILTRADO PROACTIVO DE CARTAS PARASITARIAS ---
@@ -677,6 +683,8 @@ export const buildCardPool = async (formData) => {
       type_line: card.type_line,
       oracle_text: card.oracle_text,
       colors: card.colors,
+      color_identity: card.color_identity || [],
+      mana_cost: card.mana_cost || '',
       score: score,
       metaPercent: inVivoPercentage
     };
@@ -797,6 +805,20 @@ export const buildCardPool = async (formData) => {
     // Limitamos el bono de metajuego cruzado para que no domine por completo a las sinergias de texto
     relationalBoost += Math.min(150, metaNetScore);
 
+    // D) Boost de Sinergia por Anclaje (Core Packages)
+    let coreAnchorBoost = 0;
+    if (injectedCoreNames && injectedCoreNames.length > 0) {
+      for (const coreName of injectedCoreNames) {
+        if (typeof coreName !== 'string') continue;
+        const coreNameLower = coreName.toLowerCase();
+        const pairFreq = metaSynergies[cardNameLower]?.[coreNameLower] || metaSynergies[coreNameLower]?.[cardNameLower] || 0;
+        if (pairFreq > 0) {
+          coreAnchorBoost += (pairFreq * 1.5);
+        }
+      }
+      relationalBoost += Math.min(200, coreAnchorBoost);
+    }
+
     // Sumar el boost relacional al score original
     card.score += Math.round(relationalBoost);
   });
@@ -845,11 +867,71 @@ export const buildCardPool = async (formData) => {
     });
   }
 
+  // --- INICIO RAG 3.0: DESCUBRIMIENTO DE SINERGIAS OCULTAS (SPICE) ---
+  console.log(`[RAG 3.0] Iniciando escaneo de Sinergias Ocultas (2do grado) en ${allCandidates.length} candidatos...`);
+  let hiddenSynergyCount = 0;
+  
+  // Extraer un núcleo del mazo basado en altos puntajes e inVivoPercentages
+  const coreCards = allCandidates.filter(c => c.score > 200 || c.metaPercent > 10).map(c => c.name.toLowerCase());
+  
+  allCandidates.forEach(card => {
+    const cardNameLower = card.name.toLowerCase();
+    
+    // Filtro 1: Excluir cartas que ya son hiper staples (> 8% de juego) o parte del MUST INCLUDE
+    const isMainstream = (card.metaPercent && card.metaPercent > 8) || FORMAT_STAPLES[selectedFormat]?.has(cardNameLower);
+    if (isMainstream) return;
+    
+    let synergyScore = 0;
+    let reasons = [];
+    
+    // Filtro 2: Análisis de Segundo Grado en Obsidian Graph
+    if (obsidianGraph && obsidianGraph.cards && obsidianGraph.cards[cardNameLower]) {
+      const graphCard = obsidianGraph.cards[cardNameLower];
+      
+      // Co-ocurrencias directas en el grafo con el núcleo del mazo
+      if (graphCard.synergies && graphCard.synergies.length > 0) {
+        graphCard.synergies.forEach(syn => {
+          if (!syn || !syn.name) return;
+          if (coreCards.includes(syn.name.toLowerCase())) {
+            synergyScore += (syn.coeff || 1) * 60;
+            reasons.push(`Sinergia fuerte comprobada con ${syn.name}`);
+          }
+        });
+      }
+      
+      // Coincidencia de etiquetas abstractas con la estrategia actual
+      if (graphCard.tags && graphCard.tags.length > 0) {
+        const stratLower = strategyId.toLowerCase();
+        const archLower = formData.archetype.toLowerCase();
+        
+        graphCard.tags.forEach(t => {
+          const cleanTag = t.replace('tag:', '').toLowerCase();
+          if (stratLower.includes(cleanTag) || archLower.includes(cleanTag)) {
+            synergyScore += 45;
+            reasons.push(`Alineado abstractamente con la mecánica ${cleanTag}`);
+          }
+        });
+      }
+    }
+    
+    // Filtro 3: Si la carta alcanza un umbral mágico de sinergia oculta, la marcamos
+    if (synergyScore > 90) {
+      card.isHiddenSynergy = true;
+      card.synergyReason = `Sinergia Oculta: ${reasons.slice(0, 2).join(' y ')}. Inclusión off-meta recomendada por IA experta.`;
+      card.score += 1000; // Impulso MASIVO absoluto para asegurar que quede en el pool RAG (aunque luego se capará en cantidades)
+      hiddenSynergyCount++;
+      console.log(`[RAG 3.0] 🔮 Sinergia Oculta Detectada: ${card.name} -> ${card.synergyReason}`);
+    }
+  });
+  
+  console.log(`[RAG 3.0] Proceso completado. ${hiddenSynergyCount} sinergias ocultas identificadas.`);
+  // --- FIN RAG 3.0 ---
+
   // Re-separar los pools con las puntuaciones actualizadas
   creaturesPool = allCandidates.filter(c => c.type_line && c.type_line.toLowerCase().includes('creature'));
   spellsPool = allCandidates.filter(c => !c.type_line || !c.type_line.toLowerCase().includes('creature'));
 
-  // --- FIN RAG 2.0 ---
+  // --- FIN PROCESO RAG ---
 
   // 3. ORDENACIÓN POR RANGO Y CUPOS DINÁMICOS CON SELECCIÓN CONSCIENTE DE LA CURVA (DTE POOL ALLOCATION)
   spellsPool.sort((a, b) => b.score - a.score);

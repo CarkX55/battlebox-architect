@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../../utils/cn';
 import { Sparkles, Swords, Shield, Zap, Flame, Crown, BookOpen, Search, Check, Plus, AlertCircle, Wand2, Compass, PlusCircle, MinusCircle, Scroll, TrendingUp, Lock, Unlock } from 'lucide-react';
 
-import { BATTLEBOX_BANLIST, BATTLEBOX_ARCHETYPES, getBattleBoxFormatName, BATTLEBOX_FORMAT_NAME, MTG_TRIBES, MTG_STRATEGIES, TRIBE_CATEGORIES, COLORS, HISTORICAL_DECKS_CATALOG } from '../../constants/legacyBattleBox';
+import { BATTLEBOX_VETOS, BATTLEBOX_ARCHETYPES, getBattleBoxFormatName, BATTLEBOX_FORMAT_NAME, MTG_TRIBES, MTG_STRATEGIES, TRIBE_CATEGORIES, COLORS, HISTORICAL_DECKS_CATALOG } from '../../constants/legacyBattleBox';
 import ManaOrb from '../atoms/ManaOrb';
 import { getDynamicArchetypes } from '../../services/ragService';
 
@@ -319,11 +319,14 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
 
   const [isCustomTribe, setIsCustomTribe] = useState(false);
   const [isCustomStrategy, setIsCustomStrategy] = useState(false);
+  const [hasUserClearedTribe, setHasUserClearedTribe] = useState(false);
+  const [hasUserClearedStrategy, setHasUserClearedStrategy] = useState(false);
   const [activeTribeTab, setActiveTribeTab] = useState('clasica');
   const [errors, setErrors] = useState({});
   const [currentStep, setCurrentStep] = useState(1);
   const [activeColorTab, setActiveColorTab] = useState('generic');
   const [searchQuery, setSearchQuery] = useState('');
+  const [colorSuggestion, setColorSuggestion] = useState(null);
 
   // Filtrado de arquetipos por formato + grupo de color + búsqueda
   const filteredArchetypes = useMemo(() => {
@@ -378,6 +381,8 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
     }));
     setIsCustomTribe(false);
     setIsCustomStrategy(false);
+    setHasUserClearedTribe(false);
+    setHasUserClearedStrategy(false);
     setErrors(prev => ({ ...prev, colores: null }));
     
     // Auto-avance místico inteligente (Piloto Automático)
@@ -467,9 +472,12 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
     return { allowed, primary: primary.length > 0 ? primary : allowed };
   }, [currentArchetype, selectedTribeInfo, selectedStrategyInfo]);
 
-  // Si cambia el arquetipo, reseteamos tribu y estrategia
+  // Si cambia el arquetipo, reseteamos tribu y estrategia y los flags de limpieza manual
   useEffect(() => {
     setFormData(prev => ({ ...prev, tribe: '', strategy: '' }));
+    setHasUserClearedTribe(false);
+    setHasUserClearedStrategy(false);
+    setColorSuggestion(null);
   }, [formData.archetype]);
 
   // Lógica Avanzada de Compatibilidad de Sinergias (Razas + Mecánicas)
@@ -546,25 +554,28 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
 
   // Autoselección reactiva inteligente cuando queda un único camino habilitado
   useEffect(() => {
-    if (formData.archetype) {
-      // 1. Si no hay tribu seleccionada, pero solo hay una tribu compatible habilitada
+    if (formData.archetype && !formData.isExpertMode) {
+      // 1. Si no hay tribu seleccionada, pero solo hay una tribu compatible habilitada y no ha sido limpiada manualmente
       const activeCompatibleTribes = availableTribes.filter(isTribeCompatible);
-      if (!formData.tribe && !isCustomTribe && activeCompatibleTribes.length === 1) {
+      if (!formData.tribe && !isCustomTribe && !hasUserClearedTribe && activeCompatibleTribes.length === 1) {
         setFormData(prev => ({ ...prev, tribe: activeCompatibleTribes[0].label }));
       }
       
-      // 2. Si no hay estrategia seleccionada, pero solo hay una estrategia compatible habilitada
+      // 2. Si no hay estrategia seleccionada, pero solo hay una estrategia compatible habilitada y no ha sido limpiada manualmente
       const activeCompatibleStrats = availableStrategies.filter(isStrategyCompatible);
-      if (!formData.strategy && !isCustomStrategy && activeCompatibleStrats.length === 1) {
+      if (!formData.strategy && !isCustomStrategy && !hasUserClearedStrategy && activeCompatibleStrats.length === 1) {
         setFormData(prev => ({ ...prev, strategy: activeCompatibleStrats[0].label }));
       }
     }
   }, [
     formData.archetype, 
+    formData.isExpertMode,
     formData.tribe, 
     formData.strategy, 
     isCustomTribe, 
     isCustomStrategy, 
+    hasUserClearedTribe,
+    hasUserClearedStrategy,
     availableTribes, 
     availableStrategies, 
     isTribeCompatible, 
@@ -576,36 +587,31 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
   useEffect(() => {
     const { allowed = [], primary = [] } = allowedColorsInfo || {};
     
-    setFormData(prev => {
-      // Si todos los colores están permitidos, no es necesario validar
-      if (allowed.includes('W') && allowed.includes('U') && allowed.includes('B') && allowed.includes('R') && allowed.includes('G') && allowed.includes('C')) {
-        return prev;
+    // Si la selección actual (Step 3) no coincide con la tribu/estrategia (Step 2),
+    // mostramos una sugerencia en lugar de forzar el cambio.
+    const currentColors = formData.colores || [];
+    
+    if (allowed.includes('W') && allowed.includes('U') && allowed.includes('B') && allowed.includes('R') && allowed.includes('G') && allowed.includes('C')) {
+      setColorSuggestion(null);
+      return;
+    }
+
+    const hasNoPrimary = primary.length > 0 && !primary.includes('C') && !primary.some(pc => currentColors.includes(pc));
+    
+    if (hasNoPrimary && currentColors.length > 0) {
+      const fallback = primary.filter(c => c !== 'C');
+      if (fallback.length > 0) {
+        setColorSuggestion({
+          missingColors: fallback,
+          tribe: formData.tribe,
+          strategy: formData.strategy
+        });
+        return;
       }
-      
-      // Filtrar colores seleccionados que no estén permitidos
-      const validSelected = (prev.colores || []).filter(c => allowed.includes(c));
-      
-      // Si la selección actual tiene colores inválidos o se quedó sin colores seleccionados
-      if (validSelected.length !== (prev.colores || []).length || validSelected.length === 0) {
-        // Fallback: usar los colores primarios o el primer color permitido
-        const fallback = primary.filter(c => c !== 'C');
-        const defaultChoice = fallback.length > 0 ? fallback : (allowed.length > 0 ? [allowed[0]] : []);
-        return { ...prev, colores: validSelected.length > 0 ? validSelected : defaultChoice };
-      }
-      
-      // Si se requiere un primario y no hay ninguno seleccionado (y primario no es incoloro)
-      const hasNoPrimary = primary.length > 0 && !primary.includes('C') && !primary.some(pc => validSelected.includes(pc));
-      if (hasNoPrimary) {
-        const fallback = primary.filter(c => c !== 'C');
-        if (fallback.length > 0) {
-          // Unir el primer primario a la selección
-          return { ...prev, colores: [...new Set([...validSelected, fallback[0]])] };
-        }
-      }
-      
-      return prev;
-    });
-  }, [allowedColorsInfo]);
+    }
+    
+    setColorSuggestion(null);
+  }, [allowedColorsInfo, formData.colores, formData.tribe, formData.strategy]);
 
   // Sincronizar tab activo cuando cambian las tribus disponibles
   useEffect(() => {
@@ -846,7 +852,7 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                       
                       let bannedCount = 0;
                       if (arch.allCards && arch.allCards.length > 0) {
-                        bannedCount = arch.allCards.filter(c => BATTLEBOX_BANLIST.includes(c.toLowerCase())).length;
+                        bannedCount = arch.allCards.filter(c => BATTLEBOX_VETOS.some(v => v.toLowerCase() === c.toLowerCase())).length;
                       }
                       
                       return (
@@ -1024,6 +1030,35 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                   </button>
                 )}
               </div>
+              {/* Sugerencia de Color (Railroading) */}
+              {colorSuggestion && (
+                <div className="bg-yellow-900/40 border border-yellow-500/50 rounded-xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-lg backdrop-blur-sm relative z-10">
+                  <div className="flex gap-3">
+                    <div className="mt-1">
+                      <AlertCircle className="text-yellow-400" size={24} />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-yellow-400 font-cinzel mb-1">
+                        Alineación Mágica Recomendada
+                      </h4>
+                      <p className="text-xs text-white/80 leading-relaxed font-sans">
+                        La senda de <span className="font-black text-white">{colorSuggestion.tribe || colorSuggestion.strategy}</span> requiere magia específica para desplegar todo su potencial. 
+                        ¿Deseas sintonizar tu maná con {colorSuggestion.missingColors.map(c => COLORS.find(co => co.id === c)?.name || c).join(', ')}?
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFormData(prev => ({ ...prev, colores: [...new Set([...(prev.colores || []), ...colorSuggestion.missingColors])] }));
+                      setColorSuggestion(null);
+                    }}
+                    className="shrink-0 bg-yellow-500 hover:bg-yellow-400 text-black px-4 py-2 rounded-lg text-[10px] uppercase font-black tracking-widest transition-colors flex items-center justify-center gap-1.5 shadow-[0_0_15px_rgba(234,179,8,0.3)] hover:shadow-[0_0_20px_rgba(234,179,8,0.5)]"
+                  >
+                    <span>✦</span> Aplicar Ajuste
+                  </button>
+                </div>
+              )}
 
               {/* Grid Responsivo de Doble Columna */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 relative z-10 items-start">
@@ -1313,6 +1348,8 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                                   setLockedColors(true);
                                   setIsCustomStrategy(false);
                                   setIsCustomTribe(false);
+                                  setHasUserClearedTribe(true);
+                                  setHasUserClearedStrategy(false);
                                 }}
                                 className={cn(
                                   "min-w-[220px] max-w-[220px] p-4 rounded-xl border transition-all duration-300 text-left flex flex-col gap-2 snap-center relative",
@@ -1358,6 +1395,7 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                               onClick={() => {
                                 setFormData(prev => ({ ...prev, tribe: '' }));
                                 setIsCustomTribe(false);
+                                setHasUserClearedTribe(true);
                               }}
                               className="text-[9px] text-red-400 hover:text-red-300 uppercase tracking-widest font-black"
                             >
@@ -1393,7 +1431,10 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                           <div className="grid grid-cols-2 gap-2">
                             <button
                               type="button"
-                              onClick={() => setFormData(prev => ({ ...prev, tribe: '' }))}
+                              onClick={() => {
+                                setFormData(prev => ({ ...prev, tribe: '' }));
+                                setHasUserClearedTribe(true);
+                              }}
                               className={cn(
                                 "p-2 rounded-lg border text-center transition-all duration-300 flex flex-col items-center justify-center gap-1 relative min-h-[56px]",
                                 !formData.tribe
@@ -1419,6 +1460,7 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                                       ...prev,
                                       tribe: tribe.label
                                     }));
+                                    setHasUserClearedTribe(false);
                                   }}
                                   title={!isCompatible ? `Incompatible con la estrategia "${formData.strategy}"` : `Seleccionar ${tribe.label}`}
                                   className={cn(
@@ -1480,6 +1522,7 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                               onClick={() => {
                                 setFormData(prev => ({ ...prev, strategy: '' }));
                                 setIsCustomStrategy(false);
+                                setHasUserClearedStrategy(true);
                               }}
                               className="text-[9px] text-red-400 hover:text-red-300 uppercase tracking-widest font-black"
                             >
@@ -1491,7 +1534,10 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                         {/* Strategies List Selector */}
                         <div className="h-[210px] overflow-y-auto p-2 bg-black/60 border border-white/10 rounded-xl space-y-2 relative z-10">
                           <div
-                            onClick={() => setFormData(prev => ({ ...prev, strategy: '' }))}
+                            onClick={() => {
+                              setFormData(prev => ({ ...prev, strategy: '' }));
+                              setHasUserClearedStrategy(true);
+                            }}
                             className={cn(
                               "p-2.5 rounded-lg border transition-all duration-300 flex flex-col justify-between min-h-[70px] cursor-pointer",
                               !formData.strategy
@@ -1518,6 +1564,7 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                                   if (!isCompatible) return;
                                   setIsCustomStrategy(false);
                                   setFormData(prev => ({ ...prev, strategy: strat.label }));
+                                  setHasUserClearedStrategy(false);
                                 }}
                                 title={!isCompatible ? `Incompatible con la raza/tribu "${formData.tribe}"` : `Seleccionar ${strat.label}`}
                                 className={cn(

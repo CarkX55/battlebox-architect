@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../../utils/cn';
-import { BATTLEBOX_BANLIST, COLORS } from '../../constants/legacyBattleBox';
+import { BATTLEBOX_VETOS, COLORS } from '../../constants/legacyBattleBox';
 import { Search, Filter, ShieldAlert, Swords, Zap, Scroll, Book, Box, Gem, Map, X, Plus, Check, RefreshCw, AlertTriangle } from 'lucide-react';
 
 export default function CardSearch({ onAddCard }) {
@@ -93,7 +93,7 @@ export default function CardSearch({ onAddCard }) {
     return () => clearTimeout(timer);
   }, [query, isModernOnly, selectedType, selectedColors]);
 
-  const isBanned = (cardName) => BATTLEBOX_BANLIST.includes(cardName);
+  const isVetoed = (cardName) => BATTLEBOX_VETOS.includes(cardName);
   
   const isUnsportsmanlike = (card) => {
     const text = (card.oracle_text || "").toLowerCase();
@@ -231,7 +231,7 @@ export default function CardSearch({ onAddCard }) {
             className="absolute z-[100] w-full mt-4 bg-[#0a0a0c]/95 border-2 border-magic-gold/30 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.8)] overflow-y-auto max-h-[450px] backdrop-blur-xl scrollbar-thin scrollbar-thumb-magic-gold/20"
           >
             {results.map(card => {
-              const banned = isBanned(card.name);
+              const banned = isVetoed(card.name);
               return (
                 <div
                   key={card.id}
@@ -265,7 +265,7 @@ export default function CardSearch({ onAddCard }) {
                       </p>
                       {banned && (
                         <span className="flex items-center gap-1 text-[8px] bg-red-500/20 text-red-400 px-2 py-0.5 rounded-full border border-red-500/30 uppercase tracking-tighter">
-                          <ShieldAlert size={10} /> Prohibida
+                          <ShieldAlert size={10} /> Vetada
                         </span>
                       )}
                       {!banned && isUnsportsmanlike(card) && (
@@ -339,11 +339,11 @@ export default function CardSearch({ onAddCard }) {
                 alt={hoveredCard.name} 
                 className="w-full h-auto block"
               />
-              {isBanned(hoveredCard.name) && (
+              {isVetoed(hoveredCard.name) && (
                 <div className="absolute inset-0 bg-red-950/40 backdrop-blur-[2px] flex flex-col items-center justify-center p-6 text-center border-4 border-red-600/50">
                   <ShieldAlert size={60} className="text-red-500 mb-4 animate-pulse" />
-                  <h3 className="font-cinzel text-2xl font-bold text-white mb-2 shadow-black text-shadow-lg">CARTA PROHIBIDA</h3>
-                  <p className="text-red-200 text-xs font-bold uppercase tracking-widest">No permitida en Modern Casual</p>
+                  <h3 className="font-cinzel text-2xl font-bold text-white mb-2 shadow-black text-shadow-lg">CARTA VETADA</h3>
+                  <p className="text-red-200 text-xs font-bold uppercase tracking-widest">No permitida en Battle Box Casual</p>
                 </div>
               )}
               {hoveredCard.card_faces && (

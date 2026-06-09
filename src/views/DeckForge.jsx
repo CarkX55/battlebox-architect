@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
-import { BATTLEBOX_BANLIST, COLORS, BATTLEBOX_RULES } from '../constants/legacyBattleBox';
+import { BATTLEBOX_VETOS, COLORS, BATTLEBOX_RULES } from '../constants/legacyBattleBox';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../utils/cn';
 import ForgeForm from '../components/forge/ForgeForm';
@@ -16,12 +16,13 @@ import HandSimulator from '../components/forge/HandSimulator';
 import { PowerLevelMeter } from '../components/forge/PowerLevelMeter';
 import RadarChart from '../components/forge/RadarChart';
 import ManaCurve from '../components/forge/ManaCurve';
-import { AlertTriangle, Shield, Lightbulb, Target, Scroll, PenTool, CheckCircle2, XCircle, Info, Zap, Sparkles, Copy, PlusCircle, MinusCircle, GitFork, Share2, Download, Droplet } from 'lucide-react';
+import { AlertTriangle, Shield, Lightbulb, Target, Scroll, PenTool, CheckCircle2, XCircle, Info, Zap, Sparkles, Copy, PlusCircle, MinusCircle, GitFork, Share2, Download, Droplet, Activity } from 'lucide-react';
 import { calculateKarstenProbability, calculateLandDropProbability, calculateManaCoverage, calculateTurnoDeOro, generateManaBase, calculatePerfectLandCount } from '../services/deckCalculator';
 import { generateSideboard } from '../services/sideboardService';
 import SynergyGraphVisualizer from '../components/forge/SynergyGraphVisualizer';
 import DeckVisualExporter from '../components/forge/DeckVisualExporter';
 import { optimizarMazo } from '../services/deckOptimizerService';
+import { auditDeckWithAI } from '../services/auditService';
 
 const FORGE_STORAGE_KEY = 'mtg_ai_config_forge';
 
@@ -528,6 +529,10 @@ export default function DeckForge() {
   const [showRagGraph, setShowRagGraph] = useState(false);
   const [showVisualGrid, setShowVisualGrid] = useState(false);
   const [exportDropdownOpen, setExportDropdownOpen] = useState(false);
+  const [isAuditing, setIsAuditing] = useState(false);
+  const [auditResult, setAuditResult] = useState(null);
+  const [showAuditModal, setShowAuditModal] = useState(false);
+
 
   // Timer de forja: muestra segundos transcurridos cuando loading === true
   useEffect(() => {
@@ -613,7 +618,7 @@ export default function DeckForge() {
     
     const mainCount = safeDeck.reduce((sum, c) => sum + (c.quantity || 0), 0);
     const sideCount = safeSideboard.reduce((sum, c) => sum + (c.quantity || 0), 0);
-    const bannedInDeck = [...safeDeck, ...safeSideboard].filter(c => c.name && BATTLEBOX_BANLIST.includes(c.name));
+    const bannedInDeck = [...safeDeck, ...safeSideboard].filter(c => c.name && BATTLEBOX_VETOS.includes(c.name));
     const overLimit = [...safeDeck, ...safeSideboard].filter(c => c.name && !isBasicLand(c.name) && (c.quantity || 0) > BATTLEBOX_RULES.maxCopies);
     
     return {
@@ -808,6 +813,27 @@ export default function DeckForge() {
     }
   };
 
+  const handleAudit = async () => {
+    if (!renderDeck.length) return;
+    setIsAuditing(true);
+    setForgePhase({ phase: 'audit', message: '🕵️‍♂️ El Juez Supremo está evaluando la competitividad...' });
+    setAuditResult(null);
+    setShowAuditModal(false);
+
+    try {
+      const result = await auditDeckWithAI(renderDeck, renderSideboard, lastFormData, aiConfig, (p, m) => {
+        setForgePhase({ phase: p, message: m });
+      });
+      setAuditResult(result);
+      setShowAuditModal(true);
+    } catch (error) {
+      setWarning(error.message || 'Error en la auditoría.');
+    } finally {
+      setIsAuditing(false);
+      setForgePhase(null);
+    }
+  };
+
   const handleSubmit = async (formData) => {
     if (!aiConfig?.selectedModel) {
       setError('Selecciona un modelo de IA primero');
@@ -838,6 +864,9 @@ export default function DeckForge() {
     setWarning(null);
     setForgePhase(null);
     setLastGenerationLogs(null);
+    setAuditResult(null);
+    setShowAuditModal(false);
+    
     
     try {
       console.log('🔥 Forjando mazo Modern Battle Box...');
@@ -918,8 +947,8 @@ export default function DeckForge() {
     const cardName = scryfallCard.name;
     
     // Bloqueo de Banlist
-    if (BATTLEBOX_BANLIST.includes(cardName)) {
-      setWarning(`⚠️ La carta "${cardName}" está PROHIBIDA en Modern Casual.`);
+    if (BATTLEBOX_VETOS.includes(cardName)) {
+      setWarning(`⚠️ La carta "${cardName}" está VETADA en Battle Box Casual.`);
       return;
     }
 
@@ -1031,7 +1060,7 @@ export default function DeckForge() {
     setRenderDeck(prev => {
       let nextDeck = [...prev];
       // 1. Eliminar baneadas
-      nextDeck = nextDeck.filter(c => !BATTLEBOX_BANLIST.includes(c.name));
+      nextDeck = nextDeck.filter(c => !BATTLEBOX_VETOS.includes(c.name));
       // 2. Ajustar límite a 4
       nextDeck = nextDeck.map(c => (!isBasicLand(c.name) && c.quantity > BATTLEBOX_RULES.maxCopies) ? { ...c, quantity: BATTLEBOX_RULES.maxCopies } : c);
       
@@ -1462,7 +1491,16 @@ export default function DeckForge() {
                     )}
                   </AnimatePresence>
                 </div>
-                <button onClick={() => setMode('form')} className="btn-magic-glass btn-glass-silver">← Nuevo</button>
+                <button 
+                  onClick={() => {
+                    setMode('form');
+                    setAuditResult(null);
+                    setShowAuditModal(false);
+                  }} 
+                  className="btn-magic-glass btn-glass-silver"
+                >
+                  ← Nuevo
+                </button>
               </div>
             </div>
 
@@ -1601,7 +1639,17 @@ export default function DeckForge() {
                     </div>
                   </div>
                 )}
-                <VisualGrid cards={renderDeck} isEditing={isEditing} onRemoveCard={handleRemoveCard} onAddCard={(name) => handleAddCard({ name })} />
+                <VisualGrid 
+                  cards={renderDeck} 
+                  isEditing={isEditing} 
+                  onRemoveCard={handleRemoveCard} 
+                  onAddCard={(name) => handleAddCard({ name })} 
+                  isMainDeck={true}
+                  onAudit={handleAudit}
+                  isAuditing={isAuditing}
+                  auditResult={showAuditModal ? auditResult : null}
+                  onCloseAudit={() => setShowAuditModal(false)}
+                />
                 
                 {/* Matriz de Probabilidades de Frank Karsten */}
                 <KarstenMatrix deck={renderDeck} validationEngine={aiMetadata?.validationEngine} validationData={aiMetadata?.validationData} />
@@ -1761,7 +1809,79 @@ export default function DeckForge() {
                 </div>
               </div>
 
-              <div className="space-y-6">
+              <div className="space-y-6 font-sans">
+                {auditResult && (
+                  <div className="bg-black/60 border-2 border-purple-500/30 rounded-2xl p-6 shadow-[0_0_20px_rgba(168,85,247,0.1)] relative overflow-hidden backdrop-blur-md">
+                    <div className="absolute top-0 right-0 w-24 h-24 bg-purple-500/5 rounded-full blur-2xl pointer-events-none" />
+                    
+                    <div className="flex items-center justify-between mb-4 border-b border-purple-500/20 pb-3">
+                      <div className="flex items-center gap-2">
+                        <Activity className="text-purple-300 w-5 h-5 animate-pulse" />
+                        <h4 className="font-cinzel text-purple-300 font-bold text-sm uppercase tracking-wider">Veredicto del Juez</h4>
+                      </div>
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-2xl font-black text-white drop-shadow-[0_0_6px_rgba(168,85,247,0.4)]">{auditResult.score}</span>
+                        <span className="text-xs text-purple-400/50">/10</span>
+                      </div>
+                    </div>
+                    
+                    <p className="text-xs text-gray-300 italic font-serif leading-relaxed mb-4 bg-black/40 p-3 rounded-xl border border-white/5 shadow-inner">
+                      "{auditResult.verdict}"
+                    </p>
+
+                    <div className="space-y-3 max-h-[200px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-purple-500/20 scrollbar-track-transparent">
+                      {auditResult.criticalAlerts && auditResult.criticalAlerts.length > 0 && (
+                        <div className="space-y-1 text-left">
+                          <p className="text-[9px] uppercase font-bold text-red-400 tracking-wider flex items-center gap-1">
+                            <AlertTriangle size={10} /> Alertas Críticas
+                          </p>
+                          <ul className="list-disc pl-4 text-[11px] text-red-200/80 space-y-0.5">
+                            {auditResult.criticalAlerts.map((a, i) => <li key={i}>{a}</li>)}
+                          </ul>
+                        </div>
+                      )}
+                      
+                      {auditResult.warnings && auditResult.warnings.length > 0 && (
+                        <div className="space-y-1 text-left">
+                          <p className="text-[9px] uppercase font-bold text-amber-400 tracking-wider flex items-center gap-1">
+                            <AlertTriangle size={10} /> Advertencias
+                          </p>
+                          <ul className="list-disc pl-4 text-[11px] text-amber-200/80 space-y-0.5">
+                            {auditResult.warnings.map((w, i) => <li key={i}>{w}</li>)}
+                          </ul>
+                        </div>
+                      )}
+                      
+                      {auditResult.suggestions && auditResult.suggestions.length > 0 && (
+                        <div className="space-y-1 text-left">
+                          <p className="text-[9px] uppercase font-bold text-emerald-400 tracking-wider flex items-center gap-1">
+                            <CheckCircle2 size={10} /> Opciones de Mejora
+                          </p>
+                          <ul className="list-disc pl-4 text-[11px] text-emerald-200/80 space-y-0.5">
+                            {auditResult.suggestions.map((s, i) => <li key={i}>{s}</li>)}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className="flex gap-2 mt-4 pt-3 border-t border-purple-500/10">
+                      <button 
+                        onClick={() => setShowAuditModal(true)}
+                        className="flex-1 py-1.5 bg-purple-950/20 hover:bg-purple-900/40 border border-purple-500/30 hover:border-purple-400 text-purple-200 hover:text-white rounded-lg text-[10px] uppercase font-bold tracking-wider transition-all text-center"
+                      >
+                        🔍 Ver Completo
+                      </button>
+                      <button 
+                        onClick={() => setAuditResult(null)}
+                        className="py-1.5 px-3 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 text-gray-400 hover:text-white rounded-lg text-[10px] uppercase font-bold tracking-wider transition-all text-center"
+                        title="Limpiar reporte"
+                      >
+                        Limpiar
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 <div className="leather-panel p-6 shadow-2xl">
                   <h4 className="font-cinzel text-magic-gold text-lg mb-6 flex items-center gap-2">
                     <Target className="w-5 h-5" /> Potencial Bélico

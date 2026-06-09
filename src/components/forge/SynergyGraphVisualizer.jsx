@@ -133,17 +133,19 @@ export default function SynergyGraphVisualizer({ deck, isOpen, onClose, archetyp
       
       const isLand = isLandCard(c);
       const isCritical = c.name.includes("Yorion") || c.name.includes("Urza's") || c.name.includes("Lightning Bolt");
-      const nodeColor = isCritical ? '#D4AF37' : (isLand ? '#4B5563' : '#2563EB');
+      const isHiddenSynergy = c.isHiddenSynergy === true;
+      const nodeColor = isHiddenSynergy ? '#D946EF' : (isCritical ? '#D4AF37' : (isLand ? '#4B5563' : '#2563EB'));
 
       newNodes.push({
         id: c.name,
         name: c.name,
-        type: 'card',
-        category: c.category || 'Spell',
+        type: isHiddenSynergy ? 'hidden_synergy' : 'card',
+        category: isHiddenSynergy ? 'Sinergia Oculta' : (c.category || 'Spell'),
         color: nodeColor,
-        isCritical: isCritical,
+        isCritical: isCritical || isHiddenSynergy,
+        synergyReason: c.synergyReason,
         x, y,
-        size: isCritical ? 18 : 14
+        size: isHiddenSynergy ? 16 : (isCritical ? 18 : 14)
       });
       addedNodeIds.add(c.name);
 
@@ -418,6 +420,10 @@ export default function SynergyGraphVisualizer({ deck, isOpen, onClose, archetyp
                     <feGaussianBlur stdDeviation="5" result="blur" />
                     <feComposite in="SourceGraphic" in2="blur" operator="over" />
                   </filter>
+                  <filter id="glow-purple" x="-50%" y="-50%" width="200%" height="200%">
+                    <feGaussianBlur stdDeviation="6" result="blur" />
+                    <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                  </filter>
                 </defs>
 
                 {/* Dibujar Aristas de Enlace (Links) */}
@@ -449,6 +455,7 @@ export default function SynergyGraphVisualizer({ deck, isOpen, onClose, archetyp
                   let glowFilter = undefined;
                   if (node.id === 'root') glowFilter = "url(#glow-gold)";
                   else if (node.type === 'synergy') glowFilter = "url(#glow-green)";
+                  else if (node.type === 'hidden_synergy') glowFilter = "url(#glow-purple)";
                   else if (isHovered || isSelected) glowFilter = "url(#glow-blue)";
 
                   return (
@@ -522,6 +529,7 @@ export default function SynergyGraphVisualizer({ deck, isOpen, onClose, archetyp
                       "inline-block px-2 py-0.5 rounded text-[9px] font-sans font-bold uppercase border mt-1",
                       selectedNode.type === 'archetype' ? "bg-amber-500/10 border-amber-500/30 text-amber-400" :
                       selectedNode.type === 'synergy' ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400" :
+                      selectedNode.type === 'hidden_synergy' ? "bg-fuchsia-500/10 border-fuchsia-500/30 text-fuchsia-400" :
                       "bg-blue-500/10 border-blue-500/30 text-blue-400"
                     )}>
                       {selectedNode.category}
@@ -533,12 +541,14 @@ export default function SynergyGraphVisualizer({ deck, isOpen, onClose, archetyp
                       `Este es el nodo central de tu mazo de tipo ${archetype}. Actúa como un imán gravitacional alineando todas las cartas con el arquetipo.`
                     ) : selectedNode.type === 'synergy' ? (
                       `Esta carta no está en tu mazo principal, pero posee un alto peso de sinergia en Obsidian. ¡Es una recomendación ideal para tu Sideboard o futuras modificaciones!`
+                    ) : selectedNode.type === 'hidden_synergy' ? (
+                      selectedNode.synergyReason || `Sinergia Oculta: Conexión profunda descubierta por la IA en el Grafo Semántico.`
                     ) : (
                       `Carta del mazo. Está perfectamente enlazada con la base central del ecosistema y genera múltiples vectores de sinergia de maná y mecánicas.`
                     )}
                   </div>
                   
-                  {selectedNode.type === 'card' && (
+                  {(selectedNode.type === 'card' || selectedNode.type === 'hidden_synergy') && (
                     <div className="mt-4">
                       <img 
                         src={`https://api.scryfall.com/cards/named?exact=${encodeURIComponent(selectedNode.name)}&format=image`}

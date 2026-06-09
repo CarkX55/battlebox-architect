@@ -1,4 +1,4 @@
-import { BATTLEBOX_BANLIST, BATTLEBOX_ARCHETYPES, MTG_STRATEGIES, BANLIST_SUBSTITUTIONS, getIntelligentSubstitution } from '../constants/legacyBattleBox.js';
+import { BATTLEBOX_VETOS, BATTLEBOX_ARCHETYPES, MTG_STRATEGIES, BANLIST_SUBSTITUTIONS, getIntelligentSubstitution } from '../constants/legacyBattleBox.js';
 import { buildCardPool, getDynamicArchetypes } from './ragService.js';
 
 const PROVIDER_URLS = {
@@ -258,7 +258,7 @@ export function buildUnifiedDeckArchitectPrompt(params) {
     .replace(/{colors}/g, colors.join('-'))
     .replace(/{landCount}/g, landCount)
     .replace(/{spellCount}/g, spellCount)
-    .replace(/{banlist}/g, BATTLEBOX_BANLIST.join(', '));
+    .replace(/{banlist}/g, BATTLEBOX_VETOS.join(', '));
 
   let rarityRule = '';
   switch(rarityMode) {
@@ -588,7 +588,7 @@ export async function forgeMazo(formData, aiConfig, onProgress = () => {}) {
   // Banlist
   const banlistSwaps = [];
   result.cards.forEach(card => {
-    if (card && card.name && BATTLEBOX_BANLIST.includes(card.name)) {
+    if (card && card.name && BATTLEBOX_VETOS.includes(card.name)) {
       const replacement = getIntelligentSubstitution(card.name, card.role);
       if (replacement) {
         banlistSwaps.push({ original: card.name, replacement });
@@ -599,7 +599,7 @@ export async function forgeMazo(formData, aiConfig, onProgress = () => {}) {
 
   if (result.sideboard) {
     result.sideboard.forEach(card => {
-      if (card && card.name && BATTLEBOX_BANLIST.includes(card.name)) {
+      if (card && card.name && BATTLEBOX_VETOS.includes(card.name)) {
         const replacement = getIntelligentSubstitution(card.name, card.role);
         if (replacement) {
           card.name = replacement;
@@ -784,7 +784,7 @@ CONTEXTO ACTUAL DEL MAZO:
    - Si el mazo tiene una tribu o alianza asignada (${tribe}), las criaturas sugeridas DEBEN pertenecer a las razas de ese grupo. NO sugieras criaturas fuera de su tribu.
 5. PROHIBICIÓN ABSOLUTA DE TIERRAS Y BANLIST:
    - NUNCA sugieras eliminar, alterar ni reemplazar una Tierra (Land). Las tierras son intocables por el Oráculo.
-   - NO sugieras cartas de la Banlist: ${BATTLEBOX_BANLIST.join(', ')}
+   - NO sugieras cartas de la lista de vetos casuales: ${BATTLEBOX_VETOS.join(', ')}
 6. El campo "cut" debe ser el nombre exacto de una carta de No-Tierra que YA EXISTA en el mazo.
 7. El "reason" debe ser conciso, explicando la mejora táctica y cómo se protege la curva de maná.
 
