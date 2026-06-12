@@ -1,4 +1,4 @@
-import { aplicarJuezFinal, getMaxAllowedCopies, cleanAndParseJSON } from './deckArchitectService.js';
+﻿import { aplicarJuezFinal, getMaxAllowedCopies, cleanAndParseJSON } from './deckArchitectService.js';
 import { buildCardPool } from './ragService.js';
 import { BATTLEBOX_VETOS } from '../constants/legacyBattleBox.js';
 import { hydrateDeckCards } from './cardHydrator.js';
@@ -7,7 +7,7 @@ import { callAI, DECK_SCHEMA } from './aiFactory.js';
 
 /**
  * Helper robusto para identificar si una carta es una tierra.
- * Soporta detección por tipo e inspección de patrones de nombres comunes.
+ * Soporta detecciÃ³n por tipo e inspecciÃ³n de patrones de nombres comunes.
  */
 const isLandCard = (c) => {
   if (isLand(c)) return true;
@@ -15,11 +15,11 @@ const isLandCard = (c) => {
   
   const nameLower = (c.name || "").toLowerCase().trim();
   
-  // Tierras básicas en inglés y español
-  const basicLands = ["plains", "island", "swamp", "mountain", "forest", "wastes", "llanura", "isla", "pantano", "montaña", "bosque", "yermo"];
+  // Tierras bÃ¡sicas en inglÃ©s y espaÃ±ol
+  const basicLands = ["plains", "island", "swamp", "mountain", "forest", "wastes", "llanura", "isla", "pantano", "montaÃ±a", "bosque", "yermo"];
   if (basicLands.includes(nameLower)) return true;
   
-  // Patrones de tierras no básicas comunes (ej: shocklands, fetchlands, triomas, slow/fastlands)
+  // Patrones de tierras no bÃ¡sicas comunes (ej: shocklands, fetchlands, triomas, slow/fastlands)
   const landPatterns = [
     "grave", "vents", "tomb", "garden", "fountain", "crypt", "ground", "foundry", "shrine", "pool",
     "strand", "delta", "mire", "foothills", "heath", "flats", "tarn", "catacombs", "mesa", "rainforest",
@@ -28,9 +28,9 @@ const isLandCard = (c) => {
     "castle", "hall", "hive", "den", "cave", "vale", "crag", "harbor", "sanctuary", "beach", "ridge", "farmland",
     "verge", "glade", "bayou", "savannah", "tundra", "badlands", "taiga", "scrubland", "plateau", "tropical", "sea",
     "passage", "wilds", "orchard", "confluence", "city", "quarry", "waste", "steppes", "depths", "stage", "karst",
-    "veta", "canal", "tumba", "jardín", "fuente", "cripta", "terreno", "fundición", "santuario", "estanque",
-    "playa", "cueva", "colina", "bosque", "ruinas", "páramo", "ciénaga", "brezal", "catacumbas", "estepa",
-    "pasaje", "huerto", "acantilado", "valle", "fortaleza", "guarida", "picos", "río", "lago", "mar", "isla",
+    "veta", "canal", "tumba", "jardÃ­n", "fuente", "cripta", "terreno", "fundiciÃ³n", "santuario", "estanque",
+    "playa", "cueva", "colina", "bosque", "ruinas", "pÃ¡ramo", "ciÃ©naga", "brezal", "catacumbas", "estepa",
+    "pasaje", "huerto", "acantilado", "valle", "fortaleza", "guarida", "picos", "rÃ­o", "lago", "mar", "isla",
     "bosquecillo", "pradera", "matorral", "cumbres"
   ];
   
@@ -45,11 +45,11 @@ const isLandCard = (c) => {
 };
 
 /**
- * Corrige el tamaño de la baraja principal y regenera/rebalancea la base de tierras
+ * Corrige el Tamaño de la baraja principal y regenera/rebalancea la base de tierras
  * para asegurar que sume exactamente targetDeckSize (60 u 80).
  */
 async function corregirTamañoYBaseDeMana(cards, targetDeckSize, formData, ragPool, preserveLands = false) {
-  // Asegurar normalización de cantidades antes de procesar
+  // Asegurar normalizaciÃ³n de cantidades antes de procesar
   const normalizedCards = cards.map(c => ({
     ...c,
     quantity: Number(c.quantity || c.count || 1)
@@ -59,7 +59,7 @@ async function corregirTamañoYBaseDeMana(cards, targetDeckSize, formData, ragPo
   const spells = normalizedCards.filter(c => !isLandCard(c));
   const lands = normalizedCards.filter(c => isLandCard(c));
 
-  // 2. Calcular objetivos matemáticos perfectos
+  // 2. Calcular objetivos matemÃ¡ticos perfectos
   const targetLandCount = preserveLands 
     ? lands.reduce((sum, c) => sum + c.quantity, 0)
     : calculatePerfectLandCount(spells, formData, targetDeckSize === 80);
@@ -82,7 +82,7 @@ async function corregirTamañoYBaseDeMana(cards, targetDeckSize, formData, ragPo
       }
     }
 
-    // B. Inyectar hechizos sinérgicos nuevos del RAG pool
+    // B. Inyectar hechizos sinÃ©rgicos nuevos del RAG pool
     const colorsSet = new Set(formData?.colores || []);
     const ragSpells = (ragPool || []).filter(c => {
       const type = (c.type_line || c.category || '').toLowerCase();
@@ -111,7 +111,7 @@ async function corregirTamañoYBaseDeMana(cards, targetDeckSize, formData, ragPo
       }
     }
 
-    // C. Si aún faltan (RAG pool vacío o identidades incompatibles), inyectar staples genéricos
+    // C. Si aÃºn faltan (RAG pool vacÃ­o o identidades incompatibles), inyectar staples genÃ©ricos
     if (needed > 0) {
       const standardStaples = [
         { name: "Lightning Bolt", color: "R", category: "Instant", cmc: 1 },
@@ -155,7 +155,7 @@ async function corregirTamañoYBaseDeMana(cards, targetDeckSize, formData, ragPo
         }
       }
 
-      // Si aún falta (caso extremo de mazo con poquísimos hechizos únicos), forzar en los de menor coste
+      // Si aÃºn falta (caso extremo de mazo con poquÃ­simos hechizos Ãºnicos), forzar en los de menor coste
       if (needed > 0) {
         spells.sort((a, b) => (a.cmc || 2) - (b.cmc || 2));
         let idx = 0;
@@ -167,7 +167,7 @@ async function corregirTamañoYBaseDeMana(cards, targetDeckSize, formData, ragPo
       }
     }
   } else if (needed < 0) {
-    // Sobran hechizos: recortar de forma quirúrgica
+    // Sobran hechizos: recortar de forma quirÃºrgica
     let excess = -needed;
     const isProtected = (s) => {
       const roleLower = (s.role || '').toLowerCase();
@@ -179,14 +179,14 @@ async function corregirTamañoYBaseDeMana(cards, targetDeckSize, formData, ragPo
              roleLower.includes('boss');
     };
     
-    // Función auxiliar para obtener score RAG y priorizar conservación
+    // FunciÃ³n auxiliar para obtener score RAG y priorizar conservaciÃ³n
     const getRagScore = (cardName) => {
       const nameLower = cardName.toLowerCase().trim();
       const match = (ragPool || []).find(c => c.name.toLowerCase().trim() === nameLower);
       return match ? (match.score || 0) : -100;
     };
 
-    // Paso 1: Prunar copias redundantes de hechizos no protegidos (manteniendo mínimo 1 copia para preservar su existencia)
+    // Paso 1: Prunar copias redundantes de hechizos no protegidos (manteniendo mÃ­nimo 1 copia para preservar su existencia)
     const candidates = spells.filter(s => !isProtected(s));
     candidates.sort((a, b) => {
       const scoreA = getRagScore(a.name);
@@ -207,7 +207,7 @@ async function corregirTamañoYBaseDeMana(cards, targetDeckSize, formData, ragPo
       }
     }
 
-    // Paso 2: Si aún sobra, permitir borrar cartas completas no protegidas (las de menor sinergia primero)
+    // Paso 2: Si aÃºn sobra, permitir borrar cartas completas no protegidas (las de menor sinergia primero)
     if (excess > 0) {
       for (let s of candidates) {
         if (excess <= 0) break;
@@ -219,7 +219,7 @@ async function corregirTamañoYBaseDeMana(cards, targetDeckSize, formData, ragPo
       }
     }
 
-    // Paso 3: Si aún sobra (caso extremo), prunar copias de cartas protegidas
+    // Paso 3: Si aÃºn sobra (caso extremo), prunar copias de cartas protegidas
     if (excess > 0) {
       const protectedSpells = spells.filter(s => isProtected(s));
       protectedSpells.sort((a, b) => b.cmc - a.cmc);
@@ -234,7 +234,7 @@ async function corregirTamañoYBaseDeMana(cards, targetDeckSize, formData, ragPo
     }
   }
 
-  // 4. Regenerar la base de tierras matemáticamente según Karsten
+  // 4. Regenerar la base de tierras matemÃ¡ticamente segÃºn Karsten
   let finalLands = [];
   if (preserveLands) {
     finalLands = lands;
@@ -288,7 +288,7 @@ async function corregirTamañoYBaseDeMana(cards, targetDeckSize, formData, ragPo
   }
 }
 
-  // Filtrar cartas de cantidad vacía
+  // Filtrar cartas de cantidad vacÃ­a
   const cleanSpells = spells.filter(s => s.quantity > 0);
   const cleanLands = finalLands.filter(l => l.quantity > 0);
   
@@ -296,9 +296,9 @@ async function corregirTamañoYBaseDeMana(cards, targetDeckSize, formData, ragPo
 }
 
 /**
- * Ejecuta optimización inteligente basada en IA.
+ * Ejecuta optimizaciÃ³n inteligente basada en IA.
  */
-async function optimizarConIA(deckList, formData, aiConfig, ragPool) {
+async function optimizarConIA(deckList, formData, aiConfig, ragPool, auditReport = null) {
   const isYorion = deckList.some(c => c.name.toLowerCase().includes("yorion, sky nomad")) || (formData?.companero && formData.companero.toLowerCase().includes("yorion"));
   const targetDeckSize = isYorion ? 80 : 60;
   
@@ -310,28 +310,46 @@ async function optimizarConIA(deckList, formData, aiConfig, ragPool) {
   const ragPoolText = (ragPool || []).slice(0, 80).map(c => `- ${c.name} (CMC: ${c.mana_value || c.cmc || 0}, Sinergia: ${c.score || 0}, Meta: ${c.metaPercent || 0}%)`).join('\n');
 
   const systemPrompt = `Eres el OPTIMIZADOR SUPREMO DE MAZOS DE MAGIC: THE GATHERING (Pro Tour Coach).
-Tu misión es coger el mazo actual del usuario y optimizarlo de forma quirúrgica (mínimas modificaciones necesarias) para hacerlo lo más competitivo, sinérgico y equilibrado posible.
+Tu misiÃ³n es coger el mazo actual del usuario y optimizarlo de forma quirÃºrgica (mÃ­nimas modificaciones necesarias) para hacerlo lo mÃ¡s competitivo, sinÃ©rgico y equilibrado posible.
 
-REGLAS DE OPTIMIZACIÓN QUIRÚRGICA:
-1. PRESERVA las selecciones manuales del usuario. Mantén todos los hechizos que el usuario ya tiene en su lista, a menos que sean ilegales por banlist, tengan colores fuera de la identidad de color del mazo, o sean anti-sinergias severas.
-2. Modifica ÚNICAMENTE lo que haga falta:
-   - Corrige cantidades para cumplir con los límites competitivos (max 4 copias, leyendas baratas 3-4, leyendas de coste >=5 max 2 copias, etc.).
+REGLAS DE OPTIMIZACIÃ“N QUIRÃšRGICA:
+1. PRESERVA las selecciones manuales del usuario. MantÃ©n todos los hechizos que el usuario ya tiene en su lista, a menos que sean ilegales por banlist, tengan colores fuera de la identidad de color del mazo, o sean anti-sinergias severas.
+2. Modifica ÃšNICAMENTE lo que haga falta:
+   - Corrige cantidades para cumplir con los lÃ­mites competitivos (max 4 copias, leyendas baratas 3-4, leyendas de coste >=5 max 2 copias, etc.).
    - Si faltan hechizos para llegar a ${targetSpellCount}, inyecta las mejores opciones del RAG pool.
-   - Si sobran hechizos, pruna o reduce la cantidad de las cartas menos sinérgicas o más pesadas, priorizando mantener al menos 1 copia de las cartas del usuario.
-   - Si una carta es ilegal por banlist o de color incompatible, reemplázala por una carta legal similar o staple del RAG pool.
+   - Si sobran hechizos, pruna o reduce la cantidad de las cartas menos sinÃ©rgicas o mÃ¡s pesadas, priorizando mantener al menos 1 copia de las cartas del usuario.
+   - Si una carta es ilegal por banlist o de color incompatible, reemplÃ¡zala por una carta legal similar o staple del RAG pool.
 3. El mazo principal ("cards") debe contener EXACTAMENTE ${targetDeckSize} cartas en total (EXACTAMENTE ${targetSpellCount} Hechizos y EXACTAMENTE ${targetLandCount} Tierras).
 4. Devuelve la respuesta en formato JSON puro que cumpla con el esquema.
 `;
+
+  let auditContext = '';
+  if (auditReport) {
+    const alerts = auditReport.criticalAlerts || [];
+    const warnings = auditReport.warnings || [];
+    const suggestions = auditReport.suggestions || [];
+    const allFixes = [...alerts, ...warnings, ...suggestions];
+
+    auditContext = `
+=== AUDITORÃA DEL JUEZ SUPREMO ===
+Aplica ESTRICTAMENTE estas correcciones y advertencias para reparar el mazo:
+Feedback del Juez a Implementar (Â¡Importante!):
+${allFixes.map(w => `- ${w}`).join('\n')}
+==================================
+`;
+  }
 
   const userPrompt = `
 MAZO ACTUAL A OPTIMIZAR:
 ${currentDeckText}
 
-CONFIGURACIÓN DE LA BARAJA:
+CONFIGURACIÃ“N DE LA BARAJA:
 - Arquetipo: ${formData?.archetype || 'Midrange'}
 - Estrategia: ${formData?.strategy || 'Ninguna'}
 - Tribu / Raza: ${formData?.tribe || 'Ninguna'}
 - Colores permitidos: ${formData?.colores?.join(', ') || 'Cualquiera'}
+
+${auditContext}
 
 RAG CARD POOL (Cartas de alta sinergia pre-seleccionadas):
 ${ragPoolText}
@@ -348,7 +366,7 @@ Optimiza la baraja principal y devuelve el resultado en JSON que cumpla con el e
   const parsed = cleanAndParseJSON(response);
   const rawCards = parsed?.cards || parsed?.mainDeck || [];
   
-  // Normalización robusta de la respuesta de la IA
+  // NormalizaciÃ³n robusta de la respuesta de la IA
   const normalizedCards = rawCards.map(c => ({
     name: c.name,
     quantity: Number(c.quantity || c.count || 1),
@@ -380,11 +398,11 @@ Optimiza la baraja principal y devuelve el resultado en JSON que cumpla con el e
 
 /**
  * Optimizador de Mazos.
- * Realiza una optimización inteligente de la baraja, ya sea con IA (si está configurada)
- * o con heurísticas locales deterministas, garantizando el tamaño exacto del mazo.
+ * Realiza una optimizaciÃ³n inteligente de la baraja, ya sea con IA (si estÃ¡ configurada)
+ * o con heurÃ­sticas locales deterministas, garantizando el Tamaño exacto del mazo.
  */
-export async function optimizarMazo(deckList, formData, aiConfig, preserveLands = true) {
-  // 1. Limpieza y normalización de la lista de entrada (forzar quantity numérica)
+export async function optimizarMazo(deckList, formData, aiConfig, preserveLands = true, auditReport = null) {
+  // 1. Limpieza y normalizaciÃ³n de la lista de entrada (forzar quantity numÃ©rica)
   let nextDeck = [...deckList]
     .filter(c => !BATTLEBOX_VETOS.includes(c.name))
     .map(c => ({
@@ -413,10 +431,10 @@ export async function optimizarMazo(deckList, formData, aiConfig, preserveLands 
   let aiStrategy = null;
   let aiArchetype = null;
 
-  // Intentar optimizar con IA de forma inteligente si está configurada
+  // Intentar optimizar con IA de forma inteligente si estÃ¡ configurada
   if (aiConfig && aiConfig.selectedModel && aiConfig.apiKey) {
     try {
-      const parsedResult = await optimizarConIA(nextDeck, formData, aiConfig, ragPool);
+      const parsedResult = await optimizarConIA(nextDeck, formData, aiConfig, ragPool, auditReport);
       optimizedCards = parsedResult.cards;
       aiLore = parsedResult.lore;
       aiSideboard = parsedResult.sideboard;
@@ -426,11 +444,11 @@ export async function optimizarMazo(deckList, formData, aiConfig, preserveLands 
       aiArchetype = parsedResult.archetype;
       usedAI = true;
     } catch (e) {
-      console.warn("Fallo al optimizar con IA, recurriendo a fallback local heurístico", e);
+      console.warn("Fallo al optimizar con IA, recurriendo a fallback local heurÃ­stico", e);
     }
   }
 
-  // Fallback heurístico local si no se usa IA
+  // Fallback heurÃ­stico local si no se usa IA
   if (!usedAI) {
     try {
       const optimizedResult = await aplicarJuezFinal(
@@ -444,14 +462,14 @@ export async function optimizarMazo(deckList, formData, aiConfig, preserveLands 
       );
       optimizedCards = optimizedResult.cards;
       aiSideboard = optimizedResult.sideboard;
-      aiLore = "Optimización determinista heurística basada en los estándares Pro Tour.";
+      aiLore = "OptimizaciÃ³n determinista heurÃ­stica basada en los estÃ¡ndares Pro Tour.";
     } catch (e) {
-      console.error("Fallo durante la optimización con el Juez Supremo:", e);
+      console.error("Fallo durante la optimizaciÃ³n con el Juez Supremo:", e);
       optimizedCards = nextDeck;
     }
   }
 
-  // 3. Aplicar paracaídas matemático para corregir cualquier anomalía de tamaño
+  // 3. Aplicar paracaÃ­das matemÃ¡tico para corregir cualquier anomalÃ­a de Tamaño
   if (preserveLands) {
     const originalLands = nextDeck.filter(c => isLandCard(c));
     const optimizedSpellsOnly = optimizedCards.filter(c => !isLandCard(c));
@@ -473,3 +491,72 @@ export async function optimizarMazo(deckList, formData, aiConfig, preserveLands 
     archetype: aiArchetype
   };
 }
+
+export async function applyAuditChangesProgrammatically(deckList, suggestions, allCards, formData) {
+  let newDeck = [...deckList];
+
+  suggestions.forEach(sug => {
+    if (sug.removes && Array.isArray(sug.removes)) {
+      sug.removes.forEach(remove => {
+        const index = newDeck.findIndex(c => c.name.toLowerCase() === remove.name.toLowerCase());
+        if (index !== -1) {
+          newDeck[index] = { ...newDeck[index], quantity: newDeck[index].quantity - remove.quantity };
+          if (newDeck[index].quantity <= 0) {
+            newDeck.splice(index, 1);
+          }
+        }
+      });
+    }
+
+    if (sug.adds && Array.isArray(sug.adds)) {
+      sug.adds.forEach(add => {
+        const existingIndex = newDeck.findIndex(c => c.name.toLowerCase() === add.name.toLowerCase());
+        if (existingIndex !== -1) {
+          newDeck[existingIndex] = { ...newDeck[existingIndex], quantity: newDeck[existingIndex].quantity + add.quantity };
+        } else {
+          const dbCard = allCards.find(c => c.name.toLowerCase() === add.name.toLowerCase());
+          if (dbCard) {
+            newDeck.push({
+              name: dbCard.name,
+              quantity: add.quantity,
+              category: dbCard.type_line?.toLowerCase().includes('creature') ? 'Creature' : 'Spell',
+              cmc: dbCard.mana_value || 0,
+              type_line: dbCard.type_line,
+              mana_cost: dbCard.mana_cost || ''
+            });
+          } else {
+            newDeck.push({
+              name: add.name,
+              quantity: add.quantity,
+              category: 'Spell',
+              cmc: 2
+            });
+          }
+        }
+      });
+    }
+  });
+
+  const isYorion = newDeck.some(c => c.name.toLowerCase().includes("yorion, sky nomad"));
+  const targetDeckSize = isYorion ? 80 : 60;
+  
+  let currentTotal = newDeck.reduce((sum, c) => sum + c.quantity, 0);
+
+  // PARACAÍDAS INTELIGENTE:
+  // Si el Juez hizo un error matemático y el mazo no suma 60, en lugar de recortar a lo tonto,
+  // llamamos a la función inteligente de base de maná Karsten + Inyecciones RAG, usando las preferencias del usuario.
+  if (currentTotal !== targetDeckSize) {
+    let ragPool = [];
+    try {
+      const ragResult = await buildCardPool(formData);
+      ragPool = ragResult.pool || [];
+    } catch (e) {
+      console.warn("Fallo al obtener RAG pool en optimizador programático", e);
+    }
+    
+    newDeck = await corregirTamañoYBaseDeMana(newDeck, targetDeckSize, formData, ragPool, false);
+  }
+
+  return newDeck;
+}
+

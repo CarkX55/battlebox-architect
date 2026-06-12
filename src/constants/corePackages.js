@@ -173,20 +173,45 @@ export function injectCorePackage(strategyId, colors, format, allCards) {
     const dbCard = allCards.find(c => c && typeof c.name === 'string' && c.name.toLowerCase() === item.name.toLowerCase());
     if (dbCard) {
       if (isCardLegalForBattleBox(dbCard, formatKey)) {
-        const isL = dbCard.type_line?.toLowerCase().includes('land');
-        const isC = dbCard.type_line?.toLowerCase().includes('creature');
-        const isI = dbCard.type_line?.toLowerCase().includes('instant');
-        const isS = dbCard.type_line?.toLowerCase().includes('sorcery');
-        const resolvedCategory = isL ? 'Land' : (isC ? 'Creature' : (isI ? 'Instant' : (isS ? 'Sorcery' : 'Spell')));
+        // Validación estricta de color
+        const allowedColorsSet = new Set(colors || []);
+        let isColorLegal = false;
         
-        result.push({
-          ...dbCard,
-          quantity: item.qty || 4,
-          role: item.role,
-          category: resolvedCategory,
-          functionalTag: item.functionalTag || null,
-          isCore: true
-        });
+        if (allowedColorsSet.size === 0) {
+            isColorLegal = true;
+        } else {
+            const cardColors = dbCard.colors || dbCard.color_identity || [];
+            if (cardColors.length === 0) {
+                isColorLegal = true;
+            } else if (strategyId && strategyId.toLowerCase() === 'reanimator' && 
+                dbCard.type_line && dbCard.type_line.toLowerCase().includes('creature') && 
+                (dbCard.mana_value || dbCard.cmc || 0) >= 6) {
+                // Excepción: En Reanimator, los rematadores gigantes pueden ser de cualquier color
+                isColorLegal = true;
+            } else {
+                isColorLegal = cardColors.every(c => allowedColorsSet.has(c));
+            }
+        }
+
+        if (isColorLegal) {
+            const isL = dbCard.type_line?.toLowerCase().includes('land');
+            const isC = dbCard.type_line?.toLowerCase().includes('creature');
+            const isI = dbCard.type_line?.toLowerCase().includes('instant');
+            const isS = dbCard.type_line?.toLowerCase().includes('sorcery');
+            const resolvedCategory = isL ? 'Land' : (isC ? 'Creature' : (isI ? 'Instant' : (isS ? 'Sorcery' : 'Spell')));
+            
+            result.push({
+              ...dbCard,
+              quantity: item.qty || 4,
+              role: item.role,
+              category: resolvedCategory,
+              cmc: dbCard.mana_value || dbCard.cmc || 0,
+              functionalTag: item.functionalTag || null,
+              isCore: true
+            });
+        } else {
+            console.warn(`[CORE PACKAGE] Carta "${item.name}" omitida en el Core de ${strategyId} por no coincidir con los colores del mazo.`);
+        }
       } else {
         console.warn(`[CORE PACKAGE] Carta "${item.name}" omitida en el Core de ${strategyId} por ser ilegal/vetada en ${formatKey}.`);
       }

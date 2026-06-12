@@ -13,14 +13,27 @@ let cachedObsidianGraph = null;
 const loadObsidianGraph = async () => {
   if (cachedObsidianGraph) return cachedObsidianGraph;
   try {
-    const response = await fetch('/data/synergy_graph.json');
-    if (response.ok) {
-      cachedObsidianGraph = await response.json();
-      console.log(`📊 [Obsidian RAG] Grafo semántico cargado con éxito. Compilado el: ${new Date(cachedObsidianGraph.compileDate).toLocaleString()}`);
-      return cachedObsidianGraph;
+    if (typeof window === 'undefined') {
+      // Entorno Node (scripts/tests): leer del sistema de archivos local
+      const fs = await import('fs');
+      const path = await import('path');
+      const graphPath = path.resolve('public/data/synergy_graph.json');
+      if (fs.existsSync(graphPath)) {
+        cachedObsidianGraph = JSON.parse(fs.readFileSync(graphPath, 'utf8'));
+        console.log(`📊 [Obsidian RAG - Node] Grafo semántico cargado desde archivo local.`);
+        return cachedObsidianGraph;
+      }
+    } else {
+      // Entorno Browser: usar fetch
+      const response = await fetch('/data/synergy_graph.json');
+      if (response.ok) {
+        cachedObsidianGraph = await response.json();
+        console.log(`📊 [Obsidian RAG - Browser] Grafo semántico cargado con éxito. Compilado el: ${new Date(cachedObsidianGraph.compileDate).toLocaleString()}`);
+        return cachedObsidianGraph;
+      }
     }
   } catch (err) {
-    console.warn(`⚠️ [Obsidian RAG] No se pudo cargar el grafo semántico (/data/synergy_graph.json). Usando fallbacks competitivos estándar.`);
+    console.warn(`⚠️ [Obsidian RAG] No se pudo cargar el grafo semántico (/data/synergy_graph.json). Usando fallbacks competitivos estándar.`, err);
   }
   return null;
 };
@@ -128,18 +141,42 @@ export const buildCardPool = async (formData) => {
   const metaStaples = metaProfile?.staples || {};
   const metaSynergies = metaProfile?.synergies || {};
 
-  // Extraer Top 5 Pilares Dinámicos del Formato
+  // Extraer Pilares del Arquetipo (Locales) o del Formato (Dinámicos)
+  const archetypeKeyForPillars = (formData.archetype || '').toLowerCase();
+  const localPillars = [];
+  if (obsidianGraph && obsidianGraph.archetypes && obsidianGraph.archetypes[archetypeKeyForPillars]) {
+    const archCards = obsidianGraph.archetypes[archetypeKeyForPillars].cards || [];
+    localPillars.push(...archCards.slice(0, 5).map(c => c.name.toLowerCase()));
+  }
+
   const dynamicPillars = Object.entries(metaStaples)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 5)
     .map(entry => entry[0]);
 
+  const activePillars = localPillars.length >= 3 ? localPillars : dynamicPillars;
+
+  // Normalizar e inferir Tribu
+  let normalizedTribe = (formData.tribe || '').toLowerCase();
+  if (!normalizedTribe && formData.archetype) {
+    const archLower = formData.archetype.toLowerCase();
+    const knownTribes = ['elf', 'sliver', 'goblin', 'merfolk', 'zombie', 'vampire', 'human', 'faerie', 'eldrazi', 'spirit', 'soldier', 'knight', 'wizard', 'cleric', 'rogue', 'shaman', 'druid', 'ninja', 'angel', 'demon', 'dragon', 'dinosaur', 'elemental'];
+    const matchedTribe = knownTribes.find(t => archLower.includes(t) || (t === 'elf' && archLower.includes('elves')) || (t === 'faerie' && archLower.includes('faeries')) || (t === 'goblin' && archLower.includes('goblins')));
+    if (matchedTribe) {
+      normalizedTribe = matchedTribe;
+    }
+  }
+
   // Extraer información de Tribu y Estrategia para bonus extra
-  const tribeData = MTG_TRIBES.find(t => t.id === formData.tribe || t.label === formData.tribe) || null;
-  const strategyData = MTG_STRATEGIES.find(s => s.id === formData.strategy || s.label === formData.strategy) || null;
+  let tribeData = MTG_TRIBES.find(t => 
+    t.id.toLowerCase() === normalizedTribe || 
+    t.label.toLowerCase() === normalizedTribe ||
+    (t.subtypes && t.subtypes.some(sub => normalizedTribe.includes(sub.toLowerCase())))
+  ) || null;
   
-  let strategyId = strategyData ? strategyData.id : (formData.strategy || '');
+  let strategyId = formData.strategy || '';
   strategyId = inferStrategyFromArchetype(formData.archetype, strategyId);
+  const strategyData = MTG_STRATEGIES.find(s => s.id === strategyId || s.label === strategyId) || null;
   
   // Respetamos los colores elegidos por el usuario de forma prioritaria
   const allowedColors = (formData.colores && formData.colores.length > 0) 
@@ -214,9 +251,16 @@ export const buildCardPool = async (formData) => {
     // --- FILTRADO PROACTIVO DE CARTAS PARASITARIAS ---
     let isParasitic = false;
     const combinedText = `${cardNameLower} | ${typeLine} | ${oracleText}`;
+    
+    // Clon enriquecido con tribu implícita y estrategia para la validación de parásitos
+    const enrichedFormData = { ...formData, strategy: strategyId };
+    if (tribeData) {
+      enrichedFormData.tribe = tribeData.id;
+    }
+
     for (const rule of PARASITIC_RULES) {
       if (rule.regex.test(combinedText)) {
-        if (!rule.allowed(formData)) {
+        if (!rule.allowed(enrichedFormData)) {
           isParasitic = true;
           break;
         }
@@ -404,15 +448,188 @@ export const buildCardPool = async (formData) => {
         }
       }
 
-      // Recomendación de Arquetipo
+      // Recomendación de Arquetipo (Escalado de Sinergias)
       if (obsidianGraph.archetypes) {
         const archKey = formData.archetype.toLowerCase();
         if (obsidianGraph.archetypes[archKey]) {
           const archInfo = obsidianGraph.archetypes[archKey];
           const recCard = archInfo.cards.find(c => c.name.toLowerCase() === cardNameLower);
           if (recCard) {
-            score += 50 + (recCard.avgQuantity * 10);
+            score += 250 + (recCard.avgQuantity * 20); // Impulso masivo
           }
+        }
+      }
+
+      // Ponderación de etiquetas mecánicas en el grafo (+150 pts)
+      if (obsidianGraph.cards && obsidianGraph.cards[cardNameLower]) {
+        const graphCard = obsidianGraph.cards[cardNameLower];
+        if (graphCard.tags && graphCard.tags.length > 0) {
+          graphCard.tags.forEach(t => {
+            const cleanTag = t.replace('tag:', '').toLowerCase();
+            const isMatchingTag = (strategyId && strategyId.toLowerCase().includes(cleanTag)) || 
+                                  (formData.archetype && formData.archetype.toLowerCase().includes(cleanTag));
+            if (isMatchingTag) {
+              score += 150; // Sinergia mecánica directa
+            }
+          });
+        }
+      }
+
+      // Similitud Semántica Local con el Prompt
+      if (formData.prompt && typeof formData.prompt === 'string') {
+        const esToEnDict = {
+          'trasgos': 'goblin', 'trasgo': 'goblin', 'elfos': 'elf', 'elfo': 'elf',
+          'zombis': 'zombie', 'zombies': 'zombie', 'zombi': 'zombie', 'vampiros': 'vampire', 'vampiro': 'vampire',
+          'humanos': 'human', 'humano': 'human', 'hadas': 'faerie', 'hada': 'faerie',
+          'espiritus': 'spirit', 'espíritus': 'spirit', 'espiritu': 'spirit', 'espíritu': 'spirit',
+          'artefactos': 'artifact', 'artefacto': 'artifact', 'encantamientos': 'enchantment', 'encantamiento': 'enchantment',
+          'hechizos': 'spell', 'instantaneos': 'instant', 'instantáneos': 'instant', 'conjuros': 'sorcery',
+          'volar': 'flying', 'arrollar': 'trample', 'prisa': 'haste', 'vinculo vital': 'lifelink', 'vínculo vital': 'lifelink',
+          'cementerio': 'graveyard', 'robar': 'draw', 'descartar': 'discard',
+          'daño': 'damage', 'destruir': 'destroy', 'exiliar': 'exile', 'contador': 'counter',
+          'criatura': 'creature', 'criaturas': 'creature', 'tierra': 'land', 'tierras': 'land',
+          'buscar': 'search', 'biblioteca': 'library', 'mano': 'hand',
+          'limos': 'ooze', 'limo': 'ooze', 'tritones': 'merfolk', 'caballeros': 'knight', 'soldados': 'soldier', 'magos': 'wizard'
+        };
+
+        const promptTerms = formData.prompt.toLowerCase()
+          .replace(/[^a-z0-9\sáéíóúñ]/g, '')
+          .split(/\s+/)
+          .map(w => esToEnDict[w] || w)
+          .filter(w => w.length > 3 && !['with', 'want', 'deck', 'build', 'create', 'modern', 'standard', 'make', 'cards', 'para', 'como', 'mazo', 'hacer', 'quiero', 'necesito', 'un', 'una', 'unos', 'unas', 'el', 'la', 'los', 'las'].includes(w));
+        
+        let termMatches = 0;
+        promptTerms.forEach(term => {
+          if (cardNameLower.includes(term)) termMatches += 3;
+          if (typeLine.includes(term)) termMatches += 2;
+          if (oracleText.includes(term)) termMatches += 1;
+        });
+        
+        if (termMatches > 0) {
+          score += termMatches * 30; // Impulso semántico instantáneo
+        }
+      }
+
+      // Veto de Linealidad Generalizado (Protección contra Intrusos en Estrategias Lineales y Tribal en Todo Magic)
+      const archLower = formData.archetype.toLowerCase();
+      const strategyLower = (strategyId || '').toLowerCase();
+      const tribeLower = (formData.tribe || '').toLowerCase();
+
+      // Determinar si es una estrategia lineal/restringida en todo Magic
+      const isLinearStrategy = 
+        tribeLower || 
+        ['affinity', 'elves', 'slivers', 'enchantress', 'scales', 'dredge', 'reanimator', 'madness', 'constellation', 'superfriends', 'landfall', 'devotion', 'goblins', 'merfolk', 'zombies', 'vampires', 'humans', 'faeries', 'eldrazi', 'spirits'].some(t => 
+          archLower.includes(t) || strategyLower.includes(t)
+        );
+
+      if (isLinearStrategy && isCreature) {
+        // Excepción 1: Cartas registradas en el grafo competitivo como parte de este arquetipo
+        let isArchetypeMember = false;
+        if (obsidianGraph && obsidianGraph.archetypes) {
+          const archKey = archLower;
+          if (obsidianGraph.archetypes[archKey]) {
+            const archInfo = obsidianGraph.archetypes[archKey];
+            isArchetypeMember = archInfo.cards && archInfo.cards.some(c => c.name.toLowerCase() === cardNameLower);
+          }
+        }
+
+        // Excepción 2: Cartas ingresadas en mustInclude por el usuario
+        const mustIncludeNamesList = (formData.mustInclude || '').toLowerCase();
+        const isMustInclude = mustIncludeNamesList.includes(cardNameLower);
+
+        // Excepción 3: Finishers icónicos de coste alto (CMC >= 6) que actúan como payoffs del color
+        const isHighEndPayoff = card.mana_value >= 6 && (
+          oracleText.includes('trample') || 
+          oracleText.includes('flying') || 
+          oracleText.includes('haste') || 
+          oracleText.includes('enters the battlefield') || 
+          oracleText.includes('cascade') ||
+          oracleText.includes('annihilator') ||
+          oracleText.includes('toxic') ||
+          oracleText.includes('ward') ||
+          oracleText.includes('indestructible')
+        );
+
+        // Excepción 4: Habilitadores de maná / buscadores rápidos (CMC <= 2) en mazos verdes
+        const isManaDorkSupport = card.mana_value <= 2 && 
+                                  (oracleText.includes('add ') || oracleText.includes('search your library for a land')) && 
+                                  allowedColors.includes('G');
+
+        // Excepción 5: Soporte o coincidencia de Tribu (por tipo o mención en texto oracle, ej. Wirewood Symbiote en Elfos)
+        let isTribalMatch = false;
+        const activeTribe = tribeLower || (archLower.includes('elves') ? 'elf' : archLower.includes('slivers') ? 'sliver' : archLower.includes('goblins') ? 'goblin' : archLower.includes('merfolk') ? 'merfolk' : archLower.includes('zombies') ? 'zombie' : archLower.includes('vampires') ? 'vampire' : archLower.includes('humans') ? 'human' : archLower.includes('faeries') ? 'faerie' : archLower.includes('eldrazi') ? 'eldrazi' : archLower.includes('spirits') ? 'spirit' : '');
+        
+        if (activeTribe) {
+          isTribalMatch = typeLine.includes(activeTribe) || oracleText.includes(activeTribe);
+        } else if (tribeData && tribeData.subtypes) {
+          isTribalMatch = tribeData.subtypes.some(st => {
+            const stLower = st.toLowerCase();
+            return typeLine.includes(stLower) || oracleText.includes(stLower);
+          });
+        }
+
+        // Excepción 6: Coincidencia mecánica directa con la estrategia activa en Todo Magic
+        let isMechanicalMatch = false;
+        
+        // Affinity / Artefactos
+        if (archLower.includes('affinity') || strategyLower.includes('artifact') || strategyLower.includes('metalcraft') || strategyLower.includes('affinity')) {
+          isMechanicalMatch = typeLine.includes('artifact') || oracleText.includes('artifact') || oracleText.includes('affinity') || oracleText.includes('metalcraft') || oracleText.includes('historic');
+        }
+
+        // Encantamientos / Enchantress
+        if (archLower.includes('enchantress') || strategyLower.includes('enchantment') || strategyLower.includes('constellation')) {
+          isMechanicalMatch = typeLine.includes('enchantment') || oracleText.includes('enchantment') || oracleText.includes('constellation');
+        }
+
+        // Contadores +1/+1 / Hardened Scales
+        if (archLower.includes('scales') || strategyLower.includes('counter') || strategyLower.includes('hardened') || strategyLower.includes('scales')) {
+          isMechanicalMatch = oracleText.includes('+1/+1') || oracleText.includes('counter') || typeLine.includes('artifact') || oracleText.includes('modular') || oracleText.includes('proliferate');
+        }
+
+        // Dragado / Cementerio / Reanimación (Dredge, Reanimator)
+        if (archLower.includes('dredge') || archLower.includes('reanimator') || strategyLower.includes('graveyard') || strategyLower.includes('dredge') || strategyLower.includes('reanimator')) {
+          isMechanicalMatch = oracleText.includes('dredge') || 
+                              oracleText.includes('graveyard') || 
+                              oracleText.includes('discard') || 
+                              oracleText.includes('mill') ||
+                              oracleText.includes('escape') ||
+                              oracleText.includes('underworld') ||
+                              oracleText.includes('reanimate') ||
+                              oracleText.includes('return') ||
+                              typeLine.includes('zombie') || 
+                              typeLine.includes('skeleton') || 
+                              typeLine.includes('spirit') ||
+                              card.mana_value >= 6;
+        }
+
+        // Si no coincide con ninguno, comprobar si encaja con las palabras clave positivas del blueprint
+        if (!isMechanicalMatch && blueprint.ragModifiers && blueprint.ragModifiers.boost) {
+          const boostLower = blueprint.ragModifiers.boost.map(k => k.toLowerCase());
+          isMechanicalMatch = boostLower.some(kw => oracleText.includes(kw) || typeLine.includes(kw) || cardNameLower.includes(kw));
+        }
+
+        // Excepción 7: Staple interactivo / de utilidad general competitivo (CMC <= 3 con interacción/robo clásica)
+        const isInteractiveUtility = card.mana_value <= 3 && (
+          oracleText.includes('destroy') ||
+          oracleText.includes('exile') ||
+          oracleText.includes('counter target') ||
+          oracleText.includes('draw a card') ||
+          oracleText.includes('search your library') ||
+          oracleText.includes('cannot be blocked') ||
+          (FORMAT_STAPLES[selectedFormat] && FORMAT_STAPLES[selectedFormat].has(cardNameLower))
+        );
+
+        const passesVeto = 
+          isArchetypeMember ||
+          isMustInclude ||
+          isHighEndPayoff ||
+          isManaDorkSupport ||
+          isTribalMatch ||
+          isMechanicalMatch ||
+          isInteractiveUtility;
+
+        if (!passesVeto) {
+          score -= 200; // Penalización severa por intruso en estrategia lineal
         }
       }
     }
@@ -458,9 +675,9 @@ export const buildCardPool = async (formData) => {
       score += pillarSynergyBonus;
     }
 
-    // C) Coocurrencia Global Automática con Pilares Dinámicos (Auto-Synergy Boost)
+    // C) Coocurrencia Global Automática con Pilares Dinámicos/Locales (Auto-Synergy Boost)
     let autoSynergyBoost = 0;
-    dynamicPillars.forEach(pillarName => {
+    activePillars.forEach(pillarName => {
       const pairPercent = metaSynergies[cardNameLower]?.[pillarName] || metaSynergies[pillarName]?.[cardNameLower] || 0;
       if (pairPercent > 0) {
         autoSynergyBoost += Math.round(pairPercent * 0.8);
@@ -471,9 +688,9 @@ export const buildCardPool = async (formData) => {
     }
 
     if (blueprint.ragModifiers) {
-      score += countKeywords(oracleText, blueprintBoostLower) * 5;
-      score += countKeywords(typeLine, blueprintBoostLower) * 5;
-      score -= countKeywords(oracleText, blueprintPenaltyLower) * 10;
+      score += countKeywords(oracleText, blueprintBoostLower) * 50; // Escalado a 50
+      score += countKeywords(typeLine, blueprintBoostLower) * 50; // Escalado a 50
+      score -= countKeywords(oracleText, blueprintPenaltyLower) * 100; // Escalado a 100
     }
 
     // === MULTIDIMENSIONAL GUILD / COLOR-PAIR SYNERGY SCORING ===
@@ -564,6 +781,21 @@ export const buildCardPool = async (formData) => {
       ];
       if (rampFinishers.includes(cardNameLower)) {
         score += 70;
+      }
+    } else if (strategyId.includes('reanimator') || strategyId.includes('graveyard') || archLower.includes('reanimator')) {
+      const reanimatorKeywords = ['return target creature card from your graveyard to the battlefield', 'return target creature card from a graveyard to the battlefield', 'reanimate', 'discard a card', 'mill', 'put the top', 'from your library into your graveyard'].map(k => k.toLowerCase());
+      const matches = countKeywords(oracleText, reanimatorKeywords) + countKeywords(cardNameLower, reanimatorKeywords);
+      if (matches > 0) {
+        score += 55;
+        score += matches * 15;
+      }
+      const reanimatorStaples = [
+        "persist", "goryo's vengeance", "unburial rites", "animate dead", "reanimate",
+        "exhume", "priest of fell rites", "late to dinner", "stitcher's supplier",
+        "entomb", "unmarked grave", "faithless looting", "careful study", "archon of cruelty", "atraxa, grand unifier", "griselbrand", "serra's emissary"
+      ];
+      if (reanimatorStaples.includes(cardNameLower)) {
+        score += 80;
       }
     }
 
@@ -786,6 +1018,13 @@ export const buildCardPool = async (formData) => {
     } else if (strategyId === 'aristocrats') {
       if (oracleText.includes('sacrifice') || oracleText.includes('dies')) {
         relationalBoost += 40;
+      }
+    } else if (strategyId === 'affinity') {
+      if (typeLine.includes('artifact') || oracleText.includes('artifact') || oracleText.includes('affinity') || oracleText.includes('metalcraft')) {
+        relationalBoost += densityMetrics.artifact * 1.5; // Fuerte empuje por sinergia metálica
+      }
+      if (typeLine.includes('artifact') && typeLine.includes('creature')) {
+        relationalBoost += 40; // Impulso extra a criaturas artefacto
       }
     }
 

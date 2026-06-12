@@ -1,6 +1,6 @@
 import { aplicarJuezFinal } from '../src/services/deckArchitectService.js';
 
-function runJuezTest() {
+async function runJuezTest() {
   console.log("🧪 --- TESTING APLICAR JUEZ FINAL (Pilar 4: Ratio & roles) ---");
 
   const colors = ["U", "G"];
@@ -41,7 +41,7 @@ function runJuezTest() {
   console.log("Input non-land spells:", deckResult.cards.filter(c => c.category !== 'Land').reduce((sum, c) => sum + c.quantity, 0));
   console.log("Input threats count:", deckResult.cards.filter(c => c.category !== 'Land' && (c.category === 'Creature' || c.role?.includes('threat') || c.role?.includes('finisher'))).reduce((sum, c) => sum + c.quantity, 0));
 
-  const balancedResult = aplicarJuezFinal(deckResult, dnaData, formData, addLog);
+  const balancedResult = await aplicarJuezFinal(deckResult, dnaData, formData, addLog);
   const balancedDeck = balancedResult.cards;
   
   console.log("\nOutput balanced deck spell list:");

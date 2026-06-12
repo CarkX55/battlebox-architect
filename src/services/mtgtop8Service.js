@@ -220,6 +220,7 @@ export const MOCK_METAGAME_DECKS = {
  * Guarda los datos de metagame del formato seleccionado en localStorage de forma segura.
  */
 export const saveMetaToDB = (format, data) => {
+  if (typeof localStorage === 'undefined') return false;
   try {
     const key = `mtgtop8_meta_${format.toUpperCase()}`;
     localStorage.setItem(key, JSON.stringify(data));
@@ -236,14 +237,16 @@ export const saveMetaToDB = (format, data) => {
  */
 export const loadMetaFromDB = (format) => {
   const targetFormat = format ? format.toUpperCase() : "MODERN";
-  try {
-    const key = `mtgtop8_meta_${targetFormat}`;
-    const localData = localStorage.getItem(key);
-    if (localData) {
-      return JSON.parse(localData);
+  if (typeof localStorage !== 'undefined') {
+    try {
+      const key = `mtgtop8_meta_${targetFormat}`;
+      const localData = localStorage.getItem(key);
+      if (localData) {
+        return JSON.parse(localData);
+      }
+    } catch (err) {
+      console.error(`[MTGTop8] Error al cargar metagame para ${targetFormat}:`, err);
     }
-  } catch (err) {
-    console.error(`[MTGTop8] Error al cargar metagame para ${targetFormat}:`, err);
   }
 
   // Fallback a los datos Mock de alta calidad

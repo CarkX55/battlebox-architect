@@ -1,4 +1,4 @@
-import { BATTLEBOX_VETOS, BATTLEBOX_ARCHETYPES, MTG_STRATEGIES, BANLIST_SUBSTITUTIONS, getIntelligentSubstitution } from '../constants/legacyBattleBox.js';
+import { BATTLEBOX_VETOS, BATTLEBOX_ARCHETYPES, MTG_STRATEGIES, MTG_TRIBES, BANLIST_SUBSTITUTIONS, getIntelligentSubstitution } from '../constants/legacyBattleBox.js';
 import { buildCardPool, getDynamicArchetypes } from './ragService.js';
 
 const PROVIDER_URLS = {
@@ -24,8 +24,8 @@ HECHIZOS ({spellCount} cartas):
 TIERRAS ({landCount} cartas):
 - 4x Nombre
 ...
-SIDEBOARD (15 cartas): Cantidades exactas.`;
-
+...
+`;
 const DECK_ARCHITECT_SYSTEM_PROMPT = `Eres el CONSTRUCTOR DE JSON. 
 Convierte el plan en un objeto JSON.
 
@@ -37,8 +37,7 @@ Convierte el plan en un objeto JSON.
 === FORMATO ===
 {
   "deckName": "...",
-  "cards": [ {"name": "Carta", "quantity": 4, "category": "...", "cmc": 1} ],
-  "sideboard": [ ... ]
+  "cards": [ {"name": "Carta", "quantity": 4, "category": "...", "cmc": 1} ]
 }`;
 
 export const DECK_SCHEMA = {
@@ -69,36 +68,132 @@ export const DECK_SCHEMA = {
           name: { type: "string" },
           quantity: { type: "integer" },
           category: { type: "string" },
-          cmc: { type: "integer" }
+          cmc: { type: "integer" },
+          reasoning: { type: "string", description: "Breve justificación estratégica de por qué se elige esta carta." }
         },
-        required: ["name", "quantity", "category", "cmc"]
-      }
-    },
-    sideboard: {
-      type: "array",
-      items: {
-        type: "object",
-        properties: {
-          name: { type: "string" },
-          quantity: { type: "integer" },
-          category: { type: "string" },
-          cmc: { type: "integer" }
-        },
-        required: ["name", "quantity", "category", "cmc"]
+        required: ["name", "quantity", "category", "cmc", "reasoning"]
       }
     }
   },
-  required: ["deckName", "archetype", "lore", "strategy", "mulligan", "pip_balance", "cards", "sideboard"]
+  required: ["deckName", "archetype", "lore", "strategy", "mulligan", "pip_balance", "cards"]
 };
+
+export const GEMINI_PHASE_SCHEMA = {
+  type: "object",
+  properties: {
+    cards: {
+      type: "array",
+      description: "List of the chosen cards for the requested roles in this specific phase.",
+      items: {
+        type: "object",
+        properties: {
+          name: { type: "string", description: "Name of the card." },
+          role: { type: "string", description: "The specific role from the provided target roles this card fulfills." },
+          quantity: { type: "integer", description: "The exact quantity requested for this role." },
+          category: { type: "string", description: "Category (e.g. Creature, Instant, Sorcery, Artifact, Enchantment, Planeswalker)" },
+          cmc: { type: "integer", description: "Converted Mana Cost of the card." },
+          reason: { type: "string", description: "Brief strategic reason for choosing this card based on the current deck context." }
+        },
+        required: ["name", "role", "quantity", "category", "cmc", "reason"]
+      }
+    }
+  },
+  required: ["cards"]
+};
+
+const AGENTIC_PHASE_SYSTEM_PROMPT = `Eres el MAESTRO ARQUITECTO DE MAZOS DE MODERN CASUAL (BATTLE BOX 1VS1).
+Tu misión es diseñar un mazo temático, competitivo y consistente PASO A PASO.
+
+Estás en la {phaseName}.
+
+=== REGLAS TÉCNICAS E INFRAESTRUCTURA ===
+1. CONTEXTO ACUMULADO:
+   Hasta ahora, el mazo contiene estas cartas:
+   {currentDeckList}
+   DEBES elegir cartas que tengan la MÁXIMA SINERGIA posible con este contexto. Si ya hay motores o piezas clave, tu tarea es apoyarlas, protegerlas o alimentarlas.
+
+2. ROLES A RELLENAR EN ESTA FASE:
+   Debes proporcionar EXACTAMENTE las cartas y las cantidades para cubrir los siguientes roles estructurales:
+   {targetRoles}
+
+3. REGLA DE CONSISTENCIA:
+   - Usa la cantidad exacta de copias solicitada para cada rol.
+   - NO elijas cartas que ya estén en el mazo actual (Contexto Acumulado) a menos que necesites más copias para llegar al límite legal (4x).
+
+4. REGLA DE TOLERANCIA DE PIPS Y CURVA:
+   - Mantén la curva de maná sugerida en los roles.
+   - En mazos de 3 o más colores, PROHIBIDO incluir cartas de triple coste específico (ej: RRR, WWW, BBB).
+
+5. IDENTIDAD MECÁNICA Y "ANSWERS" POR COLOR EN MODERN:
+   - BLANCO: Exilio Universal, protección, criaturas Flying/Vigilance.
+   - AZUL: Counters, Cantrips, criaturas Flying/Hexproof.
+   - NEGRO: Remoción Letal, descarte, criaturas Deathtouch/Lifelink.
+   - ROJO: Daño directo, robo impulsivo, criaturas Prowess/Haste.
+   - VERDE: Fight/Bite, destrucción de artefactos/encantamientos, criaturas Trample/Reach.
+
+6. VETO ABSOLUTO (BANLIST):
+   - Evita incluir cartas de la Banlist: {banlist}.
+
+7. COHERENCIA TRIBAL:
+   - Si hay una Tribu/Raza activa que no sea "none", TODAS las criaturas elegidas DEBEN pertenecer a esa tribu. Esto es innegociable.
+   - Las cartas que no sean criaturas pueden ser temáticas o "staples" de interacción general.
+
+=== DETALLES TEMÁTICOS Y ENFOQUE ===
+- Identidad de Color Permitida: {colors} (PROHIBIDO SALIRSE DE ESTOS COLORES)
+- Arquetipo: {archetype}
+- Tribu/Raza principal: {tribeLabel} (Scryfall subtypes: {tribeSubtypes})
+- Enfoque Estratégico: {strategy}
+- Detalles del Usuario: {userPrompt}
+
+Debes devolver EXACTAMENTE las cartas para los roles solicitados, cumpliendo las cantidades.
+`;
+
+export function buildAgenticPhasePrompt(params, phaseName, targetRoles, currentDeck) {
+  const { colors, archetype, tribe, strategy, userPrompt, archData: passedArchData } = params;
+  const archData = passedArchData || BATTLEBOX_ARCHETYPES.find(a => a.id === archetype) || BATTLEBOX_ARCHETYPES[3];
+  
+  let strategyMechanics = 'N/A';
+  if (strategy) {
+    const stratObj = MTG_STRATEGIES.find(s => s.label === strategy || s.id === strategy);
+    strategyMechanics = stratObj ? stratObj.mechanics : strategy;
+  }
+
+  const tribeObj = MTG_TRIBES.find(t => t.id === tribe) || { label: tribe || 'none', subtypes: '' };
+  const tribeLabel = tribeObj.label;
+  const tribeSubtypes = tribeObj.subtypes;
+
+  const currentDeckList = currentDeck.length > 0 
+    ? currentDeck.map(c => `- ${c.quantity}x ${c.name} (Rol: ${c.role})`).join('\n')
+    : 'El mazo está vacío. Eres el primero en elegir las cartas fundacionales.';
+
+  const targetRolesList = targetRoles.map(r => 
+    `- Rol: "${r.name}" | Cantidad: ${r.quantity} | CMC: ${r.cmcCategory} | Calidad: ${r.finisherQuality} | Propósito: ${r.purposeDescription}`
+  ).join('\n');
+
+  return AGENTIC_PHASE_SYSTEM_PROMPT
+    .replace('{phaseName}', phaseName)
+    .replace('{currentDeckList}', currentDeckList)
+    .replace('{targetRoles}', targetRolesList)
+    .replace('{banlist}', BATTLEBOX_VETOS.join(', '))
+    .replace('{colors}', colors && colors.length > 0 ? colors.join(', ') : 'Cualquiera')
+    .replace('{archetype}', archData.label)
+    .replace('{tribeLabel}', tribeLabel)
+    .replace('{tribeSubtypes}', tribeSubtypes)
+    .replace('{strategy}', `${strategy} - Mecánicas clave: ${strategyMechanics}`)
+    .replace('{userPrompt}', userPrompt || 'Sin instrucciones adicionales.');
+}
 
 const UNIFIED_DECK_ARCHITECT_SYSTEM_PROMPT = `Eres el MAESTRO ARQUITECTO DE MAZOS DE MODERN CASUAL (BATTLE BOX 1VS1).
 Tu misión es diseñar un mazo temático, altamente competitivo dentro de la equidad de Battle Box, consistente y matemáticamente perfecto en un solo paso. Todas las cartas sugeridas deben ser legales en el formato Modern.
+
+=== CHAIN OF THOUGHT (RAZONAMIENTO EXPERTO) ===
+Para cada carta que elijas en el array "cards", DEBES llenar el campo "reasoning".
+En este campo, explica exactamente qué rol cumple la carta (ej. Removal, Motor, Amenaza) y por qué es la mejor opción competitiva para este arquetipo sobre otras alternativas. Pregúntate siempre: ¿Esta carta es lo suficientemente rápida y eficiente para sobrevivir los turnos 1-3 en el formato?
 
 === REGLAS TÉCNICAS E INFRAESTRUCTURA (ESQUELETO FUNCIONAL) ===
 1. TAMAÑO Y SLOTS REQUERIDOS:
    - El mazo principal debe contener EXACTAMENTE 60 cartas en total: {spellCount} Hechizos (no tierras) y {landCount} Tierras.
    - Debes rellenar el array "cards" con hechizos y tierras que cumplan con este total.
-   - El banquillo ("sideboard") debe contener EXACTAMENTE 15 cartas de respuesta táctica ("silver bullets") contra estrategias abusivas.
 
 2. ANATOMÍA NUMÉRICA POR ARQUETIPO:
    - Para el arquetipo {archetype} ({spellCount} hechizos / {landCount} tierras):
@@ -140,7 +235,7 @@ Tu misión es diseñar un mazo temático, altamente competitivo dentro de la equ
 - Riqueza/Potencia: {rarityMode}
 - Lore/Trasfondo: {userPrompt}
 
-Debes rellenar todos los campos del JSON y cumplir escrupulosamente con los totales numéricos.`;
+Debes rellenar todos los campos del JSON, justificar CADA CARTA en el campo "reasoning", y cumplir escrupulosamente con los totales numéricos.`;
 
 export function buildDeckArchitectPrompt(params) {
   const { colors, archetype, tribe, strategy, userPrompt, rarityMode, archData: passedArchData } = params;
@@ -180,7 +275,7 @@ export function buildDeckArchitectPrompt(params) {
   let rarityRule = '';
   switch(rarityMode) {
     case 'high-power':
-      rarityRule = '\nREGLA DE POTENCIA: "Alta Potencia". Usa las mejores versiones de cada carta (Raras/Míticas) siempre que encajen en el motor.';
+      rarityRule = '\nREGLA DE POTENCIA: "Alta Potencia Pro Tour". Prioriza la máxima eficiencia de maná y sinergia absoluta. Usa los mejores "staples" del formato sin importar su rareza (usa comunes e infrecuentes vitales como removals baratos o cantrips). NO priorices la rareza por encima de la eficiencia.';
       break;
     case 'pauper':
       rarityRule = '\nREGLA DE POTENCIA: "Pauper". SOLO comunes históricas.';
@@ -213,7 +308,7 @@ export function buildStrategistMathPrompt(params) {
 
   let rarityRule = '';
   switch(rarityMode) {
-    case 'high-power': rarityRule = 'Poder Alto (Raras/míticas permitidas si sinergizan)'; break;
+    case 'high-power': rarityRule = 'Alta Potencia (Eficiencia máxima, usa staples comunes/infrecuentes sin importar rareza)'; break;
     case 'pauper': rarityRule = 'Pauper (SOLO cartas comunes)'; break;
     case 'artisan': rarityRule = 'Artisan (Solo comunes e infrecuentes)'; break;
     default: rarityRule = 'Estándar (equilibrado)'; break;
@@ -263,7 +358,7 @@ export function buildUnifiedDeckArchitectPrompt(params) {
   let rarityRule = '';
   switch(rarityMode) {
     case 'high-power':
-      rarityRule = 'Alta Potencia (Raras y Míticas de alto impacto permitidas).';
+      rarityRule = 'Alta Potencia Pro Tour (Prioriza la máxima eficiencia de maná, usando staples comunes/infrecuentes vitales sin importar su rareza).';
       break;
     case 'pauper':
       rarityRule = 'Pauper (SOLO cartas comunes históricas en la historia de Magic).';
@@ -414,7 +509,6 @@ export async function callAI(messages, config, options = {}) {
 function parseArchitectResponse(content) {
   const defaultResult = {
     cards: [],
-    sideboard: [],
     pipBalance: null,
     deckName: '',
     archetype: 'midrange',
@@ -445,8 +539,7 @@ function parseArchitectResponse(content) {
           strategy: parsed.strategy || '',
           mulligan: parsed.mulligan || '',
           pipBalance: parsed.pip_balance || null,
-          cards: deckCards,
-          sideboard: parsed.sideboard || []
+          cards: deckCards
         };
       }
     }
@@ -470,8 +563,7 @@ function parseArchitectResponse(content) {
         strategy: parsed.strategy || '',
         mulligan: parsed.mulligan || '',
         pipBalance: parsed.pip_balance || null,
-        cards: parsed.cards || parsed.mainDeck || [],
-        sideboard: parsed.sideboard || []
+        cards: parsed.cards || parsed.mainDeck || []
       };
     }
     
@@ -522,9 +614,80 @@ export async function generateDeckTactics(deck, aiConfig) {
     if (first !== -1 && last > first) return JSON.parse(response.substring(first, last + 1));
     return { strategy: response, mulligan: 'Ver estrategia.' };
   } catch (e) {
-    return { strategy: response, mulligan: 'Ver estrategia.' };
+  return { strategy: response, mulligan: 'Ver estrategia.' };
   }
 }
+
+export async function forgeSideboard(mainDeckCards, lastFormData, aiConfig) {
+  const deckList = mainDeckCards.map(c => `${c.quantity}x ${c.name} (${c.category})`).join('\n');
+  const format = lastFormData?.format || 'MODERN';
+  
+  const systemPrompt = `Eres el Maestro de Banquillos (Sideboard Architect) del Pro Tour.
+Tu misión es generar el banquillo PERFECTO de EXACTAMENTE 15 cartas para el mazo que te proporcionaré.
+Las cartas deben ser "silver bullets" y odio hiper-eficiente para cubrir las debilidades del mazo contra:
+- Estrategias abusivas de Cementerio (Dredge, Reanimator).
+- Estrategias muy rápidas (Aggro, Burn).
+- Estrategias de control o combo.
+- Artefactos/Encantamientos problemáticos.
+
+REGLAS:
+1. DEBES generar exactamente 15 cartas en total.
+2. Todas las cartas deben ser legales en ${format}.
+3. Prioriza la máxima eficiencia de maná y staples (ej: Relic of Progenitus, Fatal Push, Spell Pierce, Rest in Peace, Veil of Summer).
+4. El formato de salida debe ser ESTRICTAMENTE el JSON solicitado. NADA DE TEXTO ADICIONAL.
+
+=== FORMATO ===
+{
+  "sideboard": [
+    { "name": "Nombre de la Carta", "quantity": 3, "category": "Categoría (Instant, Sorcery, Artifact...)", "cmc": 1 }
+  ]
+}`;
+
+  const userMessage = `Por favor genera un banquillo (15 cartas en total) altamente competitivo para este mazo.
+Colores del mazo: ${(lastFormData?.colores || []).join('-')}
+Arquetipo: ${lastFormData?.archetype}
+Lista del Main Deck:
+${deckList}`;
+
+  const messages = [
+    { role: 'system', content: systemPrompt },
+    { role: 'user', content: userMessage }
+  ];
+
+  const responseText = await callAI(messages, aiConfig, { forceJSON: true, maxTokens: 4000 });
+  
+  try {
+    let cleanContent = responseText;
+    if (cleanContent.includes('\`\`\`json')) {
+      cleanContent = cleanContent.replace(/\`\`\`json/g, '').replace(/\`\`\`/g, '').trim();
+    }
+    const parsed = JSON.parse(cleanContent);
+    let sideCards = parsed.sideboard || [];
+    
+    // Auto-corrector a 15 cartas
+    if (sideCards.length > 0) {
+      let total = sideCards.reduce((s, c) => s + (c.quantity || 0), 0);
+      if (total !== 15) {
+        const diff = 15 - total;
+        sideCards[0].quantity = Math.max(1, (sideCards[0].quantity || 0) + diff);
+      }
+    } else {
+      // Fallback
+      sideCards = [
+        { name: 'Relic of Progenitus', quantity: 4, category: 'Artifact', cmc: 1 },
+        { name: 'Pithing Needle', quantity: 4, category: 'Artifact', cmc: 1 },
+        { name: 'Red Elemental Blast', quantity: 4, category: 'Instant', cmc: 1 },
+        { name: 'Pyroblast', quantity: 3, category: 'Instant', cmc: 1 }
+      ];
+    }
+    
+    return sideCards;
+  } catch (e) {
+    console.error("Error parseando sideboard de AI:", e);
+    throw new Error("El Oráculo no pudo generar el banquillo. Por favor, inténtalo de nuevo.");
+  }
+}
+
 
 export async function forgeMazo(formData, aiConfig, onProgress = () => {}) {
   const archetype = formData.archetype || 'midrange';
@@ -581,9 +744,6 @@ export async function forgeMazo(formData, aiConfig, onProgress = () => {}) {
   
   // Veto de Emeritus (la única alucinación que prohibimos por nombre)
   result.cards = (result.cards || []).filter(c => c && c.name && !c.name.includes('Emeritus'));
-  if (result.sideboard) {
-    result.sideboard = result.sideboard.filter(c => c && c.name && !c.name.includes('Emeritus'));
-  }
   
   // Banlist
   const banlistSwaps = [];
@@ -596,17 +756,6 @@ export async function forgeMazo(formData, aiConfig, onProgress = () => {}) {
       }
     }
   });
-
-  if (result.sideboard) {
-    result.sideboard.forEach(card => {
-      if (card && card.name && BATTLEBOX_VETOS.includes(card.name)) {
-        const replacement = getIntelligentSubstitution(card.name, card.role);
-        if (replacement) {
-          card.name = replacement;
-        }
-      }
-    });
-  }
 
   // Separar Tierras y Hechizos en el Main Deck
   const BASIC_LAND_NAMES = ['Plains', 'Island', 'Swamp', 'Mountain', 'Forest', 'Wastes', 'Llanura', 'Isla', 'Pantano', 'Montaña', 'Bosque'];
@@ -635,23 +784,6 @@ export async function forgeMazo(formData, aiConfig, onProgress = () => {}) {
     ];
   } else {
     result.cards = [...spells, ...lands];
-  }
-
-  // Ajuste matemático del banquillo a 15 cartas
-  if (result.sideboard && result.sideboard.length > 0) {
-    let sideTotal = result.sideboard.reduce((s, c) => s + (c.quantity || 0), 0);
-    if (sideTotal !== 15) {
-      const diff = 15 - sideTotal;
-      result.sideboard[0].quantity = Math.max(1, (result.sideboard[0].quantity || 0) + diff);
-    }
-  } else {
-    // Si el sideboard está vacío, rellenamos con 15 cartas genéricas de banquillo
-    result.sideboard = [
-      { name: 'Relic of Progenitus', quantity: 4, category: 'Artifact', cmc: 1 },
-      { name: 'Pithing Needle', quantity: 4, category: 'Artifact', cmc: 1 },
-      { name: 'Red Elemental Blast', quantity: 4, category: 'Instant', cmc: 1 },
-      { name: 'Pyroblast', quantity: 3, category: 'Instant', cmc: 1 }
-    ];
   }
 
   onProgress('done', '✅ ¡Mazo forjado!');

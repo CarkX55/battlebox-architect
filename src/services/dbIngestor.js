@@ -139,6 +139,27 @@ export async function getCardCount() {
 }
 
 export async function getAllCards() {
+  if (typeof indexedDB === 'undefined') {
+    // Entorno Node (scripts/tests): leer del archivo JSON local de Scryfall
+    const fs = await import('fs');
+    const path = await import('path');
+    const dbPath = path.resolve('database/oracle-cards-20260428090245.json');
+    const raw = JSON.parse(fs.readFileSync(dbPath, 'utf8'));
+    return raw.map(card => ({
+      id: card.id,
+      name: card.name || '',
+      mana_cost: card.mana_cost || '',
+      type_line: card.type_line || '',
+      oracle_text: card.oracle_text || '',
+      colors: card.colors || [],
+      color_identity: card.color_identity || [],
+      mana_value: card.cmc ?? card.mana_value ?? 3,
+      rarity: card.rarity || 'common',
+      legalities: card.legalities || {},
+      image_uris: card.image_uris || null,
+    }));
+  }
+
   const database = await openDB();
   const tx = database.transaction(STORE_NAME, 'readonly');
   const store = tx.objectStore(STORE_NAME);

@@ -2,6 +2,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { enrich } from './enrichGraph.js';
 
 // Resolver __dirname en módulos ES
 const __filename = fileURLToPath(import.meta.url);
@@ -273,6 +274,9 @@ async function run() {
   // 5. Guardar Grafo Semántico pre-compilado en JSON
   fs.writeFileSync(OUTPUT_FILE, JSON.stringify(consolidatedGraph, null, 2), 'utf8');
   console.log(`✨ [Obsidian Compiler] ¡Grafo consolidado exportado a: ${OUTPUT_FILE}!`);
+  
+  // Enriquecer el grafo con todos los datos de Scryfall
+  enrich();
 }
 
 run().catch(err => {

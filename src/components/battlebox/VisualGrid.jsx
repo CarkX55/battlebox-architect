@@ -1,7 +1,131 @@
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import MagicCard from '../atoms/MagicCard';
 import { cn } from '../../utils/cn';
-import { Layers, Swords, Zap, Gem, Mountain, Coins, Scroll, Sparkles, User, Flame, Activity, XCircle, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Layers, Swords, Zap, Gem, Mountain, Coins, Scroll, Sparkles, User, Flame, Activity, XCircle, AlertTriangle, CheckCircle2, Check } from 'lucide-react';
+
+const ScryfallHoverCard = ({ cardName, children }) => {
+  const [imgUrl, setImgUrl] = useState(null);
+  const [isHovered, setIsHovered] = useState(false);
+  const [coords, setCoords] = useState({ x: 0, y: 0 });
+  const spanRef = useRef(null);
+
+  useEffect(() => {
+    let active = true;
+    if (isHovered && !imgUrl) {
+      fetch(`https://api.scryfall.com/cards/named?exact=${encodeURIComponent(cardName)}`)
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (!active) return;
+          if (data && data.image_uris && data.image_uris.normal) {
+            setImgUrl(data.image_uris.normal);
+          } else if (data && data.card_faces && data.card_faces[0].image_uris) {
+            setImgUrl(data.card_faces[0].image_uris.normal);
+          }
+        })
+        .catch(() => {});
+    }
+    return () => { active = false; };
+  }, [isHovered, cardName, imgUrl]);
+
+  const handleMouseEnter = () => {
+    if (spanRef.current) {
+      const rect = spanRef.current.getBoundingClientRect();
+      setCoords({ x: rect.left + rect.width / 2, y: rect.top });
+    }
+    setIsHovered(true);
+  };
+
+  return (
+    <span 
+      ref={spanRef}
+      className="text-purple-300 font-bold border-b border-dashed border-purple-400/50 hover:text-purple-200 transition-colors cursor-help inline-block relative"
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={() => setIsHovered(false)}
+    >
+      {children}
+      <AnimatePresence>
+        {isHovered && imgUrl && (
+          <motion.div
+            initial={{ opacity: 0, y: 10, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 10, scale: 0.95 }}
+            transition={{ duration: 0.15 }}
+            style={{ position: 'fixed', left: coords.x, top: coords.y, transform: 'translate(-50%, -100%)', marginTop: '-8px', zIndex: 99999, width: '220px' }}
+            className="pointer-events-none"
+          >
+            <img src={imgUrl} alt={cardName} className="w-full h-auto rounded-xl shadow-[0_20px_40px_rgba(0,0,0,0.8)] border border-purple-500/30" />
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </span>
+  );
+};
+
+const RichTextWithHover = ({ text, deckCards }) => {
+  const parts = useMemo(() => {
+    if (!text || typeof text !== 'string') return [{ type: 'text', content: text }];
+    
+    const knownNames = Array.from(new Set(deckCards.map(c => c?.name))).filter(Boolean);
+    knownNames.sort((a, b) => b.length - a.length);
+    
+    let regexStr = `\\[\\[([^\\]]+)\\]\\]|'([^']+)'|\\b\\d+x\\s+([A-Z][a-zA-Z\\',-]+(?:\\s+[a-zA-Z\\',-]+)*)`;
+    if (knownNames.length > 0) {
+      const escapedNames = knownNames.map(n => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+      regexStr += `|(${escapedNames.join('|')})`;
+    }
+    
+    const pattern = new RegExp(regexStr, 'g');
+    const result = [];
+    let lastIndex = 0;
+    let match;
+    
+    while ((match = pattern.exec(text)) !== null) {
+      if (match.index > lastIndex) {
+        result.push({ type: 'text', content: text.substring(lastIndex, match.index) });
+      }
+      
+      let cardName = match[1] || match[2] || match[3] || match[4];
+      if (cardName) {
+        cardName = cardName.trim();
+        if (cardName.endsWith('.') || cardName.endsWith(',')) {
+          cardName = cardName.substring(0, cardName.length - 1).trim();
+        }
+        
+        // Si el match completo incluye los dobles corchetes, los quitamos del texto visible
+        let displayContent = match[0];
+        if (match[1]) {
+          displayContent = match[1]; 
+        }
+        
+        result.push({ type: 'card', content: displayContent, cardName: cardName });
+      } else {
+        result.push({ type: 'text', content: match[0] });
+      }
+      lastIndex = pattern.lastIndex;
+    }
+    
+    if (lastIndex < text.length) {
+      result.push({ type: 'text', content: text.substring(lastIndex) });
+    }
+    
+    return result;
+  }, [text, deckCards]);
+
+  return (
+    <span>
+      {parts.map((p, i) => 
+        p.type === 'card' ? (
+          <ScryfallHoverCard key={i} cardName={p.cardName}>
+            {p.content}
+          </ScryfallHoverCard>
+        ) : (
+          <span key={i}>{p.content}</span>
+        )
+      )}
+    </span>
+  );
+};
 
 const CATEGORIES = {
   Creature: { label: 'Criaturas', icon: Swords },
@@ -46,7 +170,25 @@ function CategorySection({ title, icon: Icon, cards, onRemove, onAdd, isEditing 
   );
 }
 
-export default function VisualGrid({ cards, onRemoveCard, onAddCard, isEditing, isMainDeck, onAudit, isAuditing, auditResult, onCloseAudit }) {
+export default function VisualGrid({ cards, onRemoveCard, onAddCard, isEditing, isMainDeck, onAudit, isAuditing, auditResult, onCloseAudit, onOptimize }) {
+  const [selectedSuggestions, setSelectedSuggestions] = useState(new Set());
+
+  useEffect(() => {
+    if (auditResult && auditResult.suggestions) {
+      setSelectedSuggestions(new Set(auditResult.suggestions.map((_, i) => i)));
+    }
+  }, [auditResult]);
+
+  const toggleSuggestion = (index) => {
+    const newSet = new Set(selectedSuggestions);
+    if (newSet.has(index)) {
+      newSet.delete(index);
+    } else {
+      newSet.add(index);
+    }
+    setSelectedSuggestions(newSet);
+  };
+
   const safeCards = Array.isArray(cards) ? cards.filter(Boolean) : [];
 
   const getPrimaryCategory = (card) => {
@@ -192,9 +334,15 @@ export default function VisualGrid({ cards, onRemoveCard, onAddCard, isEditing, 
                       </h4>
                       <ul className="space-y-3">
                         {auditResult.criticalAlerts.map((alert, i) => (
-                          <li key={i} className="flex gap-3 text-sm text-red-200/80 items-start">
+                          <li key={i} className="flex gap-3 text-sm text-red-200/80 items-start leading-relaxed">
                             <span className="mt-1 w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
-                            {alert}
+                            <span>
+                              {typeof alert === 'object' ? (
+                                <RichTextWithHover text={alert.text || JSON.stringify(alert)} deckCards={safeCards} />
+                              ) : (
+                                <RichTextWithHover text={alert} deckCards={safeCards} />
+                              )}
+                            </span>
                           </li>
                         ))}
                       </ul>
@@ -209,9 +357,15 @@ export default function VisualGrid({ cards, onRemoveCard, onAddCard, isEditing, 
                       </h4>
                       <ul className="space-y-3">
                         {auditResult.warnings.map((warn, i) => (
-                          <li key={i} className="flex gap-3 text-sm text-amber-200/80 items-start">
+                          <li key={i} className="flex gap-3 text-sm text-amber-200/80 items-start leading-relaxed">
                             <span className="mt-1 w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
-                            {warn}
+                            <span>
+                              {typeof warn === 'object' ? (
+                                <RichTextWithHover text={warn.text || JSON.stringify(warn)} deckCards={safeCards} />
+                              ) : (
+                                <RichTextWithHover text={warn} deckCards={safeCards} />
+                              )}
+                            </span>
                           </li>
                         ))}
                       </ul>
@@ -227,9 +381,17 @@ export default function VisualGrid({ cards, onRemoveCard, onAddCard, isEditing, 
                     </h4>
                     <ul className="space-y-3">
                       {auditResult.suggestions.map((sug, i) => (
-                        <li key={i} className="flex gap-3 text-sm text-emerald-200/80 items-start">
-                          <span className="mt-1 w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
-                          {sug}
+                        <li 
+                          key={i} 
+                          className="flex gap-3 text-sm items-start cursor-pointer group"
+                          onClick={() => toggleSuggestion(i)}
+                        >
+                          <div className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${selectedSuggestions.has(i) ? 'bg-emerald-500 border-emerald-500' : 'border-emerald-500/50 bg-transparent'}`}>
+                             {selectedSuggestions.has(i) && <Check size={12} className="text-black stroke-[3]" />}
+                          </div>
+                          <span className={`transition-colors flex-1 leading-relaxed ${selectedSuggestions.has(i) ? 'text-emerald-200/90' : 'text-emerald-200/50 line-through'}`}>
+                            <RichTextWithHover text={sug.text || sug} deckCards={safeCards} />
+                          </span>
                         </li>
                       ))}
                     </ul>
@@ -238,7 +400,23 @@ export default function VisualGrid({ cards, onRemoveCard, onAddCard, isEditing, 
               </div>
 
               {/* Footer */}
-              <div className="p-4 border-t border-white/10 flex justify-end shrink-0 bg-black/20">
+              <div className="p-4 border-t border-white/10 flex justify-end shrink-0 bg-black/20 gap-3">
+                {onOptimize && auditResult && auditResult.score < 10 && (
+                  <button
+                    onClick={() => {
+                      const filteredAuditResult = {
+                        ...auditResult,
+                        suggestions: auditResult.suggestions.filter((_, i) => selectedSuggestions.has(i)),
+                        applyProgrammatically: true
+                      };
+                      onOptimize(filteredAuditResult);
+                      onCloseAudit();
+                    }}
+                    className="px-6 py-2 bg-purple-600/20 hover:bg-purple-600/40 border border-purple-500/50 text-purple-200 rounded-lg text-sm font-bold uppercase transition-colors"
+                  >
+                    Aplicar Cambios
+                  </button>
+                )}
                 <button
                   onClick={onCloseAudit}
                   className="px-6 py-2 bg-white/5 hover:bg-white/10 text-white rounded-lg text-sm font-bold uppercase transition-colors"

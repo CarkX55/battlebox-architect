@@ -73,7 +73,7 @@ console.log("Deck original antes de pasar por el Juez:");
 mockDeckResult.cards.forEach(c => console.log(`- ${c.quantity}x ${c.name} (${c.role || 'no role'}, CMC: ${c.cmc})`));
 
 console.log("\nEjecutando Juez Final...");
-const result = aplicarJuezFinal(mockDeckResult, mockDnaData, mockFormData, mockAddLog, mockRagPool);
+const result = await aplicarJuezFinal(mockDeckResult, mockDnaData, mockFormData, mockAddLog, mockRagPool);
 
 console.log("\nDeck resultante después de la auditoría:");
 result.cards.forEach(c => console.log(`- ${c.quantity}x ${c.name} (${c.role || 'no role'}, CMC: ${c.cmc})`));

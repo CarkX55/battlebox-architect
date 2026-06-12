@@ -369,12 +369,21 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
   else minBasics = 3;
   
   // 1. INYECCIÓN INTELIGENTE DE TIERRAS DE UTILIDAD (AI TOP 1 RECOMMENDATIONS)
+  let injectTronSuite = false;
+  if (strategy === 'tron' || archetype === 'tron_blue' || archetype.includes('tron') || (tribe === 'eldrazi' && strategy === 'tron') || (archetype === 'ramp' && formColors.includes('C')) || (formColors.includes('C') && actualColors.length === 0) || formColors.length === 0) {
+    injectTronSuite = true;
+  }
+  if (aiUtilityLands && aiUtilityLands.some(l => l && l.includes("Urza's"))) {
+    injectTronSuite = true;
+  }
+
   if (aiUtilityLands && aiUtilityLands.length > 0) {
       console.log(`[MANABASE GENERATOR] Procesando ${aiUtilityLands.length} tierras de utilidad sugeridas por IA.`);
       const uniqueUtils = {};
       let totalUtilityAdded = 0;
       
       aiUtilityLands.forEach(landName => {
+          if (injectTronSuite && landName && landName.includes("Urza's")) return; // Saltarse tierras de Urza, se inyectarán con el paquete completo de 12 tierras
           if (!uniqueUtils[landName]) uniqueUtils[landName] = 0;
           uniqueUtils[landName]++;
       });
@@ -405,14 +414,18 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
   // 1. DYNAMIC CONFIGURATION OF KEY UTILITY / COMBOS OF LANDS
   
   // A. ELDRAZI TRON (Urza Lands Suite)
-  if (strategy === 'tron' || (tribe === 'eldrazi' && strategy === 'tron') || (archetype === 'ramp' && formColors.includes('C')) || (formColors.includes('C') && actualColors.length === 0) || formColors.length === 0) {
+  if (injectTronSuite) {
     const tronSuite = [
       { name: "Urza's Tower", quantity: 4, type_line: "Land — Urza's Tower" },
       { name: "Urza's Power Plant", quantity: 4, type_line: "Land — Urza's Power Plant" },
-      { name: "Urza's Mine", quantity: 4, type_line: "Land — Urza's Mine" },
-      { name: "Eldrazi Temple", quantity: 4, type_line: "Land — Eldrazi" },
-      { name: "Wastes", quantity: 2, type_line: "Basic Land — Wastes" }
+      { name: "Urza's Mine", quantity: 4, type_line: "Land — Urza's Mine" }
     ];
+    // Sólo agregar Eldrazi Temple y Wastes de forma estricta si es Eldrazi Tribal o Colorless Puro
+    if (tribe === 'eldrazi' || formColors.length === 0 || (formColors.includes('C') && actualColors.length === 0)) {
+        tronSuite.push({ name: "Eldrazi Temple", quantity: 4, type_line: "Land — Eldrazi" });
+        tronSuite.push({ name: "Wastes", quantity: 2, type_line: "Basic Land — Wastes" });
+    }
+
     
     tronSuite.forEach(land => {
       if (remainingLands >= land.quantity) {
@@ -562,9 +575,22 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
       
       let maxTribalCopies = actualColors.length >= 4 ? 12 : (actualColors.length === 3 ? 8 : 4);
       
+      const creatureCount = (nonLandSpells || []).reduce((sum, s) => {
+          const cat = (s.category || '').toLowerCase();
+          const type = (s.type_line || '').toLowerCase();
+          if (cat.includes('creature') || type.includes('creature')) {
+              return sum + (s.quantity || 1);
+          }
+          return sum;
+      }, 0);
+
       // Scale down tribal lands if there are non-creature spells that require normal colored sources
-      if (nonCreatureCount > 0) {
-          if (nonCreatureCount >= 12) {
+      if (creatureCount < 12) {
+          maxTribalCopies = 0; // Don't run tribal lands if the deck is heavily spell-based (e.g. Reanimator, Control)
+      } else if (nonCreatureCount > 0) {
+          if (nonCreatureCount >= 16) {
+              maxTribalCopies = Math.min(maxTribalCopies, 2); 
+          } else if (nonCreatureCount >= 12) {
               maxTribalCopies = Math.min(maxTribalCopies, 4); // High non-creature count (Tempo / Control) -> Max 4 tribal lands
           } else if (nonCreatureCount >= 6) {
               maxTribalCopies = Math.min(maxTribalCopies, 6); // Moderate non-creature count -> Max 6 tribal lands
@@ -1037,8 +1063,17 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
     const monoColor = actualColors[0];
     const utilityLandsToInject = [];
 
+    const monoCreatureCount = (nonLandSpells || []).reduce((sum, s) => {
+        const cat = (s.category || '').toLowerCase();
+        const type = (s.type_line || '').toLowerCase();
+        if (cat.includes('creature') || type.includes('creature')) {
+            return sum + (s.quantity || 1);
+        }
+        return sum;
+    }, 0);
+
     // A. Tribal support for Mono-color
-    if (hasTribe) {
+    if (hasTribe && monoCreatureCount >= 12) {
       if (!BATTLEBOX_VETOS.includes('Cavern of Souls')) {
         utilityLandsToInject.push({ name: "Cavern of Souls", qty: 2, type: "Land — Cavern" });
       }

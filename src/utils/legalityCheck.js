@@ -1,4 +1,4 @@
-import { BATTLEBOX_VETOS } from '../constants/legacyBattleBox';
+import { BATTLEBOX_VETOS } from '../constants/legacyBattleBox.js';
 
 /**
  * Realiza un filtro doble de legalidad para una carta:

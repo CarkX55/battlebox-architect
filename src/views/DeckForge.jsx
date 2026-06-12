@@ -8,20 +8,21 @@ import ManaOrb from '../components/atoms/ManaOrb';
 import AiConfigPanel from '../components/forge/AiConfigPanel';
 import VisualGrid from '../components/battlebox/VisualGrid';
 import { hydrateDeckCards } from '../services/cardHydrator';
-import { callAI, suggestCards } from '../services/aiFactory';
+import { callAI, suggestCards, forgeSideboard } from '../services/aiFactory';
 import { forgeMazoPerfecto } from '../services/deckArchitectService';
 import { archiveDeck, archiveDeckOnline } from '../services/archiveService';
+import { getAllCards } from '../services/dbIngestor';
 import CardSearch from '../components/forge/CardSearch';
 import HandSimulator from '../components/forge/HandSimulator';
 import { PowerLevelMeter } from '../components/forge/PowerLevelMeter';
 import RadarChart from '../components/forge/RadarChart';
 import ManaCurve from '../components/forge/ManaCurve';
 import { AlertTriangle, Shield, Lightbulb, Target, Scroll, PenTool, CheckCircle2, XCircle, Info, Zap, Sparkles, Copy, PlusCircle, MinusCircle, GitFork, Share2, Download, Droplet, Activity } from 'lucide-react';
-import { calculateKarstenProbability, calculateLandDropProbability, calculateManaCoverage, calculateTurnoDeOro, generateManaBase, calculatePerfectLandCount } from '../services/deckCalculator';
+import { calculateKarstenProbability, calculateLandDropProbability, calculateManaCoverage, calculateTurnoDeOro, generateManaBase, calculatePerfectLandCount, calculateVMP } from '../services/deckCalculator';
 import { generateSideboard } from '../services/sideboardService';
 import SynergyGraphVisualizer from '../components/forge/SynergyGraphVisualizer';
 import DeckVisualExporter from '../components/forge/DeckVisualExporter';
-import { optimizarMazo } from '../services/deckOptimizerService';
+import { optimizarMazo, applyAuditChangesProgrammatically } from '../services/deckOptimizerService';
 import { auditDeckWithAI } from '../services/auditService';
 
 const FORGE_STORAGE_KEY = 'mtg_ai_config_forge';
@@ -104,7 +105,7 @@ const getManaSourcesCount = (deck) => {
 };
 
 // Componente Visual de la Matriz de Probabilidades de Frank Karsten
-const KarstenMatrix = ({ deck, validationEngine = 'local', validationData = null }) => {
+const KarstenMatrix = ({ deck, validationEngine = 'local', validationData = null, chosenColors = [] }) => {
   const [activeTab, setActiveTab] = useState('matrix'); // 'matrix' | 'details' | 'recs'
   const sources = useMemo(() => getManaSourcesCount(deck), [deck]);
   const deckSize = useMemo(() => deck.reduce((sum, c) => sum + (c.quantity || 1), 0), [deck]);
@@ -244,6 +245,7 @@ const KarstenMatrix = ({ deck, validationEngine = 'local', validationData = null
               </thead>
               <tbody>
                 {rows.map((row) => {
+                  if (row.color === 'C' && !chosenColors.includes('C')) return null;
                   const srcCount = sources[row.color] || 0;
                   if (srcCount === 0) return null;
 
@@ -580,7 +582,20 @@ export default function DeckForge() {
     clipboardText += `--------------------------------------------------\n`;
     if (lastGenerationLogs.rawResponse) {
       try {
-        clipboardText += `${JSON.stringify(JSON.parse(lastGenerationLogs.rawResponse), null, 2)}\n\n`;
+        const parsedResponse = JSON.parse(lastGenerationLogs.rawResponse);
+        clipboardText += `${JSON.stringify(parsedResponse, null, 2)}\n\n`;
+        
+        // Extraer Chain of Thought
+        if (parsedResponse.cards && Array.isArray(parsedResponse.cards)) {
+          clipboardText += `--------------------------------------------------\n`;
+          clipboardText += `🧠 [CHAIN OF THOUGHT - RAZONAMIENTO DEL ARQUITECTO]\n`;
+          clipboardText += `--------------------------------------------------\n`;
+          parsedResponse.cards.forEach(c => {
+            if (c.reasoning) {
+              clipboardText += `- ${c.quantity}x ${c.name}:\n  "${c.reasoning}"\n\n`;
+            }
+          });
+        }
       } catch (e) {
         clipboardText += `${lastGenerationLogs.rawResponse}\n\n`;
       }
@@ -636,36 +651,27 @@ export default function DeckForge() {
     return getMatchupGuide(renderDeck, renderSideboard, lastFormData?.archetype || 'midrange');
   }, [renderDeck, renderSideboard, lastFormData]);
 
-  const handleAutoGenerateSideboard = () => {
+  const handleAutoGenerateSideboard = async () => {
     if (!renderDeck.length) return;
     setLoading(true);
-    setForgePhase({ phase: 'hydrate', message: '🔮 Sideboard Architect analizando amenazas del metajuego...' });
+    setForgePhase({ phase: 'strategist', message: '✨ Sideboard Architect analizando debilidades del mazo...' });
     
-    setTimeout(() => {
-      try {
-        const rawSide = generateSideboard(renderDeck, selectedFormat);
-        const rarityMode = lastFormData?.rarityMode || 'normal';
-        
-        hydrateDeckCards(rawSide, rarityMode)
-          .then(hydratedSide => {
-            setRenderSideboard(hydratedSide);
-            setWarning(null);
-          })
-          .catch(err => {
-            console.error(err);
-            setWarning("⚠️ Error al obtener imágenes de Scryfall para las cartas del banquillo.");
-          })
-          .finally(() => {
-            setLoading(false);
-            setForgePhase(null);
-          });
-      } catch (e) {
-        console.error(e);
-        setWarning("⚠️ Ocurrió un error al calcular las sinergias del banquillo.");
-        setLoading(false);
-        setForgePhase(null);
-      }
-    }, 800);
+    try {
+      const rawSide = await forgeSideboard(renderDeck, lastFormData, aiConfig);
+      
+      setForgePhase({ phase: 'hydrate', message: '🖼️ Obteniendo imágenes de Scryfall...' });
+      const rarityMode = lastFormData?.rarityMode || 'normal';
+      
+      const hydratedSide = await hydrateDeckCards(rawSide, rarityMode);
+      setRenderSideboard(hydratedSide);
+      setWarning(null);
+    } catch (e) {
+      console.error(e);
+      setWarning("⚠️ Ocurrió un error al calcular las respuestas del banquillo por la IA.");
+    } finally {
+      setLoading(false);
+      setForgePhase(null);
+    }
   };
 
   const handleExportUniversal = (formatType) => {
@@ -820,8 +826,15 @@ export default function DeckForge() {
     setAuditResult(null);
     setShowAuditModal(false);
 
+    // Inyectar métricas matemáticas (VMP y recuento de fuentes)
+    const metrics = {
+      vmp: calculateVMP(renderDeck).vmp,
+      sources: getManaSourcesCount(renderDeck)
+    };
+    const auditData = { ...lastFormData, metrics };
+
     try {
-      const result = await auditDeckWithAI(renderDeck, renderSideboard, lastFormData, aiConfig, (p, m) => {
+      const result = await auditDeckWithAI(renderDeck, renderSideboard, auditData, aiConfig, (p, m) => {
         setForgePhase({ phase: p, message: m });
       });
       setAuditResult(result);
@@ -1110,10 +1123,20 @@ export default function DeckForge() {
     setWarning("⚖️ El Juez ha aplicado heurísticas locales de urgencia: Banlist eliminada y forzado a 60 cartas.");
   };
 
-  const handleOptimizeDeck = async () => {
+  const handleOptimizeDeck = async (auditReport = null) => {
     try {
       setLoading(true);
-      const result = await optimizarMazo(renderDeck, lastFormData, aiConfig, true);
+
+      if (auditReport && auditReport.applyProgrammatically) {
+        const allCards = await getAllCards();
+        const nextDeck = await applyAuditChangesProgrammatically(renderDeck, auditReport.suggestions, allCards, lastFormData);
+        setRenderDeck(nextDeck);
+        setWarning("✨ ¡Cambios aplicados de forma instantánea y matemática!");
+        setLoading(false);
+        return;
+      }
+
+      const result = await optimizarMazo(renderDeck, lastFormData, aiConfig, true, auditReport);
       if (result && result.cards) {
         setRenderDeck(result.cards);
         if (result.sideboard && result.sideboard.length > 0) {
@@ -1649,10 +1672,11 @@ export default function DeckForge() {
                   isAuditing={isAuditing}
                   auditResult={showAuditModal ? auditResult : null}
                   onCloseAudit={() => setShowAuditModal(false)}
+                  onOptimize={handleOptimizeDeck}
                 />
                 
                 {/* Matriz de Probabilidades de Frank Karsten */}
-                <KarstenMatrix deck={renderDeck} validationEngine={aiMetadata?.validationEngine} validationData={aiMetadata?.validationData} />
+                <KarstenMatrix deck={renderDeck} validationEngine={aiMetadata?.validationEngine} validationData={aiMetadata?.validationData} chosenColors={lastFormData?.colores || []} />
                 
                 {/* Simulación del Turno de Oro */}
                 <TurnoDeOroSim deck={renderDeck} />
@@ -1836,7 +1860,7 @@ export default function DeckForge() {
                             <AlertTriangle size={10} /> Alertas Críticas
                           </p>
                           <ul className="list-disc pl-4 text-[11px] text-red-200/80 space-y-0.5">
-                            {auditResult.criticalAlerts.map((a, i) => <li key={i}>{a}</li>)}
+                            {auditResult.criticalAlerts.map((a, i) => <li key={i}>{typeof a === 'object' ? a.text || JSON.stringify(a) : a}</li>)}
                           </ul>
                         </div>
                       )}
@@ -1847,7 +1871,7 @@ export default function DeckForge() {
                             <AlertTriangle size={10} /> Advertencias
                           </p>
                           <ul className="list-disc pl-4 text-[11px] text-amber-200/80 space-y-0.5">
-                            {auditResult.warnings.map((w, i) => <li key={i}>{w}</li>)}
+                            {auditResult.warnings.map((w, i) => <li key={i}>{typeof w === 'object' ? w.text || JSON.stringify(w) : w}</li>)}
                           </ul>
                         </div>
                       )}
@@ -1858,7 +1882,7 @@ export default function DeckForge() {
                             <CheckCircle2 size={10} /> Opciones de Mejora
                           </p>
                           <ul className="list-disc pl-4 text-[11px] text-emerald-200/80 space-y-0.5">
-                            {auditResult.suggestions.map((s, i) => <li key={i}>{s}</li>)}
+                            {auditResult.suggestions.map((s, i) => <li key={i}>{typeof s === 'object' ? s.text || JSON.stringify(s) : s}</li>)}
                           </ul>
                         </div>
                       )}

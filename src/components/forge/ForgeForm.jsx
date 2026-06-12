@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../../utils/cn';
 import { Sparkles, Swords, Shield, Zap, Flame, Crown, BookOpen, Search, Check, Plus, AlertCircle, Wand2, Compass, PlusCircle, MinusCircle, Scroll, TrendingUp, Lock, Unlock } from 'lucide-react';
 
-import { BATTLEBOX_VETOS, BATTLEBOX_ARCHETYPES, getBattleBoxFormatName, BATTLEBOX_FORMAT_NAME, MTG_TRIBES, MTG_STRATEGIES, TRIBE_CATEGORIES, COLORS, HISTORICAL_DECKS_CATALOG } from '../../constants/legacyBattleBox';
+import { BATTLEBOX_VETOS, BATTLEBOX_ARCHETYPES, getBattleBoxFormatName, BATTLEBOX_FORMAT_NAME, MTG_TRIBES, MTG_STRATEGIES, TRIBE_CATEGORIES, COLORS, HISTORICAL_DECKS_CATALOG, inferStrategyFromArchetype } from '../../constants/legacyBattleBox';
 import ManaOrb from '../atoms/ManaOrb';
 import { getDynamicArchetypes } from '../../services/ragService';
 
@@ -14,18 +14,20 @@ function arraysEqual(a, b) {
   return sorted1.every((v, i) => v === sorted2[i]);
 }
 
-const LEGACY_ARCHETYPES = BATTLEBOX_ARCHETYPES.map(a => ({
-  value: a.id,
-  label: a.label.split('(')[0].trim(),
-  landCount: a.landCount,
-  recommendedColors: a.recommendedColors,
-  speed: a.speed,
-  winTurn: a.winTurn,
-  colorHint: `Velocidad: ${a.speed} • Victoria: Turno ${a.winTurn}`,
-  description: a.description,
-  formats: ['MODERN', 'STANDARD'],
-  colorGroup: 'generic'
-}));
+const LEGACY_ARCHETYPES = BATTLEBOX_ARCHETYPES.map(a => {
+  return {
+    value: a.id,
+    label: a.label.split('(')[0].trim(),
+    landCount: a.landCount,
+    recommendedColors: a.recommendedColors,
+    speed: a.speed,
+    winTurn: a.winTurn,
+    colorHint: `Velocidad: ${a.speed} • Victoria: Turno ${a.winTurn}`,
+    description: a.description,
+    formats: ['MODERN', 'STANDARD'],
+    colorGroup: 'generic'
+  };
+});
 
 // Definiciones de tabs de grupo de color
 const COLOR_GROUP_TABS = [
@@ -442,8 +444,9 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
 
   const selectedStrategyInfo = useMemo(() => {
     if (!formData.strategy || isCustomStrategy) return null;
-    return MTG_STRATEGIES.find(s => s.label === formData.strategy);
-  }, [formData.strategy, isCustomStrategy]);
+    const realId = inferStrategyFromArchetype(formData.archetype, formData.strategy);
+    return MTG_STRATEGIES.find(s => s.id === realId || s.label === formData.strategy);
+  }, [formData.archetype, formData.strategy, isCustomStrategy]);
 
   const allowedColorsInfo = useMemo(() => {
     let allowed = [];
