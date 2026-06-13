@@ -186,6 +186,7 @@ export const buildCardPool = async (formData) => {
   const allCards = await getAllCards();
   const blueprint = getBlueprint(formData.archetype);
   const blueprintRoles = formData.blueprintRoles || blueprint?.roles || [];
+  const allowCustomCards = !!formData.allowCustomCards;
   
   // Cargar Grafo Semántico pre-compilado de Obsidian
   const obsidianGraph = await loadObsidianGraph();
@@ -314,8 +315,17 @@ export const buildCardPool = async (formData) => {
     const oracleText = (card.oracle_text && typeof card.oracle_text === 'string') ? card.oracle_text.toLowerCase() : '';
     const isCreature = typeLine.includes('creature');
     
-    // Excluir custom cards en formatos construidos estándar (Modern, Pioneer, Standard, Legacy)
-    if (['modern', 'pioneer', 'standard', 'legacy'].includes(formatKey)) {
+    // Excluir custom cards si allowCustomCards es false y estamos en formatos construidos estándar
+    if (!allowCustomCards && ['modern', 'pioneer', 'standard', 'legacy'].includes(formatKey)) {
+      const customSets = [
+        'tla', 'atla', 'ttla', 'tle', 'jtla', 'atle', 'ftla', 'ttle',
+        'fin', 'afic', 'afin', 'fic', 'tfin', 'tfic',
+        'tmt', 'atmt', 'tmc', 'ftmc', 'ttmc', 'ttmt',
+        'spm', 'aspm', 'spe', 'tspm',
+        'psdg', 'pspl'
+      ];
+      if (card.set && customSets.includes(card.set.toLowerCase())) continue;
+      if (card.set && card.set.toLowerCase().includes('custom')) continue;
       if (card.id && (card.id.startsWith('custom-') || card.id.includes('custom'))) continue;
       if (cardNameLower.includes("hamato") || cardNameLower.includes("shredder") || cardNameLower.includes("yoshi") || cardNameLower.includes("oroku saki") || cardNameLower.includes("splinter, ")) {
         continue;

@@ -807,17 +807,18 @@ export default function DeckForge() {
       format: selectedFormat
     };
 
-    // Sincronizar el rarityMode seleccionado en el localStorage para que el panel administrativo y futuros accesos lo reconozcan
+    // Sincronizar el rarityMode y allowCustomCards seleccionados en el localStorage para que futuros accesos lo reconozcan
     try {
       const saved = localStorage.getItem(FORGE_STORAGE_KEY);
       if (saved) {
         const configObj = JSON.parse(saved);
         configObj.rarityMode = formData.rarityMode;
+        configObj.allowCustomCards = !!formData.allowCustomCards;
         localStorage.setItem(FORGE_STORAGE_KEY, JSON.stringify(configObj));
         setAiConfig(configObj);
       }
     } catch (e) {
-      console.warn("No se pudo sincronizar rarityMode en localStorage:", e);
+      console.warn("No se pudo sincronizar configuraciones en localStorage:", e);
     }
 
     setLastFormData(combinedFormData);

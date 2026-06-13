@@ -40,6 +40,8 @@ function extractCardData(card) {
     rarity: card.rarity || 'common',
     legalities: card.legalities || {},
     image_uris: card.image_uris || null,
+    set: card.set?.toLowerCase() || '',
+    layout: card.layout || '',
   };
 }
 
@@ -128,6 +130,25 @@ export async function searchCards(query, limit = 20, format = 'MODERN') {
 
 export async function getCardCount() {
   const database = await openDB();
+  
+  // Realizar lectura rápida de una carta para verificar si tiene set y layout
+  const checkSample = await new Promise((resolve) => {
+    const txCheck = database.transaction(STORE_NAME, 'readonly');
+    const storeCheck = txCheck.objectStore(STORE_NAME);
+    const requestCheck = storeCheck.openCursor();
+    requestCheck.onsuccess = (e) => {
+      const cursor = e.target.result;
+      resolve(cursor ? cursor.value : null);
+    };
+    requestCheck.onerror = () => resolve(null);
+  });
+
+  if (checkSample && (checkSample.set === undefined || checkSample.layout === undefined)) {
+    console.warn("⚠️ [DB Ingestor] Estructura obsoleta de cartas detectada (faltan campos 'set' o 'layout'). Limpiando base de datos para forzar re-ingesta...");
+    await clearScryfallData();
+    return 0;
+  }
+
   const tx = database.transaction(STORE_NAME, 'readonly');
   const store = tx.objectStore(STORE_NAME);
   
@@ -157,6 +178,8 @@ export async function getAllCards() {
       rarity: card.rarity || 'common',
       legalities: card.legalities || {},
       image_uris: card.image_uris || null,
+      set: card.set?.toLowerCase() || '',
+      layout: card.layout || '',
     }));
   }
 

@@ -11,6 +11,8 @@ import { isCardLegalForBattleBox } from '../utils/legalityCheck.js';
 import { injectCorePackage } from '../constants/corePackages.js';
 import { getAllCards } from './dbIngestor.js';
 
+let cachedAllCards = [];
+
 /**
  * Limpia y parsea de forma segura respuestas JSON de la IA que puedan incluir cercas de código de markdown.
  */
@@ -160,7 +162,7 @@ const GEMINI_SUPREME_JUDGE_SCHEMA = {
   required: ["additions", "swaps"]
 };
 
-// 3. EL ESQUEMA DE CONSTRUCCIÁ“N DINÁMICA DE PLANTILLAS (BLUEPRINT ARCHITECT)
+// 3. EL ESQUEMA DE CONSTRUCCIÓN DINÁMICA DE PLANTILLAS (BLUEPRINT ARCHITECT)
 const GEMINI_BLUEPRINT_SCHEMA = {
   type: "object",
   properties: {
@@ -191,12 +193,12 @@ const GEMINI_BLUEPRINT_SCHEMA = {
   required: ["totalSpells", "roles"]
 };
 
-// 3. DICCIONARIO DE ADN ESTRATÁ‰GICO Y CONSTRUCTOR TAXONÁ“MICO (Synergy Registry)
+// 3. DICCIONARIO DE ADN ESTRATÉGICO Y CONSTRUCTOR TAXONÓMICO (Synergy Registry)
 const ARCHETYPE_DNA = {
   // Estrategias de Modern
   reanimator: {
     prioridad: "Motores de descarte (Enablers) eficientes, efectos de reanimación rápidos (Persist, Goryo's Vengeance, Late to Dinner, Priest of Fell Rites) y payoffs gigantescos de Modern (Archon of Cruelty, Atraxa).",
-    estilo: "Estratégico / Combo Reanimador",
+    estilo: "ESTRATÉGICO / Combo Reanimador",
     regla_de_oro: "Las criaturas de coste 1-3 DEBEN descartar cartas, buscar en el cementerio o facilitar la reanimación."
   },
   aristocrats: {
@@ -230,7 +232,7 @@ const ARCHETYPE_DNA = {
     regla_de_oro: "Las criaturas y hechizos deben disparar ventajas con la entrada de tierras o acelerar su juego."
   },
   graveyard: {
-    prioridad: "Explotación del cementerio usando Delirium (Dragon's Rage Channeler, Tarmogoyf) o Dredge y mecánicas de desenterrar.",
+    prioridad: "Explotación del cementerio usando Delirium (Dragon's Rage Channeler, Tarmogoyf) o Dredge y mecÚNICAS de desenterrar.",
     estilo: "Recurso del Cementerio / Delirium",
     regla_de_oro: "Las criaturas de coste 1-3 deben alimentarse del cementerio, poblarlo rápidamente, o ser jugables desde él."
   },
@@ -242,7 +244,7 @@ const ARCHETYPE_DNA = {
   prison: {
     prioridad: "Elementales fiscales y de control de mesa que restringen y ralentizan al rival (Thalia, Guardian of Thraben, Damping Sphere, Ghostly Prison).",
     estilo: "Taxes & Soft Lock",
-    regla_de_oro: "Las criaturas e interactores de coste bajo deben aplicar impuestos, restringir ataques o entorpecer el maná del rival."
+    regla_de_oro: "Las criaturas e interactores de coste bajo deben aplicar impuestos, restringir ataques o entorpecer el MANÁ del rival."
   },
   voltron: {
     prioridad: "Hammer Time! Equipar instantáneamente Colossus Hammer mediante Sigarda's Aid o Puresteel Paladin.",
@@ -255,7 +257,7 @@ const ARCHETYPE_DNA = {
     regla_de_oro: "Las criaturas deben tripular con facilidad o beneficiarse del uso y ataque con vehículos."
   },
   storm: {
-    prioridad: "Encadenar múltiples rituales de maná (Desperate Ritual, Pyretic Ritual, Manamorphose), reductores de coste (Ruby Medallion, Ral, Monsoon Mage, Baral) y motores de robo/cantrips rápidos para finalizar con un hechizo de tormenta (Grapeshot).",
+    prioridad: "Encadenar múltiples rituales de MANÁ (Desperate Ritual, Pyretic Ritual, Manamorphose), reductores de coste (Ruby Medallion, Ral, Monsoon Mage, Baral) y motores de robo/cantrips rápidos para finalizar con un hechizo de tormenta (Grapeshot).",
     estilo: "Combo / Tormenta (Storm Combo)",
     regla_de_oro: "Las criaturas de coste 1-3 DEBEN ser reductores de coste o facilitadores de combo. Los hechizos deben ser rituales rápidos, cantrips de bajo coste o finalizadores con Tormenta."
   },
@@ -311,16 +313,16 @@ const ARCHETYPE_DNA = {
   cascade: {
     prioridad: "Hechizos interactivos de coste 3+ y habilitadores de cascada para asegurar que siempre se revele un payoff de coste 0 (Crashing Footfalls, Living End).",
     estilo: "Combo / Cascada Consistente",
-    regla_de_oro: "PROHIBICIÁ“N ABSOLUTA: No puedes incluir ninguna carta de coste 1 o 2. Toda la interacción debe costar 3 o más, o usar mecánicas alternativas (Split, Elementales)."
+    regla_de_oro: "PROHIBICIÓN ABSOLUTA: No puedes incluir ninguna carta de coste 1 o 2. Toda la interacción debe costar 3 o más, o usar mecÚNICAS alternativas (Split, Elementales)."
   },
   ramp: {
-    prioridad: "Aceleradores de maná rápidos (Mana Dorks como Llanowar Elves, Birds of Paradise o hechizos de búsqueda como Farseek, Cultivate) combinados con payoffs masivos e interactivos de coste 5 o más (Primeval Titan, Wurmcoil Engine, Karn).",
+    prioridad: "Aceleradores de MANÁ rápidos (Mana Dorks como Llanowar Elves, Birds of Paradise o hechizos de búsqueda como Farseek, Cultivate) combinados con payoffs masivos e interactivos de coste 5 o más (Primeval Titan, Wurmcoil Engine, Karn).",
     estilo: "Desarrollo y Aceleración / Big Mana",
-    regla_de_oro: "Las cartas de coste 1-3 DEBEN acelerar tu maná, buscar tierras o proveer interacción defensiva para sobrevivir hasta lanzar tus amenazas de coste 5+."
+    regla_de_oro: "Las cartas de coste 1-3 DEBEN acelerar tu MANÁ, buscar tierras o proveer interacción defensiva para sobrevivir hasta lanzar tus amenazas de coste 5+."
   }
 };
 
-// Esta función crea el 'Plano' (el JSON de restricciones) dinámicamente con alta adaptabilidad de colores y arquetipos
+// Esta función crea el 'Plano' (el JSON de restricciones) DINÁMICAmente con alta adaptabilidad de colores y arquetipos
 function getDeckBlueprint(archetype, strategyId, formData) {
   let totalSpells = 36;
   let roles = {};
@@ -404,7 +406,7 @@ function getDeckBlueprint(archetype, strategyId, formData) {
     }
   }
 
-  // 3. CARROCERÁA (Ajustes Tribales sobre el resultado actual)
+  // 3. CARROCERÍA (Ajustes Tribales sobre el resultado actual)
   if (hasTribe && !strategyId) {
     if (archetype === 'aggro') {
       const removalRoleName = hasRed ? "burn_spells" : "interaction_or_combat_tricks";
@@ -459,7 +461,7 @@ export function getStrategyFallbackBlueprint(archetype, strategyId, formData) {
 }
 
 /**
- * Selecciona dinámicamente el mejor hechizo de reanimación legal en Modern
+ * Selecciona DINÁMICAmente el mejor hechizo de reanimación legal en Modern
  * basado en los colores y las criaturas del mazo.
  */
 function getDynamicModernReanimateSpell(cards, formData) {
@@ -557,7 +559,7 @@ export const getMaxAllowedCopies = (cardName, category, cmc, ragPool = []) => {
         limit = 3; // Amenazas pesadas no legendarias (ej: Shark Typhoon): max 3 copias
     }
 
-    // 2. DETECTOR DE REDUNDANCIA ESTRATÁ‰GICA (Habilidades pasivas / Keywords no acumulativas en mesa)
+    // 2. DETECTOR DE REDUNDANCIA ESTRATÉGICA (Habilidades pasivas / Keywords no acumulativas en mesa)
     if (oracleText && !isBasic) {
         const hasKeywordGrant = 
             oracleText.includes("have flying") || oracleText.includes("gains flying") || oracleText.includes("gain flying") ||
@@ -710,12 +712,13 @@ export function getProCopiesForCard(card, role, ragPool = [], formData = null) {
   return Math.min(proCopies, getMaxAllowedCopies(card.name, typeLine, cmc, ragPool));
 }
 
-export function obtenerMejorCartaDeRemplazo(category, targetCmc, allowedColors, format = 'MODERN', ragPool = [], excludeNames = []) {
+export function obtenerMejorCartaDeRemplazo(category, targetCmc, allowedColors, format = 'MODERN', ragPool = [], excludeNames = [], allCards = []) {
     const formatUpper = (format || 'MODERN').toUpperCase();
+    const formatKey = formatUpper.toLowerCase();
     const colorsSet = new Set(allowedColors && allowedColors.length > 0 ? allowedColors : ['W', 'U', 'B', 'R', 'G']);
     const excludeSet = new Set((excludeNames || []).filter(n => typeof n === 'string').map(n => n.toLowerCase().trim()));
     
-    // 1. Intentar buscar en el RAG pool de la baraja (que ya está filtrado por formato)
+    // 1. Intentar buscar en el RAG pool de la baraja (verificando legalidad real y descartando custom cards si no se permiten)
     if (ragPool && ragPool.length > 0) {
         const candidates = ragPool.filter(c => {
             if (!c || typeof c.name !== 'string') return false;
@@ -734,6 +737,22 @@ export function obtenerMejorCartaDeRemplazo(category, targetCmc, allowedColors, 
             // Coincidir identidad de color
             const cardColors = c.colors || [];
             if (cardColors.length > 0 && !cardColors.every(col => colorsSet.has(col))) return false;
+            
+            // Verificar legalidad del formato si allCards está disponible
+            if (allCards && allCards.length > 0) {
+                const dbCard = allCards.find(ac => ac && ac.name && ac.name.toLowerCase() === nameClean);
+                if (!dbCard) return false;
+                const isLegal = dbCard.legalities && dbCard.legalities[formatKey] === 'legal';
+                const customSets = [
+                    'tla', 'atla', 'ttla', 'tle', 'jtla', 'atle', 'ftla', 'ttle',
+                    'fin', 'afic', 'afin', 'fic', 'tfin', 'tfic',
+                    'tmt', 'atmt', 'tmc', 'ftmc', 'ttmc', 'ttmt',
+                    'spm', 'aspm', 'spe', 'tspm',
+                    'psdg', 'pspl'
+                ];
+                const isCustom = dbCard.set && (customSets.includes(dbCard.set.toLowerCase()) || dbCard.set.toLowerCase().includes('custom'));
+                if (!isLegal || isCustom) return false;
+            }
             
             return true;
         });
@@ -763,8 +782,67 @@ export function obtenerMejorCartaDeRemplazo(category, targetCmc, allowedColors, 
             };
         }
     }
+
+    // 2. Si no hay candidatos válidos en el pool, y tenemos allCards, buscar en toda la base de datos
+    if (allCards && allCards.length > 0) {
+        const dbCandidates = allCards.filter(c => {
+            if (!c || typeof c.name !== 'string') return false;
+            const nameClean = c.name.toLowerCase().trim();
+            if (excludeSet.has(nameClean)) return false;
+            
+            const typeLower = (c.type_line || '').toLowerCase();
+            if (typeLower.includes("land")) return false;
+            
+            // Coincidir categoría
+            const isCreature = category === 'Creature';
+            const cardIsCreature = typeLower.includes("creature");
+            if (isCreature !== cardIsCreature) return false;
+            
+            // Coincidir identidad de color
+            const cardColors = c.colors || [];
+            if (cardColors.length > 0 && !cardColors.every(col => colorsSet.has(col))) return false;
+            
+            // Verificar formato y custom
+            const isLegal = c.legalities && c.legalities[formatKey] === 'legal';
+            const customSets = [
+                'tla', 'atla', 'ttla', 'tle', 'jtla', 'atle', 'ftla', 'ttle',
+                'fin', 'afic', 'afin', 'fic', 'tfin', 'tfic',
+                'tmt', 'atmt', 'tmc', 'ftmc', 'ttmc', 'ttmt',
+                'spm', 'aspm', 'spe', 'tspm',
+                'psdg', 'pspl'
+            ];
+            const isCustom = c.set && (customSets.includes(c.set.toLowerCase()) || c.set.toLowerCase().includes('custom'));
+            
+            return isLegal && !isCustom;
+        });
+        
+        if (dbCandidates.length > 0) {
+            // Ordenar por CMC más cercano
+            dbCandidates.sort((a, b) => {
+                const diffA = Math.abs((a.mana_value || 0) - targetCmc);
+                const diffB = Math.abs((b.mana_value || 0) - targetCmc);
+                if (diffA !== diffB) return diffA - diffB;
+                return a.name.localeCompare(b.name);
+            });
+            
+            const best = dbCandidates[0];
+            let newCat = category;
+            const t = (best.type_line || '').toLowerCase();
+            if (t.includes("instant")) newCat = "Instant";
+            else if (t.includes("sorcery")) newCat = "Sorcery";
+            else if (t.includes("artifact")) newCat = "Artifact";
+            else if (t.includes("enchantment")) newCat = "Enchantment";
+            else if (t.includes("planeswalker")) newCat = "Planeswalker";
+            
+            return {
+                name: best.name,
+                cmc: best.mana_value || targetCmc,
+                category: newCat
+            };
+        }
+    }
     
-    // 2. Si no hay candidatos en el pool, usar staples estáticos de fallback según formato
+    // 3. Si no hay candidatos en el pool ni en la base de datos, usar staples estáticos de fallback según formato
     const isStandard = formatUpper === 'STANDARD';
     
     const lists = {
@@ -839,7 +917,7 @@ export function obtenerMejorCartaDeRemplazo(category, targetCmc, allowedColors, 
         }
     }
 
-    // 4. Ášltimo recurso absoluto indestructible (para no fallar nunca)
+    // 4. Último recurso absoluto indestructible (para no fallar nunca)
     return { 
         name: category === 'Creature' ? "Ornithopter" : "Relic of Progenitus", 
         cmc: category === 'Creature' ? 0 : 1, 
@@ -866,7 +944,7 @@ const distribuirOInyectarHechizosFaltantes = (spellList, targetCount, colors, ad
     let gap = targetCount - currentCount;
     if (gap <= 0) return spellList;
 
-    const logMsgInit = `[JUEZ COMPENSACIÁ“N] Rellenando hueco de hechizos de ${currentCount} a ${targetCount} (Faltan ${gap} copias)`;
+    const logMsgInit = `[JUEZ COMPENSACIÓN] Rellenando hueco de hechizos de ${currentCount} a ${targetCount} (Faltan ${gap} copias)`;
     console.log(logMsgInit);
     if (addLog) addLog(logMsgInit);
 
@@ -883,7 +961,7 @@ const distribuirOInyectarHechizosFaltantes = (spellList, targetCount, colors, ad
             if (addQty > 0) {
                 spell.quantity += addQty;
                 gap -= addQty;
-                const logMsg = `[JUEZ COMPENSACIÁ“N] Incrementando ${spell.name} en +${addQty} copias (Total: ${spell.quantity} / Límite: ${maxLimit})`;
+                const logMsg = `[JUEZ COMPENSACIÓN] Incrementando ${spell.name} en +${addQty} copias (Total: ${spell.quantity} / Límite: ${maxLimit})`;
                 console.log(logMsg);
                 if (addLog) addLog(logMsg);
             }
@@ -943,7 +1021,7 @@ const distribuirOInyectarHechizosFaltantes = (spellList, targetCount, colors, ad
                 });
                 gap -= addQty;
 
-                const logMsg = `[JUEZ COMPENSACIÁ“N] Inyectando del pool RAG de élite: ${addQty}x ${poolCard.name} (CMC: ${cardCmc}, Límite: ${maxLimit})`;
+                const logMsg = `[JUEZ COMPENSACIÓN] Inyectando del pool RAG de élite: ${addQty}x ${poolCard.name} (CMC: ${cardCmc}, Límite: ${maxLimit})`;
                 console.log(logMsg);
                 if (addLog) addLog(logMsg);
             }
@@ -990,7 +1068,7 @@ const distribuirOInyectarHechizosFaltantes = (spellList, targetCount, colors, ad
         if (addQty > 0) {
             adjustedList.push({ ...staple, quantity: addQty });
             gap -= addQty;
-            const logMsg = `[JUEZ COMPENSACIÁ“N] Inyectando nuevo staple de relleno estático: ${addQty}x ${staple.name}`;
+            const logMsg = `[JUEZ COMPENSACIÓN] Inyectando nuevo staple de relleno estático: ${addQty}x ${staple.name}`;
             console.log(logMsg);
             if (addLog) addLog(logMsg);
         }
@@ -1005,7 +1083,7 @@ const distribuirOInyectarHechizosFaltantes = (spellList, targetCount, colors, ad
                 const addQty = Math.min(maxLimit - spell.quantity, gap);
                 spell.quantity += addQty;
                 gap -= addQty;
-                const logMsg = `[JUEZ COMPENSACIÁ“N] ADVERTENCIA: Forzando +${addQty} copias extra en ${spell.name} (Límite: ${maxLimit}) para cerrar brecha.`;
+                const logMsg = `[JUEZ COMPENSACIÓN] ADVERTENCIA: Forzando +${addQty} copias extra en ${spell.name} (Límite: ${maxLimit}) para cerrar brecha.`;
                 console.log(logMsg);
                 if (addLog) addLog(logMsg);
             }
@@ -1015,7 +1093,7 @@ const distribuirOInyectarHechizosFaltantes = (spellList, targetCount, colors, ad
     // 5. Salvaguarda desesperada final (ignora límites si es absolutamente necesario para sumar 60)
     if (gap > 0 && adjustedList.length > 0) {
         adjustedList[0].quantity += gap;
-        const logMsg = `[JUEZ COMPENSACIÁ“N] ALERTA CRÁ TICA: Forzando límite de 4 con +${gap} copias extra en ${adjustedList[0].name} para completar 60 cartas.`;
+        const logMsg = `[JUEZ COMPENSACIÓN] ALERTA CRÍTICA: Forzando límite de 4 con +${gap} copias extra en ${adjustedList[0].name} para completar 60 cartas.`;
         console.log(logMsg);
         if (addLog) addLog(logMsg);
     }
@@ -1024,7 +1102,7 @@ const distribuirOInyectarHechizosFaltantes = (spellList, targetCount, colors, ad
 };;
 
 /**
- * Retorna true si el rol de la carta es estratégico/sagrado y no debe ser recortado a la ligera.
+ * Retorna true si el rol de la carta es ESTRATÉGICO/sagrado y no debe ser recortado a la ligera.
  */
 function esRolProtegido(role) {
     if (!role) return false;
@@ -1136,12 +1214,12 @@ function obtenerPrioridadDeRecorte(card) {
         return 15;
     }
 
-    return 10; // Ášltimo recurso
+    return 10; // Último recurso
 }
 
 /**
  * Recorta de forma inteligente y progresiva el exceso de copias de hechizos,
- * protegiendo los roles estratégicos y registrando todo en el oráculo.
+ * protegiendo los roles ESTRATÉGICOs y registrando todo en el oráculo.
  */
 function recortarHechizosExcedentesInteligente(spells, targetSpellsCount, addLog, mustIncludeNames = []) {
     let actualSum = spells.reduce((sum, c) => sum + (c.quantity || 0), 0);
@@ -1171,7 +1249,7 @@ function recortarHechizosExcedentesInteligente(spells, targetSpellsCount, addLog
             const p = obtenerPrioridadDeRecorte(c);
             return p >= 15 && p < 25;
         }},
-        { minQtyAllowed: 1, label: "Ášltimo recurso", select: (c) => obtenerPrioridadDeRecorte(c) < 15 }
+        { minQtyAllowed: 1, label: "Último recurso", select: (c) => obtenerPrioridadDeRecorte(c) < 15 }
     ];
     
     for (let pase of pases) {
@@ -1241,6 +1319,9 @@ function recortarHechizosExcedentesInteligente(spells, targetSpellsCount, addLog
 export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ragPool = [], preserveLands = false, spellAuditOnly = false, preserveSpells = false) {
     let { cards } = deckResult;
     cards = (cards || []).filter(c => c && typeof c.name === 'string');
+    if (!cachedAllCards || cachedAllCards.length === 0) {
+        cachedAllCards = await getAllCards();
+    }
     const strategyObj = MTG_STRATEGIES.find(s => s.id === formData?.strategy || s.label === formData?.strategy) || null;
     let strategyId = strategyObj ? strategyObj.id : (formData?.strategy || '');
     strategyId = inferStrategyFromArchetype(formData?.archetype, strategyId);
@@ -1275,7 +1356,23 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
     const isCardFormatLegal = (cardName) => {
         if (!cardName) return false;
         const nameLower = cardName.toLowerCase().trim();
-        return ragPool.some(c => c && typeof c.name === 'string' && c.name.toLowerCase().trim() === nameLower);
+        const dbCard = cachedAllCards.find(ac => ac && ac.name && ac.name.toLowerCase().trim() === nameLower);
+        if (!dbCard) return false;
+        
+        const selectedFormat = (formData?.format || 'MODERN').toLowerCase();
+        const isLegal = dbCard.legalities && dbCard.legalities[selectedFormat] === 'legal';
+        
+        const allowCustomCards = !!formData?.allowCustomCards;
+        const customSets = [
+            'tla', 'atla', 'ttla', 'tle', 'jtla', 'atle', 'ftla', 'ttle',
+            'fin', 'afic', 'afin', 'fic', 'tfin', 'tfic',
+            'tmt', 'atmt', 'tmc', 'ftmc', 'ttmc', 'ttmt',
+            'spm', 'aspm', 'spe', 'tspm',
+            'psdg', 'pspl'
+        ];
+        const isCustom = dbCard.set && (customSets.includes(dbCard.set.toLowerCase()) || dbCard.set.toLowerCase().includes('custom'));
+        
+        return isLegal && (allowCustomCards || !isCustom);
     };
 
     const inyectarCartaDirecta = (list, newCard) => {
@@ -1292,7 +1389,7 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
                 newCard.cmc = rep.cmc;
                 newCard.category = rep.category;
             } else {
-                addLog(`[JUEZ LEGALIDAD] Advertencia: No se encontró reemplazo legal para "${nameClean}" en el formato ${formData?.format}. Omisión de inyección.`);
+                addLog(`[JUEZ LEGALIDAD] Advertencia: No se encontró reemplazo legal para "${nameClean}" en el formato ${formData?.format}. Omisión de INYECCIÓN.`);
                 return list;
             }
         }
@@ -1335,11 +1432,11 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
     };
 
     // =========================================================================
-    // âš”ï¸  EL CUERPO SUPREMO DE LEYES DEL PRO TOUR (AUDITORÁ A DE INCOMPATIBILIDADES)
+    // ⚔️ EL CUERPO SUPREMO DE LEYES DEL PRO TOUR (AUDITORÁ A DE INCOMPATIBILIDADES)
     // =========================================================================
     
     if (!preserveSpells) {
-        // A. EXCLUSIÁ“N DE CARTAS DE ODIO ESTRECHO DEL MAINDECK AL SIDEBOARD
+        // A. EXCLUSIÓN DE CARTAS DE ODIO ESTRECHO DEL MAINDECK AL SIDEBOARD
         const narrowHateCards = ["rest in peace", "surgical extraction", "leyline of the void", "tormod's crypt", "grafdigger's cage", "stony silence"];
         let hateCardsFound = [];
         cards = cards.filter(c => {
@@ -1352,7 +1449,7 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
 
         if (hateCardsFound.length > 0) {
             const totalHateQty = hateCardsFound.reduce((sum, h) => sum + h.quantity, 0);
-            const logHate = `[JUEZ PRO TOUR] Odio estrecho en Maindeck detectado (${hateCardsFound.map(h => `${h.quantity}x ${h.name}`).join(', ')}). Moviéndolo al Sideboard dinámicamente y rellenando con interacción genérica.`;
+            const logHate = `[JUEZ PRO TOUR] Odio estrecho en Maindeck detectado (${hateCardsFound.map(h => `${h.quantity}x ${h.name}`).join(', ')}). Moviéndolo al Sideboard DINÁMICAmente y rellenando con interacción genérica.`;
             console.log(logHate);
             if (addLog) addLog(logHate);
 
@@ -1562,13 +1659,13 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
             const basicLandsList = cards.filter(c => c && c.category === 'Land' && c.name && typeof c.name === 'string' && ["plains", "island", "swamp", "mountain", "forest"].includes(c.name.toLowerCase()));
             if (basicLandsList.length > 0) {
                 basicLandsList[0].quantity -= 1;
-                cards.push({ name: complementTriome, quantity: 1, category: "Land", type_line: "Land â€” Triome", color_identity: ["G", "W", "U"] });
+                cards.push({ name: complementTriome, quantity: 1, category: "Land", type_line: "Land — Triome", color_identity: ["G", "W", "U"] });
             }
             cards = cards.filter(c => c.quantity > 0);
         }
     }
 
-    // G. PROTECCIÁ“N CONTRA BLOOD MOON EN MAZOS MULTICOLORES (3+ COLORES)
+    // G. PROTECCIÓN CONTRA BLOOD MOON EN MAZOS MULTICOLORES (3+ COLORES)
     if (colors.size >= 3 && !hasTribe && (formData?.format || '').toUpperCase() !== 'STANDARD' && !spellAuditOnly && !preserveLands) {
         const basicLands = cards.filter(c => c && c.category === 'Land' && c.name && typeof c.name === 'string' && ["plains", "island", "swamp", "mountain", "forest"].includes(c.name.toLowerCase()));
         const uniqueBasics = new Set(basicLands.map(b => b.name.toLowerCase()));
@@ -1579,7 +1676,7 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
         if (colors.has("B") && !uniqueBasics.has("swamp")) basicsToAdd.push("Swamp");
 
         if (basicsToAdd.length > 0) {
-            const logMoon = `[JUEZ PRO TOUR] Mazo de 3+ colores vulnerable a Blood Moon. Inyectando tierras básicas críticas: ${basicsToAdd.join(', ')}.`;
+            const logMoon = `[JUEZ PRO TOUR] Mazo de 3+ colores vulnerable a Blood Moon. Inyectando tierras básicas CRÍTICAs: ${basicsToAdd.join(', ')}.`;
             console.log(logMoon);
             if (addLog) addLog(logMoon);
 
@@ -1639,12 +1736,12 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
     console.log(logMsg);
     if (addLog) addLog(logMsg);
 
-    // 0.5. Reemplazar cualquier carta de reanimación Legacy no permitida en Modern de forma dinámica
+    // 0.5. Reemplazar cualquier carta de reanimación Legacy no permitida en Modern de forma DINÁMICA
     const reanimateLegacyNames = ["animate dead", "exhume", "reanimate", "necromancy", "dance of the dead", "dread return"];
     cards = cards.map(c => {
         if (c && typeof c.name === 'string' && reanimateLegacyNames.includes(c.name.toLowerCase())) {
             const dynamicReanimator = getDynamicModernReanimateSpell();
-            const logMsgSub = `âš ï¸  Juez: Carta legacy "${c.name}" interceptada. Transmutando a Modern: "${dynamicReanimator.name}"`;
+            const logMsgSub = `⚠️ Juez: Carta legacy "${c.name}" interceptada. Transmutando a Modern: "${dynamicReanimator.name}"`;
             console.warn(logMsgSub);
             if (addLog) addLog(logMsgSub);
             return {
@@ -1659,7 +1756,7 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
     });
 
     // =========================================================================
-    // âš”ï¸  TACTICAL OPTIMIZATION: SEA MONSTERS (TERRORES MARINOS)
+    // ⚔️ TACTICAL OPTIMIZATION: SEA MONSTERS (TERRORES MARINOS)
     // =========================================================================
     if (tribeId === 'sea_monsters' || formData?.tribe === 'sea_monsters') {
         const logSea = `[JUEZ SEA MONSTERS] Iniciando optimización dedicada para Terrores Marinos (Simic Control/Ramp).`;
@@ -1760,7 +1857,7 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
         }
     }
 
-    // 0.7. ESTRICTO CONTROL DE IDENTIDAD DE COLOR (PRO TOUR DIMENSIÁ“N C)
+    // 0.7. ESTRICTO CONTROL DE IDENTIDAD DE COLOR (PRO TOUR DIMENSIÓN C)
     if (colors.size > 0) {
         const logColorStart = `[JUEZ COLOR] Validando identidad de color de los hechizos contra: [${Array.from(colors).join(", ")}]`;
         console.log(logColorStart);
@@ -1822,7 +1919,7 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
                     const repCard = replacementPool[0];
                     replacementName = repCard.name;
                     repCmc = repCard.mana_value || c.cmc;
-                    repCat = repCard.type_line ? repCard.type_line.split('â€”')[0].trim() : c.category;
+                    repCat = repCard.type_line ? repCard.type_line.split('—')[0].trim() : c.category;
                 } else {
                     // Fallbacks directos si el pool RAG está vacío o no coincide
                     const rep = obtenerMejorCartaDeRemplazo(isCreature ? "Creature" : "Instant", c.cmc, Array.from(colors), formData?.format, [], [c.name]);
@@ -1831,7 +1928,7 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
                     repCat = rep.category;
                 }
                 
-                const logMsgColors = `âš ï¸  [JUEZ COLOR] Interceptada carta inválida/off-color "${c.name}" (Colores conocidos: [${cardColors.join(",")}]). Transmutando a "${replacementName}" (${repCat}, CMC ${repCmc})`;
+                const logMsgColors = `⚠️ [JUEZ COLOR] Interceptada carta inválida/off-color "${c.name}" (Colores conocidos: [${cardColors.join(",")}]). Transmutando a "${replacementName}" (${repCat}, CMC ${repCmc})`;
                 console.warn(logMsgColors);
                 if (addLog) addLog(logMsgColors);
                 
@@ -1845,7 +1942,7 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
             return c;
         });
     }
-    // 0.8. INTEGRIDAD TRIBAL (PUREZA DINÁ MICA)
+    // 0.8. INTEGRIDAD TRIBAL (PUREZA DINÁMICA)
     if (hasTribe) {
         let purityLevel = 'standard';
         const tribeLower = tribeId.toLowerCase();
@@ -1857,7 +1954,7 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
 
         const activeTribalSubtypes = tribeObj?.subtypes ? tribeObj.subtypes.map(s => s.toLowerCase()) : [];
         
-        const logTribalStart = `[JUEZ TRIBAL] Iniciando auditoría tribal. Nivel de pureza dinámico: ${purityLevel.toUpperCase()}`;
+        const logTribalStart = `🛡️ [JUEZ TRIBAL] Iniciando auditoría tribal. Nivel de pureza dinámico: ${purityLevel.toUpperCase()}`;
         console.log(logTribalStart);
         if (addLog) addLog(logTribalStart);
 
@@ -1940,7 +2037,7 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
                     repCat = rep.category;
                 }
 
-                const logMsgTribal = `ðŸ›¡ï¸ [JUEZ TRIBAL] ${invalidReason}: Criatura intrusa "${c.name}" (o alucinación) transmutada a "${replacementName}" (${repCat}, CMC ${repCmc})`;
+                const logMsgTribal = `🛡️ [JUEZ TRIBAL] ${invalidReason}: Criatura intrusa "${c.name}" (o alucinación) transmutada a "${replacementName}" (${repCat}, CMC ${repCmc})`;
                 console.warn(logMsgTribal);
                 if (addLog) addLog(logMsgTribal);
 
@@ -1956,7 +2053,7 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
         });
     }
 
-    // === DIMENSIÁ“N K: EVOKE PITCH MATH ===
+    // === DIMENSIÓN K: EVOKE PITCH MATH ===
     const evokeElementals = {
         "grief": { color: "B", fallbacks: ["Thoughtseize", "Fatal Push"] },
         "solitude": { color: "W", fallbacks: ["Path to Exile", "Prismatic Ending"] },
@@ -1980,13 +2077,13 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
             if (otherCount < 14) {
                 const isCascade = strategyId && (strategyId.toLowerCase() === 'cascade' || strategyId.toLowerCase() === 'living end' || strategyId.toLowerCase().includes('cascade'));
                 if (isCascade) {
-                    const logMsgK = `[DIMENSIÁ“N K] Evoke Pitch Deficit Bypass: "${c.name}" no se transmuta porque la estrategia Cascade prohíbe cartas de CMC 1.`;
+                    const logMsgK = `[DIMENSIÓN K] Evoke Pitch Deficit Bypass: "${c.name}" no se transmuta porque la estrategia Cascade prohíbe cartas de CMC 1.`;
                     console.log(logMsgK);
                     if (addLog) addLog(logMsgK);
                     return c;
                 }
                 const fallbackName = config.fallbacks[0];
-                const logMsgK = `[DIMENSIÁ“N K] Evoke Pitch Deficit: "${c.name}" requiere >=14 otras cartas ${config.color} (actual: ${otherCount}). Transmutando a "${fallbackName}"`;
+                const logMsgK = `[DIMENSIÓN K] Evoke Pitch Deficit: "${c.name}" requiere >=14 otras cartas ${config.color} (actual: ${otherCount}). Transmutando a "${fallbackName}"`;
                 console.log(logMsgK);
                 if (addLog) addLog(logMsgK);
                 return {
@@ -2001,7 +2098,7 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
         return c;
     });
 
-    // === DIMENSIÁ“N F: CASTING COST EFFICIENCY ===
+    // === DIMENSIÓN F: CASTING COST EFFICIENCY ===
     cards = cards.map(c => {
         if (c.category !== 'Land' && c.cmc >= 5) {
             const nameLower = c.name.toLowerCase();
@@ -2026,7 +2123,7 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
                 let repCmc = rep.cmc;
                 let repCat = rep.category;
 
-                const logMsgF = `[DIMENSIÁ“N F] Purga de Coste Pesado Subóptimo: "${c.name}" (CMC ${c.cmc}) no es trampeable. Transmutando a "${replacement}" (CMC ${repCmc})`;
+                const logMsgF = `[DIMENSIÓN F] Purga de Coste Pesado Subóptimo: "${c.name}" (CMC ${c.cmc}) no es trampeable. Transmutando a "${replacement}" (CMC ${repCmc})`;
                 console.log(logMsgF);
                 if (addLog) addLog(logMsgF);
                 return {
@@ -2041,7 +2138,7 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
         return c;
     });
 
-    // === DIMENSIÁ“N B: THREAT-TO-ANSWER RATIOS ===
+    // === DIMENSIÓN B: THREAT-TO-ANSWER RATIOS ===
     const clasificarSpell = (c) => {
         const role = (c.role || '').toLowerCase();
         if (role.includes('threat') || role.includes('win_con') || role.includes('finisher')) return 'Threat';
@@ -2071,7 +2168,7 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
 
     const diffB = currentThreatPct - targetThreatPct;
     if (Math.abs(diffB) > 0.08) {
-        const logMsgB = `[DIMENSIÁ“N B] Ratio Desviado: Threat Pct es ${(currentThreatPct * 100).toFixed(1)}% (Objetivo: ${(targetThreatPct * 100).toFixed(0)}%). Ajustando...`;
+        const logMsgB = `[DIMENSIÓN B] Ratio Desviado: Threat Pct es ${(currentThreatPct * 100).toFixed(1)}% (Objetivo: ${(targetThreatPct * 100).toFixed(0)}%). Ajustando...`;
         console.log(logMsgB);
         if (addLog) addLog(logMsgB);
 
@@ -2160,18 +2257,18 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
         }
     }
 
-    // === DIMENSIÁ“N C: VELOCITY ===
+    // === DIMENSIÓN C: VELOCITY ===
     const isCascadeDeck = strategyId === 'cascade' || formData.arquetipo?.toLowerCase().includes("cascade") || formData.arquetipo?.toLowerCase().includes("living end") || formData.arquetipo?.toLowerCase().includes("crashing footfalls");
 
     if (isCascadeDeck) {
-        const logMsgC = `[DIMENSIÁ“N C] Velocity Bypass: Mazo Cascade detectado. Evitando inyección de cantrips de coste 1.`;
+        const logMsgC = `[DIMENSIÓN C] Velocity Bypass: Mazo Cascade detectado. Evitando INYECCIÓN de cantrips de coste 1.`;
         console.log(logMsgC);
         if (addLog) addLog(logMsgC);
     } else if (colors.has("U") && (isControl || isCombo || isTempo) && !hasTribe) {
         const cantripCount = cards.filter(c => ["preordain", "consider", "ponder", "brainstorm", "opt", "serum visions"].includes(c.name.toLowerCase())).reduce((sum, s) => sum + s.quantity, 0);
         if (cantripCount < 4) {
             const gap = 4 - cantripCount;
-            const logMsgC = `[DIMENSIÁ“N C] Velocity Deficit (Blue): Solo ${cantripCount} cantrips en mazo Azul. Inyectando 4x "Preordain".`;
+            const logMsgC = `[DIMENSIÓN C] Velocity Deficit (Blue): Solo ${cantripCount} cantrips en mazo Azul. Inyectando 4x "Preordain".`;
             console.log(logMsgC);
             if (addLog) addLog(logMsgC);
             // Reemplazar de cartas no esenciales
@@ -2192,7 +2289,7 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
             const rep = obtenerMejorCartaDeRemplazo("Creature", 2, Array.from(colors), formData?.format, ragPool);
             let engineName = rep.name;
 
-            const logMsgC = `[DIMENSIÁ“N C] Velocity Deficit (Non-Blue): Solo ${engineCount} ventaja. Inyectando 4x "${engineName}".`;
+            const logMsgC = `[DIMENSIÓN C] Velocity Deficit (Non-Blue): Solo ${engineCount} ventaja. Inyectando 4x "${engineName}".`;
             console.log(logMsgC);
             if (addLog) addLog(logMsgC);
 
@@ -2208,7 +2305,7 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
         }
     }
 
-    // === DIMENSIÁ“N D: PLAN B RESILIENCY ===
+    // === DIMENSIÓN D: PLAN B RESILIENCY ===
     const isLinearCombo = ['reanimator', 'scales', 'affinity', 'ramp'].includes(strategyId);
     if (isLinearCombo) {
         const protectionNames = ["thoughtseize", "inquisition of kozilek", "veil of summer", "haywire mite", "spell pierce", "surge of salvation", "giver of runes"];
@@ -2217,7 +2314,7 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
             const rep = obtenerMejorCartaDeRemplazo("Instant", 1, Array.from(colors), formData?.format, ragPool);
             let protName = rep.name;
 
-            const logMsgD = `[DIMENSIÁ“N D] Plan B Resiliency: Mazo combo/lineal requiere protección. Inyectando 4x "${protName}" para contrarrestar hate.`;
+            const logMsgD = `[DIMENSIÓN D] Plan B Resiliency: Mazo combo/lineal requiere PROTECCIÓN. Inyectando 4x "${protName}" para contrarrestar hate.`;
             console.log(logMsgD);
             if (addLog) addLog(logMsgD);
 
@@ -2233,7 +2330,7 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
         }
     }
 
-    // === DIMENSIÁ“N E: INTERACTION PARTITIONING ===
+    // === DIMENSIÓN E: INTERACTION PARTITIONING ===
     if (isControl) {
         const counters = cards.filter(c => c.name.toLowerCase().includes("counter") || c.name.toLowerCase().includes("pierce") || c.name.toLowerCase().includes("leak")).reduce((sum, s) => sum + s.quantity, 0);
         const sweepers = cards.filter(c => c.name.toLowerCase().includes("verdict") || c.name.toLowerCase().includes("depopulate") || c.name.toLowerCase().includes("wrath")).reduce((sum, s) => sum + s.quantity, 0);
@@ -2245,7 +2342,7 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
         }
     }
 
-    // === DIMENSIÁ“N H: THREAT + DISRUPT ===
+    // === DIMENSIÓN H: THREAT + DISRUPT ===
     cards = cards.map(c => {
         if (c.category === 'Creature' && !esRolProtegido(c.role) && c.quantity > 2) {
             const nameLower = c.name.toLowerCase();
@@ -2259,14 +2356,14 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
         return c;
     });
 
-    // === DIMENSIÁ“N I: LINEAR DENSITY VS DILUTION ===
+    // === DIMENSIÓN I: LINEAR DENSITY VS DILUTION ===
     const isHyperLinear = ['affinity', 'scales'].includes(strategyId);
     if (isHyperLinear) {
         const interactiveCards = cards.filter(c => clasificarSpell(c) === 'Answer');
         const totalInt = interactiveCards.reduce((sum, c) => sum + c.quantity, 0);
         if (totalInt > 4) {
             const gap = totalInt - 4;
-            const logMsgI = `[DIMENSIÁ“N I] Dilution Deficit: Mazo hiperlineal tiene ${totalInt} respuestas (máximo aconsejable 4). Diluyendo interactivos sobrantes...`;
+            const logMsgI = `[DIMENSIÓN I] Dilution Deficit: Mazo hiperlineal tiene ${totalInt} respuestas (máximo aconsejable 4). Diluyendo interactivos sobrantes...`;
             console.log(logMsgI);
             if (addLog) addLog(logMsgI);
 
@@ -2305,7 +2402,7 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
     }
 
     if (!preserveLands) {
-        // === DIMENSIÁ“N G: UTILITY LANDS & MDFCS ===
+        // === DIMENSIÓN G: UTILITY LANDS & MDFCS ===
     const legendChannelLands = [
         { name: "Boseiju, Who Endures", color: "G", cmc: 0, category: "Land" },
         { name: "Otawara, Soaring City", color: "U", cmc: 0, category: "Land" },
@@ -2329,7 +2426,7 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
                 if (basicLandIdx !== -1) {
                     cards[basicLandIdx].quantity -= 1;
                     cards.push({ ...l, quantity: 1 });
-                    const logMsgG = `[DIMENSIÁ“N G] Utility Lands: Reemplazado 1x "${basicName}" con 1x "${l.name}" (Legendary Channel Land)`;
+                    const logMsgG = `[DIMENSIÓN G] Utility Lands: Reemplazado 1x "${basicName}" con 1x "${l.name}" (Legendary Channel Land)`;
                     console.log(logMsgG);
                     if (addLog) addLog(logMsgG);
                 }
@@ -2337,12 +2434,12 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
         }
     });
 
-    // === DIMENSIÁ“N L: SPELL-LAND DUALITY & MDFCS ===
+    // === DIMENSIÓN L: SPELL-LAND DUALITY & MDFCS ===
     const mdfcAndCyclers = ["malakir rebirth", "bala ged recovery", "shatterskull smashing", "agadeem's awakening", "sejiri shelter", "lorien revealed"];
     const mdfcCount = cards.filter(c => mdfcAndCyclers.some(mac => c.name.toLowerCase().includes(mac))).reduce((sum, s) => sum + s.quantity, 0);
     if (mdfcCount >= 2) {
         const landsToDeduct = Math.floor(mdfcCount / 2);
-        const logMsgL = `[DIMENSIÁ“N L] Spell-Land Duality: Encontradas ${mdfcCount} MDFC/Cicladora. Deduciendo ${landsToDeduct} tierras de la base para añadir hechizos eficientes.`;
+        const logMsgL = `[DIMENSIÓN L] Spell-Land Duality: Encontradas ${mdfcCount} MDFC/Cicladora. Deduciendo ${landsToDeduct} tierras de la base para añadir hechizos eficientes.`;
         console.log(logMsgL);
         if (addLog) addLog(logMsgL);
 
@@ -2365,7 +2462,7 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
         cards = inyectarCartaDirecta(cards, { name: spellName, quantity: deducted, category: rep.category, cmc: rep.cmc, role: "interaction" }, ragPool);
     }
 
-    // === EXCEPCIÁ“N TRON: INYECCIÁ“N OBLIGATORIA DE TIERRAS DE URZA ===
+    // === EXCEPCIÓN TRON: INYECCIÓN OBLIGATORIA DE TIERRAS DE URZA ===
     const isTronDeck = strategyId === 'tron' || formData?.arquetipo?.toLowerCase().includes("tron");
     if (isTronDeck) {
         const urzaLands = ["Urza's Tower", "Urza's Power Plant", "Urza's Mine"];
@@ -2395,13 +2492,13 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
             }
             cards = cards.filter(c => c.quantity > 0);
             
-            const logMsgTron = `[JUEZ TRON] Excepción Tron: Forzando 12 Urza Lands. Reemplazadas ${injectedUrza} tierras genéricas para hacer espacio.`;
+            const logMsgTron = `[JUEZ TRON] EXCEPCIÓN Tron: Forzando 12 Urza Lands. Reemplazadas ${injectedUrza} tierras genéricas para hacer espacio.`;
             console.log(logMsgTron);
             if (addLog) addLog(logMsgTron);
         }
     }
 
-    // === DIMENSIÁ“N A: KARSTEN CURVES & SOURCES ===
+    // === DIMENSIÓN A: KARSTEN CURVES & SOURCES ===
     let colorT1Requirements = {};
     let colorT2DoublePips = {};
 
@@ -2450,13 +2547,13 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
             const actualSources = getSourcesCount(col);
             if (actualSources < targetSources) {
                 const deficit = targetSources - actualSources;
-                const logMsgA = `[DIMENSIÁ“N A] Karsten Mana Deficit for ${col}: Requiere ${targetSources} fuentes (actual: ${actualSources}). Defecto de ${deficit}. Convirtiendo tierras...`;
+                const logMsgA = `[DIMENSIÓN A] Karsten Mana Deficit for ${col}: Requiere ${targetSources} fuentes (actual: ${actualSources}). Defecto de ${deficit}. Convirtiendo tierras...`;
                 console.log(logMsgA);
                 if (addLog) addLog(logMsgA);
 
                 // Convertir tierras de surplus a deficit
                 if (colors.size >= 3 || hasTribe) {
-                    const logMsgBypass = `[DIMENSIÁ“N A] Karsten Swap Bypass: Mazo multicolor (3+ colores) o tribal detectado. Evitando conversión automática de tierras básicas.`;
+                    const logMsgBypass = `[DIMENSIÓN A] Karsten Swap Bypass: Mazo multicolor (3+ colores) o tribal detectado. Evitando conversión automática de tierras básicas.`;
                     console.log(logMsgBypass);
                     if (addLog) addLog(logMsgBypass);
                     return;
@@ -2488,7 +2585,7 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
                                 otherBasicLand.quantity -= qtyToConvert;
                                 cards = inyectarCartaDirecta(cards, { name: colBasicName, quantity: qtyToConvert, category: "Land", cmc: 0 });
                                 converted += qtyToConvert;
-                                const logMsgConv = `[DIMENSIÁ“N A] Swapped ${qtyToConvert}x "${otherBasicName}" -> "${colBasicName}" mathematically.`;
+                                const logMsgConv = `[DIMENSIÓN A] Swapped ${qtyToConvert}x "${otherBasicName}" -> "${colBasicName}" mathematically.`;
                                 console.log(logMsgConv);
                                 if (addLog) addLog(logMsgConv);
                             }
@@ -2649,7 +2746,7 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
     }
 
     // === MTG PRO: Matchup Land Swaps ===
-    // Inyectar tierras situacionales para cambiar la textura de la base de maná contra Aggro o Control
+    // Inyectar tierras situacionales para cambiar la textura de la base de MANÁ contra Aggro o Control
     const mtgProLandSwaps = [];
     if (sideCount <= 13) {
         // Contra Aggro: Radiant Fountain para estabilizar vidas y evitar shocklands
@@ -2702,7 +2799,7 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
         sideCount += 1;
         mtgProLandSwaps.push({ name: antiControlLand, type: 'Anti-Control' });
         
-        const logProSwaps = `[DIMENSIÁ“N J] MTG Pro Land Swaps inyectados: Radiant Fountain (Aggro), ${antiControlLand} (Control).`;
+        const logProSwaps = `[DIMENSIÓN J] MTG Pro Land Swaps inyectados: Radiant Fountain (Aggro), ${antiControlLand} (Control).`;
         console.log(logProSwaps);
         if (addLog) addLog(logProSwaps);
     }
@@ -2820,7 +2917,7 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
         }
     }
 
-    const logMsgJ = `[DIMENSIÁ“N J] Sideboard generado con éxito (exactamente 15 cartas).`;
+    const logMsgJ = `[DIMENSIÓN J] Sideboard generado con éxito (exactamente 15 cartas).`;
     console.log(logMsgJ);
     if (addLog) addLog(logMsgJ);
 
@@ -2844,7 +2941,7 @@ const CRITICAL_SYNERGY_RULES = {
   cascade: {
     name: "Cascade (Rhinos / Living End)",
     rules: [
-      "CRÁTICO: NO DEBES incluir NINGÁšN hechizo (instantáneo, conjuro, criatura, artefacto, etc.) con coste de maná 1 o 2 en TODO el mazo principal. Si lo haces, la mecánica de Cascada fallará miserablemente.",
+      "CRÍTICO: NO DEBES incluir NINGÚN hechizo (instantáneo, conjuro, criatura, artefacto, etc.) con coste de MANÁ 1 o 2 en TODO el mazo principal. Si lo haces, la mecánica de Cascada fallará miserablemente.",
       "Para la interacción temprana, usa EXCLUSIVAMENTE hechizos gratuitos (Force of Negation, Subtlety, Endurance, Force of Vigor) o cartas dobles (Fire // Ice, Dead // Gone) cuyo coste combinado sea 3 o mayor.",
       "Debes incluir hechizos con la habilidad de Cascada de coste 3 (Shardless Agent, Ardent Plea, Violent Outburst, Bloodbraid Marauder).",
       "Debes incluir tu objetivo de coste 0 (Crashing Footfalls, Living End, Glimpse of Tomorrow)."
@@ -2853,31 +2950,31 @@ const CRITICAL_SYNERGY_RULES = {
   storm: {
     name: "Storm Combo",
     rules: [
-      "CRÁTICO: El mazo NO FUNCIONA sin motores de maná inmensos y hechizos de reducción. Debes incluir rituales (Desperate Ritual, Pyretic Ritual, Manamorphose, Rite of Flame) y reductores (Ruby Medallion, Ral, Monsoon Mage, Baral).",
-      "NUNCA incluyas grandes criaturas que cuesten maná de color múltiple. Tu condición de victoria DEBE ser Grapeshot, Empty the Warrens, o Tendrils of Agony.",
+      "CRÍTICO: El mazo NO FUNCIONA sin motores de MANÁ inmensos y hechizos de reducción. Debes incluir rituales (Desperate Ritual, Pyretic Ritual, Manamorphose, Rite of Flame) y reductores (Ruby Medallion, Ral, Monsoon Mage, Baral).",
+      "NUNCA incluyas grandes criaturas que cuesten MANÁ de color múltiple. Tu condición de victoria DEBE ser Grapeshot, Empty the Warrens, o Tendrils of Agony.",
       "El mazo debe estar compuesto principalmente de cantrips de coste 1 (Consider, Opt, Serum Visions) y rituales."
     ]
   },
   creativity: {
     name: "Indomitable Creativity",
     rules: [
-      "CRÁTICO: Indomitable Creativity busca criaturas o artefactos. NUNCA incluyas criaturas o artefactos de bajo coste (como Llanowar Elves o Moxen), ya que arruinarán el combo.",
-      "Las ÁšNICAS criaturas del mazo deben ser finalizadores masivos y letales (Archon of Cruelty, Emrakul, Primeval Titan).",
+      "CRÍTICO: Indomitable Creativity busca criaturas o artefactos. NUNCA incluyas criaturas o artefactos de bajo coste (como Llanowar Elves o Moxen), ya que arruinarán el combo.",
+      "Las ÚNICAS criaturas del mazo deben ser finalizadores masivos y letales (Archon of Cruelty, Emrakul, Primeval Titan).",
       "Para generar objetivos sacrificables para Creativity, usa EXCLUSIVAMENTE Conjuros, Instantáneos o Tierras que generen fichas (Dwarven Mine, Hard Evidence, Fable of the Mirror-Breaker, Strike It Rich)."
     ]
   },
   amulet_titan: {
     name: "Amulet Titan",
     rules: [
-      "CRÁTICO: El mazo REQUIERE Amulet of Vigor y Primeval Titan. Son las piezas innegociables del combo.",
-      "CRÁTICO: La base de maná DEBE basarse en Bouncelands (Tierras que rebotan, como Simic Growth Chamber, Gruul Turf). No hagas un ramp verde estándar.",
+      "CRÍTICO: El mazo REQUIERE Amulet of Vigor y Primeval Titan. Son las piezas innegociables del combo.",
+      "CRÍTICO: La base de MANÁ DEBE basarse en Bouncelands (Tierras que rebotan, como Simic Growth Chamber, Gruul Turf). No hagas un ramp verde estándar.",
       "Debes incluir buscadores específicos (Summoner's Pact, Tolaria West) y tierras de utilidad masiva (Urza's Saga, Vesuva)."
     ]
   },
   deaths_shadow: {
     name: "Death's Shadow",
     rules: [
-      "CRÁTICO: Tu objetivo es perder vida rápida y deliberadamente. NUNCA incluyas hechizos de ganancia de vida.",
+      "CRÍTICO: Tu objetivo es perder vida rápida y deliberadamente. NUNCA incluyas hechizos de ganancia de vida.",
       "DEBES incluir cartas que te dañen a ti mismo: Shocklands, Fetchlands, Street Wraith, Thoughtseize, Dismember.",
       "Tus criaturas deben aprovechar la baja vida (Death's Shadow, Scourge of the Skyclaves) apoyadas por criaturas agresivas eficientes (Murktide Regent, Ragavan) e interrupciones (Grief, Fatal Push, Stubborn Denial)."
     ]
@@ -2885,7 +2982,7 @@ const CRITICAL_SYNERGY_RULES = {
   prison: {
     name: "Prison / Taxes",
     rules: [
-      "CRÁTICO: Tu objetivo es bloquear el juego en los turnos 1-2. DEBES incluir piezas asimétricas de Stax (Chalice of the Void, Blood Moon, Ensnaring Bridge, Trinisphere).",
+      "CRÍTICO: Tu objetivo es bloquear el juego en los turnos 1-2. DEBES incluir piezas asimétricas de Stax (Chalice of the Void, Blood Moon, Ensnaring Bridge, Trinisphere).",
       "Si construyes Taxes (Blanco), incluye Thalia, Guardian of Thraben, Leonin Arbiter, y Ghost Quarter/Tectonic Edge. No abuses de hechizos no-criatura si llevas Thalia.",
       "Si llevas Ensnaring Bridge, asegúrate de poder vaciar tu mano rápido. Usa aceleradores gratuitos (Simian Spirit Guide)."
     ]
@@ -2893,15 +2990,15 @@ const CRITICAL_SYNERGY_RULES = {
   scam: {
     name: "Rakdos Scam",
     rules: [
-      "CRÁTICO: El núcleo del mazo es forzar el descarte en turno 1. DEBES incluir Elementales con Evoke (Grief, Fury) u Orcish Bowmasters.",
-      "CRÁTICO: Debes acompañar los elementales con 'Scam spells' de coste 1 (Not Dead After All, Feign Death, Undying Malice, Ephemerate).",
+      "CRÍTICO: El núcleo del mazo es forzar el descarte en turno 1. DEBES incluir Elementales con Evoke (Grief, Fury) u Orcish Bowmasters.",
+      "CRÍTICO: Debes acompañar los elementales con 'Scam spells' de coste 1 (Not Dead After All, Feign Death, Undying Malice, Ephemerate).",
       "El resto del mazo debe ser disrupción eficiente (Thoughtseize, Fatal Push) y valor (Fable of the Mirror-Breaker)."
     ]
   },
   affinity: {
     name: "Affinity / Artifacts",
     rules: [
-      "CRÁTICO: El mazo requiere una densidad abrumadora de artefactos. El 80% del mazo principal deben ser artefactos.",
+      "CRÍTICO: El mazo requiere una densidad abrumadora de artefactos. El 80% del mazo principal deben ser artefactos.",
       "Incluye masivamente artefactos de coste 0-1 (Mox Opal, Ornithopter, Memnite, Shadowspear, Springleaf Drum).",
       "Incluye potentes payoffs por tener artefactos (Cranial Plating, Urza's Saga, Kappa Cannoneer, Thought Monitor)."
     ]
@@ -2946,7 +3043,7 @@ const CRITICAL_SYNERGY_RULES = {
     graveyard: {
       name: "Graveyard (Dredge / Self-Mill)",
       rules: [
-        "CRÍTICO: DEBES incluir facilitadores para enviar tus propias cartas al cementerio rápidamente (Stitcher's Supplier, Hedron Crab o mecánicas de Dredge).",
+        "CRÍTICO: DEBES incluir facilitadores para enviar tus propias cartas al cementerio rápidamente (Stitcher's Supplier, Hedron Crab o mecÚNICAS de Dredge).",
         "DEBES incluir cartas que se beneficien pasivamente o regresen del cementerio al campo (Bloodghast, Prized Amalgam). NO dependas de castear criaturas de forma normal."
       ]
     },
@@ -2975,7 +3072,7 @@ const CRITICAL_SYNERGY_RULES = {
       name: "Toolbox",
       rules: [
         "CRÍTICO: DEBES incluir tutores de criaturas directos al campo de batalla (Chord of Calling, Eldritch Evolution).",
-        "El mazo DEBE contener criaturas de '1 copia' (Silver bullets) para resolver situaciones específicas (destruir artefactos, exiliar cementerios)."
+        "El mazo DEBE contener criaturas de '1 copia' (Silver bullets) para resolver situaciones ESPECÍFICAS (destruir artefactos, exiliar cementerios)."
       ]
     },
     affinity: {
@@ -2995,7 +3092,7 @@ const CRITICAL_SYNERGY_RULES = {
     , tribal_lords: {
     name: "Tribal Lords",
     rules: [
-      "CRÁTICO: Si el mazo es Tribal (Elfos, Tritones, Trasgos, Humanos, Espíritus), el 80% de tus criaturas DEBEN ser de ese tipo exacto.",
+      "CRÍTICO: Si el mazo es Tribal (Elfos, Tritones, Trasgos, Humanos, Espíritus), el 80% de tus criaturas DEBEN ser de ese tipo exacto.",
       "Incluye innegociablemente a los 'Lords' que potencian al resto (ej. Lord of Atlantis, Elvish Archdruid, Goblin Chieftain, Supreme Phantom).",
       "Utiliza piezas de soporte tribal incoloras de máximo nivel como Cavern of Souls y Aether Vial."
     ]
@@ -3003,14 +3100,14 @@ const CRITICAL_SYNERGY_RULES = {
   reanimator: {
     name: "Reanimator",
     rules: [
-      "CRÁTICO: Para que la reanimación funcione, DEBES incluir descartadores o looters eficientes en los turnos 1-2 (Faithless Looting, Cathartic Reunion, Stitcher's Supplier, Careful Study).",
+      "CRÍTICO: Para que la reanimación funcione, DEBES incluir descartadores o looters eficientes en los turnos 1-2 (Faithless Looting, Cathartic Reunion, Stitcher's Supplier, Careful Study).",
       "Usa hechizos de reanimación poderosos (Persist, Exhume, Goryo's Vengeance, Animate Dead, Unburial Rites) apuntando a criaturas legendarias o gigantes que ganen la partida solas (Atraxa, Griselbrand, Archon of Cruelty)."
     ]
   },
   yawgmoth: {
     name: "Yawgmoth Combo",
     rules: [
-      "CRÁTICO: Este es un combo basado en criaturas. Necesitas criaturas con Undying (Young Wolf, Strangleroot Geist, Geralf's Messenger).",
+      "CRÍTICO: Este es un combo basado en criaturas. Necesitas criaturas con Undying (Young Wolf, Strangleroot Geist, Geralf's Messenger).",
       "Necesitas al motor (Yawgmoth, Thran Physician) y un payoff de drenaje (Blood Artist, Zulaport Cutthroat).",
       "Utiliza buscadores de criaturas (Chord of Calling, Eldritch Evolution) para encontrar las piezas rápido."
     ]
@@ -3018,8 +3115,8 @@ const CRITICAL_SYNERGY_RULES = {
   tron: {
     name: "Big Mana (Urzatron)",
     rules: [
-      "CRÁTICO: El mazo debe incluir obligatoriamente el trío de tierras de Urza (Urza's Tower, Urza's Mine, Urza's Power Plant).",
-      "DEBES incluir cartas para buscar tierras específicas temprano (Expedition Map, Sylvan Scrying, Ancient Stirrings).",
+      "CRÍTICO: El mazo debe incluir obligatoriamente el trío de tierras de Urza (Urza's Tower, Urza's Mine, Urza's Power Plant).",
+      "DEBES incluir cartas para buscar tierras ESPECÍFICAS temprano (Expedition Map, Sylvan Scrying, Ancient Stirrings).",
       "NO incluyas hechizos con doble coste de color. Usa remoción incolora o verde de bajo coste (Dismember, Oblivion Stone) para llegar vivo al lategame y lanzar finalizadores incoloros gigantes (Karn, Ulamog, Wurmcoil)."
     ]
   },
@@ -3032,7 +3129,7 @@ const CRITICAL_SYNERGY_RULES = {
   burn: {
     name: "Burn Aggro",
     rules: [
-      "CRÁTICO: La curva de maná debe ser mínima (principalmente costes 1 y 2).",
+      "CRÍTICO: La curva de MANÁ debe ser mínima (principalmente costes 1 y 2).",
       "NUNCA incluyas criaturas lentas. Maximiza los hechizos que hagan daño directo a la cabeza del rival (Lightning Bolt, Lava Spike, Boros Charm, Rift Bolt) y criaturas extremadamente agresivas (Goblin Guide)."
     ]
   },
@@ -3078,9 +3175,9 @@ function getArchetypePhilosophyPrompt(archetype) {
     aggro: "Filosofía AGGRO: Busca ganar rápidamente en los primeros 4-5 turnos. Prioriza criaturas de coste 1-2 muy eficientes y daño directo o trucos de combate que empujen letal. Minimiza los costes altos (casi nulos >4) y los hechizos de valor lento.",
     midrange: "Filosofía MIDRANGE: Busca interactuar tempranamente, estabilizar la mesa y luego dominar el juego medio con amenazas muy eficientes que generen un '2-por-1' (ventaja de cartas intrínseca). Mezcla removal eficiente con criaturas resilientes.",
     control: "Filosofía CONTROL: Busca neutralizar el plan del rival mediante contrahechizos, removal y limpiamesas, sobreviviendo hasta el juego largo. Gana mediante ventaja de cartas masiva y unos pocos rematadores letales casi imparables.",
-    combo: "Filosofía COMBO: Busca ensamblar una combinación de cartas específica que gane la partida inmediatamente o genere una ventaja inalcanzable. Requiere piezas de combo redundantes, mucha búsqueda (tutores/cantrips) y algo de protección.",
+    combo: "Filosofía COMBO: Busca ensamblar una combinación de cartas específica que gane la partida inmediatamente o genere una ventaja inalcanzable. Requiere piezas de combo redundantes, mucha búsqueda (tutores/cantrips) y algo de PROTECCIÓN.",
     tempo: "Filosofía TEMPO: Busca establecer una amenaza barata rápidamente y luego protegerla e interrumpir el desarrollo del oponente con interacción barata (bounces, contrahechizos de coste 1-2) para cruzar la línea de meta antes de que el rival pueda jugar sus cartas potentes.",
-    ramp: "Filosofía RAMP: Busca acelerar drásticamente su producción de maná en los primeros turnos (con dorks o hechizos de búsqueda de tierras) para jugar amenazas de coste masivo (6+) mucho antes de lo normal.",
+    ramp: "Filosofía RAMP: Busca acelerar drásticamente su producción de MANÁ en los primeros turnos (con dorks o hechizos de búsqueda de tierras) para jugar amenazas de coste masivo (6+) mucho antes de lo normal.",
     prison: "Filosofía PRISON / STAX: Busca negar al oponente la posibilidad de jugar el juego. Usa piezas de odio estático (taxing, lock pieces) para asfixiar sus recursos hasta ganar eventualmente por desgaste o abandono."
   };
 
@@ -3120,7 +3217,7 @@ function performMechanicalAuditory(deckSpells, strategyId) {
     const cascadeSpells = deckSpells.filter(s => ['shardless agent', 'ardent plea', 'violent outburst', 'bloodbraid marauder'].includes(s.name.toLowerCase()));
     
     if (oneTwoDrops.length > 0) {
-      alerts.push(`CRITICAL WARNING: Mazo Cascade detectado con hechizos de coste 1 o 2 (ej. ${oneTwoDrops.slice(0,2).map(c=>c.name).join(', ')}). Â¡ESTO ROMPE LA CASCADA! Elimina todo coste 1 o 2.`);
+      alerts.push(`CRITICAL WARNING: Mazo Cascade detectado con hechizos de coste 1 o 2 (ej. ${oneTwoDrops.slice(0,2).map(c=>c.name).join(', ')}). ¡ESTO ROMPE LA CASCADA! Elimina todo coste 1 o 2.`);
     }
     if (cascadeSpells.length === 0) alerts.push('CRITICAL WARNING: Faltan hechizos con la habilidad de Cascada de coste 3 (ej. Shardless Agent).');
   } else if (matchKey === 'storm') {
@@ -3128,7 +3225,7 @@ function performMechanicalAuditory(deckSpells, strategyId) {
     const reducers = hasCard(spellNames, ['ruby medallion', 'baral, chief of compliance', 'goblin electromancer', 'ral, monsoon mage', 'helm of awakening']);
     const stormPayoffs = hasCard(spellNames, ['grapeshot', 'empty the warrens', 'tendrils of agony', 'brain freeze', 'chatterstorm']);
     
-    if (!rituals) alerts.push('CRITICAL WARNING: Storm deck sin rituales de maná (ej. Desperate Ritual).');
+    if (!rituals) alerts.push('CRITICAL WARNING: Storm deck sin rituales de MANÁ (ej. Desperate Ritual).');
     if (!reducers) alerts.push('CRITICAL WARNING: Storm deck sin reductores de coste (ej. Ruby Medallion, Baral).');
     if (!stormPayoffs) alerts.push('CRITICAL WARNING: Storm deck sin finalizador de Tormenta (ej. Grapeshot).');
   } else if (matchKey === 'creativity') {
@@ -3174,7 +3271,7 @@ function performMechanicalAuditory(deckSpells, strategyId) {
     const hasGeneralReanimators = hasCard(spellNames, ['persist', 'exhume', 'animate dead', 'necromancy', 'unburial rites', 'late to dinner', "goryo's vengeance", 'dread return']);
     
     if (hasRestrictiveReanimators && giantCreatures.length > 0 && !hasGeneralReanimators) {
-      alerts.push(`CRITICAL WARNING: El mazo tiene criaturas gigantes para reanimar pero solo tiene hechizos de reanimación restrictivos de coste bajo (como Unearth). Â¡Reemplázalos por Persist, Exhume, etc!`);
+      alerts.push(`CRITICAL WARNING: El mazo tiene criaturas gigantes para reanimar pero solo tiene hechizos de reanimación restrictivos de coste bajo (como Unearth). ¡Reemplázalos por Persist, Exhume, etc!`);
     }
     const discardOutlets = hasCard(spellNames, ['faithless looting', 'cathartic reunion', 'thrill of possibility', 'bitter reunion', "collector's vault", "stitcher's supplier", 'putrid imp', 'careful study']);
     if (!discardOutlets && hasGeneralReanimators) {
@@ -3382,13 +3479,13 @@ export function assemblerLoop(rankedCards, blueprint, mergedCoreAndMustInclude, 
     addLog(`[ENSAMBLADOR] Procesando rol: "${role.name}" (Objetivo: ${role.quantity} copias, Faltan: ${role.remaining})`);
     if (role.remaining <= 0) continue;
 
-    // --- EL BOTÁ“N DE PÁNICO (Curva de Maná) ---
+    // --- EL BOTÓN DE PÁNICO (Curva de MANÁ) ---
     const curveWarning = calculateRealTimeVMPWarning(deck.filter(c => c.category !== 'Land'), curveProfile);
     if (curveWarning.panicMode) {
-      addLog(`[BOTÁ“N DE PÁNICO] Curva alta detectada (${curveWarning.currentVmp.toFixed(2)}). Restringiendo búsqueda a CMC <= ${curveWarning.maxAllowedCmc}`);
+      addLog(`[BOTÓN DE PÁNICO] Curva alta detectada (${curveWarning.currentVmp.toFixed(2)}). Restringiendo búsqueda a CMC <= ${curveWarning.maxAllowedCmc}`);
     }
 
-    // --- EL IMÁN (Micro-Sinergias) ---
+    // --- EL IMÁN (Micro-Sinergias) ---
     const candidates = (rankedCards || [])
       .filter(rc => rc.role === role.name)
       .map(rc => {
@@ -3417,7 +3514,7 @@ export function assemblerLoop(rankedCards, blueprint, mergedCoreAndMustInclude, 
       if (!poolCard) continue;
 
       if (curveWarning.panicMode && (poolCard.mana_value || poolCard.cmc || 2) > curveWarning.maxAllowedCmc) {
-        continue; // Vetado por el Botón de Pánico
+        continue; // Vetado por el BOTÓN de PÁNICO
       }
 
       if (!isColorLegal(poolCard)) continue;
@@ -3508,7 +3605,7 @@ export function assemblerLoop(rankedCards, blueprint, mergedCoreAndMustInclude, 
         .filter(p => p.name && !isAntiSynergistic(p.name, strategyId))
         .filter(p => {
           if (curveWarning.panicMode && (p.mana_value || p.cmc || 2) > curveWarning.maxAllowedCmc) {
-            return false; // Vetado por el Botón de Pánico
+            return false; // Vetado por el BOTÓN de PÁNICO
           }
           // Fallback Contextual Veto
           const oText = p.oracle_text ? p.oracle_text.toLowerCase() : '';
@@ -3623,7 +3720,7 @@ function adjustManaCurve(deckSpells, curveProfile, ragPool, strategyId, allowedC
   };
 
   const vmp = calculateDeckVMP(deckSpells);
-  addLog(`[CURVA DE MANÁ] VMP Inicial de Hechizos: ${vmp.toFixed(2)}. Perfil deseado: ${curveProfile}`);
+  addLog(`[CURVA DE MANÁ] VMP Inicial de Hechizos: ${vmp.toFixed(2)}. Perfil deseado: ${curveProfile}`);
 
   const bounds = CURVE_BOUNDS[curveProfile] || CURVE_BOUNDS.balanced;
   let currentVMP = vmp;
@@ -3665,7 +3762,7 @@ function adjustManaCurve(deckSpells, curveProfile, ragPool, strategyId, allowedC
         
         cheapCard.quantity++;
         expensiveCard.quantity--;
-        addLog(`[CURVA DE MANÁ] Ajuste interno: +1x "${cheapCard.name}" (CMC ${cheapCard.cmc}) y -1x "${expensiveCard.name}" (CMC ${expensiveCard.cmc})`);
+        addLog(`[CURVA DE MANÁ] Ajuste interno: +1x "${cheapCard.name}" (CMC ${cheapCard.cmc}) y -1x "${expensiveCard.name}" (CMC ${expensiveCard.cmc})`);
         adjustedInternally = true;
       }
       
@@ -3695,7 +3792,7 @@ function adjustManaCurve(deckSpells, curveProfile, ragPool, strategyId, allowedC
         const swapQty = Math.max(2, Math.min(expensiveCard.quantity, 3));
         const actualSwapQty = Math.min(expensiveCard.quantity, swapQty);
 
-        addLog(`[CURVA DE MANÁ] Swap externo: Reemplazando ${actualSwapQty}x "${expensiveCard.name}" (CMC ${expensiveCard.cmc}) por ${actualSwapQty}x "${cheapReplacement.name}" (CMC ${cheapReplacement.mana_value})`);
+        addLog(`[CURVA DE MANÁ] Swap externo: Reemplazando ${actualSwapQty}x "${expensiveCard.name}" (CMC ${expensiveCard.cmc}) por ${actualSwapQty}x "${cheapReplacement.name}" (CMC ${cheapReplacement.mana_value})`);
         
         expensiveCard.quantity -= actualSwapQty;
         const existingCheap = spells.find(s => s && typeof s.name === 'string' && s.name.toLowerCase() === cheapReplacement.name.toLowerCase());
@@ -3730,7 +3827,7 @@ function adjustManaCurve(deckSpells, curveProfile, ragPool, strategyId, allowedC
         
         expensiveCard.quantity++;
         cheapCard.quantity--;
-        addLog(`[CURVA DE MANÁ] Ajuste interno: +1x "${expensiveCard.name}" (CMC ${expensiveCard.cmc}) y -1x "${cheapCard.name}" (CMC ${cheapCard.cmc})`);
+        addLog(`[CURVA DE MANÁ] Ajuste interno: +1x "${expensiveCard.name}" (CMC ${expensiveCard.cmc}) y -1x "${cheapCard.name}" (CMC ${cheapCard.cmc})`);
         adjustedInternally = true;
       }
       
@@ -3759,7 +3856,7 @@ function adjustManaCurve(deckSpells, curveProfile, ragPool, strategyId, allowedC
         const swapQty = Math.max(2, Math.min(cheapCard.quantity, 3));
         const actualSwapQty = Math.min(cheapCard.quantity, swapQty);
 
-        addLog(`[CURVA DE MANÁ] Swap externo: Reemplazando ${actualSwapQty}x "${cheapCard.name}" (CMC ${cheapCard.cmc}) por ${actualSwapQty}x "${expensiveReplacement.name}" (CMC ${expensiveReplacement.mana_value})`);
+        addLog(`[CURVA DE MANÁ] Swap externo: Reemplazando ${actualSwapQty}x "${cheapCard.name}" (CMC ${cheapCard.cmc}) por ${actualSwapQty}x "${expensiveReplacement.name}" (CMC ${expensiveReplacement.mana_value})`);
         
         cheapCard.quantity -= actualSwapQty;
         const existingExpensive = spells.find(s => s && typeof s.name === 'string' && s.name.toLowerCase() === expensiveReplacement.name.toLowerCase());
@@ -3789,7 +3886,7 @@ function adjustManaCurve(deckSpells, curveProfile, ragPool, strategyId, allowedC
     if (currentVMP === oldVmp) break;
   }
 
-  addLog(`[CURVA DE MANÁ] VMP Final de Hechizos: ${currentVMP.toFixed(2)} (Rango: ${bounds.min}-${bounds.max})`);
+  addLog(`[CURVA DE MANÁ] VMP Final de Hechizos: ${currentVMP.toFixed(2)} (Rango: ${bounds.min}-${bounds.max})`);
   return spells;
 }
 
@@ -3838,12 +3935,12 @@ export async function forgeMazoPerfecto(formData, aiConfig, onProgress = () => {
       regla_de_oro: "Prioriza cartas con buen valor individual y sinergias directas con el resto de tus amenazas."
     };
 
-   addLog(`Iniciando invocación de mazo con arquetipo taxonómico: ${formData.archetype || 'midrange'} y estrategia ${strategyId}`);
+   addLog(`Iniciando invocación de mazo con arquetipo TAXONÓMICO: ${formData.archetype || 'midrange'} y estrategia ${strategyId}`);
     
     // Curve Profile Logic
     const curveProfile = formData.curveProfile || 'balanced';
 
-    onProgress('strategist', 'ðŸ—ï¸ Arquitecto de Plantillas (IA) diseñando Blueprint a medida...');
+    onProgress('strategist', '🏗️ Arquitecto de Plantillas (IA) diseñando Blueprint a medida...');
     const blueprintPrompt = `
 Eres el "Blueprint Architect" del Pro Tour de Magic.
 Diseña el plano estructural perfecto y a medida para este mazo.
@@ -3855,14 +3952,14 @@ Diseña el plano estructural perfecto y a medida para este mazo.
   ${getArchetypePhilosophyPrompt(formData.archetype)}
   ${getStrategySynergyPrompt(strategyId)}
 
-  REGLA DE ORO TRIBAL: Si la tribu no es "none" (ej. Slivers, Goblins), el 85-90% de tus roles DEBEN estar diseñados explícitamente para ser rellenados por CRIATURAS DE ESA TRIBU (ej. "core_tribal_lords", "tribal_utility", "tribal_aggro"). PROHIBIDO crear roles para encantamientos, conjuros genéricos o "motores de tokens" abstractos, ya que diluyen la masa crítica de criaturas que exige una Tribu.
+  REGLA DE ORO TRIBAL: Si la tribu no es "none" (ej. Slivers, Goblins), el 85-90% de tus roles DEBEN estar diseñados explícitamente para ser rellenados por CRIATURAS DE ESA TRIBU (ej. "core_tribal_lords", "tribal_utility", "tribal_aggro"). PROHIBIDO crear roles para encantamientos, conjuros genéricos o "motores de tokens" abstractos, ya que diluyen la masa CRÍTICA de criaturas que exige una Tribu.
 
-Define las cantidades exactas de cartas para cada rol estratégico clave en una estructura basada en objetos. Cada rol DEBE detallar:
+Define las cantidades exactas de cartas para cada rol ESTRATÉGICO clave en una estructura basada en objetos. Cada rol DEBE detallar:
 - name: Nombre corto descriptivo del rol (ej: "early_interaction", "core_tribal_lords", "premium_finisher").
 - quantity: Cantidad de copias de cartas asignadas a este rol.
 - cmcCategory: El rango de coste objetivo, que debe ser uno de: "1", "2", "3", "4", "4+", "5+", "any".
 - finisherQuality: "finisher" para cartas que actúan como rematadores premium de la partida (que idealmente deberían ser legendarias o míticas de alto impacto) o "standard" para cartas de soporte común.
-- purposeDescription: Propósito del rol y cómo se adapta a la curva y estrategia seleccionada. Â¡MUY IMPORTANTE! NO MENCIONES NOMBRES DE CARTAS ESPECÁFICAS AQUÁ. Mantén la descripción 100% abstracta y conceptual (ej: "motores de sacrificio de coste 1" en lugar de "como Viscera Seer").
+- purposeDescription: Propósito del rol y cómo se adapta a la curva y estrategia seleccionada. ¡MUY IMPORTANTE! NO MENCIONES NOMBRES DE CARTAS ESPECÍFICAS AQUÍ. Mantén la descripción 100% abstracta y conceptual (ej: "motores de sacrificio de coste 1" en lugar de "como Viscera Seer").
 
 - search_query: Escribe la consulta ideal en sintaxis de Scryfall o etiqueta semántica para encontrar cartas para este rol. DEBES USAR TAGS (ej. o:flying, oracletag:cost-reducer, t:creature, function:removal). ¡Se creativo y específico al formato!
 
@@ -3895,6 +3992,7 @@ La suma de las cantidades de todos los roles debe ser exactamente igual a totalS
     // 1. Carga de allCards
     onProgress('strategist', '📚 Cargando catálogo completo de la biblioteca...');
     const allCards = await getAllCards();
+    cachedAllCards = allCards;
 
     const selectedFormat = (formData.format || 'modern').toLowerCase();
     const bannedCards = allCards.filter(c => c.legalities && c.legalities[selectedFormat] === 'banned').map(c => c.name);
@@ -3903,7 +4001,7 @@ La suma de las cantidades de todos los roles debe ser exactamente igual a totalS
       : "";
 
     // 2. Inyectar Core y mezclar con Must-Includes
-    onProgress('strategist', 'ðŸ§¬ Inyectando Núcleos de Estrategia y Requisitos obligatorios...');
+    onProgress('strategist', '🧪 Inyectando Núcleos de Estrategia y Requisitos obligatorios...');
     
     // --- NUEVO: Inyectar Combos Dinámicos ---
     const dynamicCombos = await buscarCombosDinamicos(strategyId, formData.format || 'MODERN');
@@ -3928,7 +4026,7 @@ La suma de las cantidades de todos los roles debe ser exactamente igual a totalS
     const mustIncludeNamesList = mergedCoreAndMustInclude.filter(c => c && c.isMustInclude && typeof c.name === 'string').map(c => c.name.toLowerCase());
 
     // 3. Carga el pool del RAG con el boost relacional de los inyectados
-    onProgress('strategist', 'ðŸ” Oráculo RAG escaneando biblioteca (filtrando élite)...');
+    onProgress('strategist', '🔍 Oráculo RAG escaneando biblioteca (filtrando élite)...');
     const ragResult = await buildCardPool({
       ...formData,
       injectedCoreNames,
@@ -3941,7 +4039,7 @@ La suma de las cantidades de todos los roles debe ser exactamente igual a totalS
 
     // GUARDIA: Pool mínimo viable
     if (ragResult.pool.length < 80) {
-      const errorMsg = `âš ï¸ La base de datos local solo contiene ${ragResult.pool.length} cartas utilizables para "${formData.archetype || 'el arquetipo seleccionado'}". Se necesitan al menos 80 cartas en el pool para generar un mazo competitivo. Por favor, importa el archivo JSON completo de Scryfall (default-cards.json u oracle-cards.json) desde la pantalla principal para poblar la base de datos local.`;
+      const errorMsg = `⚠️ La base de datos local solo contiene ${ragResult.pool.length} cartas utilizables para "${formData.archetype || 'el arquetipo seleccionado'}". Se necesitan al menos 80 cartas en el pool para generar un mazo competitivo. Por favor, importa el archivo JSON completo de Scryfall (default-cards.json u oracle-cards.json) desde la pantalla principal para poblar la base de datos local.`;
       addLog(`[ERROR POOL INSUFICIENTE] ${errorMsg}`);
       throw new Error(errorMsg);
     }
@@ -4059,7 +4157,7 @@ La suma de las cantidades de todos los roles debe ser exactamente igual a totalS
     currentDeckContext = [...currentDeckContext, ...phase2Cards];
 
     // FASE 3: Interacción y Pegamento
-    const phase3Cards = await runAgenticPhase("FASE 3 (Pegamento e Interacción)", phase3Roles, "Interacción y Protección");
+    const phase3Cards = await runAgenticPhase("FASE 3 (Pegamento e Interacción)", phase3Roles, "Interacción y PROTECCIÓN");
     currentDeckContext = [...currentDeckContext, ...phase3Cards];
 
     addLog("[AGENTIC FLOW] Todas las fases completadas exitosamente.");
@@ -4096,30 +4194,78 @@ La suma de las cantidades de todos los roles debe ser exactamente igual a totalS
              sug.adds.forEach(a => {
                 const dbCard = allCards.find(ac => ac && ac.name && ac.name.toLowerCase() === a.name.toLowerCase());
                 if (dbCard) {
-                   addLog(`[AGENTIC FLOW] Auto-Corrigiendo: Añadiendo ${dbCard.name} (${a.quantity || 1}x) para el rol "${associatedRole}"`);
+                   const selectedFormat = (formData.format || 'MODERN').toLowerCase();
+                   const isLegal = dbCard.legalities && dbCard.legalities[selectedFormat] === 'legal';
+                   
+                   const allowCustomCards = !!formData.allowCustomCards;
+                   const customSets = [
+                      'tla', 'atla', 'ttla', 'tle', 'jtla', 'atle', 'ftla', 'ttle',
+                      'fin', 'afic', 'afin', 'fic', 'tfin', 'tfic',
+                      'tmt', 'atmt', 'tmc', 'ftmc', 'ttmc', 'ttmt',
+                      'spm', 'aspm', 'spe', 'tspm',
+                      'psdg', 'pspl'
+                   ];
+                   const isCustom = dbCard.set && (customSets.includes(dbCard.set.toLowerCase()) || dbCard.set.toLowerCase().includes('custom'));
+                   
+                   let cardToUse = dbCard;
+                   
+                   if (!isLegal || (!allowCustomCards && isCustom)) {
+                      const allowedColors = formData?.colores || [];
+                      const targetCategory = dbCard.type_line?.toLowerCase().includes('creature') ? 'Creature' : (dbCard.type_line?.toLowerCase().includes('instant') ? 'Instant' : 'Spell');
+                      const targetCmc = dbCard.mana_value || dbCard.cmc || 2;
+                      
+                      const rep = obtenerMejorCartaDeRemplazo(
+                         targetCategory, 
+                         targetCmc, 
+                         allowedColors, 
+                         formData.format, 
+                         ragResult.pool.filter(c => {
+                            const rCard = allCards.find(ac => ac && ac.name && ac.name.toLowerCase() === c.name.toLowerCase());
+                            if (!rCard) return false;
+                            const rLegal = rCard.legalities && rCard.legalities[selectedFormat] === 'legal';
+                            const rCustom = rCard.set && (customSets.includes(rCard.set.toLowerCase()) || rCard.set.toLowerCase().includes('custom'));
+                            return rLegal && (allowCustomCards || !rCustom);
+                         }),
+                         [dbCard.name.toLowerCase()],
+                         allCards
+                      );
+                      
+                      if (rep && rep.name) {
+                         const cleanDbCard = allCards.find(ac => ac && ac.name && ac.name.toLowerCase() === rep.name.toLowerCase());
+                         if (cleanDbCard) {
+                            addLog(`[AGENTIC FLOW] Juez Interno sugirió "${dbCard.name}" (Ilegal en ${formData.format}). Auto-Corrigiendo al reemplazo legal: "${cleanDbCard.name}"`);
+                            cardToUse = cleanDbCard;
+                         }
+                      } else {
+                         addLog(`[AGENTIC FLOW] Advertencia Juez Interno: "${dbCard.name}" es ilegal en ${formData.format} y no se encontró reemplazo. Omitiendo.`);
+                         return;
+                      }
+                   }
+
+                   addLog(`[AGENTIC FLOW] Auto-Corrigiendo: Añadiendo ${cardToUse.name} (${a.quantity || 1}x) para el rol "${associatedRole}"`);
                    currentDeckContext.push({
-                      name: dbCard.name,
+                      name: cardToUse.name,
                       quantity: a.quantity || 1,
-                      category: dbCard.type_line?.toLowerCase().includes('creature') ? 'Creature' : (dbCard.type_line?.toLowerCase().includes('instant') ? 'Instant' : 'Spell'),
-                      cmc: dbCard.mana_value || dbCard.cmc || 2,
+                      category: cardToUse.type_line?.toLowerCase().includes('creature') ? 'Creature' : (cardToUse.type_line?.toLowerCase().includes('instant') ? 'Instant' : 'Spell'),
+                      cmc: cardToUse.mana_value || cardToUse.cmc || 2,
                       role: associatedRole,
-                      mana_cost: dbCard.mana_cost || '',
-                      type_line: dbCard.type_line || ''
+                      mana_cost: cardToUse.mana_cost || '',
+                      type_line: cardToUse.type_line || ''
                    });
 
                    // Inyectar en el RAG pool si no existe, garantizando que el assemblerLoop pueda procesarla
-                   const existsInRag = ragResult.pool.some(p => p.name.toLowerCase() === dbCard.name.toLowerCase());
+                   const existsInRag = ragResult.pool.some(p => p.name.toLowerCase() === cardToUse.name.toLowerCase());
                    if (!existsInRag) {
                       ragResult.pool.push({
-                         id: dbCard.id || `custom-${dbCard.name.replace(/\s+/g, '-').toLowerCase()}`,
-                         name: dbCard.name,
-                         mana_value: dbCard.mana_value || dbCard.cmc || 2,
-                         type_line: dbCard.type_line || '',
-                         oracle_text: dbCard.oracle_text || '',
-                         colors: dbCard.colors || [],
-                         color_identity: dbCard.color_identity || [],
-                         mana_cost: dbCard.mana_cost || '',
-                         rarity: dbCard.rarity || 'common',
+                         id: cardToUse.id || `custom-${cardToUse.name.replace(/\s+/g, '-').toLowerCase()}`,
+                         name: cardToUse.name,
+                         mana_value: cardToUse.mana_value || cardToUse.cmc || 2,
+                         type_line: cardToUse.type_line || '',
+                         oracle_text: cardToUse.oracle_text || '',
+                         colors: cardToUse.colors || [],
+                         color_identity: cardToUse.color_identity || [],
+                         mana_cost: cardToUse.mana_cost || '',
+                         rarity: cardToUse.rarity || 'common',
                          score: 999, // Alta prioridad por haber sido sugerida por el Juez Interno
                          metaPercent: 0
                       });
@@ -4162,7 +4308,7 @@ La suma de las cantidades de todos los roles debe ser exactamente igual a totalS
   addLog(`[ENSAMBLADOR] Hechizos ensamblados: ${assembledSpells.length} tipos de cartas.`);
 
   // Ajuste iterativo de curva
-  addLog(`[CURVA DE MANÁ] Ajustando curva de maná para perfil: ${curveProfile}`);
+  addLog(`[CURVA DE MANÁ] Ajustando curva de MANÁ para perfil: ${curveProfile}`);
   assembledSpells = adjustManaCurve(
     assembledSpells,
     curveProfile,
@@ -4194,7 +4340,7 @@ La suma de las cantidades de todos los roles debe ser exactamente igual a totalS
 
   let auditedSpells = (spellJuezResult.cards || []).filter(c => c && c.category !== 'Land');
 
-  // 2. Consolidación de hechizos (caps y control de duplicados antes de tierras)
+  // 2. CONSOLIDACIÓN de hechizos (caps y control de duplicados antes de tierras)
   addLog("[FASE 1] Consolidando hechizos y aplicando caps antes del cálculo de tierras...");
   const consolidatedSpellsMap = new Map();
   for (const card of auditedSpells) {
@@ -4218,7 +4364,7 @@ La suma de las cantidades de todos los roles debe ser exactamente igual a totalS
   for (const card of consolidatedSpells) {
       const cap = getMaxAllowedCopies(card.name, card.category, card.cmc, ragResult.pool);
       if (card.quantity > cap) {
-          addLog(`[CONSOLIDACIÁ“N SP] Redundancia crítica en "${card.name}": ${card.quantity} copias exceden el límite de ${cap}. Capando a ${cap}.`);
+          addLog(`[CONSOLIDACIÓN SP] Redundancia CRÍTICA en "${card.name}": ${card.quantity} copias exceden el límite de ${cap}. Capando a ${cap}.`);
           card.quantity = cap;
       }
   }
@@ -4230,10 +4376,10 @@ La suma de las cantidades de todos los roles debe ser exactamente igual a totalS
   // Ajustar la suma de hechizos para que coincida exactamente con targetSpellsCount
   let consolidatedSpellsSum = consolidatedSpells.reduce((sum, c) => sum + (c.quantity || 0), 0);
   if (consolidatedSpellsSum < targetSpellsCount) {
-      addLog(`[CONSOLIDACIÁ“N SP] Ajustando déficit en hechizos (${consolidatedSpellsSum}/${targetSpellsCount})...`);
+      addLog(`[CONSOLIDACIÓN SP] Ajustando déficit en hechizos (${consolidatedSpellsSum}/${targetSpellsCount})...`);
       consolidatedSpells = distribuirOInyectarHechizosFaltantes(consolidatedSpells, targetSpellsCount, formData?.colores || [], addLog, ragResult.pool, formData);
   } else if (consolidatedSpellsSum > targetSpellsCount) {
-      addLog(`[CONSOLIDACIÁ“N SP] Ajustando exceso en hechizos (${consolidatedSpellsSum}/${targetSpellsCount})...`);
+      addLog(`[CONSOLIDACIÓN SP] Ajustando exceso en hechizos (${consolidatedSpellsSum}/${targetSpellsCount})...`);
       consolidatedSpells = recortarHechizosExcedentesInteligente(consolidatedSpells, targetSpellsCount, addLog, mustIncludeNamesList);
   }
 
@@ -4276,7 +4422,7 @@ La suma de las cantidades de todos los roles debe ser exactamente igual a totalS
   });
 
   // Generar base de tierras
-  onProgress('judge', 'ðŸŒ Trazando Matemática Perfecta del Flujo Natural Generando Pips Lands de JS Puro..');
+  onProgress('judge', '🌐 Trazando Matemática Perfecta del Flujo Natural Generando Pips Lands de JS Puro..');
   const requestedColorsSet = new Set(formData?.colores || []);
   let validCurrentGenUsedStrPipKeysBaseArrayDetected = Object.keys(metricsPIPsStruct).filter(mX => metricsPIPsStruct[mX] > 0 || requestedColorsSet.has(mX));
 
@@ -4299,9 +4445,9 @@ La suma de las cantidades de todos los roles debe ser exactamente igual a totalS
   validResultsStruct.sideboard_strategy = finalJuezResult.sideboard_strategy;
 
   // =========================================================================
-  // âš”ï¸ SANITIZACIÁ“N Y CONSOLIDACIÁ“N SUPREMA FINAL (EL JUEZ INVICTO)
+  // ⚔️ SANITIZACIÓN Y CONSOLIDACIÓN SUPREMA FINAL (EL JUEZ INVICTO)
   // =========================================================================
-  addLog("[JUEZ SUPREMO] Iniciando capa de consolidación y control de caps definitivos...");
+  addLog("[JUEZ SUPREMO] Iniciando capa de CONSOLIDACIÓN y control de caps definitivos...");
 
   // 1. Limpieza inicial: eliminar nulos/vacíos y trimar nombres
   let rawCards = (validResultsStruct.cards || []).filter(c => c && c.name && c.quantity > 0);
@@ -4332,7 +4478,7 @@ La suma de las cantidades de todos los roles debe ser exactamente igual a totalS
   for (const card of consolidatedList) {
       const cap = getMaxAllowedCopies(card.name, card.category, card.cmc, ragResult.pool);
       if (card.quantity > cap) {
-          addLog(`[CONSOLIDACIÁ“N SUPREMA] Redundancia crítica detectada en "${card.name}": ${card.quantity} copias exceden el límite Pro Tour de ${cap}. Capando a ${cap} copias.`);
+          addLog(`[CONSOLIDACIÓN SUPREMA] Redundancia CRÍTICA detectada en "${card.name}": ${card.quantity} copias exceden el límite Pro Tour de ${cap}. Capando a ${cap} copias.`);
           card.quantity = cap;
       }
   }
@@ -4348,17 +4494,17 @@ La suma de las cantidades de todos los roles debe ser exactamente igual a totalS
 
   // Ajustar Hechizos
   if (finalSpellsSum < targetSpellsCount) {
-      addLog(`[CONSOLIDACIÁ“N SUPREMA] Déficit en hechizos (${finalSpellsSum}/${targetSpellsCount}). Inyectando compensación inteligente...`);
+      addLog(`[CONSOLIDACIÓN SUPREMA] Déficit en hechizos (${finalSpellsSum}/${targetSpellsCount}). Inyectando COMPENSACIÓN inteligente...`);
       finalSpells = distribuirOInyectarHechizosFaltantes(finalSpells, targetSpellsCount, formData?.colores || [], addLog, ragResult.pool, formData);
   } else if (finalSpellsSum > targetSpellsCount) {
-      addLog(`[CONSOLIDACIÁ“N SUPREMA] Exceso en hechizos (${finalSpellsSum}/${targetSpellsCount}). Recortando de forma táctica...`);
+      addLog(`[CONSOLIDACIÓN SUPREMA] Exceso en hechizos (${finalSpellsSum}/${targetSpellsCount}). Recortando de forma táctica...`);
       finalSpells = recortarHechizosExcedentesInteligente(finalSpells, targetSpellsCount, addLog, mustIncludeNamesList);
   }
 
   // Ajustar Tierras
   if (finalLandsSum < targetLandsCount) {
       let missing = targetLandsCount - finalLandsSum;
-      addLog(`[CONSOLIDACIÁ“N SUPREMA] Déficit en tierras (${finalLandsSum}/${targetLandsCount}). Añadiendo ${missing} tierras básicas...`);
+      addLog(`[CONSOLIDACIÓN SUPREMA] Déficit en tierras (${finalLandsSum}/${targetLandsCount}). Añadiendo ${missing} tierras básicas...`);
       const basicLand = finalLands.find(l => ["plains", "island", "swamp", "mountain", "forest", "wastes", "llanura", "isla", "pantano", "montaña", "bosque", "yermo"].includes(l.name.toLowerCase()));
       if (basicLand) {
           basicLand.quantity += missing;
@@ -4373,7 +4519,7 @@ La suma de las cantidades de todos los roles debe ser exactamente igual a totalS
       }
   } else if (finalLandsSum > targetLandsCount) {
       let excess = finalLandsSum - targetLandsCount;
-      addLog(`[CONSOLIDACIÁ“N SUPREMA] Exceso en tierras (${finalLandsSum}/${targetLandsCount}). Reduciendo ${excess} tierras...`);
+      addLog(`[CONSOLIDACIÓN SUPREMA] Exceso en tierras (${finalLandsSum}/${targetLandsCount}). Reduciendo ${excess} tierras...`);
       // Primer pase: reducir copias extra (respetando al menos 1)
       for (let land of finalLands) {
           if (excess <= 0) break;
@@ -4406,7 +4552,7 @@ La suma de las cantidades de todos los roles debe ser exactamente igual a totalS
   // 5. Re-consolidar y filtrar nulos/ceros por última vez
   validResultsStruct.cards = [...finalSpells, ...finalLands].filter(c => c && c.quantity > 0);
   const finalTotal = validResultsStruct.cards.reduce((sum, c) => sum + c.quantity, 0);
-  addLog(`[CONSOLIDACIÁ“N SUPREMA] Mazo verificado con éxito. Total absoluto de cartas: ${finalTotal}/${deckSize}.`);
+  addLog(`[CONSOLIDACIÓN SUPREMA] Mazo verificado con éxito. Total absoluto de cartas: ${finalTotal}/${deckSize}.`);
     
     // Filtrar cartas que hayan quedado con cantidad 0
     validResultsStruct.cards = validResultsStruct.cards.filter(c => c.quantity > 0);
@@ -4416,9 +4562,9 @@ La suma de las cantidades de todos los roles debe ser exactamente igual a totalS
     let validationData = null;
     try {
         const apiEndpoint = API_ENDPOINTS.VALIDATION.API_ALG;
-        addLog(`[HYPERGEOMETRIC API] Enviando mazo para validación determinista a ${apiEndpoint}...`);
+        addLog(`[HYPERGEOMETRIC API] Enviando mazo para VALIDACIÓN determinista a ${apiEndpoint}...`);
         
-        onProgress('validate', 'ðŸ“Š Validando base de maná con el Motor Hipergeométrico...');
+        onProgress('validate', '📊 Validando base de MANÁ con el Motor Hipergeométrico...');
         
         const payload = {
             deck: validResultsStruct.cards.map(c => ({
@@ -4455,7 +4601,7 @@ La suma de las cantidades de todos los roles debe ser exactamente igual a totalS
 
         validationData = await Promise.race([fetchPromise, timeoutPromise]);
         validationEngine = 'hypergeometric';
-        addLog(`[HYPERGEOMETRIC API] Validación determinista completada exitosamente vía Spicerack.`);
+        addLog(`[HYPERGEOMETRIC API] VALIDACIÓN determinista completada exitosamente vía Spicerack.`);
         
         // Inyectar recomendaciones de optimización adicionales si están presentes en la respuesta
         if (validationData?.recommendations && Array.isArray(validationData.recommendations)) {
@@ -4464,8 +4610,8 @@ La suma de las cantidades de todos los roles debe ser exactamente igual a totalS
                 validResultsStruct.recommendations = [];
             }
             const cleanRecs = validationData.recommendations.map(r => {
-                if (typeof r === 'string') return { title: 'Optimización de Maná', description: r };
-                return { title: r.title || 'Optimización de Maná', description: r.description || '' };
+                if (typeof r === 'string') return { title: 'Optimización de MANÁ', description: r };
+                return { title: r.title || 'Optimización de MANÁ', description: r.description || '' };
             });
             validResultsStruct.recommendations = [
                 ...validResultsStruct.recommendations,
@@ -4473,7 +4619,7 @@ La suma de las cantidades de todos los roles debe ser exactamente igual a totalS
             ];
         }
     } catch (err) {
-        addLog(`[HYPERGEOMETRIC API] âš ï¸ Error en API o Timeout (${err.message}). Activando paracaídas de heurísticas locales...`);
+        addLog(`[HYPERGEOMETRIC API] ⚠️ Error en API o Timeout (${err.message}). Activando paracaídas de heurísticas locales...`);
         validationEngine = 'local';
     }
 
@@ -4489,11 +4635,11 @@ La suma de las cantidades de todos los roles debe ser exactamente igual a totalS
       rawResponse: typeof genResponseRawJson_Object === 'string' ? genResponseRawJson_Object : JSON.stringify(genResponseRawJson_Object)
     };
 
-    onProgress('done', 'ðŸŽ‰ Forja Kitchen Table Generada Exitosamente.');
+    onProgress('done', '🎉 Forja Kitchen Table Generada Exitosamente.');
     addLog("Proceso de forjado completado con éxito.");
     return validResultsStruct; 
   } catch (error) {
-    addLog(`[ERROR CRÁTICO PIPELINE] ${error.message}`);
+    addLog(`[ERROR CRÍTICO PIPELINE] ${error.message}`);
     if (error.stack) {
       addLog(error.stack);
     }
@@ -4643,13 +4789,13 @@ export function validarCondicionesDeVictoria(spells, strategyId, archetype, ragP
     }
 
     if (!needsAdjustment) {
-        addLog(`[WIN-COND VALIDATOR] ✅ Validación superada. El mazo tiene condiciones de victoria consistentes.`);
+        addLog(`[WIN-COND VALIDATOR] ✅ VALIDACIÓN superada. El mazo tiene condiciones de victoria consistentes.`);
         return spells;
     }
     
     addLog(`[WIN-COND VALIDATOR] ⚠️ Alerta: ${adjustmentReason}`);
     
-    // Algoritmo de inyección de emergencia:
+    // Algoritmo de INYECCIÓN de emergencia:
     const allowedColors = formData?.colores || [];
     const colorsSet = new Set(allowedColors.length > 0 ? allowedColors : ['W', 'U', 'B', 'R', 'G']);
     
@@ -4686,7 +4832,7 @@ export function validarCondicionesDeVictoria(spells, strategyId, archetype, ragP
     candidates.sort((a, b) => (b.score || 0) - (a.score || 0));
     
     if (candidates.length === 0) {
-        addLog(`[WIN-COND VALIDATOR] No se encontraron candidatos ideales en el RAG pool. Relajando restricciones de inyección.`);
+        addLog(`[WIN-COND VALIDATOR] No se encontraron candidatos ideales en el RAG pool. Relajando restricciones de INYECCIÓN.`);
         candidates = ragPool.filter(c => {
             if (!c || typeof c.name !== 'string') return false;
             
@@ -4722,7 +4868,7 @@ export function validarCondicionesDeVictoria(spells, strategyId, archetype, ragP
         });
         
         addedCount += qtyToAdd;
-        addLog(`[WIN-COND VALIDATOR] Inyección de emergencia: +${qtyToAdd}x "${candidate.name}" (CMC ${candidate.mana_value}) como "${targetRole}"`);
+        addLog(`[WIN-COND VALIDATOR] INYECCIÓN de emergencia: +${qtyToAdd}x "${candidate.name}" (CMC ${candidate.mana_value}) como "${targetRole}"`);
     }
     
     if (addedCount === 0) {
@@ -4757,7 +4903,7 @@ export function validarCondicionesDeVictoria(spells, strategyId, archetype, ragP
             const trimQty = Math.min(canTrim, toTrim);
             card.quantity -= trimQty;
             toTrim -= trimQty;
-            addLog(`[WIN-COND VALIDATOR] Recortadas ${trimQty} copias de "${card.name}" para acomodar la inyección.`);
+            addLog(`[WIN-COND VALIDATOR] Recortadas ${trimQty} copias de "${card.name}" para acomodar la INYECCIÓN.`);
         }
     }
     
@@ -4769,7 +4915,7 @@ export function validarCondicionesDeVictoria(spells, strategyId, archetype, ragP
                 const trimQty = Math.min(card.quantity, toTrim);
                 card.quantity -= trimQty;
                 toTrim -= trimQty;
-                addLog(`[WIN-COND VALIDATOR] Remoción completa: -${trimQty}x "${card.name}" para acomodar la inyección.`);
+                addLog(`[WIN-COND VALIDATOR] Remoción completa: -${trimQty}x "${card.name}" para acomodar la INYECCIÓN.`);
             }
         }
     }

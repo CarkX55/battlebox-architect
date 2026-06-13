@@ -262,11 +262,13 @@ const RARITY_MODES = [
 export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGenerationLogs, onOpenOracleLog, selectedFormat = 'MODERN', onFormatChange }) {
   const [formData, setFormData] = useState(() => {
     let savedRarity = 'high-power';
+    let savedAllowCustom = false;
     try {
       const savedConfig = localStorage.getItem('mtg_ai_config_forge') || localStorage.getItem('mtg_forge_ai_config');
       if (savedConfig) {
         const parsed = JSON.parse(savedConfig);
         if (parsed.rarityMode) savedRarity = parsed.rarityMode;
+        if (parsed.allowCustomCards !== undefined) savedAllowCustom = !!parsed.allowCustomCards;
       }
     } catch (e) {}
 
@@ -281,6 +283,7 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
       mustInclude: '',
       customBanlist: '',
       rarityMode: savedRarity,
+      allowCustomCards: savedAllowCustom,
     };
   });
 
@@ -1789,6 +1792,35 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                         rows={3}
                         className="w-full px-3 py-2 bg-black border border-white/35 rounded-xl text-white placeholder-white/40 text-xs font-medium focus:border-[#ffca58] focus:shadow-[0_0_10px_rgba(255,202,88,0.2)] focus:outline-none transition-all resize-none font-serif"
                       />
+                    </div>
+
+                    {/* Custom Cards Toggle */}
+                    <div className="flex items-center justify-between gap-4 bg-black/45 p-4 rounded-xl border border-white/5 relative overflow-hidden group mb-4">
+                      <div className="absolute inset-0 bg-magic-gold/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+                      <div className="relative z-10 space-y-1">
+                        <label className="flex items-center gap-1.5 text-xs font-bold text-magic-gold uppercase tracking-wider">
+                          <Sparkles size={12} className="text-[#ffca58]" /> Permitir Cartas Personalizadas (Crossover/Custom)
+                        </label>
+                        <p className="text-[10px] text-[#f4ece0]/50 tracking-wider">
+                          Habilita cartas especiales (Avatar, Final Fantasy, TMNT, etc.) en la generación. Desactívalo para forjar mazos con legalidad oficial estricta.
+                        </p>
+                      </div>
+                      <label className="relative z-10 flex items-center gap-2 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={!!formData.allowCustomCards}
+                          onChange={(e) => {
+                            setFormData(prev => ({ 
+                              ...prev, 
+                              allowCustomCards: e.target.checked
+                            }));
+                          }}
+                          className="sr-only"
+                        />
+                        <div className={cn("w-9 h-5 rounded-full transition-colors relative", formData.allowCustomCards ? "bg-[#ffca58]/40 border border-[#ffca58]/55" : "bg-white/10 border border-white/20")}>
+                          <div className={cn("absolute top-0.5 left-0.5 w-3.5 h-3.5 rounded-full transition-all", formData.allowCustomCards ? "bg-white translate-x-4" : "bg-white/60 translate-x-0")} />
+                        </div>
+                      </label>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
