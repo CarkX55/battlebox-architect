@@ -1,5 +1,24 @@
 import { BATTLEBOX_VETOS, BATTLEBOX_ARCHETYPES, MTG_STRATEGIES, MTG_TRIBES, BANLIST_SUBSTITUTIONS, getIntelligentSubstitution } from '../constants/legacyBattleBox.js';
 import { buildCardPool, getDynamicArchetypes } from './ragService.js';
+import { buscarCartasEnBibliotecaTool } from './cardHydrator.js';
+
+export const DECK_BUILDER_TOOLS = [{
+  functionDeclarations: [{
+    name: "buscar_cartas_en_biblioteca_tool",
+    description: "Busca cartas en la biblioteca de Magic usando tags semánticos (ej. removal, sweeper) o parámetros exactos (colors, type_line, max_cmc, format). Devuelve las 15 mejores opciones.",
+    parameters: {
+      type: "OBJECT",
+      properties: {
+        query: { type: "STRING", description: "Término semántico o palabra clave." },
+        colors: { type: "ARRAY", items: { type: "STRING" }, description: "Array de colores permitidos." },
+        type_line: { type: "STRING", description: "Tipo de carta (ej. 'creature', 'instant')." },
+        max_cmc: { type: "INTEGER", description: "CMC máximo permitido." },
+        format: { type: "STRING", description: "Formato de juego (MODERN, PIONEER, STANDARD). Obligatorio." }
+      },
+      required: ["format"]
+    }
+  }]
+}];
 
 const PROVIDER_URLS = {
   openai: 'https://api.openai.com/v1/chat/completions',
@@ -92,9 +111,10 @@ export const GEMINI_PHASE_SCHEMA = {
           quantity: { type: "integer", description: "The exact quantity requested for this role." },
           category: { type: "string", description: "Category (e.g. Creature, Instant, Sorcery, Artifact, Enchantment, Planeswalker)" },
           cmc: { type: "integer", description: "Converted Mana Cost of the card." },
+          synergy_prerequisites_check: { type: "string", description: "Chain of Thought: Does this card require +1/+1 counters, artifacts, planeswalkers, or specific board states? Does the current deck have them? If not, pick a different card." },
           reason: { type: "string", description: "Brief strategic reason for choosing this card based on the current deck context." }
         },
-        required: ["name", "role", "quantity", "category", "cmc", "reason"]
+        required: ["name", "role", "quantity", "category", "cmc", "synergy_prerequisites_check", "reason"]
       }
     }
   },
@@ -124,32 +144,53 @@ Estás en la {phaseName}.
    - Mantén la curva de maná sugerida en los roles.
    - En mazos de 3 o más colores, PROHIBIDO incluir cartas de triple coste específico (ej: RRR, WWW, BBB).
 
-5. IDENTIDAD MECÁNICA Y "ANSWERS" POR COLOR EN MODERN:
+5. MINIMIZAR REDUNDANCIA FUNCIONAL (REGLA DEL MEJOR EFECTO):
+   - NUNCA incluyas múltiples cartas diferentes que cumplan exactamente la misma función o den exactamente la misma habilidad global (Ej: NUNCA pongas 'Galerider Sliver' y 'Cloudshredder Sliver' juntos, ni 'Manaweft Sliver' y 'Gemhide Sliver' juntos).
+   - Elige siempre LA MEJOR VERSIÓN de un efecto y asígnale las copias necesarias, usando los slots sobrantes para añadir diversidad al mazo (interacción, protección, etc).
+
+6. IDENTIDAD MECÁNICA Y "ANSWERS" POR COLOR EN MODERN:
    - BLANCO: Exilio Universal, protección, criaturas Flying/Vigilance.
    - AZUL: Counters, Cantrips, criaturas Flying/Hexproof.
    - NEGRO: Remoción Letal, descarte, criaturas Deathtouch/Lifelink.
    - ROJO: Daño directo, robo impulsivo, criaturas Prowess/Haste.
    - VERDE: Fight/Bite, destrucción de artefactos/encantamientos, criaturas Trample/Reach.
 
-6. VETO ABSOLUTO (BANLIST):
+7. VETO ABSOLUTO (BANLIST):
    - Evita incluir cartas de la Banlist: {banlist}.
 
-7. COHERENCIA TRIBAL:
-   - Si hay una Tribu/Raza activa que no sea "none", TODAS las criaturas elegidas DEBEN pertenecer a esa tribu. Esto es innegociable.
-   - Las cartas que no sean criaturas pueden ser temáticas o "staples" de interacción general.
+8. COHERENCIA TRIBAL EXTREMA (MANDATORIA):
+   - Si hay una Tribu/Raza activa que no sea "none", TIENES TOTALMENTE PROHIBIDO rellenar roles con encantamientos, conjuros, artefactos genéricos o criaturas de otras tribus (Ej. prohibido "Raise the Alarm" o "Origin Spellbomb" en un mazo de Slivers).
+   - Si un rol pide algo genérico como "token_generation_engines" o "midrange_value_engines", IGNORA LA LITERALIDAD DEL ROL y rellénalo con CRIATURAS DE LA TRIBU que aporten valor. El mazo DEBE mantenerse 100% temático en sus hechizos proactivos.
+   - NUNCA sacrifiques la Tribu para cumplir con un requerimiento de Coste de Maná Convertido (CMC). Si el plano te pide un CMC 1 pero la mejor carta tribal es CMC 2, ELIGE LA CARTA TRIBAL DE CMC 2. La pureza tribal está muy por encima de la curva de maná exacta.
+   - Las ÚNICAS cartas no-tribales permitidas son "staples" universales de pura interacción (remoción o counters como Fatal Push o Spell Pierce).
+
+9. ERRADICACIÓN DE CARTAS PARASÍTICAS (REGLA CRÍTICA):
+   - DEBES revisar las condiciones textuales de una carta antes de elegirla.
+   - Si una carta dice "remove a counter" (ej. Soul Diviner), "sacrifice an artifact", o interactúa con mecánicas altamente específicas, DEBES confirmar en tu Chain of Thought que el "Contexto Acumulado" tiene suficientes cartas que habiliten esa condición.
+   - Si el mazo NO tiene los habilitadores necesarios, TIENES ESTRICTAMENTE PROHIBIDO elegir esa carta. Busca una alternativa incondicional o genérica. Usa el campo 'synergy_prerequisites_check' para justificar esta validación.
+
+10. RESTRICCIONES DE RAREZA (MANDATORIO):
+    - Debes ajustarte estrictamente al siguiente nivel de rareza: {rarityMode}.
+
+11. DIRECTIVA DE INTERACTIVIDAD Y DIVERSIÓN (BATTLE BOX EQUITY):
+    - Prioriza motores de valor sostenibles ("snowball" o acumulación de recursos) y cartas que inviten a tomar decisiones en mesa.
+    - Queda ESTRICTAMENTE PROHIBIDO sugerir combos de victoria instantánea de turnos tempranos (ej: Splinter Twin, Thassa's Oracle combos) o cartas de bloqueo pasivo de mesa (locks como Blood Moon, Ensnaring Bridge) que impidan jugar al oponente, a menos que el usuario lo pida explícitamente.
+    - Favorece la interacción dinámica basada en trucos (ej. counters condicionales, rebotes, protección temporal y habilidades con Flash o ETB) sobre remociones planas o descartes masivos que reduzcan la interactividad de la partida.
 
 === DETALLES TEMÁTICOS Y ENFOQUE ===
 - Identidad de Color Permitida: {colors} (PROHIBIDO SALIRSE DE ESTOS COLORES)
 - Arquetipo: {archetype}
 - Tribu/Raza principal: {tribeLabel} (Scryfall subtypes: {tribeSubtypes})
 - Enfoque Estratégico: {strategy}
+- Nivel de Rareza / Restricción: {rarityMode}
 - Detalles del Usuario: {userPrompt}
 
 Debes devolver EXACTAMENTE las cartas para los roles solicitados, cumpliendo las cantidades.
+Usa SIEMPRE la 'Query sugerida' al invocar la herramienta buscar_cartas_en_biblioteca_tool para ese rol.
 `;
 
 export function buildAgenticPhasePrompt(params, phaseName, targetRoles, currentDeck) {
-  const { colors, archetype, tribe, strategy, userPrompt, archData: passedArchData } = params;
+  const { colors, archetype, tribe, strategy, userPrompt, rarityMode, archData: passedArchData, dnaSkeleton } = params;
   const archData = passedArchData || BATTLEBOX_ARCHETYPES.find(a => a.id === archetype) || BATTLEBOX_ARCHETYPES[3];
   
   let strategyMechanics = 'N/A';
@@ -162,12 +203,28 @@ export function buildAgenticPhasePrompt(params, phaseName, targetRoles, currentD
   const tribeLabel = tribeObj.label;
   const tribeSubtypes = tribeObj.subtypes;
 
+  let rarityRule = '';
+  switch(rarityMode) {
+    case 'high-power':
+      rarityRule = 'Poder de Legacy / Sin límites (Máxima potencia. Prioriza cartas de nivel competitivo alto, incluyendo míticas y raras extremadamente potentes sin restricciones de rareza, usando comunes/infrecuentes de alta eficiencia para apoyar).';
+      break;
+    case 'pauper':
+      rarityRule = 'Pauper (SOLO puedes sugerir cartas comunes. Queda estrictamente prohibido usar infrecuentes, raras o míticas).';
+      break;
+    case 'artisan':
+      rarityRule = 'Artisan (SOLO puedes sugerir cartas comunes o infrecuentes. Queda estrictamente prohibido usar raras o míticas).';
+      break;
+    default:
+      rarityRule = 'Estándar (Equilibrio casual, usa la rareza de manera sensata).';
+      break;
+  }
+
   const currentDeckList = currentDeck.length > 0 
     ? currentDeck.map(c => `- ${c.quantity}x ${c.name} (Rol: ${c.role})`).join('\n')
     : 'El mazo está vacío. Eres el primero en elegir las cartas fundacionales.';
 
   const targetRolesList = targetRoles.map(r => 
-    `- Rol: "${r.name}" | Cantidad: ${r.quantity} | CMC: ${r.cmcCategory} | Calidad: ${r.finisherQuality} | Propósito: ${r.purposeDescription}`
+    `- Rol: "${r.name}" | Cantidad: ${r.quantity} | CMC: ${r.cmcCategory} | Calidad: ${r.finisherQuality} | Propósito: ${r.purposeDescription} | Query sugerida: "${r.search_query || ''}"`
   ).join('\n');
 
   return AGENTIC_PHASE_SYSTEM_PROMPT
@@ -180,7 +237,11 @@ export function buildAgenticPhasePrompt(params, phaseName, targetRoles, currentD
     .replace('{tribeLabel}', tribeLabel)
     .replace('{tribeSubtypes}', tribeSubtypes)
     .replace('{strategy}', `${strategy} - Mecánicas clave: ${strategyMechanics}`)
-    .replace('{userPrompt}', userPrompt || 'Sin instrucciones adicionales.');
+    .replace(/{rarityMode}/g, rarityRule)
+    .replace('{userPrompt}', (userPrompt || 'Sin instrucciones adicionales.') + 
+      (dnaSkeleton && dnaSkeleton.length > 0 
+        ? '\n- Referencia de ADN Competitivo (Lista del Torneo Real):\n  ' + dnaSkeleton.map(c => `${c.quantity}x ${c.name}`).join('\n  ') 
+        : ''));
 }
 
 const UNIFIED_DECK_ARCHITECT_SYSTEM_PROMPT = `Eres el MAESTRO ARQUITECTO DE MAZOS DE MODERN CASUAL (BATTLE BOX 1VS1).
@@ -207,7 +268,11 @@ En este campo, explica exactamente qué rol cumple la carta (ej. Removal, Motor,
    - Usa 3 copias para cartas de apoyo o hechizos de coste 3-4 que no quieres robar múltiples veces en mano inicial.
    - Usa 1 o 2 copias ESTRICTAMENTE RESERVADAS para cartas Legendarias, "finishers" de alto coste, o cartas situacionales. No se toleran "1-ofs" aleatorios en el Main Deck.
 
-4. LA FÓRMULA DE MANÁ KARSTEN (90% DE PROBABILIDAD EN CURVA):
+4. MINIMIZAR REDUNDANCIA FUNCIONAL (REGLA DEL MEJOR EFECTO):
+   - NUNCA incluyas múltiples cartas diferentes que cumplan exactamente la misma función o den exactamente la misma habilidad a toda tu mesa (Ej: NUNCA pongas 'Galerider Sliver' y 'Cloudshredder Sliver' juntos, ni 'Manaweft Sliver' y 'Gemhide Sliver' juntos).
+   - Elige siempre LA MEJOR VERSIÓN de un efecto (la que haga más cosas o sea más barata) y dedícale 4 copias completas. Usa los slots sobrantes para añadir diversidad de habilidades, remoción, o protección, en lugar de repetir el mismo efecto con cartas peores.
+
+5. LA FÓRMULA DE MANÁ KARSTEN (90% DE PROBABILIDAD EN CURVA):
    - Evita el "Mana Screw". Para lanzar hechizos en curva:
      * Hechizo de coste C (ej. U o G) en Turno 1 -> Requiere 14 fuentes del color.
      * Hechizo de coste 1C en Turno 2 -> Requiere 13 fuentes.
@@ -218,16 +283,21 @@ En este campo, explica exactamente qué rol cumple la carta (ej. Removal, Motor,
      * En mazos de 3 o más colores, PROHIBIDO incluir cartas de triple coste específico (ej: RRR, WWW, BBB).
      * En mazos de 2 colores, solo se permiten cartas de doble coste específico (ej: 1UU) si ese es el color principal del mazo.
 
-5. IDENTIDAD MECÁNICA Y "ANSWERS" POR COLOR EN MODERN:
+6. IDENTIDAD MECÁNICA Y "ANSWERS" POR COLOR EN MODERN:
    - BLANCO: Exilio Universal (Path to Exile, Prismatic Ending, Leyline Binding), protección (Ephemerate), criaturas Flying/Vigilance.
    - AZUL: Counters (Counterspell, Spell Pierce, Mana Leak), Cantrips (Consider, Preordain, Opt), criaturas Flying/Hexproof.
    - NEGRO: Remoción Letal (Fatal Push, Bitter Triumph, Cut Down), descarte (Inquisition of Kozilek, Thoughtseize), criaturas Deathtouch/Lifelink.
    - ROJO: Daño directo (Lightning Bolt, Unholy Heat), robo impulsivo, criaturas Prowess/Haste.
    - VERDE: Fight/Bite (remoción de criaturas), destrucción de artefactos/encantamientos, criaturas Trample/Reach.
 
-6. VETO ABSOLUTO (BANLIST):
+7. VETO ABSOLUTO (BANLIST):
    - NUNCA incluyas "Emeritus of Conflict" o "Emeritus of Truce" bajo ninguna circunstancia. Está estrictamente prohibido.
    - Evita incluir cartas de la Banlist: {banlist}.
+
+8. DIRECTIVA DE INTERACTIVIDAD Y DIVERSIÓN (BATTLE BOX EQUITY):
+   - Prioriza motores de valor sostenibles ("snowball" o acumulación de recursos) y cartas que inviten a tomar decisiones en mesa.
+   - Queda ESTRICTAMENTE PROHIBIDO sugerir combos de victoria instantánea de turnos tempranos (ej: Splinter Twin, Thassa's Oracle combos) o cartas de bloqueo pasivo de mesa (locks como Blood Moon, Ensnaring Bridge) que impidan jugar al oponente, a menos que el usuario lo pida explícitamente.
+   - Favorece la interacción dinámica basada en trucos (ej. counters condicionales, rebotes, protección temporal y habilidades con Flash o ETB) sobre remociones planas o descartes masivos que reduzcan la interactividad de la partida.
 
 === DETALLES TEMÁTICOS Y ENFOQUE ===
 - Raza/Tribu principal: {tribe}
@@ -622,28 +692,38 @@ export async function forgeSideboard(mainDeckCards, lastFormData, aiConfig) {
   const deckList = mainDeckCards.map(c => `${c.quantity}x ${c.name} (${c.category})`).join('\n');
   const format = lastFormData?.format || 'MODERN';
   
+  const stapleExamples = format === 'PIONEER' 
+    ? 'ej: Rest in Peace, Fatal Push, Mystical Dispute, Unlicensed Hearse, Rending Volley'
+    : 'ej: Relic of Progenitus, Fatal Push, Spell Pierce, Rest in Peace, Veil of Summer';
+
   const systemPrompt = `Eres el Maestro de Banquillos (Sideboard Architect) del Pro Tour.
 Tu misión es generar el banquillo PERFECTO de EXACTAMENTE 15 cartas para el mazo que te proporcionaré.
 Las cartas deben ser "silver bullets" y odio hiper-eficiente para cubrir las debilidades del mazo contra:
-- Estrategias abusivas de Cementerio (Dredge, Reanimator).
+- Estrategias abusivas de Cementerio (Dredge, Reanimator, Greasefang).
 - Estrategias muy rápidas (Aggro, Burn).
 - Estrategias de control o combo.
 - Artefactos/Encantamientos problemáticos.
 
 REGLAS:
 1. DEBES generar exactamente 15 cartas en total.
-2. Todas las cartas deben ser legales en ${format}.
-3. Prioriza la máxima eficiencia de maná y staples (ej: Relic of Progenitus, Fatal Push, Spell Pierce, Rest in Peace, Veil of Summer).
+2. TODAS las cartas elegidas deben ser ESTRÍCTAMENTE LEGALES en el formato ${format}. Tienes completamente prohibido inventar o usar cartas de otros formatos.
+3. Prioriza la máxima eficiencia de maná y staples del formato (${stapleExamples}).
 4. El formato de salida debe ser ESTRICTAMENTE el JSON solicitado. NADA DE TEXTO ADICIONAL.
 
 === FORMATO ===
 {
   "sideboard": [
-    { "name": "Nombre de la Carta", "quantity": 3, "category": "Categoría (Instant, Sorcery, Artifact...)", "cmc": 1 }
+    { 
+      "name": "Nombre de la Carta", 
+      "quantity": 3, 
+      "category": "Categoría (Instant, Sorcery, Artifact...)", 
+      "subCategory": "Elige UNA: Removal, Sweepers, Anti-Aggro, Counters, Anti-Control, Disruption, Graveyard, Artifacts, Lock, Utility",
+      "cmc": 1 
+    }
   ]
 }`;
 
-  const userMessage = `Por favor genera un banquillo (15 cartas en total) altamente competitivo para este mazo.
+  const userMessage = `Por favor genera un banquillo (15 cartas en total) altamente competitivo para este mazo en formato ${format}.
 Colores del mazo: ${(lastFormData?.colores || []).join('-')}
 Arquetipo: ${lastFormData?.archetype}
 Lista del Main Deck:
@@ -672,12 +752,12 @@ ${deckList}`;
         sideCards[0].quantity = Math.max(1, (sideCards[0].quantity || 0) + diff);
       }
     } else {
-      // Fallback
+      // Fallback seguro universal (legal en Modern y Pioneer)
       sideCards = [
-        { name: 'Relic of Progenitus', quantity: 4, category: 'Artifact', cmc: 1 },
-        { name: 'Pithing Needle', quantity: 4, category: 'Artifact', cmc: 1 },
-        { name: 'Red Elemental Blast', quantity: 4, category: 'Instant', cmc: 1 },
-        { name: 'Pyroblast', quantity: 3, category: 'Instant', cmc: 1 }
+        { name: "Tormod's Crypt", quantity: 4, category: 'Artifact', subCategory: 'Graveyard', cmc: 0 },
+        { name: 'Pithing Needle', quantity: 4, category: 'Artifact', subCategory: 'Lock', cmc: 1 },
+        { name: 'Duress', quantity: 4, category: 'Sorcery', subCategory: 'Disruption', cmc: 1 },
+        { name: 'Negate', quantity: 3, category: 'Instant', subCategory: 'Counters', cmc: 2 }
       ];
     }
     

@@ -1,6 +1,7 @@
 import React, { useMemo, memo } from 'react';
 import { cn } from '../../utils/cn';
 import { BarChart3 } from 'lucide-react';
+import { calculateManaSources } from '../../services/deckCalculator';
 
 const ManaCurve = memo(({ deck, compact = false, isPrint = false, archetype = '' }) => {
   const stats = useMemo(() => {
@@ -73,150 +74,16 @@ const ManaCurve = memo(({ deck, compact = false, isPrint = false, archetype = ''
     if (!deck || !Array.isArray(deck) || isPrint || compact) return null;
 
     let pips = { W: 0, U: 0, B: 0, R: 0, G: 0 };
-    let sources = { W: 0, U: 0, B: 0, R: 0, G: 0 };
-    let landCount = 0;
-
-    // Base de datos estática de tierras del meta para detección perfecta
-    const landColorMap = {
-      // Triomas
-      "Raffine's Tower": ['W', 'U', 'B'],
-      "Xander's Lounge": ['U', 'B', 'R'],
-      "Ziatora's Proving Ground": ['B', 'R', 'G'],
-      "Jetmir's Garden": ['R', 'G', 'W'],
-      "Spara's Headquarters": ['G', 'W', 'U'],
-      "Indatha Triome": ['W', 'B', 'G'],
-      "Ketria Triome": ['U', 'R', 'G'],
-      "Raugrin Triome": ['U', 'R', 'W'],
-      "Savai Triome": ['W', 'B', 'R'],
-      "Zagoth Triome": ['U', 'B', 'G'],
-
-      // Shocklands
-      "Watery Grave": ['U', 'B'],
-      "Steam Vents": ['U', 'R'],
-      "Overgrown Tomb": ['B', 'G'],
-      "Temple Garden": ['G', 'W'],
-      "Hallowed Fountain": ['W', 'U'],
-      "Blood Crypt": ['B', 'R'],
-      "Stomping Ground": ['R', 'G'],
-      "Sacred Foundry": ['R', 'W'],
-      "Godless Shrine": ['W', 'B'],
-      "Breeding Pool": ['G', 'U'],
-
-      // Original Duals
-      "Underground Sea": ['U', 'B'],
-      "Volcanic Island": ['U', 'R'],
-      "Bayou": ['B', 'G'],
-      "Savannah": ['G', 'W'],
-      "Tundra": ['W', 'U'],
-      "Badlands": ['B', 'R'],
-      "Taiga": ['R', 'G'],
-      "Scrubland": ['W', 'B'],
-      "Plateau": ['R', 'W'],
-      "Tropical Island": ['G', 'U'],
-
-      // Fastlands
-      "Darkslick Shores": ['U', 'B'],
-      "Spirebluff Canal": ['U', 'R'],
-      "Blooming Marsh": ['B', 'G'],
-      "Razorverge Thicket": ['G', 'W'],
-      "Seachrome Coast": ['W', 'U'],
-      "Blackcleave Cliffs": ['B', 'R'],
-      "Copperline Gorge": ['R', 'G'],
-      "Inspiring Vantage": ['R', 'W'],
-      "Concealed Courtyard": ['W', 'B'],
-      "Botanical Sanctum": ['G', 'U'],
-
-      // Fetchlands (Acceso indirecto)
-      "Flooded Strand": ['W', 'U'],
-      "Polluted Delta": ['U', 'B'],
-      "Bloodstained Mire": ['B', 'R'],
-      "Wooded Foothills": ['R', 'G'],
-      "Windswept Heath": ['G', 'W'],
-      "Marsh Flats": ['W', 'B'],
-      "Scalding Tarn": ['U', 'R'],
-      "Verdant Catacombs": ['B', 'G'],
-      "Arid Mesa": ['R', 'W'],
-      "Misty Rainforest": ['G', 'U'],
-      "Prismatic Vista": ['W', 'U', 'B', 'R', 'G'],
-
-      // Painlands
-      "Underground River": ['U', 'B'],
-      "Shivan Reef": ['U', 'R'],
-      "Llanowar Wastes": ['B', 'G'],
-      "Brushland": ['G', 'W'],
-      "Adarkar Wastes": ['W', 'U'],
-      "Sulfurous Springs": ['B', 'R'],
-      "Karplusan Forest": ['R', 'G'],
-      "Battlefield Forge": ['R', 'W'],
-      "Caves of Koilos": ['W', 'B'],
-      "Yavimaya Coast": ['G', 'U'],
-
-      // Horizon Lands
-      "Sunbaked Canyon": ['R', 'W'],
-      "Fiery Islet": ['U', 'R'],
-      "Silent Clearing": ['W', 'B'],
-      "Nurturing Peatland": ['B', 'G'],
-      "Waterlogged Grove": ['G', 'U'],
-      "Horizon Canopy": ['G', 'W'],
-
-      // Slowlands
-      "Shipwreck Marsh": ['U', 'B'],
-      "Stormcarved Coast": ['U', 'R'],
-      "Deathcap Glade": ['B', 'G'],
-      "Overgrown Farmland": ['G', 'W'],
-      "Deserted Beach": ['W', 'U'],
-      "Haunted Ridge": ['B', 'R'],
-      "Rockfall Vale": ['R', 'G'],
-      "Sundown Pass": ['R', 'W'],
-      "Shattered Sanctuary": ['W', 'B'],
-      "Dreamroot Cascade": ['G', 'U'],
-
-      // Channel/Utility Lands
-      "Boseiju, Who Endures": ['G'],
-      "Otawara, Soaring City": ['U'],
-      "Eiganjo, Seat of the Empire": ['W'],
-      "Takenuma, Abandoned Mire": ['B'],
-      "Sokenzan, Crucible of Defiance": ['R']
-    };
+    let landCount = deck.reduce((sum, c) => sum + ((c.category === 'Land' || (c.type_line && c.type_line.toLowerCase().includes('land'))) ? (c.quantity || 1) : 0), 0);
+    
+    // Obtener las fuentes reales llamando al motor matemático unificado
+    let sources = calculateManaSources(deck);
 
     deck.forEach(card => {
       const type = (card.type_line || card.type || '').toLowerCase();
-      const name = card.name || '';
       const qty = Number(card.quantity || 1);
 
-      if (type.includes('land') || card.category === 'Land') {
-        landCount += qty;
-        
-        // 1. Intentar lookup directo en nuestra base de datos estática
-        if (landColorMap[name]) {
-          landColorMap[name].forEach(color => {
-            if (sources[color] !== undefined) sources[color] += qty;
-          });
-          return;
-        }
-
-        // 2. Intentar buscar en produced_mana de Scryfall
-        let produced = [...(card.produced_mana || [])];
-        
-        // 3. Fallbacks heurísticos basados en el nombre
-        if (produced.length === 0) {
-           const nameLower = name.toLowerCase();
-           if (type.includes('plains') || nameLower.includes('plains')) produced.push('W');
-           if (type.includes('island') || nameLower.includes('island')) produced.push('U');
-           if (type.includes('swamp') || nameLower.includes('swamp')) produced.push('B');
-           if (type.includes('mountain') || nameLower.includes('mountain')) produced.push('R');
-           if (type.includes('forest') || nameLower.includes('forest')) produced.push('G');
-        }
-        
-        // 4. Último recurso: color_identity
-        if (produced.length === 0 && card.color_identity && card.color_identity.length > 0) {
-           produced = card.color_identity.filter(c => c !== 'C');
-        }
-
-        produced.forEach(color => {
-          if (sources[color] !== undefined) sources[color] += qty;
-        });
-      } else {
+      if (!type.includes('land') && card.category !== 'Land') {
         const cost = card.mana_cost || '';
         if (cost.includes('{W}')) pips.W += (cost.match(/\{W\}/g) || []).length * qty;
         if (cost.includes('{U}')) pips.U += (cost.match(/\{U\}/g) || []).length * qty;

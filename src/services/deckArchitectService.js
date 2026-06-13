@@ -1,7 +1,7 @@
 import { generateManaBase, calculatePerfectLandCount, calculateVMP, getLandColors } from './deckCalculator.js'; 
 import { CURVE_BOUNDS, calculateRealTimeVMPWarning } from './deckAuditorService.js';
 import { internalSynergyAudit } from './auditService.js';
-import { callAI, buildAgenticPhasePrompt, GEMINI_PHASE_SCHEMA } from './aiFactory.js';
+import { callAI, buildAgenticPhasePrompt, GEMINI_PHASE_SCHEMA, DECK_BUILDER_TOOLS } from './aiFactory.js';
 import { API_ENDPOINTS } from '../config/apiEndpoints.js';
 import { BATTLEBOX_VETOS, BANLIST_SUBSTITUTIONS, BATTLEBOX_ARCHETYPES, MTG_STRATEGIES, MTG_TRIBES, getIntelligentSubstitution, PARASITIC_RULES, COMPETITIVE_ANTI_SYNERGIES, inferStrategyFromArchetype, MICRO_SYNERGIES_GRAPH, CONTEXTUAL_DEPENDENCIES } from '../constants/legacyBattleBox.js';
 import { buildCardPool, getDynamicArchetypes } from './ragService.js';
@@ -181,9 +181,10 @@ const GEMINI_BLUEPRINT_SCHEMA = {
             type: "string", 
             description: "Required quality level. Use 'finisher' for high-impact game-ending threats (which should be Legendary or Mythic if possible), or 'standard' for regular utility and support cards." 
           },
-          purposeDescription: { type: "string", description: "Clear explanation of what these cards do and how they fit the archetype curve." }
+          purposeDescription: { type: "string", description: "Clear explanation of what these cards do and how they fit the archetype curve." },
+          search_query: { type: "string", description: "The ideal Scryfall query or semantic tag (e.g. 'o:flying', 'oracletag:board-wipe', 't:goblin') to find cards for this role. BE CREATIVE." }
         },
-        required: ["name", "quantity", "cmcCategory", "finisherQuality", "purposeDescription"]
+        required: ["name", "quantity", "cmcCategory", "finisherQuality", "purposeDescription", "search_query"]
       }
     }
   },
@@ -566,7 +567,7 @@ export const getMaxAllowedCopies = (cardName, category, cmc, ragPool = []) => {
             oracleText.includes("have deathtouch") || oracleText.includes("gains deathtouch") || oracleText.includes("gain deathtouch") ||
             oracleText.includes("have trample") || oracleText.includes("gains trample") || oracleText.includes("gain trample") ||
             oracleText.includes("have indestructible") || oracleText.includes("gains indestructible") || oracleText.includes("gain indestructible") ||
-            oracleText.includes("have first strike") || oracleText.includes("have double strike") ||
+      oracleText.includes("have first strike") || oracleText.includes("have double strike") ||
             oracleText.includes("have menace") || oracleText.includes("have hexproof") || oracleText.includes("slivercycling");
 
         const hasNonStackingStaticEffect =
@@ -580,7 +581,10 @@ export const getMaxAllowedCopies = (cardName, category, cmc, ragPool = []) => {
             oracleText.includes("+x/+x") || oracleText.includes("get +") || 
             oracleText.includes("gets +");
 
-        if ((hasKeywordGrant || hasNonStackingStaticEffect) && !hasCumulativeStats) {
+        // EXCEPCIÓN TRIBAL: En tribus como Slivers, queremos la máxima redundancia posible para asegurar robar el efecto clave, aunque no se acumule.
+        const isTribalBypass = typeLine.includes("sliver") || typeLine.includes("elf") || typeLine.includes("goblin") || typeLine.includes("merfolk");
+
+        if ((hasKeywordGrant || hasNonStackingStaticEffect) && !hasCumulativeStats && !isTribalBypass) {
             // keywords/efectos baratos (CMC < 3) se capan a 3 copias (alta presencia pero sin atascar el 2do)
             // keywords/efectos medianos/costosos (CMC >= 3) se capan a 2 copias
             const redundancyCap = cardCmc >= 3 ? 2 : 3;
@@ -619,8 +623,28 @@ export function getProCopiesForCard(card, role, ragPool = [], formData = null) {
 
   // 0. Sinergias Ocultas (Spice / Innovación)
   if (poolCard?.isHiddenSynergy || card.isHiddenSynergy) {
-    // Si es legendaria o muy cara, 1x. Si no, 1x o 2x máximo (priorizamos 1x para el factor sorpresa sin diluir)
-    return (isLegendary || cmc >= 4) ? 1 : Math.min(2, 2); // Siempre 1 o 2
+    return (isLegendary || cmc >= 4) ? 1 : 2;
+  }
+
+  // --- NUEVO FASE 2: CANTIDAD DE COPIAS CONTEXTUAL POR ARQUETIPO (Problema 4) ---
+  const archLower = (formData?.archetype || '').toLowerCase();
+  const strategyLower = (formData?.strategy || '').toLowerCase();
+  
+  // A. Mazos de Combo: Consistencia extrema para piezas clave del combo
+  const isCombo = archLower.includes('combo') || ['storm', 'reanimator', 'cascade', 'creativity', 'yawgmoth', 'amulet_titan'].includes(strategyLower);
+  if (isCombo) {
+    const isComboPiece = roleLower.includes('combo') || roleLower.includes('piece') || roleLower.includes('engine') || roleLower.includes('target') || roleLower.includes('payoff') || roleLower.includes('anchor');
+    if (isComboPiece) {
+      return isLegendary && cmc >= 5 ? 3 : 4; // Asegurar 3-4 copias
+    }
+  }
+
+  // B. Mazos de Control: Evitar atascos de finishers caros en mano inicial
+  const isControl = archLower.includes('control') || ['control', 'prison', 'taxes'].includes(strategyLower);
+  if (isControl) {
+    if (cmc >= 4 && (roleLower.includes('finisher') || roleLower.includes('win_cond') || roleLower.includes('threat'))) {
+      return isLegendary ? 1 : 2; // Finishers pesados control: legendarios 1x, no-legendarios 2x
+    }
   }
 
   // 1. Toolbox / Silver Bullets
@@ -991,7 +1015,7 @@ const distribuirOInyectarHechizosFaltantes = (spellList, targetCount, colors, ad
     // 5. Salvaguarda desesperada final (ignora límites si es absolutamente necesario para sumar 60)
     if (gap > 0 && adjustedList.length > 0) {
         adjustedList[0].quantity += gap;
-        const logMsg = `[JUEZ COMPENSACIÁ“N] ALERTA CRÁTICA: Forzando límite de 4 con +${gap} copias extra en ${adjustedList[0].name} para completar 60 cartas.`;
+        const logMsg = `[JUEZ COMPENSACIÁ“N] ALERTA CRÁ TICA: Forzando límite de 4 con +${gap} copias extra en ${adjustedList[0].name} para completar 60 cartas.`;
         console.log(logMsg);
         if (addLog) addLog(logMsg);
     }
@@ -1064,14 +1088,22 @@ function obtenerPrioridadDeRecorte(card) {
     const cantripKeywords = ["consider", "preordain", "looting", "visions", "bauble", "growth", "iteration", "draw", "opt"];
     const isCantrip = cantripKeywords.some(kw => nameLower.includes(kw)) || ["enablers", "enablers_or_cantrips", "card_draw"].includes(card.role);
 
+    const coreThreatKeywords = ["core", "finisher", "payoff", "engine", "threat", "lord", "aggro", "creature", "acceleration", "enabler", "tribal", "generator", "token", "sliver", "elf", "goblin", "merfolk", "zombie", "vampire", "spirit"];
+    const isCoreThreat = coreThreatKeywords.some(kw => (card.role || '').toLowerCase().includes(kw)) || ["early_tribal_acceleration", "tribal_utility_enablers", "core_tribal_lords", "premium_tribal_finishers"].includes(card.role);
+
     // 1. Legendarias redundantes o artefactos legendarios no-criatura (ej. Urza's Sylex, planeswalkers redundantes) - priorizar recortar si cantidad > 2
     if (isLegendary && card.quantity > 2) {
         return 50; 
     }
 
-    // 2. Utilidad genérica / cartas que no son interacción ni robo y tienen cantidad > 2
-    if (!isInteraction && !isCantrip && card.quantity > 2) {
+    // 2. Utilidad genérica / cartas que no son interacción ni robo ni amenaza central y tienen cantidad > 2
+    if (!isInteraction && !isCantrip && !isCoreThreat && card.quantity > 2) {
         return 45;
+    }
+
+    // 2.5 Amenazas centrales genéricas redundantes (ej. más de 3 copias, bajar a 3 si hace falta)
+    if (isCoreThreat && card.quantity > 3) {
+        return 22; // Prioridad baja, solo si es estrictamente necesario
     }
 
     // 3. Cantrips redundantes (cantidad > 3)
@@ -1240,9 +1272,31 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
         return false;
     };
 
+    const isCardFormatLegal = (cardName) => {
+        if (!cardName) return false;
+        const nameLower = cardName.toLowerCase().trim();
+        return ragPool.some(c => c && typeof c.name === 'string' && c.name.toLowerCase().trim() === nameLower);
+    };
+
     const inyectarCartaDirecta = (list, newCard) => {
         if (!newCard.name) return list;
-        const nameClean = newCard.name.trim();
+        let nameClean = newCard.name.trim();
+        
+        // Verificar legalidad del formato (Problema 6)
+        if (!isCardFormatLegal(nameClean)) {
+            const allowedColors = formData?.colores || [];
+            const rep = obtenerMejorCartaDeRemplazo(newCard.category, newCard.cmc, allowedColors, formData?.format, ragPool, [nameClean.toLowerCase()]);
+            if (rep && rep.name) {
+                addLog(`[JUEZ LEGALIDAD] "${nameClean}" no es legal en el formato ${formData?.format}. Reemplazando por "${rep.name}" (CMC ${rep.cmc}, ${rep.category}).`);
+                nameClean = rep.name;
+                newCard.cmc = rep.cmc;
+                newCard.category = rep.category;
+            } else {
+                addLog(`[JUEZ LEGALIDAD] Advertencia: No se encontró reemplazo legal para "${nameClean}" en el formato ${formData?.format}. Omisión de inyección.`);
+                return list;
+            }
+        }
+
         const existing = list.find(c => c && typeof c.name === 'string' && c.name.trim().toLowerCase() === nameClean.toLowerCase());
         const maxLimit = getMaxAllowedCopies(nameClean, newCard.category, newCard.cmc, ragPool);
         if (existing) {
@@ -1281,7 +1335,7 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
     };
 
     // =========================================================================
-    // âš”ï¸ EL CUERPO SUPREMO DE LEYES DEL PRO TOUR (AUDITORÁA DE INCOMPATIBILIDADES)
+    // âš”ï¸  EL CUERPO SUPREMO DE LEYES DEL PRO TOUR (AUDITORÁ A DE INCOMPATIBILIDADES)
     // =========================================================================
     
     if (!preserveSpells) {
@@ -1372,8 +1426,35 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
         if (!isHeavyStrategy) {
             const mustIncludeNamesList = parseUserRulesString(formData?.mustInclude || '').filter(item => item && typeof item.name === 'string').map(item => item.name.toLowerCase());
             
+            // Cargar base de datos para comprobar palabras clave y evitar vetar cartas con costes alternativos
+            const allCards = await getAllCards();
+            
             // Encontrar criaturas de CMC >= 6 que no sean must-includes
-            const uncastables = cards.filter(c => c && c.category === 'Creature' && c.cmc >= 6 && c.name && typeof c.name === 'string' && !mustIncludeNamesList.includes(c.name.toLowerCase()) && c.role !== 'must-include');
+            const uncastables = cards.filter(c => {
+                if (!c || c.category !== 'Creature' || c.cmc < 6 || !c.name || typeof c.name !== 'string') return false;
+                if (mustIncludeNamesList.includes(c.name.toLowerCase()) || c.role === 'must-include') return false;
+                
+                // Buscar si tiene delve, affinity, convoke, evoke o ninjutsu
+                const dbCard = allCards.find(ac => ac.name.toLowerCase() === c.name.toLowerCase());
+                if (dbCard) {
+                    const textLower = (dbCard.oracle_text || '').toLowerCase();
+                    const typeLower = (dbCard.type_line || '').toLowerCase();
+                    if (textLower.includes('delve') || 
+                        textLower.includes('affinity') || 
+                        textLower.includes('convoke') || 
+                        textLower.includes('evoke') || 
+                        textLower.includes('ninjutsu') ||
+                        textLower.includes('emerge') ||
+                        textLower.includes('prototype') ||
+                        textLower.includes('undisturbed') ||
+                        typeLower.includes('avatar') ||
+                        c.name.toLowerCase() === 'scion of draco'
+                    ) {
+                        return false; // Excluir de la lista de vetadas (bypass)
+                    }
+                }
+                return true;
+            });
             
             const isControlOrMidrange = strategyId === 'control' || archLower.includes('control') || strategyId === 'midrange' || archLower.includes('midrange');
             let allowedHeavyCopies = isControlOrMidrange ? 2 : 0;
@@ -1444,7 +1525,7 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
             }
         }
 
-        // E. AUDITORÁA DE ANTI-SINERGIAS COMPETITIVAS (COMPETITIVE_ANTI_SYNERGIES)
+        // E. AUDITORÁ A DE ANTI-SINERGIAS COMPETITIVAS (COMPETITIVE_ANTI_SYNERGIES)
         COMPETITIVE_ANTI_SYNERGIES.forEach(anti => {
             if (!anti.card) return;
             const hasCard = cards.some(c => c && typeof c.name === 'string' && c.name.toLowerCase() === anti.card.toLowerCase());
@@ -1563,7 +1644,7 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
     cards = cards.map(c => {
         if (c && typeof c.name === 'string' && reanimateLegacyNames.includes(c.name.toLowerCase())) {
             const dynamicReanimator = getDynamicModernReanimateSpell();
-            const logMsgSub = `âš ï¸ Juez: Carta legacy "${c.name}" interceptada. Transmutando a Modern: "${dynamicReanimator.name}"`;
+            const logMsgSub = `âš ï¸  Juez: Carta legacy "${c.name}" interceptada. Transmutando a Modern: "${dynamicReanimator.name}"`;
             console.warn(logMsgSub);
             if (addLog) addLog(logMsgSub);
             return {
@@ -1578,7 +1659,7 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
     });
 
     // =========================================================================
-    // âš”ï¸ TACTICAL OPTIMIZATION: SEA MONSTERS (TERRORES MARINOS)
+    // âš”ï¸  TACTICAL OPTIMIZATION: SEA MONSTERS (TERRORES MARINOS)
     // =========================================================================
     if (tribeId === 'sea_monsters' || formData?.tribe === 'sea_monsters') {
         const logSea = `[JUEZ SEA MONSTERS] Iniciando optimización dedicada para Terrores Marinos (Simic Control/Ramp).`;
@@ -1750,7 +1831,7 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
                     repCat = rep.category;
                 }
                 
-                const logMsgColors = `âš ï¸ [JUEZ COLOR] Interceptada carta inválida/off-color "${c.name}" (Colores conocidos: [${cardColors.join(",")}]). Transmutando a "${replacementName}" (${repCat}, CMC ${repCmc})`;
+                const logMsgColors = `âš ï¸  [JUEZ COLOR] Interceptada carta inválida/off-color "${c.name}" (Colores conocidos: [${cardColors.join(",")}]). Transmutando a "${replacementName}" (${repCat}, CMC ${repCmc})`;
                 console.warn(logMsgColors);
                 if (addLog) addLog(logMsgColors);
                 
@@ -1764,7 +1845,7 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
             return c;
         });
     }
-    // 0.8. INTEGRIDAD TRIBAL (PUREZA DINÁMICA)
+    // 0.8. INTEGRIDAD TRIBAL (PUREZA DINÁ MICA)
     if (hasTribe) {
         let purityLevel = 'standard';
         const tribeLower = tribeId.toLowerCase();
@@ -1784,12 +1865,13 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
             if (c.category !== 'Creature') return c; // Solo validamos criaturas
             
             const poolCard = ragPool.find(p => p && typeof p.name === 'string' && p.name.toLowerCase() === c.name.toLowerCase());
-            let typeLine = poolCard && poolCard.type_line ? poolCard.type_line.toLowerCase() : '';
-            let oracleText = poolCard && poolCard.oracle_text ? poolCard.oracle_text.toLowerCase() : '';
+            let typeLine = poolCard && poolCard.type_line ? poolCard.type_line.toLowerCase() : (c.type_line || c.type || '').toLowerCase();
+            let oracleText = poolCard && poolCard.oracle_text ? poolCard.oracle_text.toLowerCase() : (c.oracle_text || c.text || '').toLowerCase();
             
             // Alucinación o carta no indexada
-            if (!poolCard) {
-                typeLine = ''; // Fuerza evaluación como no-tribal
+            if (!poolCard && !c.isMustInclude && !c.isCore) {
+                // Solo forzamos evaluación no-tribal si no es un Must-Include del usuario
+                typeLine = ''; 
             }
 
             const hasTribalSubtype = activeTribalSubtypes.some(sub => typeLine.includes(sub)) || typeLine.includes('changeling') || typeLine.includes('shapeshifter');
@@ -1933,7 +2015,7 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
                 (strategyId === 'graveyard') ||
                 (strategyId === 'ramp' && c.cmc >= 6) ||
                 (c.role && (c.role.includes("finisher") || c.role.includes("win_con") || c.role.includes("top_end"))) ||
-                (isControl && c.category === 'Creature'); // Control legitima criaturas CMCâ‰¥5 como finishers (Koma, Hullbreaker, Toxrill)
+                (isControl && (c.category === 'Creature' || c.category === 'Planeswalker')); // Control legitima criaturas y planeswalkers CMC>=5 como finishers
 
             if (!isCheatable) {
                 const isCascade = strategyId && (strategyId.toLowerCase() === 'cascade' || strategyId.toLowerCase() === 'living end' || strategyId.toLowerCase().includes('cascade'));
@@ -2419,22 +2501,49 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
     }
     } // End of if (!preserveSpells)
 
-    // === DIMENSIÁ“N J: SIDEBOARD EXCELLENCE ===
+    // === DIMENSIÓN J: SIDEBOARD EXCELLENCE ===
     const isStandard = (formData?.format || '').toUpperCase() === 'STANDARD';
+    const activeRarityMode = formData?.rarityMode || 'high-power';
 
-    const sideboardHatePool = isStandard ? {
-        "W": ["Temporary Lockdown", "Get Lost", "Destroy Evil", "Loran of the Third Path"],
-        "U": ["Negate", "Disdainful Stroke", "Tishana's Tidebinder", "Change the Equation"],
-        "B": ["Duress", "Graveyard Trespasser", "Cut Down", "Glistening Deluge"],
-        "R": ["Lithomantic Barrage", "Brotherhood's End", "Roiling Vortex", "End the Festivities"],
-        "G": ["Pick Your Poison", "Tranquil Frillback", "Obstinate Baloth", "Haywire Mite"]
-    } : {
-        "W": ["Rest in Peace", "Stony Silence", "Surge of Salvation", "Path to Exile"],
-        "U": ["Spell Pierce", "Aether Gust", "Mystical Dispute", "Hurkyl's Recall"],
-        "B": ["Leyline of the Void", "Thoughtseize", "Collective Brutality", "Fatal Push"],
-        "R": ["Blood Moon", "Alpine Moon", "Smash to Smithereens", "Roiling Vortex"],
-        "G": ["Veil of Summer", "Haywire Mite", "Force of Vigor", "Collector Ouphe"]
-    };
+    let sideboardHatePool;
+    let genericCandidates;
+
+    if (activeRarityMode === 'pauper') {
+        sideboardHatePool = {
+            "W": ["Dawnbringer Cleric", "Loran's Escape", "Prismatic Strands", "Standard Bearer", "Destroy Evil"],
+            "U": ["Spell Stutter", "Negate", "Dispel", "Essence Scatter", "Vapor Snag"],
+            "B": ["Duress", "Feed the Swarm", "Nihil Spellbomb", "Tragic Slip", "Toxin Analysis"],
+            "R": ["Shock", "Fiery Impulse", "Smash to Smithereens", "End the Festivities", "Cast into the Fire"],
+            "G": ["Naturalize", "Return to Nature", "Nature's Claim", "Weather the Storm", "Life Goes On"]
+        };
+        genericCandidates = ["Nihil Spellbomb", "Honored Heirloom", "Jack-o'-Lantern"];
+    } else if (activeRarityMode === 'artisan') {
+        sideboardHatePool = {
+            "W": ["Fragment Reality", "Loran's Escape", "Cast Out", "Path to Exile", "Destroy Evil"],
+            "U": ["Spell Pierce", "Aether Gust", "Mystical Dispute", "Negate", "Dispel"],
+            "B": ["Duress", "Fatal Push", "Cling to Dust", "Feed the Swarm", "Cast Down"],
+            "R": ["Abrade", "Lithomantic Barrage", "Smash to Smithereens", "End the Festivities", "Cast into the Fire"],
+            "G": ["Veil of Summer", "Haywire Mite", "Return to Nature", "Reclamation Sage", "Nihil Spellbomb"]
+        };
+        genericCandidates = ["Nihil Spellbomb", "Damping Sphere", "Honored Heirloom", "Jack-o'-Lantern"];
+    } else {
+        sideboardHatePool = isStandard ? {
+            "W": ["Temporary Lockdown", "Get Lost", "Destroy Evil", "Loran of the Third Path"],
+            "U": ["Negate", "Disdainful Stroke", "Tishana's Tidebinder", "Change the Equation"],
+            "B": ["Duress", "Graveyard Trespasser", "Cut Down", "Glistening Deluge"],
+            "R": ["Lithomantic Barrage", "Brotherhood's End", "Roiling Vortex", "End the Festivities"],
+            "G": ["Pick Your Poison", "Tranquil Frillback", "Obstinate Baloth", "Haywire Mite"]
+        } : {
+            "W": ["Rest in Peace", "Stony Silence", "Surge of Salvation", "Path to Exile"],
+            "U": ["Spell Pierce", "Aether Gust", "Mystical Dispute", "Hurkyl's Recall"],
+            "B": ["Leyline of the Void", "Thoughtseize", "Collective Brutality", "Fatal Push"],
+            "R": ["Blood Moon", "Alpine Moon", "Smash to Smithereens", "Roiling Vortex"],
+            "G": ["Veil of Summer", "Haywire Mite", "Force of Vigor", "Collector Ouphe"]
+        };
+        genericCandidates = isStandard ? 
+            ["Soul-Guide Lantern", "Pithing Needle", "The Stone Brain", "Unlicensed Hearse", "Urabrask's Forge"] :
+            ["Relic of Progenitus", "Damping Sphere", "Pithing Needle", "Tormod's Crypt", "Surgical Extraction", "Engineered Explosives", "Chalice of the Void"];
+    }
 
     let sideCandidates = [];
     colors.forEach(col => {
@@ -2442,11 +2551,6 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
             sideboardHatePool[col].forEach(name => sideCandidates.push(name));
         }
     });
-
-    // Fix: Asegurar suficientes cartas en candidates para no generar infinite loop y permitir playsets
-    const genericCandidates = isStandard ? 
-        ["Soul-Guide Lantern", "Pithing Needle", "The Stone Brain", "Unlicensed Hearse", "Urabrask's Forge"] :
-        ["Relic of Progenitus", "Damping Sphere", "Pithing Needle", "Tormod's Crypt", "Surgical Extraction", "Engineered Explosives", "Chalice of the Void"];
 
     const getSideboardCardDetails = (name) => {
         const n = name.toLowerCase();
@@ -2467,14 +2571,22 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
             "blood moon": 3, "alpine moon": 1, "smash to smithereens": 2,
             "veil of summer": 1, "force of vigor": 4, "collector ouphe": 2,
             "relic of progenitus": 1, "damping sphere": 2, "pithing needle": 1, "tormod's crypt": 0,
-            "surgical extraction": 1, "engineered explosives": 0, "chalice of the void": 0
+            "surgical extraction": 1, "engineered explosives": 0, "chalice of the void": 0,
+            // pauper & artisan additions
+            "dawnringer cleric": 2, "dust to dust": 3, "prismatic strands": 3, "standard bearer": 2,
+            "fragment reality": 1, "loran's escape": 1, "cast out": 4, "blue elemental blast": 1,
+            "hydroblast": 1, "spell stutter": 2, "dispel": 1, "cast down": 2, "nihil spellbomb": 1,
+            "chainer's edict": 2, "toxin analysis": 1, "cling to dust": 1, "feed the swarm": 2,
+            "red elemental blast": 1, "pyroblast": 1, "cast into the fire": 2, "abrade": 2,
+            "gleeful demolition": 1, "nature's claim": 1, "weather the storm": 2, "deglamer": 2,
+            "return to nature": 2, "reclamation sage": 3
         };
 
         // Categories
-        const enchantments = ["rest in peace", "stony silence", "leyline of the void", "blood moon", "alpine moon", "roiling vortex", "temporary lockdown"];
-        const creatures = ["loran of the third path", "tishana's tidebinder", "graveyard trespasser", "tranquil frillback", "obstinate baloth", "haywire mite", "collector ouphe", "esper sentinel", "ragavan, nimble pilferer", "orcish bowmasters", "tarmogoyf", "delver of secrets", "steel overseer"];
-        const sorceries = ["thoughtseize", "collective brutality", "glistening deluge", "lithomantic barrage", "brotherhood's end", "end the festivities", "pick your poison", "prismatic ending", "preordain"];
-        const artifacts = ["relic of progenitus", "damping sphere", "pithing needle", "tormod's crypt", "surgical extraction", "engineered explosives", "chalice of the void", "soul-guide lantern", "the stone brain", "unlicensed hearse", "urabrask's forge"];
+        const enchantments = ["rest in peace", "stony silence", "leyline of the void", "blood moon", "alpine moon", "roiling vortex", "temporary lockdown", "cast out"];
+        const creatures = ["loran of the third path", "tishana's tidebinder", "graveyard trespasser", "tranquil frillback", "obstinate baloth", "haywire mite", "collector ouphe", "esper sentinel", "ragavan, nimble pilferer", "orcish bowmasters", "tarmogoyf", "delver of secrets", "steel overseer", "dawnringer cleric", "standard bearer", "spell stutter", "reclamation sage"];
+        const sorceries = ["thoughtseize", "collective brutality", "glistening deluge", "lithomantic barrage", "brotherhood's end", "end the festivities", "pick your poison", "prismatic ending", "preordain", "dust to dust", "chainer's edict", "feed the swarm", "gleeful demolition"];
+        const artifacts = ["relic of progenitus", "damping sphere", "pithing needle", "tormod's crypt", "surgical extraction", "engineered explosives", "chalice of the void", "soul-guide lantern", "the stone brain", "unlicensed hearse", "urabrask's forge", "nihil spellbomb"];
         
         let cat = "Instant";
         if (enchantments.includes(n)) cat = "Enchantment";
@@ -2507,23 +2619,30 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
             'BU': 'Watery Grave', 'RU': 'Steam Vents', 'GU': 'Breeding Pool', 'BR': 'Blood Crypt',
             'BG': 'Overgrown Tomb', 'GR': 'Stomping Ground'
         };
+        const commonDualMap = {
+            'UW': 'Tranquil Cove', 'BW': 'Scoured Barrens', 'RW': 'Wind-Scarred Crag', 'GW': 'Blossoming Sands',
+            'BU': 'Dismal Backwater', 'RU': 'Swiftwater Cliffs', 'GU': 'Thornwood Falls', 'BR': 'Bloodfell Caves',
+            'BG': 'Jungle Hollow', 'GR': 'Rugged Highlands'
+        };
         const mainColors = Array.from(colors).filter(c => !orphanColors.includes(c) && c !== 'C' && c !== '');
         const mainColor = mainColors.length > 0 ? mainColors[0] : 'W';
         
         orphanColors.forEach(col => {
             if (sideCount >= 13) return; // Dejar espacio para al menos algunas cartas de odio
             const pairKey = [mainColor, col].sort().join('');
-            const landName = shockMap[pairKey] || "City of Brass";
+            const landName = (activeRarityMode === 'pauper' || activeRarityMode === 'artisan')
+                ? (commonDualMap[pairKey] || "Terramorphic Expanse")
+                : (shockMap[pairKey] || "City of Brass");
             sideboard.push({
                 name: landName,
                 quantity: 2,
                 category: "Land",
-                type_line: "Land â€” Sideboard Fixer",
+                type_line: "Land — Sideboard Fixer",
                 cmc: 0,
                 color_identity: [mainColor, col]
             });
             sideCount += 2;
-            const logOrphan = `[DIMENSIÁ“N J] Color Huérfano Detectado (${col}). Inyectando 2x ${landName} en Banquillo.`;
+            const logOrphan = `[DIMENSIÓN J] Color Huérfano Detectado (${col}). Inyectando 2x ${landName} en Banquillo.`;
             console.log(logOrphan);
             if (addLog) addLog(logOrphan);
         });
@@ -2538,7 +2657,7 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
             name: "Radiant Fountain",
             quantity: 1,
             category: "Land",
-            type_line: "Land â€” Anti-Aggro",
+            type_line: "Land — Anti-Aggro",
             cmc: 0,
             color_identity: []
         });
@@ -2548,23 +2667,35 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
         // Contra Control: Tierra utilitaria para grindear sin perder ventaja de cartas
         const mainColors = Array.from(colors).filter(c => c !== 'C' && c !== '');
         const pColor = mainColors.length > 0 ? mainColors[0] : 'C';
-        const antiControlLand = isStandard ? 
-            ((pColor === 'W') ? "Eiganjo, Seat of the Empire" :
-             (pColor === 'U') ? "Otawara, Soaring City" :
-             (pColor === 'B') ? "Takenuma, Abandoned Mire" :
-             (pColor === 'R') ? "Sokenzan, Crucible of Defiance" :
-             (pColor === 'G') ? "Boseiju, Who Endures" : "Mirrex") :
-            ((pColor === 'W') ? "Castle Ardenvale" :
-             (pColor === 'U') ? "Castle Vantress" :
-             (pColor === 'B') ? "Castle Locthwain" :
-             (pColor === 'R') ? "Den of the Bugbear" :
-             (pColor === 'G') ? "Lair of the Hydra" : "Mutavault");
+        let antiControlLand;
+        if (activeRarityMode === 'pauper' || activeRarityMode === 'artisan') {
+            antiControlLand = 
+                (pColor === 'W') ? "Secluded Steppe" :
+                (pColor === 'U') ? "Lonely Sandbar" :
+                (pColor === 'B') ? "Polluted Mire" :
+                (pColor === 'R') ? "Forgotten Cave" :
+                (pColor === 'G') ? "Tranquil Thicket" : "Ash Barrens";
+        } else if (isStandard) {
+            antiControlLand = 
+                (pColor === 'W') ? "Eiganjo, Seat of the Empire" :
+                (pColor === 'U') ? "Otawara, Soaring City" :
+                (pColor === 'B') ? "Takenuma, Abandoned Mire" :
+                (pColor === 'R') ? "Sokenzan, Crucible of Defiance" :
+                (pColor === 'G') ? "Boseiju, Who Endures" : "Mirrex";
+        } else {
+            antiControlLand = 
+                (pColor === 'W') ? "Castle Ardenvale" :
+                (pColor === 'U') ? "Castle Vantress" :
+                (pColor === 'B') ? "Castle Locthwain" :
+                (pColor === 'R') ? "Den of the Bugbear" :
+                (pColor === 'G') ? "Lair of the Hydra" : "Mutavault";
+        }
         
         sideboard.push({
             name: antiControlLand,
             quantity: 1,
             category: "Land",
-            type_line: "Land â€” Utility/Manland",
+            type_line: "Land — Utility/Manland",
             cmc: 0,
             color_identity: [pColor]
         });
@@ -3328,11 +3459,15 @@ export function assemblerLoop(rankedCards, blueprint, mergedCoreAndMustInclude, 
       const alreadyUsed = poolCard.name ? (usedNames.get(poolCard.name.toLowerCase()) || 0) : 0;
       if (alreadyUsed >= maxLimit) continue;
 
-      const proLimit = getProCopiesForCard(poolCard, role.name, ragPool, formData);
-      if (alreadyUsed >= proLimit) continue;
+      // Preservar la cantidad sugerida por la IA si existe (Problema 2)
+      const suggestedLimit = (candidate.quantity !== undefined && candidate.quantity !== null) 
+        ? candidate.quantity 
+        : getProCopiesForCard(poolCard, role.name, ragPool, formData);
+      
+      const allowedToPlace = Math.min(suggestedLimit - alreadyUsed, maxLimit - alreadyUsed);
+      if (allowedToPlace <= 0) continue;
 
-      let targetCopies = proLimit - alreadyUsed;
-      targetCopies = Math.min(targetCopies, role.remaining);
+      let targetCopies = Math.min(allowedToPlace, role.remaining);
 
       if (poolCard.functionalTag) {
         const tagTotal = deck
@@ -3362,7 +3497,7 @@ export function assemblerLoop(rankedCards, blueprint, mergedCoreAndMustInclude, 
       addLog(`[ENSAMBLADOR] IA no completó el rol "${role.name}". Buscando en RAG Pool fallback...`);
       const isCreatureRole = role.name.toLowerCase().includes('creature') || role.finisherQuality === 'finisher';
       
-      const fallbacks = ragPool
+      const cmcFilteredFallbacks = ragPool
         .filter(p => p && typeof p.name === 'string' && !usedNames.has(p.name.toLowerCase()))
         .filter(p => {
           const typeLower = (p.type_line || '').toLowerCase();
@@ -3385,8 +3520,25 @@ export function assemblerLoop(rankedCards, blueprint, mergedCoreAndMustInclude, 
             }
           }
           return true;
-        })
-        .sort((a, b) => b.score - a.score);
+        });
+
+      // Intentar filtrar por CMC del rol (Problema 3)
+      let fallbacks = cmcFilteredFallbacks.filter(p => {
+        const cmc = p.mana_value !== undefined ? p.mana_value : (p.cmc || 0);
+        if (role.cmcCategory === '1') return cmc === 1;
+        if (role.cmcCategory === '2') return cmc === 2;
+        if (role.cmcCategory === '3') return cmc === 3;
+        if (role.cmcCategory === '4+') return cmc >= 4;
+        if (role.cmcCategory === '5+') return cmc >= 5;
+        return true;
+      });
+
+      if (fallbacks.length === 0) {
+        addLog(`[ENSAMBLADOR] Fallback de CMC estricto (${role.cmcCategory}) vacío para rol "${role.name}". Relajando restricción.`);
+        fallbacks = cmcFilteredFallbacks;
+      }
+
+      fallbacks.sort((a, b) => b.score - a.score);
 
       for (const fb of fallbacks) {
         if (role.remaining <= 0) break;
@@ -3703,12 +3855,16 @@ Diseña el plano estructural perfecto y a medida para este mazo.
   ${getArchetypePhilosophyPrompt(formData.archetype)}
   ${getStrategySynergyPrompt(strategyId)}
 
+  REGLA DE ORO TRIBAL: Si la tribu no es "none" (ej. Slivers, Goblins), el 85-90% de tus roles DEBEN estar diseñados explícitamente para ser rellenados por CRIATURAS DE ESA TRIBU (ej. "core_tribal_lords", "tribal_utility", "tribal_aggro"). PROHIBIDO crear roles para encantamientos, conjuros genéricos o "motores de tokens" abstractos, ya que diluyen la masa crítica de criaturas que exige una Tribu.
+
 Define las cantidades exactas de cartas para cada rol estratégico clave en una estructura basada en objetos. Cada rol DEBE detallar:
 - name: Nombre corto descriptivo del rol (ej: "early_interaction", "core_tribal_lords", "premium_finisher").
 - quantity: Cantidad de copias de cartas asignadas a este rol.
 - cmcCategory: El rango de coste objetivo, que debe ser uno de: "1", "2", "3", "4", "4+", "5+", "any".
 - finisherQuality: "finisher" para cartas que actúan como rematadores premium de la partida (que idealmente deberían ser legendarias o míticas de alto impacto) o "standard" para cartas de soporte común.
 - purposeDescription: Propósito del rol y cómo se adapta a la curva y estrategia seleccionada. Â¡MUY IMPORTANTE! NO MENCIONES NOMBRES DE CARTAS ESPECÁFICAS AQUÁ. Mantén la descripción 100% abstracta y conceptual (ej: "motores de sacrificio de coste 1" en lugar de "como Viscera Seer").
+
+- search_query: Escribe la consulta ideal en sintaxis de Scryfall o etiqueta semántica para encontrar cartas para este rol. DEBES USAR TAGS (ej. o:flying, oracletag:cost-reducer, t:creature, function:removal). ¡Se creativo y específico al formato!
 
 La suma de las cantidades de todos los roles debe ser exactamente igual a totalSpells (típicamente entre 36 y 40). NUNCA incluyas tierras.
 `;
@@ -3725,6 +3881,17 @@ La suma de las cantidades de todos los roles debe ser exactamente igual a totalS
         addLog(`[BLUEPRINT AI] Error generando Blueprint Dinámico, usando Fallback: ${err.message}`);
     }
 
+    // --- NUEVO FASE 3: OBTENER ADN COMPETITIVO (Inspiración Híbrida) ---
+    let dnaSkeleton = null;
+    try {
+      dnaSkeleton = await obtenerEsqueletoDNA(formData.archetype, strategyId, formData.format || 'MODERN', formData.colores);
+      if (dnaSkeleton) {
+        addLog(`[DNA] ADN competitivo detectado con ${dnaSkeleton.length} cartas de esqueleto.`);
+      }
+    } catch(e) {
+      addLog(`[DNA] Error buscando ADN: ${e.message}`);
+    }
+
     // 1. Carga de allCards
     onProgress('strategist', '📚 Cargando catálogo completo de la biblioteca...');
     const allCards = await getAllCards();
@@ -3737,6 +3904,23 @@ La suma de las cantidades de todos los roles debe ser exactamente igual a totalS
 
     // 2. Inyectar Core y mezclar con Must-Includes
     onProgress('strategist', 'ðŸ§¬ Inyectando Núcleos de Estrategia y Requisitos obligatorios...');
+    
+    // --- NUEVO: Inyectar Combos Dinámicos ---
+    const dynamicCombos = await buscarCombosDinamicos(strategyId, formData.format || 'MODERN');
+    if (dynamicCombos.length > 0) {
+      addLog(`[COMBOS] Inyectando ${dynamicCombos.length} combos desde Commander Spellbook.`);
+      const comboCardsList = [];
+      dynamicCombos.forEach(combo => {
+        combo.cards.forEach(c => comboCardsList.push(c.name));
+      });
+      const comboCardsText = comboCardsList.join(',');
+      
+      if (formData.mustInclude) {
+        formData.mustInclude += `,${comboCardsText}`;
+      } else {
+        formData.mustInclude = comboCardsText;
+      }
+    }
     const coreCards = injectCorePackage(strategyId, formData.colores || [], formData.format || 'MODERN', allCards);
     const mergedCoreAndMustInclude = mergeUserMustIncludeWithCore(formData.mustInclude, coreCards, allCards, formData.format || 'MODERN', blueprint.totalSpells, addLog);
     const injectedCoreNames = mergedCoreAndMustInclude.filter(c => c && typeof c.name === 'string').map(c => c.name);
@@ -3748,7 +3932,9 @@ La suma de las cantidades de todos los roles debe ser exactamente igual a totalS
     const ragResult = await buildCardPool({
       ...formData,
       injectedCoreNames,
-      excludedNames
+      excludedNames,
+      blueprintRoles: blueprint.roles,
+      dnaSkeleton: dnaSkeleton
     });
     const poolText = ragResult.pool.map(c => `- ${c.name} (CMC: ${c.mana_value}, Tipo: ${c.type_line}, Meta: ${c.metaPercent}%, Sinergia: ${c.score})`).join('\n');
     addLog(`RAG pool seleccionado con ${ragResult.pool.length} cartas.`);
@@ -3824,7 +4010,9 @@ La suma de las cantidades de todos los roles debe ser exactamente igual a totalS
       tribe: formData.tribe,
       strategy: formData.strategy || strategyId,
       userPrompt: formData.prompt,
-      archData: archetypeObj
+      archData: archetypeObj,
+      dnaSkeleton: dnaSkeleton,
+      rarityMode: activeRarityMode
     };
 
     const runAgenticPhase = async (phaseName, targetRoles, attemptName) => {
@@ -3847,6 +4035,7 @@ La suma de las cantidades de todos los roles debe ser exactamente igual a totalS
             { role: 'user', content: contextGen_Prompt }
         ], aiConfig, { 
           forceJSON: true, maxTokens: 4000, schema: GEMINI_PHASE_SCHEMA,
+          tools: DECK_BUILDER_TOOLS,
           onRetry: (attempt, delay, status) => {
             onProgress('assembler', `⏳ ${phaseName} saturada (${status}). Reintento ${attempt}...`);
             addLog(`[Retry ${phaseName}] Intento ${attempt}, status: ${status}`);
@@ -3875,11 +4064,83 @@ La suma de las cantidades de todos los roles debe ser exactamente igual a totalS
 
     addLog("[AGENTIC FLOW] Todas las fases completadas exitosamente.");
 
-    // Transformar el resultado al formato compatible con el assemblerLoop actual
+    // --- NUEVO PASO: AUTO-CORRECCIÓN (JUEZ INTERNO) ---
+    addLog("[AGENTIC FLOW] Ejecutando Juez Interno para purgar parásitos...");
+    onProgress('assembler', '⚖️ Juez Interno revisando sinergias parasíticas...');
+    try {
+      const internalAudit = await internalSynergyAudit(currentDeckContext, formData, aiConfig);
+      if (internalAudit && internalAudit.suggestions && internalAudit.suggestions.length > 0) {
+        addLog(`[AGENTIC FLOW] El Juez Interno encontró ${internalAudit.suggestions.length} problemas de sinergia.`);
+        internalAudit.suggestions.forEach(sug => {
+          let associatedRole = null;
+          
+          if (sug.removes && sug.removes.length > 0) {
+             sug.removes.forEach(r => {
+                const targetName = r.name.toLowerCase();
+                const idx = currentDeckContext.findIndex(c => c && c.name && c.name.toLowerCase().includes(targetName));
+                if (idx !== -1) {
+                   associatedRole = currentDeckContext[idx].role;
+                   addLog(`[AGENTIC FLOW] Auto-Corrigiendo: Eliminando ${currentDeckContext[idx].name} (${r.quantity || 1}x)`);
+                   
+                   // Reducir la cantidad o eliminar la carta del contexto
+                   if (!r.quantity || currentDeckContext[idx].quantity <= r.quantity) {
+                      currentDeckContext.splice(idx, 1);
+                   } else {
+                      currentDeckContext[idx].quantity -= r.quantity;
+                   }
+                }
+             });
+          }
+          
+          if (sug.adds && sug.adds.length > 0 && associatedRole) {
+             sug.adds.forEach(a => {
+                const dbCard = allCards.find(ac => ac && ac.name && ac.name.toLowerCase() === a.name.toLowerCase());
+                if (dbCard) {
+                   addLog(`[AGENTIC FLOW] Auto-Corrigiendo: Añadiendo ${dbCard.name} (${a.quantity || 1}x) para el rol "${associatedRole}"`);
+                   currentDeckContext.push({
+                      name: dbCard.name,
+                      quantity: a.quantity || 1,
+                      category: dbCard.type_line?.toLowerCase().includes('creature') ? 'Creature' : (dbCard.type_line?.toLowerCase().includes('instant') ? 'Instant' : 'Spell'),
+                      cmc: dbCard.mana_value || dbCard.cmc || 2,
+                      role: associatedRole,
+                      mana_cost: dbCard.mana_cost || '',
+                      type_line: dbCard.type_line || ''
+                   });
+
+                   // Inyectar en el RAG pool si no existe, garantizando que el assemblerLoop pueda procesarla
+                   const existsInRag = ragResult.pool.some(p => p.name.toLowerCase() === dbCard.name.toLowerCase());
+                   if (!existsInRag) {
+                      ragResult.pool.push({
+                         id: dbCard.id || `custom-${dbCard.name.replace(/\s+/g, '-').toLowerCase()}`,
+                         name: dbCard.name,
+                         mana_value: dbCard.mana_value || dbCard.cmc || 2,
+                         type_line: dbCard.type_line || '',
+                         oracle_text: dbCard.oracle_text || '',
+                         colors: dbCard.colors || [],
+                         color_identity: dbCard.color_identity || [],
+                         mana_cost: dbCard.mana_cost || '',
+                         rarity: dbCard.rarity || 'common',
+                         score: 999, // Alta prioridad por haber sido sugerida por el Juez Interno
+                         metaPercent: 0
+                      });
+                   }
+                }
+             });
+          }
+        });
+      } else {
+        addLog("[AGENTIC FLOW] Juez Interno: Sinergias limpias, no se detectaron parásitos.");
+      }
+    } catch(e) {
+      addLog(`[AGENTIC FLOW] Error en Juez Interno (Ignorando): ${e.message}`);
+    }
+
+    // Transformar el resultado al formato compatible con el assemblerLoop actual, preservando la cantidad elegida por la IA (Problema 2)
     let rankedCards = currentDeckContext.map((c, index) => ({
       name: c.name,
       role: c.role,
       priority: 1, // Prioridad 1 porque la IA eligió la cantidad exacta
+      quantity: c.quantity,
       toolbox: false
     }));
 
@@ -3909,6 +4170,16 @@ La suma de las cantidades de todos los roles debe ser exactamente igual a totalS
     strategyId,
     formData.colores || [],
     addLog
+  );
+
+  // --- NUEVO FASE 2: VALIDACIÓN DE CONDICIONES DE VICTORIA (Problema 5) ---
+  assembledSpells = validarCondicionesDeVictoria(
+    assembledSpells,
+    strategyId,
+    formData.archetype,
+    ragResult.pool,
+    addLog,
+    formData
   );
 
   let sanitizedFinals_ArraySpells = assembledSpells;
@@ -4247,3 +4518,369 @@ La suma de las cantidades de todos los roles debe ser exactamente igual a totalS
 
 
 
+
+export function validarCondicionesDeVictoria(spells, strategyId, archetype, ragPool, addLog, formData) {
+    const archLower = (archetype || '').toLowerCase();
+    const stratLower = (strategyId || '').toLowerCase();
+    
+    addLog(`[WIN-COND VALIDATOR] Iniciando auditoría de condiciones de victoria para arquetipo: ${archetype}, estrategia: ${strategyId}...`);
+    
+    const creatures = spells.filter(s => s.category === 'Creature' || s.type_line?.toLowerCase().includes('creature'));
+    
+    let needsAdjustment = false;
+    let adjustmentReason = "";
+    let targetCategory = "Creature";
+    let targetMinCmc = 1;
+    let targetMaxCmc = 3;
+    let targetRole = "win_condition";
+    let targetQuantityNeeded = 0;
+    
+    // Case 1: Aggro - Requiere al menos 12 criaturas de coste 1-3
+    const isAggro = archLower.includes('aggro') || archLower.includes('burn') || archLower.includes('affinity') || archLower.includes('prowess');
+    if (isAggro) {
+        const cheapCreatures = creatures.filter(c => c.cmc <= 3);
+        const cheapQty = cheapCreatures.reduce((sum, c) => sum + c.quantity, 0);
+        if (cheapQty < 12) {
+            needsAdjustment = true;
+            targetQuantityNeeded = 12 - cheapQty;
+            adjustmentReason = `Mazo Aggro con insuficientes criaturas baratas (${cheapQty}/12). Necesita inyectar ${targetQuantityNeeded} criaturas baratas de ataque.`;
+            targetCategory = "Creature";
+            targetMinCmc = 1;
+            targetMaxCmc = 3;
+            targetRole = "aggro_threat";
+        }
+    }
+    
+    // Case 2: Control - Requiere al menos 3 finishers (criaturas de coste >= 4, planeswalkers, o roles de finisher)
+    const isControl = archLower.includes('control') || stratLower.includes('prison') || stratLower.includes('taxes');
+    if (isControl && !needsAdjustment) {
+        const finishers = spells.filter(s => {
+            const role = (s.role || '').toLowerCase();
+            const type = (s.type_line || s.category || '').toLowerCase();
+            const cmc = s.cmc || 0;
+            return role.includes('finisher') || role.includes('win_cond') || type.includes('planeswalker') || (type.includes('creature') && cmc >= 4);
+        });
+        const finishersQty = finishers.reduce((sum, f) => sum + f.quantity, 0);
+        if (finishersQty < 3) {
+            needsAdjustment = true;
+            targetQuantityNeeded = 3 - finishersQty;
+            adjustmentReason = `Mazo de Control con insuficientes finishers (${finishersQty}/3). Necesita inyectar ${targetQuantityNeeded} finishers de lategame.`;
+            targetCategory = "Creature";
+            targetMinCmc = 4;
+            targetMaxCmc = 7;
+            targetRole = "control_finisher";
+        }
+    }
+    
+    // Case 3: Tribal - Si se especificó una tribu (y no es 'none'), al menos 12 criaturas deben ser de la tribu
+    const activeTribe = formData?.tribe;
+    const isTribal = activeTribe && activeTribe !== 'none' && activeTribe !== '';
+    let tribeSubtypes = [];
+    if (isTribal) {
+        // Encontrar el objeto de la tribu en MTG_TRIBES
+        const tribeObj = MTG_TRIBES.find(t => t.id === activeTribe || t.label === activeTribe) || null;
+        if (tribeObj && tribeObj.subtypes) {
+            tribeSubtypes = tribeObj.subtypes.map(s => s.toLowerCase());
+        } else {
+            // Fallback al singularMap clásico
+            let t = activeTribe.toLowerCase().trim();
+            const singularMap = {
+                'ninjas': 'ninja',
+                'elves': 'elf',
+                'goblins': 'goblin',
+                'faeries': 'faerie',
+                'zombies': 'zombie',
+                'merfolks': 'merfolk',
+                'merfolk': 'merfolk',
+                'slivers': 'sliver',
+                'spirits': 'spirit',
+                'humans': 'human',
+                'dragons': 'dragon',
+                'dinosaurs': 'dinosaur',
+                'vampires': 'vampire',
+                'cats': 'cat',
+                'dogs': 'dog',
+                'elementals': 'elemental',
+                'knights': 'knight',
+                'clerics': 'cleric',
+                'wizards': 'wizard',
+                'rogues': 'rogue',
+                'warriors': 'warrior',
+                'angels': 'angel',
+                'demons': 'demon'
+            };
+            let tribeLowerSingular = t;
+            if (singularMap[t]) {
+                tribeLowerSingular = singularMap[t];
+            } else if (t.endsWith('ves')) {
+                tribeLowerSingular = t.substring(0, t.length - 3) + 'f';
+            } else if (t.endsWith('ies')) {
+                tribeLowerSingular = t.substring(0, t.length - 3) + 'ie';
+            } else if (t.endsWith('s')) {
+                tribeLowerSingular = t.slice(0, -1);
+            } else {
+                tribeLowerSingular = t;
+            }
+            tribeSubtypes = [tribeLowerSingular];
+        }
+    }
+    if (isTribal && !needsAdjustment) {
+        const tribalCreatures = creatures.filter(c => {
+            if (!c.type_line) return false;
+            const typeLower = c.type_line.toLowerCase();
+            return tribeSubtypes.some(st => typeLower.includes(st));
+        });
+        const tribalQty = tribalCreatures.reduce((sum, c) => sum + c.quantity, 0);
+        if (tribalQty < 12) {
+            needsAdjustment = true;
+            targetQuantityNeeded = 12 - tribalQty;
+            adjustmentReason = `Mazo Tribal con muy pocos miembros de la tribu ${activeTribe} (${tribalQty}/12). Necesita inyectar ${targetQuantityNeeded} criaturas de tipo ${activeTribe}.`;
+            targetCategory = "Creature";
+            targetMinCmc = 1;
+            targetMaxCmc = 4;
+            targetRole = "tribal_creature";
+        }
+    }
+
+    if (!needsAdjustment) {
+        addLog(`[WIN-COND VALIDATOR] ✅ Validación superada. El mazo tiene condiciones de victoria consistentes.`);
+        return spells;
+    }
+    
+    addLog(`[WIN-COND VALIDATOR] ⚠️ Alerta: ${adjustmentReason}`);
+    
+    // Algoritmo de inyección de emergencia:
+    const allowedColors = formData?.colores || [];
+    const colorsSet = new Set(allowedColors.length > 0 ? allowedColors : ['W', 'U', 'B', 'R', 'G']);
+    
+    let candidates = ragPool.filter(c => {
+        if (!c || typeof c.name !== 'string') return false;
+        
+        // Excluir cartas custom
+        if (c.id && (c.id.startsWith('custom-') || c.id.includes('custom'))) return false;
+        const nameClean = c.name.toLowerCase().trim();
+        if (nameClean.includes("hamato") || nameClean.includes("shredder") || nameClean.includes("yoshi") || nameClean.includes("oroku saki") || nameClean.includes("splinter, ")) {
+            return false;
+        }
+
+        if (spells.some(s => s.name.toLowerCase() === nameClean)) return false;
+        
+        const typeLower = (c.type_line || '').toLowerCase();
+        if (typeLower.includes("land")) return false;
+        const poolIsCreature = typeLower.includes("creature");
+        if (targetCategory === "Creature" && !poolIsCreature) return false;
+        
+        const cmc = c.mana_value !== undefined ? c.mana_value : (c.cmc || 0);
+        if (cmc < targetMinCmc || cmc > targetMaxCmc) return false;
+        
+        const cardColors = c.colors || [];
+        if (cardColors.length > 0 && !cardColors.every(col => colorsSet.has(col))) return false;
+        
+        if (isTribal) {
+            if (!tribeSubtypes.some(st => typeLower.includes(st))) return false;
+        }
+        
+        return true;
+    });
+    
+    candidates.sort((a, b) => (b.score || 0) - (a.score || 0));
+    
+    if (candidates.length === 0) {
+        addLog(`[WIN-COND VALIDATOR] No se encontraron candidatos ideales en el RAG pool. Relajando restricciones de inyección.`);
+        candidates = ragPool.filter(c => {
+            if (!c || typeof c.name !== 'string') return false;
+            
+            // Excluir cartas custom
+            if (c.id && (c.id.startsWith('custom-') || c.id.includes('custom'))) return false;
+            const nameClean = c.name.toLowerCase().trim();
+            if (nameClean.includes("hamato") || nameClean.includes("shredder") || nameClean.includes("yoshi") || nameClean.includes("oroku saki") || nameClean.includes("splinter, ")) {
+                return false;
+            }
+
+            if (spells.some(s => s.name.toLowerCase() === nameClean)) return false;
+            const typeLower = (c.type_line || '').toLowerCase();
+            return typeLower.includes("creature");
+        }).sort((a, b) => (b.score || 0) - (a.score || 0));
+    }
+    
+    let addedCount = 0;
+    let index = 0;
+    const cardsAdded = [];
+    
+    while (addedCount < targetQuantityNeeded && index < candidates.length) {
+        const candidate = candidates[index++];
+        const qtyToAdd = Math.min(targetQuantityNeeded - addedCount, 4);
+        
+        cardsAdded.push({
+            name: candidate.name,
+            quantity: qtyToAdd,
+            category: candidate.type_line?.toLowerCase().includes('creature') ? 'Creature' : 'Spell',
+            cmc: candidate.mana_value || 2,
+            role: targetRole,
+            mana_cost: candidate.mana_cost || '',
+            type_line: candidate.type_line || ''
+        });
+        
+        addedCount += qtyToAdd;
+        addLog(`[WIN-COND VALIDATOR] Inyección de emergencia: +${qtyToAdd}x "${candidate.name}" (CMC ${candidate.mana_value}) como "${targetRole}"`);
+    }
+    
+    if (addedCount === 0) {
+        addLog(`[WIN-COND VALIDATOR] ❌ Error: No se pudo inyectar ninguna condición de victoria. Mazo sin modificar.`);
+        return spells;
+    }
+    
+    let spellsResult = [...spells];
+    let toTrim = addedCount;
+    
+    const trimmableRoles = ['filler', 'cantrip', 'interaction', 'removal', 'protection', 'utility'];
+    
+    spellsResult.sort((a, b) => {
+        const isMustA = a.isMustInclude || a.isCore ? 1 : 0;
+        const isMustB = b.isMustInclude || b.isCore ? 1 : 0;
+        if (isMustA !== isMustB) return isMustA - isMustB;
+        
+        const roleA = (a.role || '').toLowerCase();
+        const roleB = (b.role || '').toLowerCase();
+        const isTrimA = trimmableRoles.some(r => roleA.includes(r)) ? 0 : 1;
+        const isTrimB = trimmableRoles.some(r => roleB.includes(r)) ? 0 : 1;
+        if (isTrimA !== isTrimB) return isTrimA - isTrimB;
+        
+        return a.cmc - b.cmc;
+    });
+    
+    for (let card of spellsResult) {
+        if (toTrim <= 0) break;
+        const minCopies = card.role === 'filler' ? 0 : 1;
+        const canTrim = card.quantity - minCopies;
+        if (canTrim > 0) {
+            const trimQty = Math.min(canTrim, toTrim);
+            card.quantity -= trimQty;
+            toTrim -= trimQty;
+            addLog(`[WIN-COND VALIDATOR] Recortadas ${trimQty} copias de "${card.name}" para acomodar la inyección.`);
+        }
+    }
+    
+    if (toTrim > 0) {
+        for (let i = spellsResult.length - 1; i >= 0; i--) {
+            if (toTrim <= 0) break;
+            const card = spellsResult[i];
+            if (!card.isMustInclude && !card.isCore) {
+                const trimQty = Math.min(card.quantity, toTrim);
+                card.quantity -= trimQty;
+                toTrim -= trimQty;
+                addLog(`[WIN-COND VALIDATOR] Remoción completa: -${trimQty}x "${card.name}" para acomodar la inyección.`);
+            }
+        }
+    }
+    
+    spellsResult = spellsResult.filter(c => c.quantity > 0);
+    spellsResult.push(...cardsAdded);
+    
+    return spellsResult;
+}
+
+export async function obtenerEsqueletoDNA(archetype, strategyId, format, colors) {
+  const normArch = (archetype || '').toLowerCase().trim();
+  const normStrat = (strategyId || '').toLowerCase().trim();
+  const formatKey = (format || 'MODERN').toUpperCase();
+  const colorsSet = new Set(colors && colors.length > 0 ? colors : []);
+
+  console.log(`[DNA MOTOR] Buscando ADN competitivo para arquetipo: ${archetype}, formato: ${format}...`);
+
+  // 1. Intentar buscar en el Grafo Semántico de Obsidian (public/data/synergy_graph.json)
+  try {
+    const graphResponse = await fetch('/data/synergy_graph.json');
+    if (graphResponse.ok) {
+      const graph = await graphResponse.json();
+      if (graph.decks) {
+        // Encontrar barajas que coincidan con el arquetipo y formato
+        const matchedDecks = Object.values(graph.decks).filter(deck => {
+          const deckArch = (deck.archetype || '').replace(/[\[\]]/g, '').trim().toLowerCase();
+          const deckFormat = (deck.format || '').toUpperCase();
+          if (!deckArch || !normArch) return false;
+          return (deckArch === normArch || normArch.includes(deckArch)) && deckFormat === formatKey;
+        });
+
+        if (matchedDecks.length > 0) {
+          matchedDecks.sort((a, b) => {
+            return b.cards.length - a.cards.length; 
+          });
+          const bestDeck = matchedDecks[0];
+          console.log(`[DNA MOTOR] ¡ADN Encontrado en Obsidian! Mazo: "${bestDeck.name}" por el jugador: ${bestDeck.player}`);
+          return bestDeck.cards;
+        }
+      }
+    }
+  } catch (err) {
+    console.warn(`[DNA MOTOR] No se pudo leer el grafo de Obsidian. Probando Mocks.`, err);
+  }
+
+  // 2. Intentar buscar en MOCK_METAGAME_DECKS de mtgtop8Service
+  try {
+    const { MOCK_METAGAME_DECKS } = await import('./mtgtop8Service.js');
+    const mockDecks = MOCK_METAGAME_DECKS[formatKey] || [];
+    const matchedMock = mockDecks.find(d => {
+      const nameLower = d.name.toLowerCase();
+      if (normStrat === 'ninjutsu' && (nameLower.includes('ninja') || nameLower.includes('ninjutsu'))) {
+        return true;
+      }
+      const matchArch = normArch && (nameLower.includes(normArch) || normArch.includes(nameLower));
+      const matchStrat = normStrat && (nameLower.includes(normStrat) || normStrat.includes(nameLower));
+      return matchArch || matchStrat;
+    });
+
+    if (matchedMock) {
+      console.log(`[DNA MOTOR] ¡ADN Encontrado en Mocks Competitivos! Mazo: "${matchedMock.name}"`);
+      return matchedMock.main;
+    }
+  } catch (err) {
+    console.warn(`[DNA MOTOR] Error cargando Mocks de metajuego:`, err);
+  }
+
+  return null;
+}
+
+export async function buscarCombosDinamicos(strategy, format) {
+  console.log(`🔌 Buscando combos dinámicos para estrategia '${strategy}' en formato '${format}'...`);
+  
+  const searchQueryMap = {
+    'twin': 'Splinter Twin',
+    'kiki': 'Kiki-Jiki',
+    'storm': 'Grapeshot',
+    'yawgmoth': 'Yawgmoth, Thran Physician',
+    'devoted': 'Devoted Druid',
+    'heliod': 'Heliod, Sun-Crowned',
+    'thopter': 'Thopter Foundry'
+  };
+  
+  const query = searchQueryMap[strategy] || strategy;
+  const url = `https://backend.commanderspellbook.com/variants/?q=cards="${encodeURIComponent(query)}"`;
+  
+  try {
+    const response = await fetch(url);
+    if (!response.ok) return [];
+    
+    const data = await response.json();
+    const combos = [];
+    
+    if (data.results && data.results.length > 0) {
+      for (let i = 0; i < Math.min(data.results.length, 2); i++) {
+        const comboData = data.results[i];
+        const cards = comboData.uses.map(u => u.card.name);
+        
+        if (cards.length > 3) continue;
+        
+        combos.push({
+          id: `dynamic_${strategy}_${i}`,
+          name: `Combo de ${cards[0]}`,
+          cards: cards.map(c => ({ name: c, quantity: 4, role: 'combo_piece' }))
+        });
+      }
+    }
+    return combos;
+  } catch (error) {
+    console.error("Error fetching combos from Spellbook:", error);
+    return [];
+  }
+}

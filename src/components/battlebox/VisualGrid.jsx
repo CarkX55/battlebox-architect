@@ -172,6 +172,7 @@ function CategorySection({ title, icon: Icon, cards, onRemove, onAdd, isEditing 
 
 export default function VisualGrid({ cards, onRemoveCard, onAddCard, isEditing, isMainDeck, onAudit, isAuditing, auditResult, onCloseAudit, onOptimize }) {
   const [selectedSuggestions, setSelectedSuggestions] = useState(new Set());
+  const [selectedDropdownOptions, setSelectedDropdownOptions] = useState({});
 
   useEffect(() => {
     if (auditResult && auditResult.suggestions) {
@@ -322,7 +323,7 @@ export default function VisualGrid({ cards, onRemoveCard, onAddCard, isEditing, 
               {/* Body */}
               <div className="p-6 overflow-y-auto space-y-6">
                 <div className="bg-black/40 p-5 rounded-2xl border border-white/5 text-sm text-gray-300 italic font-serif leading-relaxed border-l-4 border-l-purple-500">
-                  "{auditResult.verdict}"
+                  <RichTextWithHover text={`"${auditResult.verdict}"`} deckCards={safeCards} />
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -383,15 +384,71 @@ export default function VisualGrid({ cards, onRemoveCard, onAddCard, isEditing, 
                       {auditResult.suggestions.map((sug, i) => (
                         <li 
                           key={i} 
-                          className="flex gap-3 text-sm items-start cursor-pointer group"
-                          onClick={() => toggleSuggestion(i)}
+                          className="flex gap-3 text-sm items-start group"
                         >
-                          <div className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${selectedSuggestions.has(i) ? 'bg-emerald-500 border-emerald-500' : 'border-emerald-500/50 bg-transparent'}`}>
+                          <div 
+                            className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors cursor-pointer ${selectedSuggestions.has(i) ? 'bg-emerald-500 border-emerald-500' : 'border-emerald-500/50 bg-transparent'}`}
+                            onClick={() => toggleSuggestion(i)}
+                          >
                              {selectedSuggestions.has(i) && <Check size={12} className="text-black stroke-[3]" />}
                           </div>
-                          <span className={`transition-colors flex-1 leading-relaxed ${selectedSuggestions.has(i) ? 'text-emerald-200/90' : 'text-emerald-200/50 line-through'}`}>
-                            <RichTextWithHover text={sug.text || sug} deckCards={safeCards} />
-                          </span>
+                          <div className="flex-1">
+                            <span className={`transition-colors block leading-relaxed ${selectedSuggestions.has(i) ? 'text-emerald-200/90' : 'text-emerald-200/50 line-through'}`}>
+                              <RichTextWithHover text={sug.text || sug} deckCards={safeCards} />
+                            </span>
+                            
+                            {/* Explicit Removes display */}
+                            {sug.removes && sug.removes.length > 0 && (
+                              <div className="mt-2 flex flex-wrap gap-2 items-center">
+                                <span className="text-red-400 font-bold uppercase text-[10px]">Se eliminará:</span>
+                                {sug.removes.filter(r => r.quantity > 0).map((r, idx) => (
+                                  <span key={idx} className="bg-red-950/40 border border-red-500/30 text-red-200 px-2 py-0.5 rounded text-xs shadow-sm">
+                                    <RichTextWithHover text={`-${r.quantity}x [[${r.name}]]`} deckCards={safeCards} />
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* Explicit Adds display (only if there are no alternatives) */}
+                            {(!sug.addOptions || sug.addOptions.length === 0) && sug.adds && sug.adds.length > 0 && (
+                              <div className="mt-1.5 flex flex-wrap gap-2 items-center">
+                                <span className="text-emerald-400 font-bold uppercase text-[10px]">Se añadirá:</span>
+                                {sug.adds.filter(a => a.quantity > 0).map((a, idx) => (
+                                  <span key={idx} className="bg-emerald-950/40 border border-emerald-500/30 text-emerald-200 px-2 py-0.5 rounded text-xs shadow-sm">
+                                    <RichTextWithHover text={`+${a.quantity}x [[${a.name}]]`} deckCards={safeCards} />
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                            {sug.addOptions && sug.addOptions.length > 0 && (
+                              <div className="mt-2 pl-2 border-l border-emerald-500/30">
+                                <span className="text-[10px] uppercase text-emerald-400 font-bold block mb-2">Elegir Alternativa:</span>
+                                <div className="flex flex-col gap-2">
+                                  {sug.addOptions.map((optGroup, optIdx) => {
+                                    const isSelected = (selectedDropdownOptions[i] || 0) === optIdx;
+                                    const isDisabled = !selectedSuggestions.has(i);
+                                    const validOptions = optGroup.filter(c => c.quantity > 0);
+                                    if (validOptions.length === 0) return null;
+                                    const optionText = validOptions.map(c => `${c.quantity}x [[${c.name}]]`).join(' + ');
+                                    return (
+                                      <div
+                                        key={optIdx}
+                                        onClick={() => { if(!isDisabled) setSelectedDropdownOptions(prev => ({...prev, [i]: optIdx})) }}
+                                        className={`text-left px-3 py-2 rounded-lg text-xs transition-all border flex items-center gap-3 cursor-pointer ${isSelected ? "bg-emerald-900/40 border-emerald-500/50 shadow-inner" : "bg-black/40 border-white/10 hover:border-emerald-500/30 hover:bg-emerald-950/20"} ${isDisabled ? "opacity-50 cursor-not-allowed pointer-events-none" : ""}`}
+                                      >
+                                        <div className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center shrink-0 ${isSelected ? "border-emerald-400" : "border-gray-500"}`}>
+                                          {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />}
+                                        </div>
+                                        <span className={isSelected ? "text-emerald-100" : "text-gray-400"}>
+                                          <RichTextWithHover text={optionText} deckCards={safeCards} />
+                                        </span>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+                          </div>
                         </li>
                       ))}
                     </ul>
@@ -406,7 +463,17 @@ export default function VisualGrid({ cards, onRemoveCard, onAddCard, isEditing, 
                     onClick={() => {
                       const filteredAuditResult = {
                         ...auditResult,
-                        suggestions: auditResult.suggestions.filter((_, i) => selectedSuggestions.has(i)),
+                        suggestions: auditResult.suggestions.filter((_, i) => selectedSuggestions.has(i)).map(sug => {
+                          const originalIndex = auditResult.suggestions.indexOf(sug);
+                          if (sug.addOptions && sug.addOptions.length > 0) {
+                            const chosenIndex = selectedDropdownOptions[originalIndex] || 0;
+                            return {
+                              ...sug,
+                              adds: sug.addOptions[chosenIndex]
+                            };
+                          }
+                          return sug;
+                        }),
                         applyProgrammatically: true
                       };
                       onOptimize(filteredAuditResult);

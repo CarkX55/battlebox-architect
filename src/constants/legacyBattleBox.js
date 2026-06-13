@@ -287,7 +287,7 @@ export const BATTLEBOX_RULES = {
 export const MTG_TRIBES = [
   // TRIBUS CLÁSICAS
   { id: 'human', label: 'Humanos', category: 'clasica', colors: ['W', 'U', 'B', 'R', 'G'], primaryColor: 'W', strategies: ['tokens', 'voltron'], archetypes: ['aggro', 'midrange', 'combo', 'prison'], subtypes: ['human'] },
-  { id: 'elf', label: 'Elfos', category: 'clasica', colors: ['G', 'B', 'W'], primaryColor: 'G', strategies: ['tokens', 'combo'], archetypes: ['aggro', 'midrange', 'combo', 'ramp'], subtypes: ['elf'] },
+  { id: 'elf', label: 'Elfos', category: 'clasica', colors: ['G', 'B', 'W'], primaryColor: 'G', strategies: ['tokens', 'toolbox'], archetypes: ['aggro', 'midrange', 'combo', 'ramp'], subtypes: ['elf'] },
   { id: 'goblin', label: 'Goblins', category: 'clasica', colors: ['R', 'B', 'G'], primaryColor: 'R', strategies: ['tokens', 'aristocrats'], archetypes: ['aggro', 'midrange'], subtypes: ['goblin'] },
   { id: 'merfolk', label: 'Tritones (Merfolk)', category: 'clasica', colors: ['U', 'G'], primaryColor: 'U', strategies: ['blink', 'tokens'], archetypes: ['aggro', 'tempo', 'midrange'], subtypes: ['merfolk'] },
   { id: 'zombie', label: 'Zombies', category: 'clasica', colors: ['B', 'U'], primaryColor: 'B', strategies: ['aristocrats', 'reanimator', 'tokens'], archetypes: ['aggro', 'midrange', 'combo'], subtypes: ['zombie'] },
@@ -302,7 +302,7 @@ export const MTG_TRIBES = [
   { id: 'rogue', label: 'Pícaros (Rogues)', category: 'vocacion', colors: ['U', 'B'], primaryColor: ['U', 'B'], strategies: ['aristocrats'], archetypes: ['aggro', 'tempo', 'midrange', 'combo'], subtypes: ['rogue'] },
   { id: 'shaman', label: 'Chamanes', category: 'vocacion', colors: ['G', 'R', 'B'], primaryColor: 'G', strategies: ['tokens', 'landfall'], archetypes: ['midrange', 'combo'], subtypes: ['shaman'] },
   { id: 'druid', label: 'Druidas', category: 'vocacion', colors: ['G', 'W'], primaryColor: 'G', strategies: ['tokens', 'landfall'], archetypes: ['midrange', 'combo', 'ramp'], subtypes: ['druid'] },
-  { id: 'ninja', label: 'Ninjas', category: 'vocacion', colors: ['U', 'B'], primaryColor: ['U', 'B'], strategies: ['tempo', 'blink'], archetypes: ['tempo', 'midrange'], subtypes: ['ninja'], formats: ['MODERN'] },
+  { id: 'ninja', label: 'Ninjas', category: 'vocacion', colors: ['U', 'B'], primaryColor: ['U', 'B'], strategies: ['ninjutsu', 'blink'], archetypes: ['tempo', 'midrange'], subtypes: ['ninja'], formats: ['MODERN'] },
 
   // MONSTRUOS
   { id: 'angel', label: 'Ángeles', category: 'monstruo', colors: ['W', 'R', 'B'], primaryColor: 'W', strategies: ['lifegain', 'blink', 'reanimator'], archetypes: ['midrange', 'combo', 'control'], subtypes: ['angel'] },
@@ -313,18 +313,18 @@ export const MTG_TRIBES = [
 
   // EXÓTICAS
   { id: 'eldrazi', label: 'Eldrazi (Eldrazi Tron / Aggro)', category: 'exotica', colors: ['W', 'U', 'B', 'R', 'G', 'C'], primaryColor: 'C', strategies: ['tokens', 'blink'], archetypes: ['aggro', 'midrange', 'prison', 'ramp'], subtypes: ['eldrazi'], formats: ['MODERN'] },
-  { id: 'faerie', label: 'Hadas (Faeries)', category: 'exotica', colors: ['U', 'B'], primaryColor: 'U', strategies: ['blink', 'tempo'], archetypes: ['tempo', 'midrange', 'control'], subtypes: ['faerie', 'fairy'] },
+  { id: 'faerie', label: 'Hadas (Faeries)', category: 'exotica', colors: ['U', 'B'], primaryColor: 'U', strategies: ['blink', 'spellslinger'], archetypes: ['tempo', 'midrange', 'control'], subtypes: ['faerie', 'fairy'] },
   { id: 'constructs', label: 'Constructos & Myr (Affinity)', category: 'exotica', colors: ['C', 'U', 'R', 'W'], primaryColor: 'C', strategies: ['tokens', 'vehicles'], archetypes: ['aggro', 'midrange', 'combo', 'prison'], subtypes: ['construct', 'myr', 'golem', 'thopter'], formats: ['MODERN'] },
-  { id: 'sliver-5c', label: 'Slivers (Pentacolor 5C)', category: 'exotica', colors: ['W', 'U', 'B', 'R', 'G'], primaryColor: ['W', 'U', 'B', 'R', 'G'], strategies: ['tokens', 'combo'], archetypes: ['aggro', 'midrange', 'combo', 'tempo'], subtypes: ['sliver'], formats: ['MODERN'] },
-  { id: 'sliver-bant', label: 'Slivers (Bant/Naya Base)', category: 'exotica', colors: ['W', 'U', 'G', 'R'], primaryColor: ['G', 'W'], strategies: ['tokens', 'combo'], archetypes: ['aggro', 'midrange', 'combo', 'tempo'], subtypes: ['sliver'], formats: ['MODERN'] },
+  { id: 'sliver-5c', label: 'Slivers (Pentacolor 5C)', category: 'exotica', colors: ['W', 'U', 'B', 'R', 'G'], primaryColor: ['W', 'U', 'B', 'R', 'G'], strategies: ['tokens', 'slivers'], archetypes: ['aggro', 'midrange', 'combo', 'tempo'], subtypes: ['sliver'], formats: ['MODERN'] },
+  { id: 'sliver-bant', label: 'Slivers (Bant/Naya Base)', category: 'exotica', colors: ['W', 'U', 'G', 'R'], primaryColor: ['G', 'W'], strategies: ['tokens', 'slivers'], archetypes: ['aggro', 'midrange', 'combo', 'tempo'], subtypes: ['sliver'], formats: ['MODERN'] },
 
   // ALIANZAS Y MEZCLAS TEMÁTICAS
-  { id: 'outlaws', label: '⚖️ Forajidos (Asesinos, Mercenarios, Piratas, Pícaros)', category: 'alianza', colors: ['B', 'R', 'U'], primaryColor: 'B', strategies: ['aristocrats', 'tempo', 'tokens'], archetypes: ['aggro', 'tempo', 'midrange'], subtypes: ['assassin', 'mercenary', 'pirate', 'rogue', 'warlock'] },
-  { id: 'party', label: '🎲 Grupo de Aventura (Clérigo, Pícaro, Guerrero, Mago)', category: 'alianza', colors: ['W', 'U', 'B', 'R', 'G'], primaryColor: ['W', 'U', 'B', 'R'], strategies: ['midrange', 'tempo', 'aggro', 'blink'], archetypes: ['midrange'], subtypes: ['cleric', 'rogue', 'warrior', 'wizard'] },
+  { id: 'outlaws', label: '⚖️ Forajidos (Asesinos, Mercenarios, Piratas, Pícaros)', category: 'alianza', colors: ['B', 'R', 'U'], primaryColor: 'B', strategies: ['aristocrats', 'ninjutsu', 'tokens'], archetypes: ['aggro', 'tempo', 'midrange'], subtypes: ['assassin', 'mercenary', 'pirate', 'rogue', 'warlock'] },
+  { id: 'party', label: '🎲 Grupo de Aventura (Clérigo, Pícaro, Guerrero, Mago)', category: 'alianza', colors: ['W', 'U', 'B', 'R', 'G'], primaryColor: ['W', 'U', 'B', 'R'], strategies: ['blink', 'toolbox'], archetypes: ['midrange'], subtypes: ['cleric', 'rogue', 'warrior', 'wizard'] },
   { id: 'human_army', label: '⚔️ Ejército (Humanos, Soldados, Caballeros)', category: 'alianza', colors: ['W', 'R'], primaryColor: 'W', strategies: ['tokens', 'voltron'], archetypes: ['aggro', 'midrange', 'prison'], subtypes: ['human', 'soldier', 'knight'] },
   { id: 'goblin_horde', label: '🔥 Horda (Goblins, Orcos, Ogros)', category: 'alianza', colors: ['R', 'B'], primaryColor: 'R', strategies: ['tokens', 'aristocrats'], archetypes: ['aggro', 'midrange'], subtypes: ['goblin', 'orc', 'ogre'] },
   { id: 'elf_druid', label: '🌿 Naturaleza (Elfos, Druidas, Elementales)', category: 'alianza', colors: ['G', 'R', 'U'], primaryColor: 'G', strategies: ['tokens', 'landfall'], archetypes: ['midrange', 'combo', 'ramp'], subtypes: ['elf', 'druid', 'elemental'] },
-  { id: 'sea_monsters', label: '🌊 Terrores Marinos (Tritones, Krakens, Leviatanes)', category: 'alianza', colors: ['U', 'G'], primaryColor: 'U', strategies: ['tempo', 'combo', 'blink'], archetypes: ['tempo', 'midrange', 'combo', 'control'], subtypes: ['merfolk', 'kraken', 'leviathan', 'octopus', 'serpent'], formats: ['MODERN'] },
+  { id: 'sea_monsters', label: '🌊 Terrores Marinos (Tritones, Krakens, Leviatanes)', category: 'alianza', colors: ['U', 'G'], primaryColor: 'U', strategies: ['sea_monsters', 'blink'], archetypes: ['tempo', 'midrange', 'combo', 'control'], subtypes: ['merfolk', 'kraken', 'leviathan', 'octopus', 'serpent'], formats: ['MODERN'] },
   { id: 'undead_scourge', label: '💀 Plaga (Zombies, Esqueletos, Horrores)', category: 'alianza', colors: ['B', 'U'], primaryColor: 'B', strategies: ['aristocrats', 'reanimator', 'graveyard'], archetypes: ['midrange', 'combo', 'control'], subtypes: ['zombie', 'skeleton', 'horror'] },
   { id: 'apex_predators', label: '🦖 Depredadores del Ápice (Dinosaurios, Bestias, Hidras)', category: 'alianza', colors: ['G', 'R', 'W'], primaryColor: 'G', strategies: ['landfall', 'tokens', 'lifegain'], archetypes: ['midrange', 'ramp'], subtypes: ['dinosaur', 'beast', 'hydra', 'wurm', 'dragon'] },
   { id: 'sliver', label: 'Slivers (Fectidios Sinérgicos)', category: 'exotica', colors: ['W', 'U', 'B', 'R', 'G'], primaryColor: ['W', 'U', 'B', 'R', 'G'], strategies: ['tokens', 'voltron'], archetypes: ['aggro', 'midrange', 'combo'], subtypes: ['sliver'], formats: ['MODERN'] }
@@ -478,6 +478,22 @@ export const MTG_STRATEGIES = [
     mechanics: 'Encadena múltiples rituales y hechizos cantrips de coste bajo en un solo turno para finalizar con un hechizo con la mecánica de Tormenta (Grapeshot, Empty the Warrens).',
     keywords: ['storm', 'grapeshot', 'empty the warrens', 'add {r}', 'add {u}', 'ritual', 'manamorphose', 'ruby medallion', 'ral, monsoon mage', 'baral', 'electromancer', 'past in flames', 'wish', 'tendrils of agony', 'desperate ritual', 'pyretic ritual', 'seething song', 'strike', 'draw'],
     formats: ['MODERN']
+  },
+  {
+    id: "ninjutsu",
+    label: "Ninjutsu / Tempo",
+    mechanics: "Atacar con criaturas evasivas baratas y regresarlas a la mano para jugar Ninjas con descuento.",
+    colors: ["U", "B"],
+    primaryColor: ["U", "B"],
+    archetypes: ['tempo', 'aggro']
+  },
+  {
+    id: "slivers",
+    label: "Sliver Hive",
+    mechanics: "Colmena de criaturas que comparten habilidades y se potencian mutuamente de forma exponencial.",
+    colors: ["W", "U", "B", "R", "G"],
+    primaryColor: ["W", "U", "B", "R", "G"],
+    archetypes: ['aggro', 'midrange', 'combo']
   },
   { 
     id: 'toolbox', 
@@ -730,13 +746,18 @@ export const HISTORICAL_DECKS_CATALOG = {
     { id: 'storm', title: '⚡ Storm (Tormenta)', description: 'Encadena múltiples rituales y cantrips para finalizar con metralla letal.', colors: ['U', 'R'], difficulty: 'Difícil', formats: ['MODERN'] },
     { id: 'hammer_time', title: '🔨 Hammer Time', description: 'Usa pura magia blanca para equipar un martillo gigante gratis y matar en turno 2.', colors: ['W'], difficulty: 'Media', formats: ['MODERN'] },
     { id: 'creativity', title: '🎨 Indomitable Creativity', description: 'Destruye tus propias fichas para invocar Arcontes de la Crueldad directamente del mazo.', colors: ['U', 'R', 'B', 'G'], difficulty: 'Media', formats: ['MODERN'] },
-    { id: 'standard_atraxa', title: '🔮 Reanimator Atraxa', description: 'Descarta a Atraxa y revívela en los primeros turnos para tomar el control absoluto.', colors: ['W', 'U', 'B', 'G'], difficulty: 'Media', formats: ['STANDARD'] }
+    { id: 'standard_atraxa', title: '🔮 Reanimator Atraxa', description: 'Descarta a Atraxa y revívela en los primeros turnos para tomar el control absoluto.', colors: ['W', 'U', 'B', 'G'], difficulty: 'Media', formats: ['STANDARD'] },
+    { id: 'pioneer_lotus', title: '🪷 Lotus Field Combo', description: 'Desgira Lotus Field repetidamente para generar maná infinito y lanzar Ultimatum.', colors: ['U', 'G'], difficulty: 'Difícil', formats: ['PIONEER'] },
+    { id: 'pioneer_amalia', title: '🩸 Amalia Combo', description: 'Gana vida sin parar para que Amalia explore, destruya la mesa y ataque con poder letal.', colors: ['W', 'B', 'G'], difficulty: 'Difícil', formats: ['PIONEER'] },
+    { id: 'pioneer_greasefang', title: '🐀 Greasefang Vehicles', description: 'Descarta Parhelion II y devuélvelo al campo con Greasefang en turno 3 para atacar de inmediato.', colors: ['W', 'B', 'Esper'], difficulty: 'Media', formats: ['PIONEER'] }
   ],
   ramp: [
     { id: 'tron', title: '⚙️ Urzatron', description: 'Reúne las 3 tierras de Urza para lanzar gigantescos Eldrazis y Titanes.', colors: ['G', 'C'], difficulty: 'Fácil', formats: ['MODERN'] },
     { id: 'titan_shift', title: '🌋 Titan Shift', description: 'Rampa agresivamente y lanza a Primeval Titan o Scapeshift para daño letal con Valakut.', colors: ['R', 'G'], difficulty: 'Media', formats: ['MODERN'] },
     { id: 'amulet_titan', title: '🧭 Amulet Titan', description: 'Usa Amulet of Vigor y tierras rebotadoras para generar maná infinito y lanzar Titanes.', colors: ['G'], difficulty: 'Difícil', formats: ['MODERN'] },
-    { id: 'standard_domain', title: '🌈 Domain Ramp', description: 'Acelera todas las tierras básicas para dominar con Leyline Binding y Atraxa.', colors: ['W', 'U', 'B', 'R', 'G'], difficulty: 'Media', formats: ['STANDARD'] }
+    { id: 'standard_domain', title: '🌈 Domain Ramp', description: 'Acelera todas las tierras básicas para dominar con Leyline Binding y Atraxa.', colors: ['W', 'U', 'B', 'R', 'G'], difficulty: 'Media', formats: ['STANDARD'] },
+    { id: 'pioneer_devotion', title: '🌳 Mono-Green Devotion', description: 'Genera maná masivo con Nykthos para jugar Karn o Storm the Festival.', colors: ['G'], difficulty: 'Media', formats: ['PIONEER'] },
+    { id: 'pioneer_enigmatic', title: '🔥 Enigmatic Fires', description: 'Sacrifica encantamientos con Enigmatic Incarnation para buscar respuestas plateadas del mazo.', colors: ['W', 'U', 'B', 'R', 'G'], difficulty: 'Difícil', formats: ['PIONEER'] }
   ],
   aggro: [
     { id: 'burn', title: '🔥 Burn', description: 'Usa hechizos de daño directo a la cara del rival para ganar rápidamente.', colors: ['R', 'W'], difficulty: 'Fácil', formats: ['MODERN', 'STANDARD'] },
@@ -744,19 +765,25 @@ export const HISTORICAL_DECKS_CATALOG = {
     { id: 'merfolk', title: '🐟 Merfolk', description: 'Inunda la mesa con tritones imbloqueables que se potencian unos a otros.', colors: ['U'], difficulty: 'Media', formats: ['MODERN'] },
     { id: 'prowess', title: '🥋 Izzet Prowess', description: 'Lanza cantrips veloces para hinchar a tus criaturas y atacar con fuerza masiva.', colors: ['U', 'R'], difficulty: 'Media', formats: ['MODERN'] },
     { id: 'standard_mono_red', title: '👺 Mono-Red Aggro', description: 'Criaturas rápidas con prisa y chispas letales para finalizar el combate.', colors: ['R'], difficulty: 'Fácil', formats: ['STANDARD'] },
-    { id: 'standard_convoke', title: '⚔️ Boros Convoke', description: 'Crea fichas en los primeros turnos para invocar criaturas gigantes gratuitamente.', colors: ['W', 'R'], difficulty: 'Media', formats: ['STANDARD'] }
+    { id: 'standard_convoke', title: '⚔️ Boros Convoke', description: 'Crea fichas en los primeros turnos para invocar criaturas gigantes gratuitamente.', colors: ['W', 'R'], difficulty: 'Media', formats: ['STANDARD', 'PIONEER'] },
+    { id: 'pioneer_heroic', title: '🛡️ Boros Heroic', description: 'Apunta hechizos a tus propias criaturas para hacerlas inmensas e imbloqueables.', colors: ['W', 'R'], difficulty: 'Fácil', formats: ['PIONEER'] },
+    { id: 'pioneer_humans', title: '🧑‍🤝‍🧑 Mono-White Humans', description: 'Curva agresiva de humanos respaldada por Thalia y Adeline.', colors: ['W'], difficulty: 'Fácil', formats: ['PIONEER'] }
   ],
   control: [
-    { id: 'uw_control', title: '⚖️ Azorius Control', description: 'Respuestas puras. Contrarresta, limpia la mesa y gana con Planeswalkers.', colors: ['W', 'U'], difficulty: 'Difícil', formats: ['MODERN', 'STANDARD'] },
+    { id: 'uw_control', title: '⚖️ Azorius Control', description: 'Respuestas puras. Contrarresta, limpia la mesa y gana con Planeswalkers.', colors: ['W', 'U'], difficulty: 'Difícil', formats: ['MODERN', 'STANDARD', 'PIONEER'] },
     { id: 'tron_blue', title: '❄️ Mono-Blue Tron', description: 'Versión controlera de Tron que usa Mindslaver y contrahechizos para dominar el lategame.', colors: ['U', 'C'], difficulty: 'Difícil', formats: ['MODERN'] },
-    { id: 'standard_dimir', title: '🦇 Dimir Control', description: 'Remoción barata, descarte selectivo y contrahechizos para ahogar al rival.', colors: ['U', 'B'], difficulty: 'Difícil', formats: ['STANDARD'] }
+    { id: 'standard_dimir', title: '🦇 Dimir Control', description: 'Remoción barata, descarte selectivo y contrahechizos para ahogar al rival.', colors: ['U', 'B'], difficulty: 'Difícil', formats: ['STANDARD'] },
+    { id: 'pioneer_ub_control', title: '🧠 Dimir Control', description: 'Interacción pura en Pioneer, controlando la mano y la mesa hasta ganar con Gearhulk.', colors: ['U', 'B'], difficulty: 'Difícil', formats: ['PIONEER'] }
   ],
   midrange: [
     { id: 'jund', title: '🦖 Jund', description: 'El mazo más eficiente carta por carta. Descarta, destruye y domina con Tarmogoyf.', colors: ['B', 'R', 'G'], difficulty: 'Difícil', formats: ['MODERN'] },
     { id: 'rakdos_scam', title: '👺 Rakdos Scam', description: 'Obliga a descartar en turno 1 con Grief y revívelo inmediatamente.', colors: ['B', 'R'], difficulty: 'Fácil', formats: ['MODERN'] },
     { id: 'yawgmoth', title: '🩺 Yawgmoth Combo', description: 'Sinergia de criaturas con Persist y Undying para que Yawgmoth drene la vida del rival.', colors: ['B', 'G'], difficulty: 'Difícil', formats: ['MODERN'] },
     { id: 'death_and_taxes', title: '⚖️ Death & Taxes', description: 'Entorpece la curva de maná del rival con Thalia y Leonin Arbiter mientras atacas por el aire.', colors: ['W'], difficulty: 'Difícil', formats: ['MODERN'] },
-    { id: 'standard_golgari', title: '🍄 Golgari Midrange', description: 'Valor puro con criaturas resilientes y la mejor remoción del formato.', colors: ['B', 'G'], difficulty: 'Media', formats: ['STANDARD'] }
+    { id: 'standard_golgari', title: '🍄 Golgari Midrange', description: 'Valor puro con criaturas resilientes y la mejor remoción del formato.', colors: ['B', 'G'], difficulty: 'Media', formats: ['STANDARD'] },
+    { id: 'pioneer_vampires', title: '🧛 Rakdos Vampires', description: 'Sorin Imperious Bloodlord invoca gratis a Vein Ripper en turno 3 para drenar sin piedad.', colors: ['B', 'R'], difficulty: 'Media', formats: ['PIONEER'] },
+    { id: 'pioneer_rakdos_mid', title: '👺 Rakdos Midrange', description: 'Atracción fatal, Fable of the Mirror-Breaker y Sheoldred para ganar por puro desgaste.', colors: ['B', 'R'], difficulty: 'Media', formats: ['PIONEER'] },
+    { id: 'pioneer_waste_not', title: '💀 Mono-Black Waste Not', description: 'Ataque frontal a la mano con descarte para aprovechar los beneficios constantes de Waste Not.', colors: ['B'], difficulty: 'Media', formats: ['PIONEER'] }
   ],
   tribal: [
     { id: 'elves', title: '🧝 Elves', description: 'Genera cantidades absurdas de maná y criaturas para ganar con Ezuri o Craterhoof.', colors: ['G'], difficulty: 'Media', formats: ['MODERN'] },
@@ -768,7 +795,8 @@ export const HISTORICAL_DECKS_CATALOG = {
   tempo: [
     { id: 'murktide', title: '🐉 Izzet Murktide', description: 'Pocas criaturas súper eficientes, muchos cantrips y protección barata.', colors: ['U', 'R'], difficulty: 'Difícil', formats: ['MODERN'] },
     { id: 'shadow', title: '💀 Death\'s Shadow', description: 'Baja tu propia vida rápidamente con Shocklands para invocar un Avatar letal por 1 maná.', colors: ['U', 'B', 'R'], difficulty: 'Difícil', formats: ['MODERN'] },
-    { id: 'standard_faeries', title: '🧚 Dimir Faeries', description: 'Criaturas con flash y contrahechizos para jugar siempre en el turno del rival.', colors: ['U', 'B'], difficulty: 'Difícil', formats: ['STANDARD'] }
+    { id: 'standard_faeries', title: '🧚 Dimir Faeries', description: 'Criaturas con flash y contrahechizos para jugar siempre en el turno del rival.', colors: ['U', 'B'], difficulty: 'Difícil', formats: ['STANDARD'] },
+    { id: 'pioneer_phoenix', title: '🔥 Izzet Phoenix', description: 'Lanza tres cantrips o hechizos de descarte baratos para resucitar Fénix desde el cementerio.', colors: ['U', 'R'], difficulty: 'Media', formats: ['PIONEER'] }
   ],
   prison: [
     { id: 'mono_red_prison', title: '⛓️ Mono-Red Prison', description: 'Bloquea el juego con Blood Moon y Chalice of the Void en turno 1.', colors: ['R'], difficulty: 'Media', formats: ['MODERN'] },

@@ -66,10 +66,27 @@ const FORMAT_STAPLES = {
     "cavern of souls", "zoetic slipstream", "elspeth's smite", "intrusive packbeast"
   ]),
   PIONEER: new Set([
-    "fatal push", "thoughtseize", "fable of the mirror-breaker", "bloodtithe harvester",
-    "bonecrusher giant", "treasure cruise", "arclight phoenix", "opt", "consider",
-    "teferi, hero of dominaria", "supreme verdict", "sheoldred, the apocalypse",
-    "nykthos, shrine to nyx", "karn, the great creator", "vein ripper"
+    // White
+    "the wandering emperor", "portable hole", "march of otherworldly light", "thalia, guardian of thraben", "adeline, resplendent cathar", 
+    "brave the elements", "brutal cathar", "lay down arms", "rest in peace", "temporary lockdown", "get lost", "no more lies",
+    // Blue
+    "opt", "consider", "treasure cruise", "dig through time", "spell pierce", "mystical dispute", "make disappear", 
+    "ledger shredder", "thing in the ice", "shark typhoon", "memory deluge", "deduce", "sleight of hand",
+    // Black
+    "fatal push", "thoughtseize", "sheoldred, the apocalypse", "bloodtithe harvester", "vein ripper", "go for the throat", 
+    "graveyard trespasser", "sorin, imperious bloodlord", "waste not", "duress", "dreadbore", "cut down", "path of peril",
+    // Red
+    "fable of the mirror-breaker", "bonecrusher giant", "fiery impulse", "play with fire", "lightning axe", "monastery swiftspear", 
+    "soul-scar mage", "kumano faces kakkazan", "chandra, torch of defiance", "roiling vortex", "rending volley", "arclight phoenix",
+    // Green
+    "llanowar elves", "elvish mystic", "cavalier of thorns", "storm the festival", "wolfwillow haven", "scavenging ooze", 
+    "questing beast", "pick your poison", "sylvan caryatid", "old-growth troll", "polukranos reborn",
+    // Multicolor
+    "teferi, hero of dominaria", "supreme verdict", "kroxa, titan of death's hunger", "niv-mizzet reborn", "greasefang, okiba boss", 
+    "spell queller", "abrupt decay", "assassin's trophy", "amalia benavides aguirre", "bloodtithe harvester",
+    // Colorless / Lands
+    "karn, the great creator", "nykthos, shrine to nyx", "unlicensed hearse", "smuggler's copter", "pithing needle", 
+    "damping sphere", "esika's chariot", "mutavault"
   ]),
   MODERN: new Set([
     // White
@@ -122,9 +139,53 @@ const FORMAT_STAPLES = {
  * @param {Object} formData Datos del formulario (arquetipo, tribu, colores, etc).
  * @returns {Promise<Object>} Promesa con el blueprint y las mejores 150-200 cartas.
  */
+// Helper para matchear queries de Scryfall semánticas (Fase 3)
+function matchesSearchQuery(card, query) {
+  if (!query) return false;
+  const terms = query.toLowerCase().split(/\s+/);
+  const typeLine = (card.type_line || '').toLowerCase();
+  const oracleText = (card.oracle_text || '').toLowerCase();
+  const cardName = (card.name || '').toLowerCase();
+  
+  for (const term of terms) {
+    if (!term) continue;
+    if (term.startsWith('t:')) {
+      const type = term.slice(2).trim();
+      if (!typeLine.includes(type)) return false;
+    } else if (term.startsWith('o:')) {
+      const text = term.slice(2).replace(/['"]/g, '').trim();
+      if (!oracleText.includes(text)) return false;
+    } else if (term.startsWith('function:') || term.startsWith('oracletag:')) {
+      const tag = term.split(':')[1].trim();
+      if (tag === 'removal') {
+        const isRemoval = oracleText.includes('destroy') || oracleText.includes('exile') || oracleText.includes('damage') || typeLine.includes('removal');
+        if (!isRemoval) return false;
+      } else if (tag === 'board-wipe') {
+        const isWipe = oracleText.includes('destroy all') || oracleText.includes('exile all') || oracleText.includes('board wipe');
+        if (!isWipe) return false;
+      } else if (tag === 'draw') {
+        const isDraw = oracleText.includes('draw a card') || oracleText.includes('draw two cards') || oracleText.includes('look at the top') || oracleText.includes('scry');
+        if (!isDraw) return false;
+      } else if (tag === 'ramp') {
+        const isRamp = oracleText.includes('add ') || oracleText.includes('search your library for a land');
+        if (!isRamp) return false;
+      } else if (tag === 'counterspell') {
+        const isCounter = oracleText.includes('counter target');
+        if (!isCounter) return false;
+      }
+    } else {
+      if (!cardName.includes(term) && !typeLine.includes(term) && !oracleText.includes(term)) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
 export const buildCardPool = async (formData) => {
   const allCards = await getAllCards();
   const blueprint = getBlueprint(formData.archetype);
+  const blueprintRoles = formData.blueprintRoles || blueprint?.roles || [];
   
   // Cargar Grafo Semántico pre-compilado de Obsidian
   const obsidianGraph = await loadObsidianGraph();
@@ -236,6 +297,11 @@ export const buildCardPool = async (formData) => {
  
     // 1. FILTROS ESTRICTOS (HARD FILTERS)
     if (['token', 'vanguard', 'plane', 'scheme', 'phenomenon', 'art_series'].includes(card.layout)) continue;
+
+    // Filtro estricto de rareza (Pauper / Artisan)
+    const activeRarityMode = formData.rarityMode || 'high-power';
+    if (activeRarityMode === 'pauper' && card.rarity !== 'common') continue;
+    if (activeRarityMode === 'artisan' && card.rarity !== 'common' && card.rarity !== 'uncommon') continue;
     
     // Excluir cartas que ya están en el Core o en Must-Include
     if (card.name && typeof card.name === 'string' && excludedNames.includes(card.name.toLowerCase())) continue;
@@ -247,6 +313,14 @@ export const buildCardPool = async (formData) => {
     const typeLine = (card.type_line && typeof card.type_line === 'string') ? card.type_line.toLowerCase() : '';
     const oracleText = (card.oracle_text && typeof card.oracle_text === 'string') ? card.oracle_text.toLowerCase() : '';
     const isCreature = typeLine.includes('creature');
+    
+    // Excluir custom cards en formatos construidos estándar (Modern, Pioneer, Standard, Legacy)
+    if (['modern', 'pioneer', 'standard', 'legacy'].includes(formatKey)) {
+      if (card.id && (card.id.startsWith('custom-') || card.id.includes('custom'))) continue;
+      if (cardNameLower.includes("hamato") || cardNameLower.includes("shredder") || cardNameLower.includes("yoshi") || cardNameLower.includes("oroku saki") || cardNameLower.includes("splinter, ")) {
+        continue;
+      }
+    }
 
     // --- FILTRADO PROACTIVO DE CARTAS PARASITARIAS ---
     let isParasitic = false;
@@ -557,15 +631,29 @@ export const buildCardPool = async (formData) => {
 
         // Excepción 5: Soporte o coincidencia de Tribu (por tipo o mención en texto oracle, ej. Wirewood Symbiote en Elfos)
         let isTribalMatch = false;
-        const activeTribe = tribeLower || (archLower.includes('elves') ? 'elf' : archLower.includes('slivers') ? 'sliver' : archLower.includes('goblins') ? 'goblin' : archLower.includes('merfolk') ? 'merfolk' : archLower.includes('zombies') ? 'zombie' : archLower.includes('vampires') ? 'vampire' : archLower.includes('humans') ? 'human' : archLower.includes('faeries') ? 'faerie' : archLower.includes('eldrazi') ? 'eldrazi' : archLower.includes('spirits') ? 'spirit' : '');
         
-        if (activeTribe) {
-          isTribalMatch = typeLine.includes(activeTribe) || oracleText.includes(activeTribe);
-        } else if (tribeData && tribeData.subtypes) {
+        // 1. Priorizar subtypes de tribeData (que tiene las formas singulares correctas)
+        if (tribeData && tribeData.subtypes) {
           isTribalMatch = tribeData.subtypes.some(st => {
             const stLower = st.toLowerCase();
             return typeLine.includes(stLower) || oracleText.includes(stLower);
           });
+        }
+        
+        // 2. Fallback a la inferencia de activeTribe si no se pudo determinar con tribeData
+        if (!isTribalMatch) {
+          const activeTribe = tribeLower || (archLower.includes('elves') ? 'elf' : archLower.includes('slivers') ? 'sliver' : archLower.includes('goblins') ? 'goblin' : archLower.includes('merfolk') ? 'merfolk' : archLower.includes('zombies') ? 'zombie' : archLower.includes('vampires') ? 'vampire' : archLower.includes('humans') ? 'human' : archLower.includes('faeries') ? 'faerie' : archLower.includes('eldrazi') ? 'eldrazi' : archLower.includes('spirits') ? 'spirit' : '');
+          if (activeTribe) {
+            const cleanTribe = activeTribe.toLowerCase().trim();
+            let singularTribe = cleanTribe;
+            if (cleanTribe.endsWith('s')) {
+              if (cleanTribe === 'elves') singularTribe = 'elf';
+              else if (cleanTribe === 'faeries') singularTribe = 'faerie';
+              else if (cleanTribe === 'merfolk') singularTribe = 'merfolk';
+              else singularTribe = cleanTribe.slice(0, -1);
+            }
+            isTribalMatch = typeLine.includes(singularTribe) || oracleText.includes(singularTribe);
+          }
         }
 
         // Excepción 6: Coincidencia mecánica directa con la estrategia activa en Todo Magic
@@ -685,6 +773,24 @@ export const buildCardPool = async (formData) => {
     });
     if (autoSynergyBoost > 0) {
       score += Math.min(45, autoSynergyBoost);
+    }
+
+    // === BATTLE BOX INTERACTIVE EQUITY POLICY ===
+    // Penalización severa a cartas de bloqueo pasivo absoluto (locks)
+    const absoluteLockCards = ["ensnaring bridge", "blood moon", "chalice of the void", "trinisphere", "mycosynth lattice", "stony silence", "rest in peace", "leyline of the void", "static orb", "winter orb"];
+    if (absoluteLockCards.includes(cardNameLower)) {
+      score -= 150;
+    }
+    // Penalizar combos de daño directo no-interactivos a la cabeza
+    const nonInteractiveBurn = ["grapeshot", "boros charm", "bump in the night", "lava spike"];
+    if (nonInteractiveBurn.includes(cardNameLower)) {
+      score -= 80;
+    }
+    // Boost moderado a disparadores ETB, combate y sacrificios dinámicos
+    const interactiveKeywords = ["enters the battlefield", "whenever you attack", "whenever a creature attacks", "sacrifice a creature: ", "whenever a creature dies", "when you cast this spell, draw", "explores", "surveils", "scry"];
+    const matchesInteractive = interactiveKeywords.filter(kw => oracleText.includes(kw)).length;
+    if (matchesInteractive > 0) {
+      score += Math.min(60, matchesInteractive * 20);
     }
 
     if (blueprint.ragModifiers) {
@@ -841,7 +947,20 @@ export const buildCardPool = async (formData) => {
           }
         }
         if (oracleText.includes(subtypeLower)) {
-          score += 30; // Gran empuje si hace sinergia directa con la tribu
+          score += 40; // Empuje base por mencionar la tribu
+          
+          // Detección de "Tribal Lords" y Anthems (el núcleo de cualquier mazo tribal competitivo)
+          if (oracleText.includes('+1/+1') || oracleText.includes('+2/+2')) {
+            score += 250; // ¡LOS LORDS QUE BUFAN STATS SON REYES INDISCUTIBLES!
+          }
+          
+          // Detección de evasión y palabras clave letales compartidas
+          const lethalKeywords = ['flying', 'haste', 'double strike', 'first strike', 'trample', 'lifelink', 'indestructible', 'hexproof', 'menace', 'deathtouch'];
+          lethalKeywords.forEach(kw => {
+            if (oracleText.includes(kw)) {
+               score += 80; // Lords que dan habilidades son brutales
+            }
+          });
         }
       });
     }
@@ -908,8 +1027,39 @@ export const buildCardPool = async (formData) => {
       score -= 15;
     }
 
+    // --- NUEVO FASE 3: IMPULSO POR ADN COMPETITIVO (Inspiración Híbrida Semántica) ---
+    let dnaBoost = 0;
+    if (formData.dnaSkeleton && Array.isArray(formData.dnaSkeleton)) {
+      const isInDna = formData.dnaSkeleton.some(d => d.name && d.name.toLowerCase() === cardNameLower);
+      if (isInDna) {
+        dnaBoost += 250; // Garantizar staples del meta en el RAG pool
+      }
+    }
+    score += dnaBoost;
+
+    // --- NUEVO FASE 3: IMPULSO POR BLUEPRINT JIT QUERY (Problema 7) ---
+    let blueprintMatchBoost = 0;
+    if (formData.blueprintRoles && Array.isArray(formData.blueprintRoles)) {
+      for (const role of formData.blueprintRoles) {
+        if (role.search_query && matchesSearchQuery(card, role.search_query)) {
+          blueprintMatchBoost += 120; // Priorizar según query semántica del Blueprint
+        }
+      }
+    }
+    score += blueprintMatchBoost;
+
+    // Sinergia/Impulso extra de rareza si se selecciona alta potencia sin límites
+    if (activeRarityMode === 'high-power') {
+      if (card.rarity === 'mythic') {
+        score += 85;
+      } else if (card.rarity === 'rare') {
+        score += 45;
+      }
+    }
+
     // Clasificación en sus respectivos pools
     const scoredCard = {
+      id: card.id,
       name: card.name,
       mana_value: card.mana_value,
       type_line: card.type_line,
@@ -917,6 +1067,7 @@ export const buildCardPool = async (formData) => {
       colors: card.colors,
       color_identity: card.color_identity || [],
       mana_cost: card.mana_cost || '',
+      rarity: card.rarity || 'common',
       score: score,
       metaPercent: inVivoPercentage
     };
@@ -1394,8 +1545,41 @@ export const buildCardPool = async (formData) => {
 
   console.log(`[RAG] Filtrado completado. Criaturas: ${topCreatures.length}/${targetCreatureCount}, Hechizos: ${topSpells.length}/${targetSpellCount}. Total: ${finalPool.length}`);
   
+  // --- NUEVO FASE 3: EXPANDIR RAG POOL POR ROL (Problema 1) ---
+  if (formData.blueprintRoles && Array.isArray(formData.blueprintRoles)) {
+    formData.blueprintRoles.forEach(role => {
+      const matches = finalPool.filter(c => matchesSearchQuery(c, role.search_query));
+      if (matches.length < 4 && role.search_query) {
+        console.log(`[RAG JIT EXPANSION] Rol "${role.name}" tiene pocos candidatos (${matches.length}/4) con query "${role.search_query}". Buscando refuerzos...`);
+        const reinforcementCandidates = allCards
+          .filter(c => c.legalities && c.legalities[formatKey] === 'legal')
+          .filter(c => !excludedNames.includes(c.name.toLowerCase()))
+          .filter(c => !finalPool.some(fp => fp.name.toLowerCase() === c.name.toLowerCase()))
+          .filter(c => matchesSearchQuery(c, role.search_query))
+          .map(c => ({
+            name: c.name,
+            mana_value: c.mana_value || c.cmc || 0,
+            type_line: c.type_line,
+            oracle_text: c.oracle_text || '',
+            colors: c.colors || [],
+            color_identity: c.color_identity || [],
+            mana_cost: c.mana_cost || '',
+            score: 80, // Score base moderado
+            metaPercent: 0
+          }))
+          .sort((a, b) => b.score - a.score)
+          .slice(0, 6);
+          
+        if (reinforcementCandidates.length > 0) {
+          console.log(`[RAG JIT EXPANSION] Inyectando ${reinforcementCandidates.length} cartas de refuerzo para el rol "${role.name}":`, reinforcementCandidates.map(c => c.name));
+          finalPool.push(...reinforcementCandidates);
+        }
+      }
+    });
+  }
+
   return {
-    blueprint,
+    blueprint: getBlueprint(formData.archetype),
     pool: finalPool
   };
 };
@@ -1483,14 +1667,17 @@ export const getDynamicArchetypes = async () => {
           'scales', 'omniscience', 'pinnacle', 'doomsday', 'momo', 'rhinos',
           'prowess', 'reanimator', 'necrodominance', 'frog', 'cutter', 'energy', 'modern'
         ];
-        const STANDARD_EXCLUSIVE_KEYWORDS = ['standard', 'momo', 'soldier', 'toxic', 'poison'];
+        const STANDARD_EXCLUSIVE_KEYWORDS = ['standard', 'soldier', 'toxic', 'poison', 'convoke'];
+        const PIONEER_EXCLUSIVE_KEYWORDS = ['pioneer', 'greasefang', 'lotus field', 'hidden strings', 'amalia', 'vein ripper'];
 
         if (STANDARD_EXCLUSIVE_KEYWORDS.some(kw => nameLower.includes(kw))) {
           formats = ['STANDARD'];
         } else if (MODERN_EXCLUSIVE_KEYWORDS.some(kw => nameLower.includes(kw))) {
           formats = ['MODERN'];
+        } else if (PIONEER_EXCLUSIVE_KEYWORDS.some(kw => nameLower.includes(kw))) {
+          formats = ['PIONEER'];
         } else {
-          formats = ['MODERN', 'STANDARD'];
+          formats = ['MODERN', 'PIONEER', 'STANDARD'];
         }
       }
 

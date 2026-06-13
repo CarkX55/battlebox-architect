@@ -24,7 +24,7 @@ const LEGACY_ARCHETYPES = BATTLEBOX_ARCHETYPES.map(a => {
     winTurn: a.winTurn,
     colorHint: `Velocidad: ${a.speed} • Victoria: Turno ${a.winTurn}`,
     description: a.description,
-    formats: ['MODERN', 'STANDARD'],
+    formats: ['MODERN', 'PIONEER', 'STANDARD'],
     colorGroup: 'generic'
   };
 });
@@ -754,7 +754,7 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                 
                 {/* Format selection tabs */}
                 <div className="flex bg-black/60 p-1 rounded-xl border border-white/10 shadow-inner w-full sm:w-auto">
-                  {['MODERN', 'STANDARD'].map((fmt) => {
+                  {['MODERN', 'PIONEER', 'STANDARD'].map((fmt) => {
                     const isSelected = selectedFormat === fmt;
                     return (
                       <button

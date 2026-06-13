@@ -13,12 +13,21 @@ Tu objetivo es dar una calificación justa, constructiva y precisa sobre la comp
    - El Valor de Maná Promedio (VMP) numérico real que recibes en el prompt, indicando si es adecuado para la agresividad del mazo.
 3. CONSTRUCTIVO: Enfócate en la competitividad. Reporta en "warnings" la falta de "Answers" (respuestas/removal) u optimizaciones de curva.
 4. MAINBOARD ONLY: Evalúa únicamente el mazo principal. Ignora el sideboard.
-5. RESPETO A LA IDENTIDAD: Toma la idea original (Arquetipo y Tribu) y llévala a su máximo potencial competitivo, manteniendo su esencia.
-6. EXPLICITUD EN REEMPLAZOS: En "suggestions", DEBES especificar qué cartas se eliminan (con nombre exacto) para hacer hueco a las nuevas. Justifica por qué en el campo "text".
-7. MEJORA INTEGRAL: Propón cambios estructurales severos si es necesario para alcanzar nivel Tier 1 competitivo.
-8. COHERENCIA DE COLOR: NUNCA sugieras añadir cartas que no pertenezcan a los Colores especificados.
-9. COHERENCIA TRIBAL: Prioriza enormemente sugerir cartas de la Tribu elegida.
-10. FORMATO DE CARTAS: SIEMPRE que menciones el nombre de una carta en cualquier campo de texto, DEBES envolverla entre dobles corchetes. Ejemplo: "Necesitas más [[Lightning Bolt]]".
+5. PROTECCIÓN DE NÚCLEO (CRÍTICO): Si el usuario ha definido un "Lore / Idea Personal", DEBES respetar estrictamente las cartas clave que representan esa idea. Tu labor es optimizar la base de maná y las cartas de soporte, NUNCA sugerir eliminar la condición de victoria o el capricho temático del usuario.
+6. EXPLICITUD EN REEMPLAZOS: En "suggestions", DEBES especificar qué cartas se eliminan para hacer hueco a las nuevas. Justifica por qué en "text". EXCEPCIÓN: Si se te informa de que al mazo le faltan cartas para llegar al mínimo legal (60 u 80), tu prioridad es AÑADIR cartas para rellenar esos huecos SIN usar "removes" (déjalo vacío).
+7. OPCIONES MÚLTIPLES: Si consideras que hay varias opciones válidas para añadir (ej: "Añadir Fatal Push o Terminate"), DEBES usar el array "addOptions" para proporcionar las alternativas, y dejar "adds" vacío. Si solo hay una opción clara, usa "adds".
+8. MEJORA INTEGRAL: Propón cambios estructurales severos si es necesario para alcanzar nivel Tier 1 competitivo (salvo el núcleo).
+9. COHERENCIA DE COLOR (ESTRICTO): NUNCA, bajo ningún concepto, sugieras en el texto ni incluyas en los arrays (adds/addOptions) cartas que no pertenezcan a los "Colores" especificados por el usuario. Si el mazo es Jund (BRG), no puedes sugerir cartas Azules ni Blancas.
+10. COHERENCIA TRIBAL: Prioriza enormemente sugerir cartas de la Tribu elegida.
+11. FORMATO DE CARTAS: SIEMPRE que menciones el nombre de una carta en cualquier campo de texto, DEBES envolverla entre dobles corchetes. Ejemplo: "Necesitas más [[Lightning Bolt]]".
+12. REDUNDANCIA FUNCIONAL Y STRICT UPGRADES: Detecta y castiga la presencia de múltiples cartas diferentes que cumplan exactamente la misma función (ej. [[Galerider Sliver]] y [[Cloudshredder Sliver]]). Si las detectas juntas en el mazo, DEBES sugerir eliminar la versión más débil. ADEMÁS, tienes ESTRICTAMENTE PROHIBIDO sugerir "añadir" una versión funcionalmente inferior o redundante si el mazo ya cuenta con copias de la versión superior.
+13. LÍMITE LEGAL (REGLA DE 4X): NUNCA sugieras añadir copias de una carta si la suma total de esa carta en el mazo superaría las 4 copias permitidas. Lee detenidamente el DECKLIST para ver si esa carta ya está presente. Si ya hay 4x (ej. 4x Sliver Hive), ESTÁ PROHIBIDO sugerir añadir más. (Excepción: Tierras básicas).
+14. ANÁLISIS MATEMÁTICO REAL: Tienes estrictamente prohibido decir que la base de maná es "frágil" o "inestable" basándote solo en los nombres de las tierras. MIRA LAS "FUENTES DE MANÁ DISPONIBLES" EN LAS MÉTRICAS. Mazos tribales 5C usan [[Cavern of Souls]], [[Secluded Courtyard]], [[Sliver Hive]] y aceleradores como [[Manaweft Sliver]]. Estas son fuentes 5C perfectas. Si los números de las fuentes de color proporcionados son aceptables (ej >14), elogia la base de maná en lugar de criticarla falsamente.
+15. ARQUETIPOS Y VELOCIDAD (VMP): Si el arquetipo es "Midrange" o "Control", un Valor de Maná Promedio (VMP) de hasta 3.0 es perfectamente aceptable y competitivo para su estrategia. Tienes ESTRICTAMENTE PROHIBIDO quejarte de que el mazo es "demasiado lento" si el VMP es menor o igual a 3.0 para estos arquetipos. Solo los mazos Aggro exigen VMP muy bajos (< 2.2).
+16. DIRECTIVA DE INTERACTIVIDAD Y DIVERSIÓN (BATTLE BOX EQUITY):
+    - Califica negativamente (score penalizado) si el mazo carece por completo de formas de interactuar con el oponente, o si consiste en combos degenerados que ganan de golpe de forma solitaria en los primeros turnos (ej. Splinter Twin, Thassa's Oracle combos) sin dar oportunidad de responder.
+    - Debes sugerir cambiar piezas de combos instantáneos no interactivos o locks de bloqueo absoluto (como Blood Moon o Ensnaring Bridge pasivos) por motores de valor dinámicos, trucos de combate e interacción reactiva de pila.
+
 
 Debes responder ÚNICAMENTE con un JSON válido usando este esquema exacto:
 {
@@ -30,7 +39,11 @@ Debes responder ÚNICAMENTE con un JSON válido usando este esquema exacto:
     {
        "text": "Eliminar 2x [[Carta A]] para añadir 2x [[Carta B]] porque mejora la curva temprana.",
        "removes": [{"name": "Carta A", "quantity": 2}],
-       "adds": [{"name": "Carta B", "quantity": 2}]
+       "adds": [{"name": "Carta B", "quantity": 2}], // Usa esto si hay una decisión única
+       "addOptions": [ // Usa esto SOLO si quieres dar a elegir múltiples opciones (ej. añadir Carta B o Carta C)
+         [{"name": "Carta B", "quantity": 2}],
+         [{"name": "Carta C", "quantity": 2}]
+       ]
     }
   ]
 }`;
@@ -55,12 +68,21 @@ export async function auditDeckWithAI(deckCards, _sideboardCards, formData, aiCo
   (Analiza estas métricas para comprobar si la curva es muy alta o si faltan fuentes de color, indícalo en el veredicto o warnings).
 ` : '';
 
+  const userLoreText = formData?.prompt ? `\nLore / Idea Personal del Usuario (¡DEBES PROTEGER ESTAS CARTAS!): "${formData.prompt}"` : '';
+
+  // Calcular si faltan cartas en el mazo
+  const totalCards = deckCards.reduce((sum, c) => sum + (c.quantity || 1), 0);
+  const targetCards = (formData?.companero?.toLowerCase().includes("yorion")) ? 80 : 60;
+  const deckSizeWarning = totalCards < targetCards 
+    ? `\n\n[¡ALERTA CRÍTICA MATEMÁTICA!]: Al mazo le faltan cartas (Tiene ${totalCards} y necesita ${targetCards}). El usuario eliminó cartas manualmente y quiere que tú rellenes el hueco. REGLA INVIOLABLE: Tienes ESTRICTAMENTE PROHIBIDO eliminar más cartas. El array "removes" DEBE ESTAR OBLIGATORIAMENTE VACÍO []. Tu única tarea es proponer "adds" o "addOptions" cuya suma total de cantidades sea EXACTAMENTE ${targetCards - totalCards}.`
+    : `\n\n[INFORMACIÓN MATEMÁTICA ESTRICTA]: He sumado la cantidad de copias de todas las cartas por ti. El mazo tiene EXACTAMENTE ${totalCards} cartas (un número perfectamente legal). TIENES TOTALMENTE PROHIBIDO alucinar diciendo que al mazo le faltan cartas. Si en tus 'suggestions' sugieres cambios, DEBES asegurar que la cantidad de cartas que eliminas ("removes") sea EXACTAMENTE IGUAL a la cantidad de cartas que añades ("adds"), de modo que el mazo se mantenga exactamente en ${totalCards} cartas.`;
+
   const userPrompt = `Analiza este mazo matemáticamente:
 Arquetipo Objetivo: ${formData?.archetype || 'Desconocido'}
 Estrategia: ${formData?.strategy || 'Desconocida'}
 Tribu: ${formData?.tribe || 'Ninguna / Desconocida'}
-Colores: ${formData?.colores?.join(', ') || 'No especificados'}${bannedText}
-${metricsText}
+Colores: ${formData?.colores?.join(', ') || 'No especificados'}${userLoreText}${bannedText}
+${metricsText}${deckSizeWarning}
 === DECKLIST ===
 ${deckListText}
 
@@ -104,6 +126,7 @@ Tu misión es evaluarlo en busca de fallos fatales de construcción o sinergia r
 - Falta de protección o interacción básica para el arquetipo.
 - Cartas disfuncionales o que entorpecen la estrategia.
 - Cartas fuera de los colores permitidos o sin sentido en la tribu elegida.
+- Detección de Antijuego (Battle Box Equity): Identifica y sugiere eliminar combos degenerados de victoria instantánea en turnos tempranos o cartas de bloqueo pasivo absoluto que impidan interactuar al oponente. Sugiere motores de valor o trucos de combate interactivos alternativos.
 
 Si el esqueleto está bien, devuelve sugerencias vacías.
 Si necesita correcciones obligatorias, provee un array "suggestions" con removes y adds. Sé exacto.

@@ -159,6 +159,22 @@ export const MOCK_METAGAME_DECKS = {
         { name: "Drown in the Loch", quantity: 4 },
         { name: "Surgical Extraction", quantity: 2 }
       ]
+    },
+    {
+      name: "Dimir Ninjas (Ninjutsu)",
+      main: [
+        { name: "Ornithopter", quantity: 4 },
+        { name: "Changeling Outcast", quantity: 4 },
+        { name: "Thousand-Faced Shadow", quantity: 3 },
+        { name: "Moon-Circuit Hacker", quantity: 4 },
+        { name: "Ingenious Infiltrator", quantity: 4 },
+        { name: "Ninja of the Deep Hours", quantity: 2 },
+        { name: "Spell Pierce", quantity: 2 },
+        { name: "Counterspell", quantity: 3 },
+        { name: "Fatal Push", quantity: 4 },
+        { name: "Retrofit Foundry", quantity: 2 },
+        { name: "Kaito Shizuki", quantity: 2 }
+      ]
     }
   ],
   LEGACY: [

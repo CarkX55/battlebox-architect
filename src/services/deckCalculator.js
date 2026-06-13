@@ -164,6 +164,95 @@ export function getDeckDistribution(cards, isCommander = false, hasCompanion = f
   };
 }
 
+export function calculateManaSources(deck) {
+  if (!Array.isArray(deck)) return { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 };
+  
+  const sources = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 };
+  
+  deck.forEach(card => {
+    if (!card) return;
+    const qty = card.quantity || 1;
+    const name = (card.name || '').toLowerCase();
+    const typeLine = (card.type_line || card.type || '').toLowerCase();
+    const isLandCard = typeLine.includes('land') || card.category === 'Land';
+    
+    // 1. Fuentes de cualquier color (Tierras Tribales / Universales / Mana Dorks)
+    const producesAnyColor = 
+      name.includes('sliver hive') || name.includes('cavern of souls') || 
+      name.includes('secluded courtyard') || name.includes('unclaimed territory') ||
+      name.includes('mana confluence') || name.includes('city of brass') ||
+      name.includes('manaweft sliver') || name.includes('gemhide sliver') ||
+      name.includes('birds of paradise') || name.includes('noble hierarch') ||
+      name.includes('ignoble hierarch') || name.includes('sylvan caryatid') ||
+      name.includes('arcane signet') || name.includes('chromatic lantern');
+      
+    if (producesAnyColor) {
+      sources.W += qty;
+      sources.U += qty;
+      sources.B += qty;
+      sources.R += qty;
+      sources.G += qty;
+      return; // Si da todos los colores, ya hemos terminado con esta carta
+    }
+    
+    // Solo continuar el conteo estricto para tierras o dorks específicos
+    if (!isLandCard && !hasRampEffect(card)) return;
+
+    if (name.includes('plains') || name.includes('llanura')) sources.W += qty;
+    else if (name.includes('island') || name.includes('isla')) sources.U += qty;
+    else if (name.includes('swamp') || name.includes('pantano')) sources.B += qty;
+    else if (name.includes('mountain') || name.includes('montaña')) sources.R += qty;
+    else if (name.includes('forest') || name.includes('bosque')) sources.G += qty;
+    else {
+      // Shock & Dual Lands & Triomes
+      if (/tundra|hallowed fountain|glacial fortress|seachrome/i.test(name)) { sources.W += qty; sources.U += qty; }
+      if (/underground sea|watery grave|drowned catacomb|darkslick/i.test(name)) { sources.U += qty; sources.B += qty; }
+      if (/badlands|blood crypt|dragonskull|blackcleave/i.test(name)) { sources.B += qty; sources.R += qty; }
+      if (/taiga|stomping ground|rootbound|copperline/i.test(name)) { sources.R += qty; sources.G += qty; }
+      if (/savannah|temple garden|sunpetal|razorverge/i.test(name)) { sources.G += qty; sources.W += qty; }
+      if (/scrubland|godless shrine|isolated chapel|concealed/i.test(name)) { sources.W += qty; sources.B += qty; }
+      if (/volcanic island|steam vents|sulfur falls|spirebluff/i.test(name)) { sources.U += qty; sources.R += qty; }
+      if (/bayou|overgrown tomb|woodland cemetery|blooming/i.test(name)) { sources.B += qty; sources.G += qty; }
+      if (/plateau|sacred foundry|clifftop|inspiring/i.test(name)) { sources.R += qty; sources.W += qty; }
+      if (/tropical island|breeding pool|hinterland|botanical/i.test(name)) { sources.G += qty; sources.U += qty; }
+      
+      // Triomes
+      if (/raffine's tower/i.test(name)) { sources.W += qty; sources.U += qty; sources.B += qty; }
+      if (/xander's lounge/i.test(name)) { sources.U += qty; sources.B += qty; sources.R += qty; }
+      if (/ziatora's proving ground/i.test(name)) { sources.B += qty; sources.R += qty; sources.G += qty; }
+      if (/jetmir's garden/i.test(name)) { sources.R += qty; sources.G += qty; sources.W += qty; }
+      if (/spara's headquarters/i.test(name)) { sources.G += qty; sources.W += qty; sources.U += qty; }
+      if (/indatha triome/i.test(name)) { sources.W += qty; sources.B += qty; sources.G += qty; }
+      if (/ketria triome/i.test(name)) { sources.U += qty; sources.R += qty; sources.G += qty; }
+      if (/raugrin triome/i.test(name)) { sources.U += qty; sources.R += qty; sources.W += qty; }
+      if (/savai triome/i.test(name)) { sources.W += qty; sources.B += qty; sources.R += qty; }
+      if (/zagoth triome/i.test(name)) { sources.U += qty; sources.B += qty; sources.G += qty; }
+      
+      // Horizon lands & pain lands
+      if (/sunbaked canyon/i.test(name)) { sources.R += qty; sources.W += qty; }
+      if (/fiery islet/i.test(name)) { sources.U += qty; sources.R += qty; }
+      if (/silent clearing/i.test(name)) { sources.W += qty; sources.B += qty; }
+      if (/nurturing peatland/i.test(name)) { sources.B += qty; sources.G += qty; }
+      if (/waterlogged grove/i.test(name)) { sources.G += qty; sources.U += qty; }
+      
+      // Fetches (they count as any of their two colors)
+      if (/flooded strand/i.test(name)) { sources.W += qty; sources.U += qty; }
+      if (/polluted delta/i.test(name)) { sources.U += qty; sources.B += qty; }
+      if (/bloodstained mire/i.test(name)) { sources.B += qty; sources.R += qty; }
+      if (/wooded foothills/i.test(name)) { sources.R += qty; sources.G += qty; }
+      if (/windswept heath/i.test(name)) { sources.G += qty; sources.W += qty; }
+      if (/marsh flats/i.test(name)) { sources.W += qty; sources.B += qty; }
+      if (/scalding tarn/i.test(name)) { sources.U += qty; sources.R += qty; }
+      if (/verdant catacombs/i.test(name)) { sources.B += qty; sources.G += qty; }
+      if (/arid mesa/i.test(name)) { sources.R += qty; sources.W += qty; }
+      if (/misty rainforest/i.test(name)) { sources.G += qty; sources.U += qty; }
+      if (/prismatic vista/i.test(name)) { sources.W += qty; sources.U += qty; sources.B += qty; sources.R += qty; sources.G += qty; }
+    }
+  });
+  
+  return sources;
+}
+
 const BASIC_LAND_NAMES = {
   W: 'Plains',
   U: 'Island',

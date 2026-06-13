@@ -18,7 +18,7 @@ import { PowerLevelMeter } from '../components/forge/PowerLevelMeter';
 import RadarChart from '../components/forge/RadarChart';
 import ManaCurve from '../components/forge/ManaCurve';
 import { AlertTriangle, Shield, Lightbulb, Target, Scroll, PenTool, CheckCircle2, XCircle, Info, Zap, Sparkles, Copy, PlusCircle, MinusCircle, GitFork, Share2, Download, Droplet, Activity } from 'lucide-react';
-import { calculateKarstenProbability, calculateLandDropProbability, calculateManaCoverage, calculateTurnoDeOro, generateManaBase, calculatePerfectLandCount, calculateVMP } from '../services/deckCalculator';
+import { calculateKarstenProbability, calculateLandDropProbability, calculateManaCoverage, calculateTurnoDeOro, generateManaBase, calculatePerfectLandCount, calculateVMP, calculateManaSources } from '../services/deckCalculator';
 import { generateSideboard } from '../services/sideboardService';
 import SynergyGraphVisualizer from '../components/forge/SynergyGraphVisualizer';
 import DeckVisualExporter from '../components/forge/DeckVisualExporter';
@@ -47,67 +47,10 @@ const isLandCard = (c) => {
   );
 };
 
-// Contador inteligente de fuentes de color de tierras para Frank Karsten
-const getManaSourcesCount = (deck) => {
-  if (!Array.isArray(deck)) return { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 };
-  const lands = deck.filter(isLandCard);
-  
-  const counts = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 };
-  
-  lands.forEach(l => {
-    if (!l) return;
-    const name = (l.name || '').toLowerCase();
-    if (!name) return;
-    const qty = l.quantity || 1;
-    
-    if (name.includes('plains') || name.includes('llanura')) counts.W += qty;
-    else if (name.includes('island') || name.includes('isla')) counts.U += qty;
-    else if (name.includes('swamp') || name.includes('pantano')) counts.B += qty;
-    else if (name.includes('mountain') || name.includes('montaña')) counts.R += qty;
-    else if (name.includes('forest') || name.includes('bosque')) counts.G += qty;
-    else {
-      // Shock & Dual Lands
-      if (/tundra|hallowed fountain|glacial fortress|seachrome/i.test(name)) { counts.W += qty; counts.U += qty; }
-      if (/underground sea|watery grave|drowned catacomb|darkslick/i.test(name)) { counts.U += qty; counts.B += qty; }
-      if (/badlands|blood crypt|dragonskull|blackcleave/i.test(name)) { counts.B += qty; counts.R += qty; }
-      if (/taiga|stomping ground|rootbound|copperline/i.test(name)) { counts.R += qty; counts.G += qty; }
-      if (/savannah|temple garden|sunpetal|razorverge/i.test(name)) { counts.G += qty; counts.W += qty; }
-      if (/scrubland|godless shrine|isolated chapel|concealed/i.test(name)) { counts.W += qty; counts.B += qty; }
-      if (/volcanic island|steam vents|sulfur falls|spirebluff/i.test(name)) { counts.U += qty; counts.R += qty; }
-      if (/bayou|overgrown tomb|woodland cemetery|blooming/i.test(name)) { counts.B += qty; counts.G += qty; }
-      if (/plateau|sacred foundry|clifftop|inspiring/i.test(name)) { counts.R += qty; counts.W += qty; }
-      if (/tropical island|breeding pool|hinterland|botanical/i.test(name)) { counts.G += qty; counts.U += qty; }
-      
-      // Horizon lands & pain lands
-      if (/sunbaked canyon/i.test(name)) { counts.R += qty; counts.W += qty; }
-      if (/fiery islet/i.test(name)) { counts.U += qty; counts.R += qty; }
-      if (/silent clearing/i.test(name)) { counts.W += qty; counts.B += qty; }
-      if (/nurturing peatland/i.test(name)) { counts.B += qty; counts.G += qty; }
-      if (/waterlogged grove/i.test(name)) { counts.G += qty; counts.U += qty; }
-      
-      // Fetches (they count as any of their two colors)
-      if (/flooded strand/i.test(name)) { counts.W += qty; counts.U += qty; }
-      if (/polluted delta/i.test(name)) { counts.U += qty; counts.B += qty; }
-      if (/bloodstained mire/i.test(name)) { counts.B += qty; counts.R += qty; }
-      if (/wooded foothills/i.test(name)) { counts.R += qty; counts.G += qty; }
-      if (/windswept heath/i.test(name)) { counts.G += qty; counts.W += qty; }
-      if (/marsh flats/i.test(name)) { counts.W += qty; counts.B += qty; }
-      if (/scalding tarn/i.test(name)) { counts.U += qty; counts.R += qty; }
-      if (/verdant catacombs/i.test(name)) { counts.B += qty; counts.G += qty; }
-      if (/arid mesa/i.test(name)) { counts.R += qty; counts.W += qty; }
-      if (/misty rainforest/i.test(name)) { counts.G += qty; counts.U += qty; }
-      
-      // Colorless specific sources
-      if (/wastes|urza's|eldrazi temple|mutavault|cavern of souls|blast zone|ghost quarter|field of ruin|boseiju, who shelters all/i.test(name)) { counts.C += qty; }
-    }
-  });
-  return counts;
-};
-
 // Componente Visual de la Matriz de Probabilidades de Frank Karsten
 const KarstenMatrix = ({ deck, validationEngine = 'local', validationData = null, chosenColors = [] }) => {
   const [activeTab, setActiveTab] = useState('matrix'); // 'matrix' | 'details' | 'recs'
-  const sources = useMemo(() => getManaSourcesCount(deck), [deck]);
+  const sources = useMemo(() => calculateManaSources(deck), [deck]);
   const deckSize = useMemo(() => deck.reduce((sum, c) => sum + (c.quantity || 1), 0), [deck]);
   
   const totalLands = useMemo(() => {
@@ -151,6 +94,10 @@ const KarstenMatrix = ({ deck, validationEngine = 'local', validationData = null
     }
     
     rows.forEach(r => {
+      // Ignorar colores no seleccionados para el mazo
+      if (r.color === 'C' && !chosenColors.includes('C')) return;
+      if (r.color !== 'C' && chosenColors.length > 0 && !chosenColors.includes(r.color)) return;
+
       const srcCount = sources[r.color] || 0;
       if (srcCount > 0 && srcCount < 9) {
         recs.push({
@@ -246,6 +193,8 @@ const KarstenMatrix = ({ deck, validationEngine = 'local', validationData = null
               <tbody>
                 {rows.map((row) => {
                   if (row.color === 'C' && !chosenColors.includes('C')) return null;
+                  if (row.color !== 'C' && chosenColors.length > 0 && !chosenColors.includes(row.color)) return null;
+                  
                   const srcCount = sources[row.color] || 0;
                   if (srcCount === 0) return null;
 
@@ -829,7 +778,7 @@ export default function DeckForge() {
     // Inyectar métricas matemáticas (VMP y recuento de fuentes)
     const metrics = {
       vmp: calculateVMP(renderDeck).vmp,
-      sources: getManaSourcesCount(renderDeck)
+      sources: calculateManaSources(renderDeck)
     };
     const auditData = { ...lastFormData, metrics };
 
