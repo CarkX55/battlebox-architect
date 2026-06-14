@@ -149,7 +149,7 @@ export const BLUEPRINTS = {
       }
     },
     ragModifiers: {
-      boost: ['costs more', 'can\'t attack', 'can\'t cast', 'tax', 'artifact', 'enchantment'],
+      boost: ['opponents control', "opponents can't", "can't attack you", "more to cast", "tax", "chalice of the void", "ensnaring bridge", "blood moon", "damping sphere", "pithing needle", "rest in peace", "grafdigger's cage"],
       penalty: ['haste', 'trample']
     }
   },

@@ -1,4 +1,4 @@
-import { generateManaBase, calculatePerfectLandCount, calculateVMP, getLandColors } from './deckCalculator.js'; 
+import { generateManaBase, calculatePerfectLandCount, calculateVMP, getLandColors, isBasicLand, isColoredBasicLand, deckNeedsSnowLands, isLandFormatLegal, BASIC_LANDS_BY_COLOR } from './deckCalculator.js'; 
 import { CURVE_BOUNDS, calculateRealTimeVMPWarning } from './deckAuditorService.js';
 import { internalSynergyAudit } from './auditService.js';
 import { callAI, buildAgenticPhasePrompt, GEMINI_PHASE_SCHEMA, DECK_BUILDER_TOOLS } from './aiFactory.js';
@@ -168,6 +168,8 @@ const GEMINI_SUPREME_JUDGE_SCHEMA = {
 const GEMINI_BLUEPRINT_SCHEMA = {
   type: "object",
   properties: {
+    deckName: { type: "string", description: "A creative, concise, and thematic name for the deck in Spanish, tailored to the selected strategy/tribe (e.g., 'Marea del Olvido' for Sea Monsters, 'Forja de Acero' for Affinity)." },
+    lore: { type: "string", description: "A brief, flavor-filled 1-sentence background story or lore description for this deck in Spanish." },
     totalSpells: { type: "number", description: "Target total non-land spells, typically 36 to 40 depending on curve." },
     strategy: { type: "string", description: "A concise, 1-2 sentence description of the overall gameplan and strategy of the deck in Spanish." },
     mulligan: { type: "string", description: "A concise, 1-2 sentence description of the ideal starting hand and mulligan rules in Spanish." },
@@ -194,7 +196,7 @@ const GEMINI_BLUEPRINT_SCHEMA = {
       }
     }
   },
-  required: ["totalSpells", "strategy", "mulligan", "roles"]
+  required: ["deckName", "lore", "totalSpells", "strategy", "mulligan", "roles"]
 };
 
 // 3. DICCIONARIO DE ADN ESTRATÉGICO Y CONSTRUCTOR TAXONÓMICO (Synergy Registry)
@@ -429,6 +431,136 @@ function getDeckBlueprint(archetype, strategyId, formData) {
   return { totalSpells, roles };
 }
 
+export function generateThematicFallbackName(formData) {
+  const prompt = (formData?.prompt || '').toLowerCase().trim();
+  const tribe = (formData?.tribe || '').toLowerCase().trim();
+  const colors = formData?.colores || [];
+  const archetype = (formData?.archetype || 'Midrange').toLowerCase().trim();
+  const strategy = (formData?.strategy || '').toLowerCase().trim();
+
+  // 1. Detectar temática por Raza / Tribu
+  if (tribe && tribe !== 'none' && tribe !== 'ninguna') {
+    const tribeNames = {
+      elves: "Comunidad del Bosque Susurrante",
+      goblins: "Horda de Asalto Trasgo",
+      merfolk: "Guardianes de la Fosa de Coral",
+      slivers: "Mente de Colmena Evolutiva",
+      ninjas: "Sombras del Clan Oculto",
+      faeries: "Travesura en el Valle de las Hadas",
+      zombies: "Alzamiento de la Horda Putrefacta",
+      spirits: "Corte de los Espíritus Olvidados",
+      humans: "Bastión de la Vanguardia Humana",
+      dragons: "Señores del Vuelo del Dragón",
+      dinosaurs: "Cazadores del Valle Jurásico",
+      vampires: "Corte de Sangre y Ceniza",
+      angels: "Resplandor del Coro Celestial",
+      demons: "Legión del Abismo Infernal",
+      cats: "Orgullo de la Sabana Dorada",
+      elementals: "Fuerza de la Sinergia Elemental",
+      wizards: "Cónclave de los Magos del Saber"
+    };
+    if (tribeNames[tribe]) return tribeNames[tribe];
+    
+    const cleanTribe = tribe.charAt(0).toUpperCase() + tribe.slice(1);
+    return `Alianza de la Tribu ${cleanTribe}`;
+  }
+
+  // 2. Detectar temática por palabras clave en el prompt del usuario
+  if (prompt) {
+    if (prompt.includes('monster') || prompt.includes('sea') || prompt.includes('kraken') || prompt.includes('leviat') || prompt.includes('pulpo') || prompt.includes('marino')) {
+      return "Furia de las Profundidades Marinas";
+    }
+    if (prompt.includes('phoenix') || prompt.includes('fénix')) {
+      return "Resurgir del Fénix de Arco";
+    }
+    if (prompt.includes('death') || prompt.includes('shadow') || prompt.includes('sombra')) {
+      return "Acecho de la Sombra Inmortal";
+    }
+    if (prompt.includes('ramp') || prompt.includes('big') || prompt.includes('titan') || prompt.includes('tron')) {
+      return "Forja de Titanes Ancestrales";
+    }
+    if (prompt.includes('artifact') || prompt.includes('metal') || prompt.includes('affinity') || prompt.includes('scales')) {
+      return "Ensamblaje del Acero Viviente";
+    }
+    if (prompt.includes('burn') || prompt.includes('spark') || prompt.includes('fuego') || prompt.includes('rayo')) {
+      return "Chispa de la Cólera Ígnea";
+    }
+    if (prompt.includes('discard') || prompt.includes('descarte') || prompt.includes('waste') || prompt.includes('rack')) {
+      return "Suplicio de la Mente Vacía";
+    }
+    if (prompt.includes('graveyard') || prompt.includes('reanimat') || prompt.includes('cementerio') || prompt.includes('dredge')) {
+      return "Llamada del Cementerio Profanado";
+    }
+    if (prompt.includes('blink') || prompt.includes('flicker') || prompt.includes('parpadeo')) {
+      return "Destello del Reino Celestial";
+    }
+    if (prompt.includes('token') || prompt.includes('enjambre') || prompt.includes('swarm')) {
+      return "Crecimiento del Enjambre Infinito";
+    }
+  }
+
+  // 3. Sabor por combinaciones de colores
+  const colorNames = {
+    'W': 'del Sol Naciente',
+    'U': 'de la Marea Eterna',
+    'B': 'de las Sombras Abisales',
+    'R': 'de la Llama Viva',
+    'G': 'del Bosque Ancestral',
+    'WU': 'del Cielomanto',
+    'UB': 'de la Intriga Oculta',
+    'BR': 'del Caos Sangriento',
+    'RG': 'de la Furia Salvaje',
+    'GW': 'del Pacto de las Hojas',
+    'WB': 'del Alba Sombría',
+    'UR': 'de la Tormenta Eléctrica',
+    'BG': 'del Ciclo de la Putrefacción',
+    'RW': 'de la Cruzada Sagrada',
+    'GU': 'de la Evolución Genética',
+    'WUB': 'de la Esfera de Esper',
+    'UBR': 'del Trono de Grixis',
+    'BRG': 'de las Tierras de Jund',
+    'RGW': 'del Dominio de Naya',
+    'GWU': 'del Reino de Bant',
+    'WUR': 'de la Iluminación de Jeskai',
+    'UBG': 'del Néctar de Sultai',
+    'BRW': 'de la Horda de Mardu',
+    'RGU': 'de las Fronteras de Temur',
+    'GWB': 'del Círculo de Abzan'
+  };
+
+  const sortedColorsKey = [...colors].sort().join('');
+  const suffix = colorNames[sortedColorsKey] || 'del Nexo de Maná';
+
+  const archNames = {
+    'aggro': 'Asalto Rápido',
+    'aggro-puro': 'Embestida Letal',
+    'aggro-sinergico': 'Sinergia Veloz',
+    'midrange': 'Equilibrio de Poder',
+    'control': 'Dominio Absoluto',
+    'tempo': 'Ritmo Interrumpido',
+    'ramp': 'Canalización Ancestral',
+    'combo': 'Fórmula de Victoria'
+  };
+
+  const prefix = archNames[archetype] || 'Ecosistema';
+
+  return `${prefix} ${suffix}`;
+}
+
+export function generateThematicFallbackLore(deckName, formData) {
+  const tribe = (formData?.tribe || '').toLowerCase().trim();
+  const archetype = (formData?.archetype || 'Midrange').toLowerCase().trim();
+  const colors = formData?.colores || [];
+
+  const colorStr = colors.length > 0 ? colors.join('-') : 'sin color';
+  
+  if (tribe && tribe !== 'none' && tribe !== 'ninguna') {
+    return `Un mazo histórico que reúne a los mejores combatientes de la tribu ${tribe} en una sinergia devastadora.`;
+  }
+  
+  return `Una baraja de estilo ${archetype} que canaliza las fuerzas de ${colorStr} para establecer un control y ventaja incuestionable en el campo de batalla.`;
+}
+
 export function getStrategyFallbackBlueprint(archetype, strategyId, formData) {
   const rawBlueprint = getDeckBlueprint(archetype, strategyId, formData);
   const dnaKey = strategyId || archetype || 'midrange';
@@ -464,7 +596,12 @@ export function getStrategyFallbackBlueprint(archetype, strategyId, formData) {
     };
   });
   
+  const deckName = generateThematicFallbackName(formData);
+  const lore = generateThematicFallbackLore(deckName, formData);
+
   return {
+    deckName,
+    lore,
     totalSpells: rawBlueprint.totalSpells,
     strategy: dnaData.prioridad || "",
     mulligan: "Conserva manos con al menos 2-3 tierras de tus colores y una curva activa en los primeros turnos.",
@@ -549,7 +686,7 @@ function getDynamicModernReanimateSpell(cards, formData) {
 export const getMaxAllowedCopies = (cardName, category, cmc, ragPool = []) => {
     if (!cardName) return 4;
     const nameLower = cardName.trim().toLowerCase();
-    const isBasic = ["plains", "island", "swamp", "mountain", "forest", "wastes", "llanura", "isla", "pantano", "montaña", "bosque", "yermo"].includes(nameLower);
+    const isBasic = isBasicLand(nameLower);
     if (isBasic) return 99;
 
     // Buscar en el ragPool para obtener metadatos más completos de Scryfall
@@ -616,7 +753,7 @@ export function getProCopiesForCard(card, role, ragPool = [], formData = null) {
   const nameLower = (card.name || '').trim().toLowerCase();
   
   // Basic lands
-  const isBasic = ["plains", "island", "swamp", "mountain", "forest", "wastes", "llanura", "isla", "pantano", "montaña", "bosque", "yermo"].includes(nameLower);
+  const isBasic = isBasicLand(nameLower);
   if (isBasic) return 99;
 
   const poolCard = ragPool ? ragPool.find(c => c.name.toLowerCase() === nameLower) : null;
@@ -1340,6 +1477,13 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
     const tribeObj = MTG_TRIBES.find(t => t.id === formData?.tribe || t.label === formData?.tribe) || null;
     const tribeId = tribeObj ? tribeObj.id : (formData?.tribe || '');
     const colors = new Set(formData?.colores || []);
+    const customSets = [
+        'tla', 'atla', 'ttla', 'tle', 'jtla', 'atle', 'ftla', 'ttle',
+        'fin', 'afic', 'afin', 'fic', 'tfin', 'tfic',
+        'tmt', 'atmt', 'tmc', 'ftmc', 'ttmc', 'ttmt',
+        'spm', 'aspm', 'spe', 'tspm',
+        'psdg', 'pspl'
+    ];
     
     const archLower = (formData?.archetype || '').toLowerCase();
     const strategyLower = (formData?.strategy || '').toLowerCase();
@@ -1375,13 +1519,6 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
         const isLegal = dbCard.legalities && dbCard.legalities[selectedFormat] === 'legal';
         
         const allowCustomCards = !!formData?.allowCustomCards;
-        const customSets = [
-            'tla', 'atla', 'ttla', 'tle', 'jtla', 'atle', 'ftla', 'ttle',
-            'fin', 'afic', 'afin', 'fic', 'tfin', 'tfic',
-            'tmt', 'atmt', 'tmc', 'ftmc', 'ttmc', 'ttmt',
-            'spm', 'aspm', 'spe', 'tspm',
-            'psdg', 'pspl'
-        ];
         const isCustom = dbCard.set && (customSets.includes(dbCard.set.toLowerCase()) || dbCard.set.toLowerCase().includes('custom'));
         
         return isLegal && (allowCustomCards || !isCustom);
@@ -1394,15 +1531,40 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
         // Verificar legalidad del formato (Problema 6)
         if (!isCardFormatLegal(nameClean)) {
             const allowedColors = formData?.colores || [];
-            const rep = obtenerMejorCartaDeRemplazo(newCard.category, newCard.cmc, allowedColors, formData?.format, ragPool, [nameClean.toLowerCase()]);
-            if (rep && rep.name) {
-                addLog(`[JUEZ LEGALIDAD] "${nameClean}" no es legal en el formato ${formData?.format}. Reemplazando por "${rep.name}" (CMC ${rep.cmc}, ${rep.category}).`);
-                nameClean = rep.name;
-                newCard.cmc = rep.cmc;
-                newCard.category = rep.category;
-            } else {
-                addLog(`[JUEZ LEGALIDAD] Advertencia: No se encontró reemplazo legal para "${nameClean}" en el formato ${formData?.format}. Omisión de INYECCIÓN.`);
-                return list;
+            const allowCustomCards = !!formData?.allowCustomCards;
+            let intelligentUsed = false;
+            const replacementName = getIntelligentSubstitution(nameClean, newCard.role);
+            if (replacementName && replacementName !== nameClean) {
+                const repCard = cachedAllCards.find(ac => ac && ac.name && ac.name.toLowerCase() === replacementName.toLowerCase());
+                if (repCard) {
+                    const selectedFormat = (formData?.format || 'MODERN').toLowerCase();
+                    const repLegal = repCard.legalities && repCard.legalities[selectedFormat] === 'legal';
+                    const repCustom = repCard.set && (customSets.includes(repCard.set.toLowerCase()) || repCard.set.toLowerCase().includes('custom'));
+                    const colorsSet = new Set(allowedColors && allowedColors.length > 0 ? allowedColors : ['W', 'U', 'B', 'R', 'G']);
+                    const cardColors = repCard.colors || [];
+                    const isColorCompatible = cardColors.length === 0 || cardColors.every(col => colorsSet.has(col));
+                    
+                    if (repLegal && (allowCustomCards || !repCustom) && isColorCompatible) {
+                        addLog(`[JUEZ LEGALIDAD] "${nameClean}" no es legal en el formato ${formData?.format}. Reemplazo inteligente encontrado: "${repCard.name}"`);
+                        nameClean = repCard.name;
+                        newCard.cmc = repCard.mana_value || repCard.cmc || 2;
+                        newCard.category = repCard.type_line?.toLowerCase().includes('creature') ? 'Creature' : (repCard.type_line?.toLowerCase().includes('instant') ? 'Instant' : 'Spell');
+                        intelligentUsed = true;
+                    }
+                }
+            }
+            
+            if (!intelligentUsed) {
+                const rep = obtenerMejorCartaDeRemplazo(newCard.category, newCard.cmc, allowedColors, formData?.format, ragPool, [nameClean.toLowerCase()]);
+                if (rep && rep.name) {
+                    addLog(`[JUEZ LEGALIDAD] "${nameClean}" no es legal en el formato ${formData?.format}. Reemplazando por "${rep.name}" (CMC ${rep.cmc}, ${rep.category}).`);
+                    nameClean = rep.name;
+                    newCard.cmc = rep.cmc;
+                    newCard.category = rep.category;
+                } else {
+                    addLog(`[JUEZ LEGALIDAD] Advertencia: No se encontró reemplazo legal para "${nameClean}" en el formato ${formData?.format}. Omisión de INYECCIÓN.`);
+                    return list;
+                }
             }
         }
 
@@ -1527,7 +1689,7 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
         }
 
         // === REGLA H: VETO A CRIATURAS GIGANTES INCASTEABLES (UNCASTABLE CREATURES) ===
-        const allowedHeavyStrategies = ['reanimator', 'ramp', 'tron', 'landfall'];
+        const allowedHeavyStrategies = ['reanimator', 'ramp', 'tron', 'landfall', 'toolbox'];
         const isHeavyStrategy = allowedHeavyStrategies.includes(strategyId) ||
                                 allowedHeavyStrategies.some(s => archLower.includes(s)) ||
                                 (tribeId && typeof tribeId === 'string' && tribeId !== 'none' && tribeId !== 'ninguna' && ['sea_monsters', 'eldrazi', 'dragons', 'dinosaurs'].includes(tribeId.toLowerCase()));
@@ -1556,6 +1718,7 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
                         textLower.includes('emerge') ||
                         textLower.includes('prototype') ||
                         textLower.includes('undisturbed') ||
+                        textLower.includes('rather than pay') ||
                         typeLower.includes('avatar') ||
                         c.name.toLowerCase() === 'scion of draco'
                     ) {
@@ -1566,7 +1729,8 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
             });
             
             const isControlOrMidrange = strategyId === 'control' || archLower.includes('control') || strategyId === 'midrange' || archLower.includes('midrange');
-            let allowedHeavyCopies = isControlOrMidrange ? 2 : 0;
+            const isPrison = strategyId === 'prison' || archLower.includes('prison') || strategyId === 'stax' || archLower.includes('stax') || strategyId === 'taxes' || archLower.includes('taxes');
+            let allowedHeavyCopies = isPrison ? 4 : (isControlOrMidrange ? 2 : 0);
             
             for (const c of uncastables) {
                 const qty = c.quantity;
@@ -1668,7 +1832,7 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
             console.log(logDomain);
             if (addLog) addLog(logDomain);
 
-            const basicLandsList = cards.filter(c => c && c.category === 'Land' && c.name && typeof c.name === 'string' && ["plains", "island", "swamp", "mountain", "forest"].includes(c.name.toLowerCase()));
+            const basicLandsList = cards.filter(c => c && c.category === 'Land' && c.name && typeof c.name === 'string' && isColoredBasicLand(c.name));
             if (basicLandsList.length > 0) {
                 basicLandsList[0].quantity -= 1;
                 cards.push({ name: complementTriome, quantity: 1, category: "Land", type_line: "Land — Triome", color_identity: ["G", "W", "U"] });
@@ -1679,13 +1843,22 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
 
     // G. PROTECCIÓN CONTRA BLOOD MOON EN MAZOS MULTICOLORES (3+ COLORES)
     if (colors.size >= 3 && !hasTribe && (formData?.format || '').toUpperCase() !== 'STANDARD' && !spellAuditOnly && !preserveLands) {
-        const basicLands = cards.filter(c => c && c.category === 'Land' && c.name && typeof c.name === 'string' && ["plains", "island", "swamp", "mountain", "forest"].includes(c.name.toLowerCase()));
+        const basicLands = cards.filter(c => c && c.category === 'Land' && c.name && typeof c.name === 'string' && isColoredBasicLand(c.name));
         const uniqueBasics = new Set(basicLands.map(b => b.name.toLowerCase()));
         
+        const hasBasicOfColor = (color) => {
+            const allowed = BASIC_LANDS_BY_COLOR[color] || [];
+            return Array.from(uniqueBasics).some(name => allowed.includes(name));
+        };
+
+        const needsSnow = deckNeedsSnowLands(cards.filter(c => c.category !== 'Land'));
+        const formatKey = (formData?.format || 'MODERN').toLowerCase();
+        const canUseSnow = needsSnow && cachedAllCards.some(ac => ac && ac.name === "Snow-Covered Island" && ac.legalities && ac.legalities[formatKey] === 'legal');
+
         let basicsToAdd = [];
-        if (colors.has("G") && !uniqueBasics.has("forest")) basicsToAdd.push("Forest");
-        if (colors.has("U") && !uniqueBasics.has("island")) basicsToAdd.push("Island");
-        if (colors.has("B") && !uniqueBasics.has("swamp")) basicsToAdd.push("Swamp");
+        if (colors.has("G") && !hasBasicOfColor("G")) basicsToAdd.push(canUseSnow ? "Snow-Covered Forest" : "Forest");
+        if (colors.has("U") && !hasBasicOfColor("U")) basicsToAdd.push(canUseSnow ? "Snow-Covered Island" : "Island");
+        if (colors.has("B") && !hasBasicOfColor("B")) basicsToAdd.push(canUseSnow ? "Snow-Covered Swamp" : "Swamp");
 
         if (basicsToAdd.length > 0) {
             const logMoon = `[JUEZ PRO TOUR] Mazo de 3+ colores vulnerable a Blood Moon. Inyectando tierras básicas CRÍTICAs: ${basicsToAdd.join(', ')}.`;
@@ -1693,7 +1866,7 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
             if (addLog) addLog(logMoon);
 
             basicsToAdd.forEach(basicName => {
-                const duals = cards.filter(c => c && c.category === 'Land' && c.name && typeof c.name === 'string' && !["plains", "island", "swamp", "mountain", "forest"].includes(c.name.toLowerCase()) && c.quantity > 1);
+                const duals = cards.filter(c => c && c.category === 'Land' && c.name && typeof c.name === 'string' && !isColoredBasicLand(c.name) && c.quantity > 1);
                 if (duals.length > 0) {
                     duals[0].quantity -= 1;
                     cards = inyectarCartaDirecta(cards, { name: basicName, quantity: 1, category: "Land", cmc: 0 });
@@ -2117,13 +2290,16 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
             const cheatableKeywords = [
                 "murktide", "grief", "solitude", "fury", "subtlety", "endurance",
                 "sojourner", "myr enforcer", "frogmite", "binding", "kaldra", "batterskull",
-                "archon of cruelty", "atraxa", "griselbrand", "primeval titan", "wurmcoil engine", "ulamog", "kozilek", "emrakul", "force of will", "force of negation"
+                "archon of cruelty", "atraxa", "griselbrand", "primeval titan", "wurmcoil engine", "ulamog", "kozilek", "emrakul", "force of will", "force of negation",
+                "allosaurus rider"
             ];
             const isCheatable = cheatableKeywords.some(kw => nameLower.includes(kw)) ||
                 (strategyId === 'reanimator') ||
                 (strategyId === 'graveyard') ||
+                (strategyId === 'toolbox') ||
+                (strategyId === 'tron') ||
                 (strategyId === 'ramp' && c.cmc >= 6) ||
-                (c.role && (c.role.includes("finisher") || c.role.includes("win_con") || c.role.includes("top_end"))) ||
+                (c.role && (c.role.includes("finisher") || c.role.includes("win_con") || c.role.includes("top_end") || c.role.includes("combo"))) ||
                 (isControl && (c.category === 'Creature' || c.category === 'Planeswalker')); // Control legitima criaturas y planeswalkers CMC>=5 como finishers
 
             if (!isCheatable) {
@@ -2401,7 +2577,7 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
             if (c.quantity <= 0) return; // Cleanup cards that were fully removed
             const existing = uniqueCards.find(uc => uc.name.toLowerCase() === c.name.toLowerCase());
             if (existing) {
-                const isBasic = ["plains", "island", "swamp", "mountain", "forest", "wastes", "llanura", "isla", "pantano", "montaña", "bosque", "yermo"].includes(c.name.toLowerCase());
+                const isBasic = isBasicLand(c.name);
                 existing.quantity = isBasic ? (existing.quantity + c.quantity) : Math.min(4, existing.quantity + c.quantity);
             } else {
                 uniqueCards.push(c);
@@ -2428,14 +2604,10 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
             // Verificar si ya existe
             if (!cards.some(c => c.name.toLowerCase() === l.name.toLowerCase())) {
                 // Reemplazar un basic land correspondiente
-                let basicName = "Plains";
-                if (l.color === "G") basicName = "Forest";
-                else if (l.color === "U") basicName = "Island";
-                else if (l.color === "B") basicName = "Swamp";
-                else if (l.color === "R") basicName = "Mountain";
-
-                const basicLandIdx = cards.findIndex(c => c.category === 'Land' && c.name.toLowerCase() === basicName.toLowerCase() && c.quantity > 1);
+                const allowedNames = BASIC_LANDS_BY_COLOR[l.color] || [];
+                const basicLandIdx = cards.findIndex(c => c.category === 'Land' && allowedNames.includes(c.name.toLowerCase()) && c.quantity > 1);
                 if (basicLandIdx !== -1) {
+                    const basicName = cards[basicLandIdx].name;
                     cards[basicLandIdx].quantity -= 1;
                     cards.push({ ...l, quantity: 1 });
                     const logMsgG = `[DIMENSIÓN G] Utility Lands: Reemplazado 1x "${basicName}" con 1x "${l.name}" (Legendary Channel Land)`;
@@ -2457,7 +2629,7 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
 
         // Deduct lands
         let deducted = 0;
-        const basicLands = cards.filter(c => c.category === 'Land' && ["plains", "island", "swamp", "mountain", "forest"].includes(c.name.toLowerCase()));
+        const basicLands = cards.filter(c => c.category === 'Land' && isColoredBasicLand(c.name));
         for (let bl of basicLands) {
             if (deducted >= landsToDeduct) break;
             const take = Math.min(bl.quantity - 1, landsToDeduct - deducted);
@@ -2475,7 +2647,7 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
     }
 
     // === EXCEPCIÓN TRON: INYECCIÓN OBLIGATORIA DE TIERRAS DE URZA ===
-    const isTronDeck = strategyId === 'tron' || formData?.arquetipo?.toLowerCase().includes("tron");
+    const isTronDeck = strategyId === 'tron' || (formData?.archetype || '').toLowerCase().includes("tron") || (formData?.arquetipo || '').toLowerCase().includes("tron");
     if (isTronDeck) {
         const urzaLands = ["Urza's Tower", "Urza's Power Plant", "Urza's Mine"];
         let injectedUrza = 0;
@@ -2580,20 +2752,19 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
                         const surplus = otherSources - 14;
                         const qtyToConvert = Math.min(surplus, deficit - converted);
                         if (qtyToConvert > 0) {
-                            let otherBasicName = "Island";
-                            if (other === "W") otherBasicName = "Plains";
-                            else if (other === "B") otherBasicName = "Swamp";
-                            else if (other === "R") otherBasicName = "Mountain";
-                            else if (other === "G") otherBasicName = "Forest";
-
-                            let colBasicName = "Island";
-                            if (col === "W") colBasicName = "Plains";
-                            else if (col === "B") colBasicName = "Swamp";
-                            else if (col === "R") colBasicName = "Mountain";
-                            else if (col === "G") colBasicName = "Forest";
-
-                            const otherBasicLand = cards.find(c => c.category === 'Land' && c.name.toLowerCase() === otherBasicName.toLowerCase() && c.quantity > qtyToConvert);
+                            const otherAllowed = BASIC_LANDS_BY_COLOR[other] || [];
+                            const otherBasicLand = cards.find(c => c.category === 'Land' && otherAllowed.includes(c.name.toLowerCase()) && c.quantity > qtyToConvert);
                             if (otherBasicLand) {
+                                const otherBasicName = otherBasicLand.name;
+                                const isSnow = otherBasicName.toLowerCase().startsWith("snow-covered") || otherBasicName.toLowerCase().includes("nevada");
+                                
+                                let colBasicName = "Island";
+                                if (col === "W") colBasicName = isSnow ? "Snow-Covered Plains" : "Plains";
+                                else if (col === "B") colBasicName = isSnow ? "Snow-Covered Swamp" : "Swamp";
+                                else if (col === "R") colBasicName = isSnow ? "Snow-Covered Mountain" : "Mountain";
+                                else if (col === "G") colBasicName = isSnow ? "Snow-Covered Forest" : "Forest";
+                                else if (col === "U") colBasicName = isSnow ? "Snow-Covered Island" : "Island";
+
                                 otherBasicLand.quantity -= qtyToConvert;
                                 cards = inyectarCartaDirecta(cards, { name: colBasicName, quantity: qtyToConvert, category: "Land", cmc: 0 });
                                 converted += qtyToConvert;
@@ -2939,7 +3110,7 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
         if (c.quantity <= 0) return; // Cleanup cards that were fully removed
         const existing = uniqueCards.find(uc => uc.name.toLowerCase() === c.name.toLowerCase());
         if (existing) {
-            const isBasic = ["plains", "island", "swamp", "mountain", "forest", "wastes", "llanura", "isla", "pantano", "montaña", "bosque", "yermo"].includes(c.name.toLowerCase());
+            const isBasic = isBasicLand(c.name);
             existing.quantity = isBasic ? (existing.quantity + c.quantity) : Math.min(4, existing.quantity + c.quantity);
         } else {
             uniqueCards.push(c);
@@ -3963,6 +4134,7 @@ Diseña el plano estructural perfecto y a medida para este mazo.
 - Colors: [${baseIdent_ColorStr}]
 - Curve: ${curveProfile}
 - Format: ${formData.format || 'MODERN'}
+- User Custom Instructions / Theme: ${formData.prompt || 'Ninguno'}
 - Format CMC Constraint: En formato ${formData.format || 'MODERN'}, el CMC máximo viable competitivamente es ${formatMod.maxViableCMC}. No asignes roles con cmcCategory "5+" a menos que el arquetipo lo requiera absolutamente (ramp, control).
 - Speed Target: Los combos en ${formData.format || 'MODERN'} se ejecutan en el turno ${formatMod.comboSpeedTarget} como objetivo ideal.
   ${getArchetypePhilosophyPrompt(formData.archetype)}
@@ -3978,7 +4150,9 @@ Define las cantidades exactas de cartas para cada rol ESTRATÉGICO clave en una 
 - purposeDescription: Propósito del rol y cómo se adapta a la curva y estrategia seleccionada. ¡MUY IMPORTANTE! NO MENCIONES NOMBRES DE CARTAS ESPECÍFICAS AQUÍ. Mantén la descripción 100% abstracta y conceptual (ej: "motores de sacrificio de coste 1" en lugar de "como Viscera Seer").
 - search_query: Escribe la consulta ideal en sintaxis de Scryfall o etiqueta semántica para encontrar cartas para este rol. DEBES USAR TAGS (ej. o:flying, oracletag:cost-reducer, t:creature, function:removal). ¡Se creativo y específico al formato!
 
-Adicionalmente, define:
+Adicionalmente, define a nivel de raíz:
+- deckName: Un nombre creativo, único y muy temático en español para el mazo, acorde a su estrategia/tribu y directamente inspirado en las instrucciones/temas personalizados del usuario si los hay (ej. si el usuario pidió monstruos marinos de rampa, el nombre debe evocar krakens y profundidades, ej: "Marea del Olvido" o "Susurros de la Fosa"). NUNCA uses nombres genéricos como "Mazo de Rampa" o "Mazo Azul-Verde".
+- lore: Una frase breve (1 oración en español) con trasfondo literario o historia del mazo inspirada en la temática del usuario.
 - strategy: Una breve descripción (1-2 frases en español) del plan de juego y la estrategia general del mazo.
 - mulligan: Una breve guía (1-2 frases en español) de las condiciones ideales para quedarse una mano inicial (mulligan).
 
@@ -4234,37 +4408,58 @@ La suma de las cantidades de todos los roles debe ser exactamente igual a totalS
                    let cardToUse = dbCard;
                    
                    if (!isLegal || (!allowCustomCards && isCustom)) {
-                      const allowedColors = formData?.colores || [];
-                      const targetCategory = dbCard.type_line?.toLowerCase().includes('creature') ? 'Creature' : (dbCard.type_line?.toLowerCase().includes('instant') ? 'Instant' : 'Spell');
-                      const targetCmc = dbCard.mana_value || dbCard.cmc || 2;
-                      
-                      const rep = obtenerMejorCartaDeRemplazo(
-                         targetCategory, 
-                         targetCmc, 
-                         allowedColors, 
-                         formData.format, 
-                         ragResult.pool.filter(c => {
-                            const rCard = allCards.find(ac => ac && ac.name && ac.name.toLowerCase() === c.name.toLowerCase());
-                            if (!rCard) return false;
-                            const rLegal = rCard.legalities && rCard.legalities[selectedFormat] === 'legal';
-                            const rCustom = rCard.set && (customSets.includes(rCard.set.toLowerCase()) || rCard.set.toLowerCase().includes('custom'));
-                            return rLegal && (allowCustomCards || !rCustom);
-                         }),
-                         [dbCard.name.toLowerCase()],
-                         allCards
-                      );
-                      
-                      if (rep && rep.name) {
-                         const cleanDbCard = allCards.find(ac => ac && ac.name && ac.name.toLowerCase() === rep.name.toLowerCase());
-                         if (cleanDbCard) {
-                            addLog(`[AGENTIC FLOW] Juez Interno sugirió "${dbCard.name}" (Ilegal en ${formData.format}). Auto-Corrigiendo al reemplazo legal: "${cleanDbCard.name}"`);
-                            cardToUse = cleanDbCard;
-                         }
-                      } else {
-                         addLog(`[AGENTIC FLOW] Advertencia Juez Interno: "${dbCard.name}" es ilegal en ${formData.format} y no se encontró reemplazo. Omitiendo.`);
-                         return;
-                      }
-                   }
+                       const allowedColors = formData?.colores || [];
+                       const targetCategory = dbCard.type_line?.toLowerCase().includes('creature') ? 'Creature' : (dbCard.type_line?.toLowerCase().includes('instant') ? 'Instant' : 'Spell');
+                       const targetCmc = dbCard.mana_value || dbCard.cmc || 2;
+                       
+                       let intelligentUsed = false;
+                       const replacementName = getIntelligentSubstitution(dbCard.name, associatedRole);
+                       if (replacementName && replacementName !== dbCard.name) {
+                          const repCard = allCards.find(ac => ac && ac.name && ac.name.toLowerCase() === replacementName.toLowerCase());
+                          if (repCard) {
+                             const repLegal = repCard.legalities && repCard.legalities[selectedFormat] === 'legal';
+                             const repCustom = repCard.set && (customSets.includes(repCard.set.toLowerCase()) || repCard.set.toLowerCase().includes('custom'));
+                             const colorsSet = new Set(allowedColors && allowedColors.length > 0 ? allowedColors : ['W', 'U', 'B', 'R', 'G']);
+                             const cardColors = repCard.colors || [];
+                             const isColorCompatible = cardColors.length === 0 || cardColors.every(col => colorsSet.has(col));
+                             
+                             if (repLegal && (allowCustomCards || !repCustom) && isColorCompatible) {
+                                addLog(`[AGENTIC FLOW] Juez Interno sugirió "${dbCard.name}" (Ilegal en ${formData.format}). Reemplazo inteligente encontrado: "${repCard.name}"`);
+                                cardToUse = repCard;
+                                intelligentUsed = true;
+                             }
+                          }
+                       }
+                       
+                       if (!intelligentUsed) {
+                          const rep = obtenerMejorCartaDeRemplazo(
+                             targetCategory, 
+                             targetCmc, 
+                             allowedColors, 
+                             formData.format, 
+                             ragResult.pool.filter(c => {
+                                const rCard = allCards.find(ac => ac && ac.name && ac.name.toLowerCase() === c.name.toLowerCase());
+                                if (!rCard) return false;
+                                const rLegal = rCard.legalities && rCard.legalities[selectedFormat] === 'legal';
+                                const rCustom = rCard.set && (customSets.includes(rCard.set.toLowerCase()) || rCard.set.toLowerCase().includes('custom'));
+                                return rLegal && (allowCustomCards || !rCustom);
+                             }),
+                             [dbCard.name.toLowerCase()],
+                             allCards
+                          );
+                          
+                          if (rep && rep.name) {
+                             const cleanDbCard = allCards.find(ac => ac && ac.name && ac.name.toLowerCase() === rep.name.toLowerCase());
+                             if (cleanDbCard) {
+                                addLog(`[AGENTIC FLOW] Juez Interno sugirió "${dbCard.name}" (Ilegal en ${formData.format}). Auto-Corrigiendo al reemplazo legal: "${cleanDbCard.name}"`);
+                                cardToUse = cleanDbCard;
+                             }
+                          } else {
+                             addLog(`[AGENTIC FLOW] Advertencia Juez Interno: "${dbCard.name}" es ilegal en ${formData.format} y no se encontró reemplazo. Omitiendo.`);
+                             return;
+                          }
+                       }
+                    }
 
                    addLog(`[AGENTIC FLOW] Auto-Corrigiendo: Añadiendo ${cardToUse.name} (${a.quantity || 1}x) para el rol "${associatedRole}"`);
                    currentDeckContext.push({
@@ -4395,6 +4590,48 @@ La suma de las cantidades de todos los roles debe ser exactamente igual a totalS
 
   // Calcular el land count objetivo final
   let metricalTargetLnd = calculatePerfectLandCount(consolidatedSpells, formData, hasYorion);
+
+  // === VALIDACIÓN SEMÁNTICA DE ESTRATEGIA Y CURVA ===
+  let totalSpellsCmc = 0;
+  let totalSpellsQty = 0;
+  consolidatedSpells.forEach(c => {
+    const qty = c.quantity || 1;
+    const cmc = c.cmc ?? c.mana_value ?? 2;
+    totalSpellsCmc += cmc * qty;
+    totalSpellsQty += qty;
+  });
+  const avgCmcSpells = totalSpellsQty > 0 ? (totalSpellsCmc / totalSpellsQty) : 0;
+  
+  const lowCmcRampCount = consolidatedSpells.filter(c => {
+    const cmc = c.cmc ?? c.mana_value ?? 2;
+    const isRamp = (c.role || '').toLowerCase().includes('ramp') || 
+                   (c.role || '').toLowerCase().includes('dork') ||
+                   (c.oracle_text || '').toLowerCase().includes('search your library for a land') ||
+                   (c.oracle_text || '').toLowerCase().includes('search your library for a basic land') ||
+                   (c.oracle_text || '').toLowerCase().includes('add ');
+    return cmc <= 2 && isRamp;
+  }).reduce((sum, c) => sum + (c.quantity || 1), 0);
+
+  const earlyInteractionCount = consolidatedSpells.filter(c => {
+    const cmc = c.cmc ?? c.mana_value ?? 2;
+    const nameL = (c.name || '').toLowerCase();
+    const roleL = (c.role || '').toLowerCase();
+    const isInter = roleL.includes('removal') || roleL.includes('interaction') || roleL.includes('counter') ||
+                    nameL.includes('counterspell') || nameL.includes('push') || nameL.includes('bolt') || nameL.includes('path to exile') || nameL.includes('swords');
+    return cmc <= 2 && isInter;
+  }).reduce((sum, c) => sum + (c.quantity || 1), 0);
+
+  if (avgCmcSpells >= 4.2 && lowCmcRampCount === 0) {
+    addLog(`[VALIDACIÓN ESTRATEGIA] Mazo pesado sin rampa detectado (CMC promedio: ${avgCmcSpells.toFixed(2)}). Ajustado a ${metricalTargetLnd} tierras para evitar land screw.`);
+  } else if (avgCmcSpells <= 1.9) {
+    addLog(`[VALIDACIÓN ESTRATEGIA] Mazo ultra-ligero detectado (CMC promedio: ${avgCmcSpells.toFixed(2)}). Ajustado a ${metricalTargetLnd} tierras para evitar land flood.`);
+  }
+
+  if (earlyInteractionCount >= 6) {
+    formData.maxColorlessLandsLimit = 2;
+    addLog(`[VALIDACIÓN ESTRATEGIA] Alta densidad de interacción barata detectada (${earlyInteractionCount} copias). Limitando tierras incoloras a un máximo de 2 para asegurar pips de color.`);
+  }
+
   const targetSpellsCount = deckSize - metricalTargetLnd;
 
   // Ajustar la suma de hechizos para que coincida exactamente con targetSpellsCount
@@ -4529,17 +4766,28 @@ La suma de las cantidades de todos los roles debe ser exactamente igual a totalS
   if (finalLandsSum < targetLandsCount) {
       let missing = targetLandsCount - finalLandsSum;
       addLog(`[CONSOLIDACIÓN SUPREMA] Déficit en tierras (${finalLandsSum}/${targetLandsCount}). Añadiendo ${missing} tierras básicas...`);
-      const basicLand = finalLands.find(l => ["plains", "island", "swamp", "mountain", "forest", "wastes", "llanura", "isla", "pantano", "montaña", "bosque", "yermo"].includes(l.name.toLowerCase()));
+      const basicLand = finalLands.find(l => isBasicLand(l.name));
       if (basicLand) {
           basicLand.quantity += missing;
       } else {
           const colors = formData?.colores || [];
+          const needsSnow = deckNeedsSnowLands(finalSpells);
+          const formatKey = (formData?.format || 'MODERN').toLowerCase();
+          const canUseSnow = needsSnow && cachedAllCards.some(ac => ac && ac.name === "Snow-Covered Island" && ac.legalities && ac.legalities[formatKey] === 'legal');
+
           let basicLandName = "Swamp";
-          if (colors.includes("W")) basicLandName = "Plains";
-          else if (colors.includes("U")) basicLandName = "Island";
-          else if (colors.includes("R")) basicLandName = "Mountain";
-          else if (colors.includes("G")) basicLandName = "Forest";
-          finalLands.push({ name: basicLandName, quantity: missing, category: "Land", cmc: 0 });
+          if (colors.includes("W")) basicLandName = canUseSnow ? "Snow-Covered Plains" : "Plains";
+          else if (colors.includes("U")) basicLandName = canUseSnow ? "Snow-Covered Island" : "Island";
+          else if (colors.includes("R")) basicLandName = canUseSnow ? "Snow-Covered Mountain" : "Mountain";
+          else if (colors.includes("G")) basicLandName = canUseSnow ? "Snow-Covered Forest" : "Forest";
+          
+          finalLands.push({
+              name: basicLandName,
+              quantity: missing,
+              category: "Land",
+              type_line: canUseSnow ? `Basic Snow Land — ${basicLandName.replace('Snow-Covered ', '')}` : `Basic Land — ${basicLandName}`,
+              cmc: 0
+          });
       }
   } else if (finalLandsSum > targetLandsCount) {
       let excess = finalLandsSum - targetLandsCount;
@@ -4557,8 +4805,8 @@ La suma de las cantidades de todos los roles debe ser exactamente igual a totalS
       // Segundo pase: si aún sobran, borrar tierras por completo (empezando por básicas)
       if (excess > 0) {
           finalLands.sort((a, b) => {
-              const isBasicA = ["plains", "island", "swamp", "mountain", "forest", "wastes"].includes(a.name.toLowerCase());
-              const isBasicB = ["plains", "island", "swamp", "mountain", "forest", "wastes"].includes(b.name.toLowerCase());
+              const isBasicA = isBasicLand(a.name);
+              const isBasicB = isBasicLand(b.name);
               return isBasicA === isBasicB ? 0 : isBasicA ? -1 : 1;
           });
           
@@ -4650,7 +4898,9 @@ La suma de las cantidades de todos los roles debe ser exactamente igual a totalS
     validResultsStruct.validationEngine = validationEngine;
     validResultsStruct.validationData = validationData;
     
-    // Sincronizar estrategia y mulligan del Blueprint de la IA o el Fallback
+    // Sincronizar estrategia, mulligan, nombre y lore del Blueprint de la IA o el Fallback
+    validResultsStruct.deckName = blueprint?.deckName || `${formData.archetype || 'Midrange'} ${formData.strategy || ''}`;
+    validResultsStruct.lore = blueprint?.lore || `Un mazo de estilo ${formData.archetype || 'Midrange'} enfocado en la estrategia ${formData.strategy || 'general'}.`;
     validResultsStruct.strategy = blueprint?.strategy || dnaData.prioridad || "";
     validResultsStruct.mulligan = blueprint?.mulligan || "Conserva manos con al menos 2-3 tierras de tus colores y una curva activa.";
 

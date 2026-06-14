@@ -66,7 +66,11 @@ export const BANLIST_SUBSTITUTIONS = {
   "City of Traitors": "Ghost Quarter",
   "Dark Ritual": "Strike It Rich", 
   "Rite of Flame": "Pyretic Ritual",
-  "Urza's Saga": "Inventors' Fair", 
+  "Simian Spirit Guide": "Pyretic Ritual",
+  "Elvish Spirit Guide": "Utopia Sprawl",
+  "Mox Tantalite": "Mind Stone",
+  "Lotus Bloom": "Pentad Prism",
+  "Urza's Saga": "Inventors' Fair",  
   "Tolarian Academy": "Academy Ruins",
   "Cabal Coffers": "Cabal Stronghold", 
   "Basalt Monolith": "Worn Powerstone",
@@ -157,6 +161,10 @@ export const ROLE_BASED_SUBS = {
 };
 
 export function getIntelligentSubstitution(originalName, role) {
+  if (originalName && BANLIST_SUBSTITUTIONS[originalName]) {
+    return BANLIST_SUBSTITUTIONS[originalName];
+  }
+
   let inferredRole = role;
   if (!inferredRole && originalName) {
     const nameLower = originalName.toLowerCase();

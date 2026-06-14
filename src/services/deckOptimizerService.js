@@ -1,9 +1,10 @@
-﻿import { aplicarJuezFinal, getMaxAllowedCopies, cleanAndParseJSON } from './deckArchitectService.js';
+import { aplicarJuezFinal, getMaxAllowedCopies, cleanAndParseJSON } from './deckArchitectService.js';
 import { buildCardPool } from './ragService.js';
 import { BATTLEBOX_VETOS } from '../constants/legacyBattleBox.js';
 import { hydrateDeckCards } from './cardHydrator.js';
-import { isLand, calculatePerfectLandCount, generateManaBase } from './deckCalculator.js';
+import { isLand, calculatePerfectLandCount, generateManaBase, isBasicLand, deckNeedsSnowLands, isLandFormatLegal } from './deckCalculator.js';
 import { callAI, DECK_SCHEMA } from './aiFactory.js';
+import { getAllCards } from './dbIngestor.js';
 
 /**
  * Helper robusto para identificar si una carta es una tierra.
@@ -15,9 +16,8 @@ const isLandCard = (c) => {
   
   const nameLower = (c.name || "").toLowerCase().trim();
   
-  // Tierras bÃ¡sicas en inglÃ©s y espaÃ±ol
-  const basicLands = ["plains", "island", "swamp", "mountain", "forest", "wastes", "llanura", "isla", "pantano", "montaÃ±a", "bosque", "yermo"];
-  if (basicLands.includes(nameLower)) return true;
+  // Tierras básicas
+  if (isBasicLand(nameLower)) return true;
   
   // Patrones de tierras no bÃ¡sicas comunes (ej: shocklands, fetchlands, triomas, slow/fastlands)
   const landPatterns = [
@@ -262,13 +262,26 @@ async function corregirTamañoYBaseDeMana(cards, targetDeckSize, formData, ragPo
         lands[0].quantity += neededLands;
       } else {
         const colorsArray = Array.from(new Set(formData?.colores || []));
+        const needsSnow = deckNeedsSnowLands(spells);
+        const formatKey = (formData?.format || 'MODERN').toLowerCase();
+        
+        const allCards = await getAllCards();
+        const canUseSnow = needsSnow && allCards.some(ac => ac && ac.name === "Snow-Covered Island" && ac.legalities && ac.legalities[formatKey] === 'legal');
+
         let landName = "Wastes";
-        if (colorsArray.includes("W")) landName = "Plains";
-        else if (colorsArray.includes("U")) landName = "Island";
-        else if (colorsArray.includes("B")) landName = "Swamp";
-        else if (colorsArray.includes("R")) landName = "Mountain";
-        else if (colorsArray.includes("G")) landName = "Forest";
-        lands.push({ name: landName, quantity: neededLands, category: "Land", cmc: 0 });
+        if (colorsArray.includes("W")) landName = canUseSnow ? "Snow-Covered Plains" : "Plains";
+        else if (colorsArray.includes("U")) landName = canUseSnow ? "Snow-Covered Island" : "Island";
+        else if (colorsArray.includes("B")) landName = canUseSnow ? "Snow-Covered Swamp" : "Swamp";
+        else if (colorsArray.includes("R")) landName = canUseSnow ? "Snow-Covered Mountain" : "Mountain";
+        else if (colorsArray.includes("G")) landName = canUseSnow ? "Snow-Covered Forest" : "Forest";
+        
+        lands.push({
+          name: landName,
+          quantity: neededLands,
+          category: "Land",
+          type_line: canUseSnow && landName !== "Wastes" ? `Basic Snow Land — ${landName.replace('Snow-Covered ', '')}` : `Basic Land — ${landName}`,
+          cmc: 0
+        });
       }
     } else if (neededLands < 0) {
       let excessLands = -neededLands;

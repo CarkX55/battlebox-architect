@@ -461,6 +461,8 @@ export default function DeckForge() {
   const [renderDeck, setRenderDeck] = useState([]);
   const [renderSideboard, setRenderSideboard] = useState([]);
   const [aiMetadata, setAiMetadata] = useState(null);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [tempDeckName, setTempDeckName] = useState('');
   const [sideboardStrategy, setSideboardStrategy] = useState('');
    const [archived, setArchived] = useState(false);
    const [isEditing, setIsEditing] = useState(false);
@@ -1397,9 +1399,41 @@ export default function DeckForge() {
                 <div className="flex items-start sm:items-center gap-4">
                   <img src="/ASSETS/iconoDeck.webp" alt="Deck" className="w-16 h-16 sm:w-20 sm:h-20 object-contain drop-shadow-[0_0_15px_rgba(255,202,88,0.3)] shrink-0" />
                   <div className="flex flex-col gap-2">
-                    <h2 className="text-3xl sm:text-4xl font-cinzel text-magic-gold tracking-wide leading-tight">
-                      {aiMetadata?.deckName || 'Mazo Forjado'}
-                    </h2>
+                    {isEditingName ? (
+                      <input
+                        type="text"
+                        value={tempDeckName}
+                        onChange={(e) => setTempDeckName(e.target.value)}
+                        onBlur={() => {
+                          setIsEditingName(false);
+                          if (tempDeckName.trim()) {
+                            setAiMetadata(prev => ({ ...prev, deckName: tempDeckName.trim() }));
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            setIsEditingName(false);
+                            if (tempDeckName.trim()) {
+                              setAiMetadata(prev => ({ ...prev, deckName: tempDeckName.trim() }));
+                            }
+                          }
+                        }}
+                        className="bg-black/40 border border-magic-gold text-magic-gold rounded px-3 py-1 font-cinzel text-2xl w-full max-w-md focus:outline-none focus:ring-1 focus:ring-magic-gold"
+                        autoFocus
+                      />
+                    ) : (
+                      <h2 
+                        onClick={() => {
+                          setTempDeckName(aiMetadata?.deckName || 'Mazo Forjado');
+                          setIsEditingName(true);
+                        }}
+                        className="text-3xl sm:text-4xl font-cinzel text-magic-gold tracking-wide leading-tight cursor-pointer hover:opacity-80 flex items-center gap-2 group"
+                        title="Haga clic para renombrar"
+                      >
+                        {aiMetadata?.deckName || 'Mazo Forjado'}
+                        <span className="opacity-0 group-hover:opacity-100 text-xs text-magic-gold/50 transition-opacity">✏️</span>
+                      </h2>
+                    )}
                     <div className="flex items-center gap-2">
                       {lastFormData?.colores?.map(c => {
                         const iconPath = {

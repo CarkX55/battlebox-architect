@@ -710,7 +710,7 @@ export const buildCardPool = async (formData) => {
       // Determinar si es una estrategia lineal/restringida en todo Magic
       const isLinearStrategy = 
         tribeLower || 
-        ['affinity', 'elves', 'slivers', 'enchantress', 'scales', 'dredge', 'reanimator', 'madness', 'constellation', 'superfriends', 'landfall', 'devotion', 'goblins', 'merfolk', 'zombies', 'vampires', 'humans', 'faeries', 'eldrazi', 'spirits'].some(t => 
+        ['affinity', 'elves', 'slivers', 'enchantress', 'scales', 'dredge', 'reanimator', 'madness', 'constellation', 'superfriends', 'landfall', 'devotion', 'goblins', 'merfolk', 'zombies', 'vampires', 'humans', 'faeries', 'eldrazi', 'spirits', 'prison', 'stax', 'taxes'].some(t => 
           archLower.includes(t) || strategyLower.includes(t)
         );
 

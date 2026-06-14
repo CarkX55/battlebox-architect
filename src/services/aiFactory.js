@@ -147,8 +147,9 @@ Estás en la {phaseName}.
    - En mazos de 3 o más colores, PROHIBIDO incluir cartas de triple coste específico (ej: RRR, WWW, BBB).
 
 5. MINIMIZAR REDUNDANCIA FUNCIONAL (REGLA DEL MEJOR EFECTO):
-   - NUNCA incluyas múltiples cartas diferentes que cumplan exactamente la misma función o den exactamente la misma habilidad global.
-   - Elige siempre LA MEJOR VERSIÓN de un efecto y asígnale las copias necesarias.
+   - Distingue entre efectos acumulativos (modificadores numéricos +X/+Y, dorks de maná, daño directo, robo de cartas, disparadores, reductores de coste o tasas) y palabras clave estáticas no acumulativas (volar, prisa, etc.).
+   - Se permite y recomienda la redundancia en efectos acumulativos para asegurar la consistencia del mazo.
+   - Para las palabras clave estáticas en mesa, elige siempre la mejor versión del efecto y dedícale las copias necesarias, evitando duplicaciones ineficientes a menos que sea un mazo lineal o tribal (como Slivers, Elfos o Goblins) donde se necesite consistencia en mesa.
 
 6. IDENTIDAD MECÁNICA Y "ANSWERS" POR COLOR EN MODERN:
    - BLANCO: Exilio Universal, protección, criaturas Flying/Vigilance.
@@ -586,8 +587,9 @@ En este campo, explica exactamente qué rol cumple la carta (ej. Removal, Motor,
    - Usa 1 o 2 copias ESTRICTAMENTE RESERVADAS para cartas Legendarias, "finishers" de alto coste, o cartas situacionales. No se toleran "1-ofs" aleatorios en el Main Deck.
 
 4. MINIMIZAR REDUNDANCIA FUNCIONAL (REGLA DEL MEJOR EFECTO):
-   - NUNCA incluyas múltiples cartas diferentes que cumplan exactamente la misma función o den exactamente la misma habilidad a toda tu mesa (Ej: NUNCA pongas 'Galerider Sliver' y 'Cloudshredder Sliver' juntos, ni 'Manaweft Sliver' y 'Gemhide Sliver' juntos).
-   - Elige siempre LA MEJOR VERSIÓN de un efecto (la que haga más cosas o sea más barata) y dedícale 4 copias completas. Usa los slots sobrantes para añadir diversidad de habilidades, remoción, o protección, en lugar de repetir el mismo efecto con cartas peores.
+   - Distingue claramente entre efectos acumulativos (modificadores numéricos +X/+Y como Lords, dorks/aceleradores de maná, daño directo, robo de cartas, disparadores/triggers, reductores de coste y efectos de stax/impuestos) y habilidades de palabra clave estáticas (volar, prisa, vigilancia, etc.).
+   - Está PERMITIDO y recomendado llevar redundancia en efectos acumulativos (ej. llevar [[Muscle Sliver]] y [[Predatory Sliver]], o [[Manaweft Sliver]] y [[Gemhide Sliver]] juntos) para asegurar la consistencia del mazo. NUNCA consideres esto redundancia negativa.
+   - Para las palabras clave estáticas no acumulativas en juego (ej. dar Volar), evita duplicar de forma ineficiente múltiples fuentes del mismo efecto, a menos que el mazo sea lineal o tribal (como Slivers, Goblins o Elfos) donde la redundancia es vital para asegurar el efecto en mesa.
 
 5. LA FÓRMULA DE MANÁ KARSTEN (90% DE PROBABILIDAD EN CURVA):
    - Evita el "Mana Screw". Para lanzar hechizos en curva:

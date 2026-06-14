@@ -1,5 +1,32 @@
 import { CARD_TYPES, DECK_SIZES } from '../utils/mtgConstants.js';
 import { BATTLEBOX_VETOS } from '../constants/legacyBattleBox.js';
+import { getAllCards } from './dbIngestor.js';
+
+let cachedAllCards = null;
+async function getCachedCards() {
+  if (!cachedAllCards || cachedAllCards.length === 0) {
+    cachedAllCards = await getAllCards();
+  }
+  return cachedAllCards;
+}
+
+const isColorlessLand = (name) => {
+  if (!name) return false;
+  const n = name.toLowerCase();
+  if (n.includes("cavern of souls") || n.includes("secluded courtyard") || n.includes("unclaimed territory") || n.includes("mana confluence") || n.includes("city of brass")) {
+    return false;
+  }
+  if (n.includes("urborg, tomb of yawgmoth")) {
+    return false;
+  }
+  const colorlessNames = [
+    "urza's tower", "urza's mine", "urza's power plant", "eldrazi temple", "wastes", 
+    "darksteel citadel", "treasure vault", "blinkmoth nexus", "mutavault", "cabal coffers", 
+    "wasteland", "ancient tomb", "reliquary tower", "ghost quarter", "field of ruin",
+    "tectonic edge", "blast zone", "inventors' fair", "geier reach sanitarium", "llanowar reborn"
+  ];
+  return colorlessNames.some(cn => n.includes(cn));
+};
 
 const MANA_VALUE_FALLBACK = 3;
 
@@ -261,6 +288,66 @@ const BASIC_LAND_NAMES = {
   G: 'Forest'
 };
 
+export const BASIC_LANDS_BY_COLOR = {
+  W: ["plains", "snow-covered plains", "llanura", "llanura nevada"],
+  U: ["island", "snow-covered island", "isla", "isla nevada"],
+  B: ["swamp", "snow-covered swamp", "pantano", "pantano nevado"],
+  R: ["mountain", "snow-covered mountain", "montaña", "montaña nevada"],
+  G: ["forest", "snow-covered forest", "bosque", "bosque nevado"]
+};
+
+const BASIC_LAND_NAMES_SET = new Set([
+  "plains", "island", "swamp", "mountain", "forest", "wastes",
+  "llanura", "isla", "pantano", "montaña", "bosque", "yermo",
+  "snow-covered plains", "snow-covered island", "snow-covered swamp", 
+  "snow-covered mountain", "snow-covered forest", "snow-covered wastes",
+  "llanura nevada", "isla nevada", "pantano nevado", "montaña nevada", "bosque nevado", "yermo nevado"
+]);
+
+const COLORED_BASIC_LAND_NAMES_SET = new Set([
+  "plains", "island", "swamp", "mountain", "forest",
+  "llanura", "isla", "pantano", "montaña", "bosque",
+  "snow-covered plains", "snow-covered island", "snow-covered swamp", 
+  "snow-covered mountain", "snow-covered forest",
+  "llanura nevada", "isla nevada", "pantano nevado", "montaña nevada", "bosque nevado"
+]);
+
+export function isBasicLand(name) {
+  if (!name) return false;
+  return BASIC_LAND_NAMES_SET.has(name.toLowerCase().trim());
+}
+
+export function isColoredBasicLand(name) {
+  if (!name) return false;
+  return COLORED_BASIC_LAND_NAMES_SET.has(name.toLowerCase().trim());
+}
+
+export function deckNeedsSnowLands(nonLandSpells) {
+  if (!nonLandSpells || nonLandSpells.length === 0) return false;
+  return nonLandSpells.some(s => {
+    const cost = (s.mana_cost || '').toUpperCase();
+    if (cost.includes('{S}')) return true;
+
+    const oracle = (s.oracle_text || s.text || '').toLowerCase();
+    if (/\bsnow\b/.test(oracle) || /\bnevada\b/.test(oracle)) return true;
+
+    const type = (s.type_line || s.category || '').toLowerCase();
+    if (/\bsnow\b/.test(type) || /\bnevada\b/.test(type)) return true;
+
+    return false;
+  });
+}
+
+export async function isLandFormatLegal(landName, format) {
+  if (!landName) return false;
+  const allCards = await getCachedCards();
+  const formatKey = (format || 'MODERN').toLowerCase();
+  const nameL = landName.toLowerCase().trim();
+  const dbCard = allCards.find(ac => ac && ac.name && ac.name.toLowerCase().trim() === nameL);
+  if (!dbCard) return false;
+  return dbCard.legalities && dbCard.legalities[formatKey] === 'legal';
+}
+
 export function calculatePerfectLandCount(nonLandCards, formData, isYorion = false) {
   const vmp = calculateVMP(nonLandCards);
   
@@ -307,6 +394,13 @@ export function calculatePerfectLandCount(nonLandCards, formData, isYorion = fal
   } else {
     // Por defecto si no detectamos arquetipo claro, limitamos a 24 para evitar mazos injugables
     lands = Math.min(lands, 24);
+  }
+
+  // Ajuste de curva bidireccional (sobreescribe límites superiores si la curva real es extrema)
+  if (vmp >= 4.2 && aceleradores === 0) {
+    lands = lands + 1.5;
+  } else if (vmp <= 1.9) {
+    lands = lands - 2.0;
   }
   
   if (isYorion) {
@@ -456,50 +550,175 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
   else if (actualColors.length === 2) minBasics = 4;
   else if (actualColors.length === 3) minBasics = 3;
   else minBasics = 3;
+
+  const maxColoredLandsRequired = Math.max(0, ...colors.map(c => karstenRequirements[c] || 0));
+  let maxColorlessLands = Math.max(0, totalLands - maxColoredLandsRequired);
+  if (formData?.maxColorlessLandsLimit !== undefined) {
+    maxColorlessLands = Math.min(maxColorlessLands, formData.maxColorlessLandsLimit);
+  }
+  let colorlessLandsInjected = 0;
+
+  // Función de inyección de tierras controlada
+  const injectLand = (land, qty) => {
+    let finalQty = qty;
+    if (isColorlessLand(land.name)) {
+      const allowed = Math.max(0, maxColorlessLands - colorlessLandsInjected);
+      if (allowed <= 0) {
+        console.log(`[KARSTEN LIMIT] Omitiendo tierra incolora ${land.name} para mantener consistencia de color.`);
+        return 0;
+      }
+      finalQty = Math.min(qty, allowed);
+      colorlessLandsInjected += finalQty;
+      if (finalQty < qty) {
+        console.log(`[KARSTEN LIMIT] Reduciendo tierra incolora ${land.name} de ${qty} a ${finalQty} copias.`);
+      }
+    }
+    
+    if (finalQty > 0 && remainingLands >= finalQty) {
+      const existing = manaBase.find(l => l.name.toLowerCase() === land.name.toLowerCase());
+      if (existing) {
+        existing.quantity += finalQty;
+      } else {
+        manaBase.push({
+          ...land,
+          quantity: finalQty
+        });
+      }
+      remainingLands -= finalQty;
+      return finalQty;
+    }
+    return 0;
+  };
   
   // 1. INYECCIÓN INTELIGENTE DE TIERRAS DE UTILIDAD (AI TOP 1 RECOMMENDATIONS)
   let injectTronSuite = false;
-  if (strategy === 'tron' || archetype === 'tron_blue' || archetype.includes('tron') || (tribe === 'eldrazi' && strategy === 'tron') || (archetype === 'ramp' && formColors.includes('C')) || (formColors.includes('C') && actualColors.length === 0) || formColors.length === 0) {
-    injectTronSuite = true;
-  }
-  if (aiUtilityLands && aiUtilityLands.some(l => l && l.includes("Urza's"))) {
+  const targetTronLands = ["urza's tower", "urza's power plant", "urza's mine"];
+  const hasExplicitTronAIRecomm = aiUtilityLands && aiUtilityLands.some(l => l && targetTronLands.includes(l.toLowerCase().trim()));
+  if (strategy === 'tron' || archetype.includes('tron') || archetype.includes('urzatron') || hasExplicitTronAIRecomm) {
     injectTronSuite = true;
   }
 
+  // A. TIERRAS TEMÁTICAS TRIBALES/ARQUETÍPICAS DINÁMICAS (SOMMELIER DE TIERRAS)
+  const THEMATIC_LANDS_MAP = {
+    sea_monsters: [
+      { name: "Hall of Storm Giants", qty: 2, type: "Land — Cave", color_identity: ["U"] },
+      { name: "Minamo, School at Water's Edge", qty: 1, type: "Legendary Land", color_identity: ["U"] },
+      { name: "Otawara, Soaring City", qty: 1, type: "Legendary Land", color_identity: ["U"] }
+    ],
+    dragons: [
+      { name: "Haven of the Spirit Dragon", qty: 4, type: "Land", color_identity: [] },
+      { name: "Crucible of the Spirit Dragon", qty: 2, type: "Land", color_identity: [] }
+    ],
+    elves: [
+      { name: "Castle Garenbrig", qty: 2, type: "Land", color_identity: ["G"] },
+      { name: "Wirewood Lodge", qty: 1, type: "Land", color_identity: ["G"] },
+      { name: "Boseiju, Who Endures", qty: 1, type: "Legendary Land", color_identity: ["G"] }
+    ],
+    artifacts: [
+      { name: "Urza's Saga", qty: 4, type: "Land — Saga", color_identity: [] },
+      { name: "Darksteel Citadel", qty: 4, type: "Artifact Land", color_identity: [] },
+      { name: "Academy Ruins", qty: 1, type: "Legendary Land", color_identity: ["U"] }
+    ],
+    dinosaurs: [
+      { name: "Sunken Citadel", qty: 2, type: "Land", color_identity: [] },
+      { name: "Secluded Courtyard", qty: 2, type: "Land — Tribal", color_identity: [] }
+    ]
+  };
+
+  let detectedTheme = null;
+  const seaMonsterCount = nonLandSpells.filter(c => {
+    const type = (c.type_line || '').toLowerCase();
+    return type.includes('kraken') || type.includes('leviathan') || type.includes('serpent') || type.includes('octopus');
+  }).reduce((sum, c) => sum + (c.quantity || 1), 0);
+  const dragonCount = nonLandSpells.filter(c => (c.type_line || '').toLowerCase().includes('dragon')).reduce((sum, c) => sum + (c.quantity || 1), 0);
+  const elfCount = nonLandSpells.filter(c => {
+    const type = (c.type_line || '').toLowerCase();
+    return type.includes('elf') || type.includes('elves');
+  }).reduce((sum, c) => sum + (c.quantity || 1), 0);
+  const dinoCount = nonLandSpells.filter(c => (c.type_line || '').toLowerCase().includes('dinosaur')).reduce((sum, c) => sum + (c.quantity || 1), 0);
+  const artifactCount = nonLandSpells.filter(c => (c.type_line || '').toLowerCase().includes('artifact')).reduce((sum, c) => sum + (c.quantity || 1), 0);
+
+  if (seaMonsterCount >= 6 || tribe === 'sea_monsters' || archetype.includes('sea_monsters') || archetype.includes('sea monsters')) {
+    detectedTheme = 'sea_monsters';
+  } else if (dragonCount >= 6 || tribe === 'dragons' || archetype.includes('dragons') || archetype.includes('dragon')) {
+    detectedTheme = 'dragons';
+  } else if (elfCount >= 8 || tribe === 'elves' || archetype.includes('elves') || archetype.includes('elf')) {
+    detectedTheme = 'elves';
+  } else if (dinoCount >= 6 || tribe === 'dinosaurs' || archetype.includes('dinosaurs') || archetype.includes('dino')) {
+    detectedTheme = 'dinosaurs';
+  } else if (artifactCount >= 12 || strategy === 'affinity' || archetype.includes('affinity') || strategy === 'vehicles') {
+    detectedTheme = 'artifacts';
+  }
+
+  const allCards = await getCachedCards();
+  const formatKey = format.toLowerCase();
+  
+  const isLandFormatLegal = (landName) => {
+    const nameL = landName.toLowerCase().trim();
+    const dbCard = allCards.find(ac => ac && ac.name && ac.name.toLowerCase().trim() === nameL);
+    if (!dbCard) return false;
+    return dbCard.legalities && dbCard.legalities[formatKey] === 'legal';
+  };
+
+  const needsSnow = deckNeedsSnowLands(nonLandSpells);
+  const canUseSnow = needsSnow && isLandFormatLegal("Snow-Covered Island");
+  if (canUseSnow) {
+    console.log(`[SOMMELIER TIERRAS] Mazo requiere nieve y es legal en ${format}. Se inyectarán tierras nevadas.`);
+  }
+
+  if (detectedTheme && THEMATIC_LANDS_MAP[detectedTheme]) {
+    console.log(`[SOMMELIER TIERRAS] Tema detectado: ${detectedTheme}. Evaluando tierras temáticas.`);
+    THEMATIC_LANDS_MAP[detectedTheme].forEach(land => {
+      if (!isLandFormatLegal(land.name)) {
+        console.log(`[SOMMELIER TIERRAS] Omitiendo tierra temática ${land.name} porque no es legal en ${format}.`);
+        return;
+      }
+      if (land.color_identity && land.color_identity.length > 0) {
+        const matchesColors = land.color_identity.some(c => actualColors.includes(c));
+        if (!matchesColors) {
+          console.log(`[SOMMELIER TIERRAS] Omitiendo tierra temática ${land.name} porque no coincide con los colores del mazo.`);
+          return;
+        }
+      }
+      injectLand({
+        name: land.name,
+        category: 'Land',
+        type_line: land.type,
+        color_identity: land.color_identity,
+        role: "thematic-utility-land"
+      }, land.qty);
+    });
+  }
+
+  // B. PROCESAMIENTO DE TIERRAS DE UTILIDAD SUGERIDAS POR IA
   if (aiUtilityLands && aiUtilityLands.length > 0) {
       console.log(`[MANABASE GENERATOR] Procesando ${aiUtilityLands.length} tierras de utilidad sugeridas por IA.`);
       const uniqueUtils = {};
       let totalUtilityAdded = 0;
       
       aiUtilityLands.forEach(landName => {
-          if (injectTronSuite && landName && landName.includes("Urza's")) return; // Saltarse tierras de Urza, se inyectarán con el paquete completo de 12 tierras
+          if (injectTronSuite && landName && landName.includes("Urza's")) return; // Saltarse tierras de Urza
           if (!uniqueUtils[landName]) uniqueUtils[landName] = 0;
           uniqueUtils[landName]++;
       });
 
-      // Limitar a máximo 2 tipos únicos de tierras especiales para no arruinar la curva de color
       const sortedUtils = Object.entries(uniqueUtils).sort((a, b) => b[1] - a[1]).slice(0, 2);
 
       for (const [landName, qty] of sortedUtils) {
-          // Limitar la cantidad total de copias de tierras especiales a 4 en total
           const copiesToAdd = Math.min(qty, 4 - totalUtilityAdded);
-          
-          if (copiesToAdd > 0 && remainingLands >= copiesToAdd) {
-              manaBase.push({
+          if (copiesToAdd > 0) {
+              injectLand({
                   name: landName,
-                  quantity: copiesToAdd,
                   category: 'Land',
                   type_line: 'Land',
-                  color_identity: [], // It's fine for utility lands, pip math will ignore 'C' or empty
+                  color_identity: [],
                   role: "ai-utility-land"
-              });
-              remainingLands -= copiesToAdd;
+              }, copiesToAdd);
               totalUtilityAdded += copiesToAdd;
-              console.log(`[MANABASE GENERATOR] Inyectada utilidad IA: ${copiesToAdd}x ${landName}`);
           }
       }
   }
-  
+
   // 1. DYNAMIC CONFIGURATION OF KEY UTILITY / COMBOS OF LANDS
   
   // A. ELDRAZI TRON (Urza Lands Suite)
@@ -509,36 +728,28 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
       { name: "Urza's Power Plant", quantity: 4, type_line: "Land — Urza's Power Plant" },
       { name: "Urza's Mine", quantity: 4, type_line: "Land — Urza's Mine" }
     ];
-    // Sólo agregar Eldrazi Temple y Wastes de forma estricta si es Eldrazi Tribal o Colorless Puro
     if (tribe === 'eldrazi' || formColors.length === 0 || (formColors.includes('C') && actualColors.length === 0)) {
         tronSuite.push({ name: "Eldrazi Temple", quantity: 4, type_line: "Land — Eldrazi" });
         tronSuite.push({ name: "Wastes", quantity: 2, type_line: "Basic Land — Wastes" });
     }
-
     
     tronSuite.forEach(land => {
-      if (remainingLands >= land.quantity) {
-        manaBase.push({
-          name: land.name,
-          quantity: land.quantity,
-          category: 'Land',
-          type_line: land.type_line,
-          color_identity: []
-        });
-        remainingLands -= land.quantity;
-      }
+      injectLand({
+        name: land.name,
+        category: 'Land',
+        type_line: land.type_line,
+        color_identity: []
+      }, land.quantity);
     });
 
-    if (formColors.includes('G') && remainingLands >= 1) {
-      manaBase.push({ name: "Boseiju, Who Endures", quantity: 1, category: "Land", type_line: "Legendary Land", color_identity: ["G"] });
-      remainingLands--;
+    if (formColors.includes('G')) {
+      injectLand({ name: "Boseiju, Who Endures", category: "Land", type_line: "Legendary Land", color_identity: ["G"] }, 1);
     }
-    if (formColors.includes('U') && remainingLands >= 1) {
-      manaBase.push({ name: "Otawara, Soaring City", quantity: 1, category: "Land", type_line: "Legendary Land", color_identity: ["U"] });
-      remainingLands--;
+    if (formColors.includes('U')) {
+      injectLand({ name: "Otawara, Soaring City", category: "Land", type_line: "Legendary Land", color_identity: ["U"] }, 1);
     }
   }
-  // A2. ELDRAZI AGGRO/MIDRANGE (No Urza lands, but Eldrazi Temple and Wastes are mandatory)
+  // A2. ELDRAZI AGGRO/MIDRANGE
   else if (tribe === 'eldrazi') {
     const eldraziSuite = [
       { name: "Eldrazi Temple", quantity: 4, type_line: "Land — Eldrazi" },
@@ -546,16 +757,12 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
     ];
     
     eldraziSuite.forEach(land => {
-      if (remainingLands >= land.quantity) {
-        manaBase.push({
-          name: land.name,
-          quantity: land.quantity,
-          category: 'Land',
-          type_line: land.type_line,
-          color_identity: []
-        });
-        remainingLands -= land.quantity;
-      }
+      injectLand({
+        name: land.name,
+        category: 'Land',
+        type_line: land.type_line,
+        color_identity: []
+      }, land.quantity);
     });
   }
   // B. AFFINITY
@@ -568,16 +775,12 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
     ];
     
     affinitySuite.forEach(land => {
-      if (remainingLands >= land.quantity) {
-        manaBase.push({
-          name: land.name,
-          quantity: land.quantity,
-          category: 'Land',
-          type_line: land.type_line,
-          color_identity: []
-        });
-        remainingLands -= land.quantity;
-      }
+      injectLand({
+        name: land.name,
+        category: 'Land',
+        type_line: land.type_line,
+        color_identity: []
+      }, land.quantity);
     });
   }
   // C. HARDENED SCALES
@@ -589,28 +792,20 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
     ];
     
     scalesSuite.forEach(land => {
-      if (remainingLands >= land.quantity) {
-        manaBase.push({
-          name: land.name,
-          quantity: land.quantity,
-          category: 'Land',
-          type_line: land.type_line,
-          color_identity: land.name === "Pendelhaven" ? ["G"] : []
-        });
-        remainingLands -= land.quantity;
-      }
+      injectLand({
+        name: land.name,
+        category: 'Land',
+        type_line: land.type_line,
+        color_identity: land.name === "Pendelhaven" ? ["G"] : []
+      }, land.quantity);
     });
   }
   // D. REANIMATOR
   else if (strategy === 'reanimator') {
-    if (formColors.includes('B') && remainingLands >= 1) {
-      manaBase.push({ name: "Takenuma, Abandoned Mire", quantity: 1, category: "Land", type_line: "Legendary Land", color_identity: ["B"] });
-      remainingLands--;
+    if (formColors.includes('B')) {
+      injectLand({ name: "Takenuma, Abandoned Mire", category: "Land", type_line: "Legendary Land", color_identity: ["B"] }, 1);
     }
-    if (remainingLands >= 1) {
-      manaBase.push({ name: "Geier Reach Sanitarium", quantity: 1, category: "Land", type_line: "Legendary Land", color_identity: [] });
-      remainingLands--;
-    }
+    injectLand({ name: "Geier Reach Sanitarium", category: "Land", type_line: "Legendary Land", color_identity: [] }, 1);
   }
   // E. BURN / AGGRO / VOLTRON (Horizon lands draw combo)
   else if (archetype === 'aggro' || strategy === 'voltron') {
@@ -624,16 +819,12 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
     const validHorizons = horizonLands.filter(h => h.colors.every(c => formColors.includes(c)));
     validHorizons.forEach(h => {
       const qty = colors.length === 2 ? 4 : 2;
-      if (remainingLands >= qty) {
-        manaBase.push({
-          name: h.name,
-          quantity: qty,
-          category: 'Land',
-          type_line: 'Land — Canopy',
-          color_identity: h.colors
-        });
-        remainingLands -= qty;
-      }
+      injectLand({
+        name: h.name,
+        category: 'Land',
+        type_line: 'Land — Canopy',
+        color_identity: h.colors
+      }, qty);
     });
   }
 
@@ -697,28 +888,13 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
           qty = Math.min(qty, maxTribalCopies - tribalAdded);
           
           if (qty > 0) {
-              const existingIdx = manaBase.findIndex(l => l.name.toLowerCase() === tl.name.toLowerCase());
-              if (existingIdx !== -1) {
-                  const existingQty = manaBase[existingIdx].quantity;
-                  const addQty = Math.max(0, qty - existingQty);
-                  if (addQty > 0 && remainingLands >= addQty) {
-                      manaBase[existingIdx].quantity += addQty;
-                      remainingLands -= addQty;
-                      tribalAdded += addQty;
-                      console.log(`[MANABASE GENERATOR] Tribal: Aumentada tierra tribal a ${manaBase[existingIdx].quantity}x ${tl.name}`);
-                  }
-              } else {
-                  manaBase.push({
-                      name: tl.name,
-                      quantity: qty,
-                      category: 'Land',
-                      type_line: 'Land — Tribal',
-                      color_identity: []
-                  });
-                  remainingLands -= qty;
-                  tribalAdded += qty;
-                  console.log(`[MANABASE GENERATOR] Tribal: Inyectada tierra tribal ${qty}x ${tl.name}`);
-              }
+              const added = injectLand({
+                  name: tl.name,
+                  category: 'Land',
+                  type_line: 'Land — Tribal',
+                  color_identity: []
+              }, qty);
+              tribalAdded += added;
           }
       });
   }
@@ -1239,16 +1415,13 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
       qty = Math.min(qty, maxUtilityAllowed - totalUtilityAdded);
 
       if (qty > 0) {
-        manaBase.push({
+        const added = injectLand({
           name: land.name,
-          quantity: qty,
           category: 'Land',
           type_line: land.type,
           color_identity: [monoColor]
-        });
-        remainingLands -= qty;
-        totalUtilityAdded += qty;
-        console.log(`[MANABASE GENERATOR] Inyectada utilidad monocolor: ${qty}x ${land.name} (Total Utility: ${totalUtilityAdded}/${maxUtilityAllowed})`);
+        }, qty);
+        totalUtilityAdded += added;
       }
     });
 
@@ -1258,15 +1431,12 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
       if (painMatch) {
         let quantity = Math.min(4, remainingLands - currentMinBasics);
         if (quantity > 0) {
-          manaBase.push({
+          injectLand({
             name: painMatch.name,
-            quantity: quantity,
             category: 'Land',
             type_line: 'Land — Pain',
             color_identity: painMatch.colors
-          });
-          remainingLands -= quantity;
-          console.log(`[MANABASE GENERATOR] Inyectada pain land para incoloro (mono): ${quantity}x ${painMatch.name}`);
+          }, quantity);
         }
       }
     }
@@ -1302,15 +1472,24 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
     }
 
     // Push to manaBase
+    const SNOW_BASIC_LAND_NAMES = {
+      W: 'Snow-Covered Plains',
+      U: 'Snow-Covered Island',
+      B: 'Snow-Covered Swamp',
+      R: 'Snow-Covered Mountain',
+      G: 'Snow-Covered Forest'
+    };
+    const finalBasicNames = canUseSnow ? SNOW_BASIC_LAND_NAMES : BASIC_LAND_NAMES;
+
     Object.keys(basicLandsDistribution).forEach(color => {
       const count = basicLandsDistribution[color];
       if (count > 0) {
-        const landName = BASIC_LAND_NAMES[color] || 'Plains';
+        const landName = finalBasicNames[color] || (canUseSnow ? 'Snow-Covered Plains' : 'Plains');
         manaBase.push({
           name: landName,
           quantity: count,
           category: 'Land',
-          type_line: `Basic Land — ${landName}`,
+          type_line: canUseSnow ? `Basic Snow Land — ${landName.replace('Snow-Covered ', '')}` : `Basic Land — ${landName}`,
           color_identity: [color]
         });
         remainingLands -= count;
@@ -1319,12 +1498,20 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
   }
 
   if (remainingLands > 0) {
-    const fallbackLand = formColors.includes('C') ? 'Wastes' : (BASIC_LAND_NAMES[actualColors[0]] || 'Plains');
+    const SNOW_BASIC_LAND_NAMES = {
+      W: 'Snow-Covered Plains',
+      U: 'Snow-Covered Island',
+      B: 'Snow-Covered Swamp',
+      R: 'Snow-Covered Mountain',
+      G: 'Snow-Covered Forest'
+    };
+    const finalBasicNames = canUseSnow ? SNOW_BASIC_LAND_NAMES : BASIC_LAND_NAMES;
+    const fallbackLand = formColors.includes('C') ? 'Wastes' : (finalBasicNames[actualColors[0]] || (canUseSnow ? 'Snow-Covered Plains' : 'Plains'));
     manaBase.push({
       name: fallbackLand,
       quantity: remainingLands,
       category: 'Land',
-      type_line: `Basic Land — ${fallbackLand}`,
+      type_line: canUseSnow && fallbackLand !== 'Wastes' ? `Basic Snow Land — ${fallbackLand.replace('Snow-Covered ', '')}` : `Basic Land — ${fallbackLand}`,
       color_identity: actualColors[0] ? [actualColors[0]] : []
     });
     remainingLands = 0;
