@@ -1867,50 +1867,164 @@ export default function DeckForge() {
                 <ManaCurve deck={renderDeck} archetype={aiMetadata?.archetype} />
 
                 {(aiMetadata || pocketGuide) && (
-                  <div className="parchment-scroll p-8 shadow-2xl">
-                    <h4 className="font-cinzel text-[#4a3318] text-lg mb-4 flex items-center gap-2 border-b border-[#4a3318]/20 pb-2">
-                      <Scroll size={24} /> Guía del Maestro
-                    </h4>
-                    <div className="space-y-4">
-                      <div>
-                        <p className="text-[10px] font-bold uppercase text-[#4a3318]/60 mb-1">Estrategia</p>
-                        <p className="text-sm text-[#4a3318] leading-relaxed italic">
-                          "{pocketGuide?.plan || aiMetadata?.strategy}"
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-[10px] font-bold uppercase text-[#4a3318]/60 mb-1">Mulligan</p>
-                        <p className="text-sm text-[#4a3318] leading-relaxed">
-                          {pocketGuide?.mulligan || aiMetadata?.mulligan}
-                        </p>
+                  <div className="parchment-scroll shadow-2xl">
+                    <div className="parchment-content space-y-6">
+                      <h4 className="font-cinzel text-[#3d1a10] text-xl mb-5 flex items-center gap-2 border-b-2 border-[#4a3318]/25 pb-2">
+                        <Scroll size={22} className="text-[#3d1a10]" /> Guía del Maestro
+                      </h4>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-2">
+                        <div className="space-y-2">
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-[#3d1a10]/80 flex items-center gap-1">
+                            <Activity size={10} /> Estrategia General
+                          </p>
+                          <p className="text-[12px] text-[#1a0f05] leading-relaxed italic border-l-2 border-[#3d1a10]/30 pl-3 bg-black/5 py-2 pr-2 rounded-r-lg">
+                            "{pocketGuide?.plan || aiMetadata?.strategy || 'Estrategia general no descifrada. Utiliza el botón de abajo para expandir.'}"
+                          </p>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-[#3d1a10]/80 flex items-center gap-1">
+                            <Lightbulb size={10} /> Reglas de Mulligan
+                          </p>
+                          <p className="text-[12px] text-[#1a0f05] leading-relaxed bg-black/5 p-3 rounded-lg border border-[#4a3318]/10">
+                            {pocketGuide?.mulligan || aiMetadata?.mulligan || 'Conserva manos con al menos 2-3 tierras de tus colores y juego activo en los turnos 1 y 2.'}
+                          </p>
+                        </div>
                       </div>
 
                       {sideboardStrategy && (
-                        <div className="pt-4 border-t border-[#4a3318]/10">
-                          <p className="text-[10px] font-bold uppercase text-[#4a3318]/60 mb-1 flex items-center gap-1">
-                            <Shield size={10} /> Estrategia de Banquillo
+                        <div className="pt-5 border-t-2 border-dashed border-[#4a3318]/20 space-y-4">
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-[#3d1a10]/90 flex items-center gap-1">
+                            <Shield size={12} className="text-[#3d1a10]" /> Plan de Banquilleo
                           </p>
-                          <p className="text-xs text-[#4a3318] leading-relaxed italic">
-                            "{sideboardStrategy}"
-                          </p>
+                          
+                          {/* Renderizado Estructurado y Premium del Banquillo */}
+                          {(() => {
+                            const sections = [];
+                            let currentSection = null;
+                            let currentMatchup = null;
+
+                            const lines = sideboardStrategy.split('\n');
+                            for (let line of lines) {
+                              const trimmed = line.trim();
+                              if (!trimmed) continue;
+
+                              if (trimmed.startsWith('===') && trimmed.endsWith('===')) {
+                                if (currentSection) {
+                                  if (currentMatchup) {
+                                    currentSection.matchups.push(currentMatchup);
+                                    currentMatchup = null;
+                                  }
+                                  sections.push(currentSection);
+                                }
+                                currentSection = {
+                                  title: trimmed.replace(/===/g, '').trim(),
+                                  matchups: []
+                                };
+                                continue;
+                              }
+
+                              if (trimmed.startsWith('Guía Táctica')) {
+                                currentSection = {
+                                  title: 'Guía de Emparejamientos (Matchups)',
+                                  matchups: []
+                                };
+                                continue;
+                              }
+
+                              if (trimmed.startsWith('- Contra ')) {
+                                if (currentMatchup && currentSection) {
+                                  currentSection.matchups.push(currentMatchup);
+                                }
+                                currentMatchup = {
+                                  name: trimmed.substring(9).replace(/:$/, '').trim(),
+                                  in: '',
+                                  out: ''
+                                };
+                                continue;
+                              }
+
+                              if (trimmed.startsWith('IN:')) {
+                                if (currentMatchup) {
+                                  currentMatchup.in = trimmed.substring(3).trim();
+                                }
+                                continue;
+                              }
+
+                              if (trimmed.startsWith('OUT:')) {
+                                if (currentMatchup) {
+                                  currentMatchup.out = trimmed.substring(4).trim();
+                                }
+                                continue;
+                              }
+                            }
+
+                            if (currentMatchup && currentSection) {
+                              currentSection.matchups.push(currentMatchup);
+                            }
+                            if (currentSection) {
+                              sections.push(currentSection);
+                            }
+
+                            return (
+                              <div className="space-y-6">
+                                {sections.map((sec, secIdx) => {
+                                  const isSwaps = sec.title.toLowerCase().includes('swaps');
+                                  return (
+                                    <div key={secIdx} className="space-y-3">
+                                      <h5 className="font-cinzel text-[11px] font-bold uppercase tracking-wider text-[#3d1a10] border-b border-[#4a3318]/15 pb-1 flex items-center gap-1.5">
+                                        {isSwaps ? <Target size={11} className="text-[#a04000]" /> : <Shield size={11} className="text-[#4a3318]" />}
+                                        {sec.title}
+                                      </h5>
+                                      <div className="grid grid-cols-1 gap-3">
+                                        {sec.matchups.map((match, mIdx) => (
+                                          <div key={mIdx} className="p-3.5 bg-[#4a3318]/5 rounded-xl border border-[#4a3318]/15 space-y-2.5 transition-all hover:bg-[#4a3318]/10">
+                                            <p className="text-[11px] font-bold text-[#2d1e12] flex items-center gap-1.5">
+                                              <span className="w-1.5 h-1.5 rounded-full bg-[#3d1a10]" />
+                                              Contra {match.name}
+                                            </p>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-[11px] leading-relaxed">
+                                              {match.in && (
+                                                <div className="p-2 bg-emerald-800/5 border border-emerald-800/15 rounded-lg flex flex-col">
+                                                  <span className="text-[9px] font-bold text-emerald-800 uppercase tracking-wider mb-0.5">IN (Poner)</span>
+                                                  <span className="text-[#1a0f05] font-medium">{match.in}</span>
+                                                </div>
+                                              )}
+                                              {match.out && (
+                                                <div className="p-2 bg-red-800/5 border border-red-800/15 rounded-lg flex flex-col">
+                                                  <span className="text-[9px] font-bold text-red-800 uppercase tracking-wider mb-0.5">OUT (Quitar)</span>
+                                                  <span className="text-[#3d1a10]">{match.out}</span>
+                                                </div>
+                                              )}
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            );
+                          })()}
                         </div>
                       )}
 
                       {aiMetadata?.recommendations && aiMetadata.recommendations.length > 0 && (
-                        <div className="pt-4 border-t border-[#4a3318]/10">
-                          <p className="text-[10px] font-bold uppercase text-[#4a3318]/60 mb-3 flex items-center gap-1">
-                            <Sparkles size={10} /> Recomendaciones de Expertos
+                        <div className="pt-5 border-t-2 border-dashed border-[#4a3318]/20">
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-[#3d1a10]/60 mb-3 flex items-center gap-1">
+                            <Sparkles size={12} className="text-[#3d1a10]" /> Recomendaciones de Expertos
                           </p>
                           <div className="space-y-3">
                             {aiMetadata.recommendations.map((rec, i) => (
-                              <div key={i} className="group">
-                                <p className="text-xs font-bold text-[#4a3318] flex items-center gap-2 mb-0.5">
-                                  <span className="w-4 h-4 rounded-full bg-[#4a3318]/10 flex items-center justify-center text-[9px] group-hover:bg-[#4a3318]/20 transition-colors">
+                              <div key={i} className="group p-3 bg-black/5 rounded-xl border border-[#4a3318]/10">
+                                <p className="text-[11px] font-bold text-[#2d1e12] flex items-center gap-2 mb-1">
+                                  <span className="w-4 h-4 rounded-full bg-[#3d1a10]/10 flex items-center justify-center text-[9px] group-hover:bg-[#3d1a10]/20 transition-colors font-sans">
                                     {i + 1}
                                   </span>
                                   {rec.title}
                                 </p>
-                                <p className="text-[11px] text-[#4a3318]/80 leading-relaxed pl-6 italic">
+                                <p className="text-[11px] text-[#4a3318]/85 leading-relaxed pl-6 italic">
                                   {rec.description}
                                 </p>
                               </div>

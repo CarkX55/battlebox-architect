@@ -167,6 +167,8 @@ const GEMINI_BLUEPRINT_SCHEMA = {
   type: "object",
   properties: {
     totalSpells: { type: "number", description: "Target total non-land spells, typically 36 to 40 depending on curve." },
+    strategy: { type: "string", description: "A concise, 1-2 sentence description of the overall gameplan and strategy of the deck in Spanish." },
+    mulligan: { type: "string", description: "A concise, 1-2 sentence description of the ideal starting hand and mulligan rules in Spanish." },
     roles: {
       type: "array",
       description: "List of highly specific strategic roles/slots. The sum of all 'quantity' fields MUST exactly equal totalSpells.",
@@ -190,7 +192,7 @@ const GEMINI_BLUEPRINT_SCHEMA = {
       }
     }
   },
-  required: ["totalSpells", "roles"]
+  required: ["totalSpells", "strategy", "mulligan", "roles"]
 };
 
 // 3. DICCIONARIO DE ADN ESTRATÉGICO Y CONSTRUCTOR TAXONÓMICO (Synergy Registry)
@@ -427,6 +429,11 @@ function getDeckBlueprint(archetype, strategyId, formData) {
 
 export function getStrategyFallbackBlueprint(archetype, strategyId, formData) {
   const rawBlueprint = getDeckBlueprint(archetype, strategyId, formData);
+  const dnaKey = strategyId || archetype || 'midrange';
+  const dnaData = ARCHETYPE_DNA[dnaKey] || ARCHETYPE_DNA[archetype] || {
+    prioridad: "Prioriza cartas con buen valor individual y sinergias directas con el resto de tus amenazas."
+  };
+
   const rolesArray = Object.entries(rawBlueprint.roles).map(([roleName, quantity]) => {
     let cmcCategory = "any";
     let finisherQuality = "standard";
@@ -450,12 +457,15 @@ export function getStrategyFallbackBlueprint(archetype, strategyId, formData) {
       quantity: quantity,
       cmcCategory: cmcCategory,
       finisherQuality: finisherQuality,
-      purposeDescription: `Fallback role for ${roleName} in ${strategyId || archetype}`
+      purposeDescription: `Fallback role for ${roleName} in ${strategyId || archetype}`,
+      search_query: `t:creature or t:instant or t:sorcery`
     };
   });
   
   return {
     totalSpells: rawBlueprint.totalSpells,
+    strategy: dnaData.prioridad || "",
+    mulligan: "Conserva manos con al menos 2-3 tierras de tus colores y una curva activa en los primeros turnos.",
     roles: rolesArray
   };
 }
@@ -3960,8 +3970,11 @@ Define las cantidades exactas de cartas para cada rol ESTRATÉGICO clave en una 
 - cmcCategory: El rango de coste objetivo, que debe ser uno de: "1", "2", "3", "4", "4+", "5+", "any".
 - finisherQuality: "finisher" para cartas que actúan como rematadores premium de la partida (que idealmente deberían ser legendarias o míticas de alto impacto) o "standard" para cartas de soporte común.
 - purposeDescription: Propósito del rol y cómo se adapta a la curva y estrategia seleccionada. ¡MUY IMPORTANTE! NO MENCIONES NOMBRES DE CARTAS ESPECÍFICAS AQUÍ. Mantén la descripción 100% abstracta y conceptual (ej: "motores de sacrificio de coste 1" en lugar de "como Viscera Seer").
-
 - search_query: Escribe la consulta ideal en sintaxis de Scryfall o etiqueta semántica para encontrar cartas para este rol. DEBES USAR TAGS (ej. o:flying, oracletag:cost-reducer, t:creature, function:removal). ¡Se creativo y específico al formato!
+
+Adicionalmente, define:
+- strategy: Una breve descripción (1-2 frases en español) del plan de juego y la estrategia general del mazo.
+- mulligan: Una breve guía (1-2 frases en español) de las condiciones ideales para quedarse una mano inicial (mulligan).
 
 La suma de las cantidades de todos los roles debe ser exactamente igual a totalSpells (típicamente entre 36 y 40). NUNCA incluyas tierras.
 `;
@@ -4625,6 +4638,10 @@ La suma de las cantidades de todos los roles debe ser exactamente igual a totalS
 
     validResultsStruct.validationEngine = validationEngine;
     validResultsStruct.validationData = validationData;
+    
+    // Sincronizar estrategia y mulligan del Blueprint de la IA o el Fallback
+    validResultsStruct.strategy = blueprint?.strategy || dnaData.prioridad || "";
+    validResultsStruct.mulligan = blueprint?.mulligan || "Conserva manos con al menos 2-3 tierras de tus colores y una curva activa.";
 
     // Agregar logs detallados al metadata para el Oráculo
     validResultsStruct.banlistSwaps = [];
