@@ -122,10 +122,11 @@ html, body {
   transition: opacity 0.3s;
 }
 .btn-asset {
-  border-style: solid;
-  border-width: 0 80px;
-  border-image-source: url('/ASSETS/Boton1.webp');
-  border-image-slice: 0 180 0 180 fill;
+  background-image: url('/ASSETS/Boton1.webp');
+  background-size: 100% 100%;
+  background-position: center;
+  background-repeat: no-repeat;
+  border: none;
   height: 130px;
   width: fit-content;
   min-width: 320px;
@@ -141,8 +142,7 @@ html, body {
   font-weight: 900;
   letter-spacing: 0.1em;
   text-shadow: 0 2px 4px rgba(0,0,0,1);
-  background: transparent;
-  padding-bottom: 2px;
+  padding: 0 60px 2px 60px;
   position: relative;
   z-index: 10;
 }
@@ -154,13 +154,13 @@ html, body {
 }
 
 .btn-asset:hover:not(:disabled) {
-  border-image-source: url('/ASSETS/BotonHover.webp');
+  background-image: url('/ASSETS/BotonHover.webp');
   filter: brightness(1.1) drop-shadow(0 0 15px rgba(255, 202, 88, 0.3));
   transform: scale(1.02);
 }
 
 .btn-asset:active:not(:disabled) {
-  border-image-source: url('/ASSETS/BotonPressed.webp');
+  background-image: url('/ASSETS/BotonPressed.webp');
   transform: scale(0.98);
 }
 
@@ -177,10 +177,11 @@ html, body {
 }
 
 .btn-letra {
-  border-style: solid;
-  border-width: 0 50px;
-  border-image-source: url('/ASSETS/BotonLetraFormulario.webp');
-  border-image-slice: 0 140 0 140 fill;
+  background-image: url('/ASSETS/BotonLetraFormulario.webp');
+  background-size: 100% 100%;
+  background-position: center;
+  background-repeat: no-repeat;
+  border: none;
   height: 85px;
   width: fit-content;
   min-width: 280px;
@@ -195,8 +196,7 @@ html, body {
   font-weight: 900;
   letter-spacing: 0.1em;
   text-shadow: 0 2px 4px rgba(0,0,0,1);
-  background: transparent;
-  padding-bottom: 2px;
+  padding: 0 40px 2px 40px;
 }
 
 .btn-letra:hover:not(:disabled) {
@@ -205,7 +205,7 @@ html, body {
 }
 
 .btn-letra:active:not(:disabled) {
-  border-image-source: url('/ASSETS/BotonLetrasPresionado.webp');
+  background-image: url('/ASSETS/BotonLetrasPresionado.webp');
   transform: scale(0.98);
 }
 

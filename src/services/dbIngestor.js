@@ -42,6 +42,8 @@ function extractCardData(card) {
     image_uris: card.image_uris || null,
     set: card.set?.toLowerCase() || '',
     layout: card.layout || '',
+    oracle_tags: card.oracle_tags || [],
+    promo_types: card.promo_types || [],
   };
 }
 
@@ -143,8 +145,8 @@ export async function getCardCount() {
     requestCheck.onerror = () => resolve(null);
   });
 
-  if (checkSample && (checkSample.set === undefined || checkSample.layout === undefined)) {
-    console.warn("⚠️ [DB Ingestor] Estructura obsoleta de cartas detectada (faltan campos 'set' o 'layout'). Limpiando base de datos para forzar re-ingesta...");
+  if (checkSample && (checkSample.set === undefined || checkSample.layout === undefined || checkSample.oracle_tags === undefined)) {
+    console.warn("⚠️ [DB Ingestor] Estructura obsoleta de cartas detectada (faltan campos 'set', 'layout' u 'oracle_tags'). Limpiando base de datos para forzar re-ingesta...");
     await clearScryfallData();
     return 0;
   }
@@ -180,6 +182,8 @@ export async function getAllCards() {
       image_uris: card.image_uris || null,
       set: card.set?.toLowerCase() || '',
       layout: card.layout || '',
+      oracle_tags: card.oracle_tags || [],
+      promo_types: card.promo_types || [],
     }));
   }
 

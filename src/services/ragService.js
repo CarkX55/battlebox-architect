@@ -1,8 +1,9 @@
 // src/services/ragService.js
-import { getBlueprint } from '../constants/blueprintTemplates.js';
+import { getBlueprint, getFormatAdjustedBlueprint } from '../constants/blueprintTemplates.js';
 import { MTG_TRIBES, MTG_STRATEGIES, PARASITIC_RULES, inferStrategyFromArchetype } from '../constants/legacyBattleBox.js';
 import { getAllCards } from './dbIngestor.js';
 import { loadMetaFromDB } from './mtgtop8Service.js';
+import { getSignalBoosts } from './synergyActivationEngine.js';
 
 let cachedObsidianGraph = null;
 
@@ -34,6 +35,62 @@ const loadObsidianGraph = async () => {
     }
   } catch (err) {
     console.warn(`⚠️ [Obsidian RAG] No se pudo cargar el grafo semántico (/data/synergy_graph.json). Usando fallbacks competitivos estándar.`, err);
+  }
+  return null;
+};
+
+let cachedOracleTags = null;
+
+const loadOracleTags = async () => {
+  if (cachedOracleTags) return cachedOracleTags;
+  try {
+    if (typeof window === 'undefined') {
+      const fs = await import('fs');
+      const path = await import('path');
+      const tagsPath = path.resolve('public/data/oracle_tags_index.json');
+      if (fs.existsSync(tagsPath)) {
+        cachedOracleTags = JSON.parse(fs.readFileSync(tagsPath, 'utf8'));
+        console.log(`🏷️ [Oracle Tags - Node] Índice de tags cargado desde archivo local.`);
+        return cachedOracleTags;
+      }
+    } else {
+      const response = await fetch('/data/oracle_tags_index.json');
+      if (response.ok) {
+        cachedOracleTags = await response.json();
+        console.log(`🏷️ [Oracle Tags - Browser] Índice de tags cargado con éxito.`);
+        return cachedOracleTags;
+      }
+    }
+  } catch (err) {
+    console.warn(`⚠️ [Oracle Tags] No se pudo cargar el índice de tags (/data/oracle_tags_index.json).`, err);
+  }
+  return null;
+};
+
+let cachedFeedbackBoosts = null;
+
+const loadFeedbackBoosts = async () => {
+  if (cachedFeedbackBoosts) return cachedFeedbackBoosts;
+  try {
+    if (typeof window === 'undefined') {
+      const fs = await import('fs');
+      const path = await import('path');
+      const boostsPath = path.resolve('public/data/feedback_boosts.json');
+      if (fs.existsSync(boostsPath)) {
+        cachedFeedbackBoosts = JSON.parse(fs.readFileSync(boostsPath, 'utf8'));
+        console.log(`📈 [Feedback Boosts - Node] Índice de boosts cargado desde archivo local.`);
+        return cachedFeedbackBoosts;
+      }
+    } else {
+      const response = await fetch('/data/feedback_boosts.json');
+      if (response.ok) {
+        cachedFeedbackBoosts = await response.json();
+        console.log(`📈 [Feedback Boosts - Browser] Índice de boosts cargado con éxito.`);
+        return cachedFeedbackBoosts;
+      }
+    }
+  } catch (err) {
+    console.warn(`⚠️ [Feedback Boosts] No se pudo cargar el índice de feedback boosts (/data/feedback_boosts.json).`, err);
   }
   return null;
 };
@@ -157,6 +214,14 @@ function matchesSearchQuery(card, query) {
       if (!oracleText.includes(text)) return false;
     } else if (term.startsWith('function:') || term.startsWith('oracletag:')) {
       const tag = term.split(':')[1].trim();
+      
+      // Primero: buscar en el índice oficial de Oracle Tags
+      const officialTags = cachedOracleTags?.[cardName] || [];
+      if (officialTags.includes(tag)) {
+        continue; // Coincidencia oficial encontrada, pasamos al siguiente término
+      }
+      
+      // Fallback: evaluación manual basada en texto oracle
       if (tag === 'removal') {
         const isRemoval = oracleText.includes('destroy') || oracleText.includes('exile') || oracleText.includes('damage') || typeLine.includes('removal');
         if (!isRemoval) return false;
@@ -172,6 +237,8 @@ function matchesSearchQuery(card, query) {
       } else if (tag === 'counterspell') {
         const isCounter = oracleText.includes('counter target');
         if (!isCounter) return false;
+      } else {
+        return false; // Si no es un tag conocido ni oficial, fallamos
       }
     } else {
       if (!cardName.includes(term) && !typeLine.includes(term) && !oracleText.includes(term)) {
@@ -184,12 +251,16 @@ function matchesSearchQuery(card, query) {
 
 export const buildCardPool = async (formData) => {
   const allCards = await getAllCards();
-  const blueprint = getBlueprint(formData.archetype);
+  const blueprint = getFormatAdjustedBlueprint(formData.archetype, formData.format || 'MODERN');
   const blueprintRoles = formData.blueprintRoles || blueprint?.roles || [];
   const allowCustomCards = !!formData.allowCustomCards;
   
-  // Cargar Grafo Semántico pre-compilado de Obsidian
-  const obsidianGraph = await loadObsidianGraph();
+  // Cargar Grafo Semántico pre-compilado de Obsidian, Índice de Oracle Tags e Índice de Feedback Boosts
+  const [obsidianGraph, oracleTagsIndex, feedbackBoosts] = await Promise.all([
+    loadObsidianGraph(),
+    loadOracleTags(),
+    loadFeedbackBoosts()
+  ]);
   
   // Obtener el formato seleccionado para legalidad dinámica
   const selectedFormat = (formData.format || 'MODERN').toUpperCase();
@@ -457,7 +528,44 @@ export const buildCardPool = async (formData) => {
  
     // 2. SISTEMA DE PUNTUACIÓN (SCORING)
     let score = 0;
- 
+
+    // A.0.1) Puntuación por Phase Memory (Señales de Activación) (Mejora 4)
+    if (formData.activationSignals && formData.activationSignals.length > 0) {
+      const signalBoosts = getSignalBoosts(formData.activationSignals);
+      Object.entries(signalBoosts).forEach(([term, points]) => {
+        if (oracleText.includes(term) || typeLine.includes(term) || cardNameLower.includes(term)) {
+          score += points;
+        }
+      });
+    }
+
+    // A.0) Puntuación por Oracle Tags de Scryfall (Mejora 1)
+    if (oracleTagsIndex && oracleTagsIndex[cardNameLower]) {
+      const cardTags = oracleTagsIndex[cardNameLower];
+      blueprintRoles.forEach(role => {
+        if (!role.search_query) return;
+        const roleQueryLower = role.search_query.toLowerCase();
+        
+        const tagMatches = cardTags.filter(tag =>
+          roleQueryLower.includes(tag) ||
+          tag.includes(roleQueryLower.replace('oracletag:', ''))
+        );
+        
+        if (tagMatches.length > 0) {
+          score += tagMatches.length * 75;
+        }
+      });
+    }
+
+    // A.0.2) Puntuación por Feedback Humano (RLHF) (Mejora 5)
+    if (feedbackBoosts) {
+      const archetypeKey = `${selectedFormat.toLowerCase()}_${(formData.archetype || '').toLowerCase()}`;
+      const cardFeedbackBoost = feedbackBoosts?.[archetypeKey]?.[cardNameLower]?.feedbackBoost || 0;
+      if (cardFeedbackBoost > 0) {
+        score += cardFeedbackBoost;
+      }
+    }
+
     // A) Puntuación de Staples: Dinámico (torneos) con Fallback Estático
     const inVivoPercentage = metaStaples[cardNameLower] || 0;
     const activeStaples = FORMAT_STAPLES[selectedFormat] || FORMAT_STAPLES.MODERN;

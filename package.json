@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "node scripts/compileVault.js && vite build",
     "preview": "vite preview",
-    "sync:all": "node scripts/syncSpicerack.js && node scripts/syncMtgTop8.js && node scripts/syncScryfallTagger.js && node scripts/compileVault.js"
+    "sync:all": "node scripts/syncSpicerack.js && node scripts/syncMtgTop8.js && node scripts/syncScryfallTagger.js && node scripts/compileVault.js",
+    "sync:tags": "node scripts/syncScryfallTagger.js",
+    "analyze:feedback": "node scripts/analyzeFeedback.js"
   },
   "dependencies": {
     "clsx": "^2.1.0",

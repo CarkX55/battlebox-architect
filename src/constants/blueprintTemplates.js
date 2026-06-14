@@ -240,3 +240,71 @@ export const getBlueprint = (archetypeId) => {
   
   return BLUEPRINTS['midrange']; // Midrange as safe fallback
 };
+
+export const FORMAT_CURVE_MODIFIERS = {
+  LEGACY: {
+    // Legacy: curvas extremadamente bajas, payoffs de 1-2 mana
+    aggroCurveShift: -1,     // Baja la curva target de aggro en 1 CMC
+    controlFinisherCap: 4,   // Los finishers de control no pasan de CMC 4
+    midrangeTopEnd: 4,       // Midrange topa en 4 raramente llega a 5
+    comboSpeedTarget: 2,     // Los combos se ejecutan en turno 2-3
+    maxViableCMC: 5          // Nada por encima de CMC 5 es viable de forma consistente
+  },
+  MODERN: {
+    aggroCurveShift: 0,      // Base (sin modificar)
+    controlFinisherCap: 6,
+    midrangeTopEnd: 5,
+    comboSpeedTarget: 3,
+    maxViableCMC: 7
+  },
+  PIONEER: {
+    aggroCurveShift: 0,
+    controlFinisherCap: 5,
+    midrangeTopEnd: 5,
+    comboSpeedTarget: 4,
+    maxViableCMC: 7
+  },
+  STANDARD: {
+    aggroCurveShift: 0,
+    controlFinisherCap: 6,   // En Standard los finishers son más caros
+    midrangeTopEnd: 6,
+    comboSpeedTarget: 5,     // Los combos son más lentos en Standard
+    maxViableCMC: 8          // Hay payoffs de CMC 7-8 que son jugables en Standard
+  }
+};
+
+export const getFormatAdjustedBlueprint = (archetypeId, format = 'MODERN') => {
+  const baseBlueprint = getBlueprint(archetypeId);
+  const formatKey = (format || 'MODERN').toUpperCase();
+  const modifier = FORMAT_CURVE_MODIFIERS[formatKey] || FORMAT_CURVE_MODIFIERS.MODERN;
+  
+  // Crear una copia profunda para no mutar el original
+  const adjusted = JSON.parse(JSON.stringify(baseBlueprint));
+  
+  // Aplicar modificadores de curva
+  if (adjusted.spells?.curve) {
+    const curve = adjusted.spells.curve;
+    
+    // En Legacy, comprimir la curva hacia abajo
+    if (modifier.aggroCurveShift < 0) {
+      if (curve.mv1) {
+        curve.mv1.min += 2;
+        curve.mv1.max += 2;
+      }
+      if (curve.mv4_plus) {
+        curve.mv4_plus.max = Math.min(curve.mv4_plus.max, 2);
+      }
+    }
+    
+    // En Standard, expandir el techo de CMC viable
+    if (formatKey === 'STANDARD' && curve.mv4_plus) {
+      curve.mv4_plus.max = Math.min(curve.mv4_plus.max + 2, 12);
+    }
+  }
+  
+  // Añadir metadatos del formato
+  adjusted.formatModifier = modifier;
+  adjusted.format = formatKey;
+  
+  return adjusted;
+};

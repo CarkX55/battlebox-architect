@@ -113,3 +113,32 @@ export const updateArchivedDeck = (id, updatedData) => {
     return false;
   }
 };
+
+export const submitDeckFeedback = async (feedbackData) => {
+  try {
+    const newEntry = {
+      timestamp: new Date().toISOString(),
+      ...feedbackData
+    };
+
+    // 1. Almacenar localmente en localStorage
+    const LOCAL_FEEDBACK_KEY = 'mtg_deck_feedback';
+    const existing = localStorage.getItem(LOCAL_FEEDBACK_KEY);
+    const feedbackList = existing ? JSON.parse(existing) : [];
+    feedbackList.unshift(newEntry);
+    localStorage.setItem(LOCAL_FEEDBACK_KEY, JSON.stringify(feedbackList));
+
+    // 2. Enviar a Firebase si está disponible
+    if (isFirebaseConfigured()) {
+      await addDoc(collection(db, 'deck_feedback'), newEntry);
+      console.log('✅ Feedback guardado en Firebase.');
+    } else {
+      console.log('⚠️ Firebase no configurado, feedback guardado localmente.');
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error submitting feedback:', error);
+    return false;
+  }
+};

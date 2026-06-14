@@ -439,7 +439,29 @@ export const SEMANTIC_TAG_MAP = {
   "spellslinger-synergy": "oracletag:spellslinger-synergy",
   "historic": "oracletag:historic",
   "metalcraft": "oracletag:metalcraft",
-  "ninjutsu": "keyword:ninjutsu"
+  "ninjutsu": "keyword:ninjutsu",
+  // Nuevos tags de la Mejora 1
+  "storm": "oracletag:storm",
+  "storm count": "oracletag:storm",
+  "cost reducer": "oracletag:cost-reducer",
+  "mana dork": "oracletag:mana-dork",
+  "value engine": "oracletag:value-engine",
+  "graveyard filler": "oracletag:graveyard-filler",
+  "self-mill": "oracletag:self-mill",
+  "hate bear": "oracletag:hate-bear",
+  "tempo play": "oracletag:tempo",
+  "evasion": "oracletag:evasion",
+  "wrath effect": "oracletag:wrath",
+  "blink target": "oracletag:blink-target",
+  "etb trigger": "oracletag:etb",
+  "dies trigger": "oracletag:dies-trigger",
+  "combat trick": "oracletag:combat-trick",
+  "fog effect": "oracletag:fog",
+  "counterspell": "oracletag:counterspell",
+  "hand disruption": "oracletag:hand-disruption",
+  "land destruction": "oracletag:land-destruction",
+  "stax piece": "oracletag:stax",
+  "combo piece": "oracletag:combo-piece"
 };
 
 export async function buscarCartasEnBibliotecaTool(args) {

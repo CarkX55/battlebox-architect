@@ -5,11 +5,13 @@ import { callAI, buildAgenticPhasePrompt, GEMINI_PHASE_SCHEMA, DECK_BUILDER_TOOL
 import { API_ENDPOINTS } from '../config/apiEndpoints.js';
 import { BATTLEBOX_VETOS, BANLIST_SUBSTITUTIONS, BATTLEBOX_ARCHETYPES, MTG_STRATEGIES, MTG_TRIBES, getIntelligentSubstitution, PARASITIC_RULES, COMPETITIVE_ANTI_SYNERGIES, inferStrategyFromArchetype, MICRO_SYNERGIES_GRAPH, CONTEXTUAL_DEPENDENCIES } from '../constants/legacyBattleBox.js';
 import { buildCardPool, getDynamicArchetypes } from './ragService.js';
+import { extractActivationSignals } from './synergyActivationEngine.js';
 import { findFuzzyMatchInDB, getCardFromDB, hydrateCard } from './cardHydrator.js';
 import { generateSideboardGuide } from './sideboardService.js';
 import { isCardLegalForBattleBox } from '../utils/legalityCheck.js';
 import { injectCorePackage } from '../constants/corePackages.js';
 import { getAllCards } from './dbIngestor.js';
+import { FORMAT_CURVE_MODIFIERS } from '../constants/blueprintTemplates.js';
 
 let cachedAllCards = [];
 
@@ -196,7 +198,7 @@ const GEMINI_BLUEPRINT_SCHEMA = {
 };
 
 // 3. DICCIONARIO DE ADN ESTRATÉGICO Y CONSTRUCTOR TAXONÓMICO (Synergy Registry)
-const ARCHETYPE_DNA = {
+export const ARCHETYPE_DNA = {
   // Estrategias de Modern
   reanimator: {
     prioridad: "Motores de descarte (Enablers) eficientes, efectos de reanimación rápidos (Persist, Goryo's Vengeance, Late to Dinner, Priest of Fell Rites) y payoffs gigantescos de Modern (Archon of Cruelty, Atraxa).",
@@ -3949,6 +3951,7 @@ export async function forgeMazoPerfecto(formData, aiConfig, onProgress = () => {
     
     // Curve Profile Logic
     const curveProfile = formData.curveProfile || 'balanced';
+    const formatMod = FORMAT_CURVE_MODIFIERS[(formData.format || 'MODERN').toUpperCase()] || FORMAT_CURVE_MODIFIERS.MODERN;
 
     onProgress('strategist', '🏗️ Arquitecto de Plantillas (IA) diseñando Blueprint a medida...');
     const blueprintPrompt = `
@@ -3959,6 +3962,9 @@ Diseña el plano estructural perfecto y a medida para este mazo.
 - Tribe: ${tribeLabel} (Subtypes: ${tribeSubtypes})
 - Colors: [${baseIdent_ColorStr}]
 - Curve: ${curveProfile}
+- Format: ${formData.format || 'MODERN'}
+- Format CMC Constraint: En formato ${formData.format || 'MODERN'}, el CMC máximo viable competitivamente es ${formatMod.maxViableCMC}. No asignes roles con cmcCategory "5+" a menos que el arquetipo lo requiera absolutamente (ramp, control).
+- Speed Target: Los combos en ${formData.format || 'MODERN'} se ejecutan en el turno ${formatMod.comboSpeedTarget} como objetivo ideal.
   ${getArchetypePhilosophyPrompt(formData.archetype)}
   ${getStrategySynergyPrompt(strategyId)}
 
@@ -4131,7 +4137,12 @@ La suma de las cantidades de todos los roles debe ser exactamente igual a totalS
       addLog(`[AGENTIC FLOW] Iniciando ${phaseName}...`);
       onProgress('assembler', `🤖 [${phaseName}] ${attemptName}...`);
       
-      const phasePrompt = buildAgenticPhasePrompt(paramsForPrompt, phaseName, targetRoles, currentDeckContext);
+      const activationSignals = extractActivationSignals(currentDeckContext, ragResult.pool);
+      if (activationSignals.length > 0) {
+        addLog(`[PHASE MEMORY] Inferencia dinámica: señales activadas = [${activationSignals.join(', ')}]`);
+      }
+      
+      const phasePrompt = buildAgenticPhasePrompt(paramsForPrompt, phaseName, targetRoles, currentDeckContext, activationSignals);
       const contextGen_Prompt = `
       === RAG CARD POOL (MANDATORY SOURCE) ===
       Select cards primarily from this pre-filtered competitive pool:

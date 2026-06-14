@@ -10,7 +10,7 @@ import VisualGrid from '../components/battlebox/VisualGrid';
 import { hydrateDeckCards } from '../services/cardHydrator';
 import { callAI, suggestCards, forgeSideboard } from '../services/aiFactory';
 import { forgeMazoPerfecto } from '../services/deckArchitectService';
-import { archiveDeck, archiveDeckOnline } from '../services/archiveService';
+import { archiveDeck, archiveDeckOnline, submitDeckFeedback } from '../services/archiveService';
 import { getAllCards } from '../services/dbIngestor';
 import CardSearch from '../components/forge/CardSearch';
 import HandSimulator from '../components/forge/HandSimulator';
@@ -462,10 +462,76 @@ export default function DeckForge() {
   const [renderSideboard, setRenderSideboard] = useState([]);
   const [aiMetadata, setAiMetadata] = useState(null);
   const [sideboardStrategy, setSideboardStrategy] = useState('');
-  const [archived, setArchived] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
-  const [showHandSim, setShowHandSim] = useState(false);
-  const [pocketGuide, setPocketGuide] = useState(null);
+   const [archived, setArchived] = useState(false);
+   const [isEditing, setIsEditing] = useState(false);
+   const [showHandSim, setShowHandSim] = useState(false);
+   
+   // Estados del Sistema de Feedback (Mejora 5)
+   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+   const [feedbackRating, setFeedbackRating] = useState(0);
+   const [feedbackHoverRating, setFeedbackHoverRating] = useState(0);
+   const [feedbackWinRate, setFeedbackWinRate] = useState('');
+   const [feedbackFunScore, setFeedbackFunScore] = useState(0);
+   const [feedbackFunHoverScore, setFeedbackFunHoverScore] = useState(0);
+   const [feedbackNotes, setFeedbackNotes] = useState('');
+   const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
+   const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
+
+   const handleSubmitFeedback = async () => {
+     if (feedbackRating === 0 || feedbackFunScore === 0) {
+       alert("Por favor, selecciona una puntuación de valoración y diversión.");
+       return;
+     }
+     
+     setIsSubmittingFeedback(true);
+     
+     const deckName = aiMetadata?.deckName || 'Mazo Forjado';
+     const archetype = aiMetadata?.archetype || lastFormData?.archetype || 'midrange';
+     const format = lastFormData?.format || 'MODERN';
+     const strategy = lastFormData?.strategy || 'general';
+     const tribe = lastFormData?.tribe || 'none';
+     const colors = lastFormData?.colores || [];
+     
+     const cardList = renderDeck.map(c => ({
+       name: c.name,
+       quantity: c.quantity,
+       role: c.role || ''
+     }));
+     
+     const feedbackData = {
+       deckName,
+       archetype,
+       format,
+       strategy,
+       tribe,
+       colors,
+       rating: feedbackRating,
+       winRate: feedbackWinRate,
+       funScore: feedbackFunScore,
+       cardList,
+       notes: feedbackNotes
+     };
+     
+     const success = await submitDeckFeedback(feedbackData);
+     setIsSubmittingFeedback(false);
+     
+     if (success) {
+       setFeedbackSubmitted(true);
+       setTimeout(() => {
+         setShowFeedbackModal(false);
+         // Resetear estados
+         setFeedbackRating(0);
+         setFeedbackWinRate('');
+         setFeedbackFunScore(0);
+         setFeedbackNotes('');
+         setFeedbackSubmitted(false);
+       }, 2000);
+     } else {
+       alert("Hubo un error al enviar la valoración. Por favor inténtalo de nuevo.");
+     }
+   };
+
+   const [pocketGuide, setPocketGuide] = useState(null);
   const [isGeneratingGuide, setIsGeneratingGuide] = useState(false);
   const [cloudArchived, setCloudArchived] = useState(false);
   const [cardSuggestions, setCardSuggestions] = useState(null);
@@ -1430,6 +1496,13 @@ export default function DeckForge() {
                 >
                   {cloudArchived ? '☁️ Subido' : '☁️ Subir Nube'}
                 </button>
+                <button
+                  onClick={() => setShowFeedbackModal(true)}
+                  disabled={!stats.isValid}
+                  className={cn("btn-magic-glass btn-glass-gold shadow-lg flex items-center gap-1 border-[#D4AF37]/30 text-[#D4AF37]", !stats.isValid && "opacity-50 grayscale")}
+                >
+                  ⭐ Valorar Mazo
+                </button>
                 <div className="relative">
                   <button
                     onClick={() => setExportDropdownOpen(!exportDropdownOpen)}
@@ -2052,6 +2125,171 @@ export default function DeckForge() {
             <HandSimulator deck={renderDeck} isOpen={showHandSim} onClose={() => setShowHandSim(false)} aiConfig={aiConfig} />
             <SynergyGraphVisualizer deck={renderDeck} isOpen={showRagGraph} onClose={() => setShowRagGraph(false)} archetype={aiMetadata?.archetype || lastFormData?.archetype} colors={lastFormData?.colores} />
             <DeckVisualExporter deck={renderDeck} sideboard={renderSideboard} isOpen={showVisualGrid} onClose={() => setShowVisualGrid(false)} deckName={aiMetadata?.deckName || 'Mazo Forjado'} archetype={aiMetadata?.archetype || lastFormData?.archetype} colors={lastFormData?.colores} formData={lastFormData} onOptimize={handleOptimizeDeck} />
+
+            {/* Modal de Feedback (Mejora 5) */}
+            <AnimatePresence>
+              {showFeedbackModal && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="fixed inset-0 z-[150] flex items-center justify-center bg-black/70 backdrop-blur-md p-4"
+                >
+                  <motion.div
+                    initial={{ scale: 0.95, y: 20 }}
+                    animate={{ scale: 1, y: 0 }}
+                    exit={{ scale: 0.95, y: 20 }}
+                    className="relative w-full max-w-md bg-[#120F0D]/95 border-2 border-[#D4AF37]/30 shadow-[0_0_50px_rgba(212,175,55,0.15)] rounded-2xl p-6 text-[#f4ece0] backdrop-blur-xl flex flex-col gap-5"
+                  >
+                    {/* Botón de cierre */}
+                    <button
+                      onClick={() => setShowFeedbackModal(false)}
+                      className="absolute top-4 right-4 text-gray-400 hover:text-[#D4AF37] transition-colors"
+                    >
+                      <XCircle size={20} />
+                    </button>
+
+                    {feedbackSubmitted ? (
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.8 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="flex flex-col items-center justify-center py-10 gap-4 text-center"
+                      >
+                        <motion.div
+                          animate={{ scale: [1, 1.2, 1] }}
+                          transition={{ repeat: Infinity, duration: 1.5 }}
+                          className="text-5xl text-[#D4AF37]"
+                        >
+                          ✨
+                        </motion.div>
+                        <h3 className="font-cinzel text-xl text-[#D4AF37]">¡Valoración Recibida!</h3>
+                        <p className="text-sm text-gray-400 font-sans">Gracias por ayudarnos a perfeccionar el Oráculo.</p>
+                      </motion.div>
+                    ) : (
+                      <>
+                        <div className="text-center">
+                          <h3 className="font-cinzel text-xl text-[#D4AF37] tracking-wider">Valorar Mazo Forjado</h3>
+                          <p className="text-xs text-gray-400 font-sans mt-1">Comparte tu experiencia para calibrar el algoritmo</p>
+                        </div>
+
+                        {/* Valoración General */}
+                        <div className="flex flex-col gap-2">
+                          <label className="text-xs text-gray-300 font-sans font-semibold tracking-wide">VALORACIÓN GENERAL DEL MAZO</label>
+                          <div className="flex gap-2 justify-center py-2 bg-white/5 rounded-xl border border-white/5">
+                            {[1, 2, 3, 4, 5].map((star) => {
+                              const isGold = star <= (feedbackHoverRating || feedbackRating);
+                              return (
+                                <motion.button
+                                  key={star}
+                                  onClick={() => setFeedbackRating(star)}
+                                  onMouseEnter={() => setFeedbackHoverRating(star)}
+                                  onMouseLeave={() => setFeedbackHoverRating(0)}
+                                  whileHover={{ scale: 1.25 }}
+                                  whileTap={{ scale: 0.9 }}
+                                  className="text-2xl transition-all outline-none"
+                                  title={`${star} estrellas`}
+                                >
+                                  <span className={cn(
+                                    isGold ? "text-[#D4AF37] drop-shadow-[0_0_8px_rgba(212,175,55,0.7)]" : "text-gray-600 grayscale opacity-45",
+                                    "transition-all cursor-pointer"
+                                  )}>
+                                    ★
+                                  </span>
+                                </motion.button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Nivel de Diversión */}
+                        <div className="flex flex-col gap-2">
+                          <label className="text-xs text-gray-300 font-sans font-semibold tracking-wide">¿QUÉ TAN DIVERTIDO FUE JUGARLO?</label>
+                          <div className="flex gap-2 justify-center py-2 bg-white/5 rounded-xl border border-white/5">
+                            {[1, 2, 3, 4, 5].map((star) => {
+                              const isGold = star <= (feedbackFunHoverScore || feedbackFunScore);
+                              return (
+                                <motion.button
+                                  key={star}
+                                  onClick={() => setFeedbackFunScore(star)}
+                                  onMouseEnter={() => setFeedbackFunHoverScore(star)}
+                                  onMouseLeave={() => setFeedbackFunHoverScore(0)}
+                                  whileHover={{ scale: 1.25 }}
+                                  whileTap={{ scale: 0.9 }}
+                                  className="text-2xl transition-all outline-none"
+                                  title={`${star} estrellas`}
+                                >
+                                  <span className={cn(
+                                    isGold ? "text-[#D4AF37] drop-shadow-[0_0_8px_rgba(212,175,55,0.7)]" : "text-gray-600 grayscale opacity-45",
+                                    "transition-all cursor-pointer"
+                                  )}>
+                                    ★
+                                  </span>
+                                </motion.button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Resultado de la Partida */}
+                        <div className="flex flex-col gap-2">
+                          <label className="text-xs text-gray-300 font-sans font-semibold tracking-wide">RESULTADO DE PARTIDA</label>
+                          <div className="grid grid-cols-4 gap-2">
+                            {["Gané", "Empaté", "Perdí", "No jugué"].map(result => {
+                              const active = feedbackWinRate === result;
+                              return (
+                                <button
+                                  key={result}
+                                  onClick={() => setFeedbackWinRate(result)}
+                                  className={cn(
+                                    "py-2 px-1 rounded-lg text-xs font-semibold font-sans border transition-all text-center cursor-pointer",
+                                    active 
+                                      ? "bg-[#D4AF37]/20 border-[#D4AF37] text-[#D4AF37]" 
+                                      : "bg-white/5 border-white/10 text-gray-400 hover:bg-white/10"
+                                  )}
+                                >
+                                  {result}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Notas / Comentarios */}
+                        <div className="flex flex-col gap-2">
+                          <label className="text-xs text-gray-300 font-sans font-semibold tracking-wide font-sans">NOTAS Y OBSERVACIONES</label>
+                          <textarea
+                            placeholder="Escribe comentarios sobre la curva, cartas muertas o sinergias..."
+                            value={feedbackNotes}
+                            onChange={(e) => setFeedbackNotes(e.target.value)}
+                            className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-xs text-gray-200 focus:outline-none focus:border-[#D4AF37]/50 h-20 resize-none transition-colors font-sans"
+                          />
+                        </div>
+
+                        {/* Botón de envío */}
+                        <button
+                          onClick={handleSubmitFeedback}
+                          disabled={isSubmittingFeedback || feedbackRating === 0 || feedbackFunScore === 0}
+                          className={cn(
+                            "w-full py-3 rounded-xl font-cinzel font-bold text-sm tracking-wider transition-all shadow-lg cursor-pointer",
+                            (feedbackRating === 0 || feedbackFunScore === 0)
+                              ? "bg-gray-700 text-gray-400 cursor-not-allowed opacity-50"
+                              : "bg-gradient-to-r from-[#B8860B] to-[#D4AF37] text-[#0d0b09] hover:shadow-[0_0_15px_rgba(212,175,55,0.4)] active:scale-95"
+                          )}
+                        >
+                          {isSubmittingFeedback ? (
+                            <span className="flex items-center justify-center gap-2">
+                              <Zap className="animate-spin animate-pulse" size={14} /> Enviando...
+                            </span>
+                          ) : (
+                            "Enviar Valoración"
+                          )}
+                        </button>
+                      </>
+                    )}
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </motion.div>
         )}
       </AnimatePresence>

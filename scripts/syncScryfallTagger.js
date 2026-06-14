@@ -20,37 +20,31 @@ const VAULT_DIR = path.join(PROJECT_ROOT, vaultFolder);
 const CARTAS_DIR = path.join(VAULT_DIR, 'Cartas');
 const ETIQUETAS_DIR = path.join(VAULT_DIR, 'Etiquetas');
 
-// Mapa de etiquetas mecánicas para cartas clave (Fidelidad Pro-Casual y Sinergias abstractas)
+const DB_PATH = path.join(PROJECT_ROOT, 'database/oracle-cards-20260428090245.json');
+const OUTPUT_INDEX_PATH = path.join(PROJECT_ROOT, 'public/data/oracle_tags_index.json');
+
+// Mapa de etiquetas mecánicas locales para cartas clave (Fidelidad Pro-Casual y Sinergias)
 const CASUAL_TAGS_MAP = {
-  // Motores de Sacrificio (Sacrifice Outlets)
   "Viscera Seer": ["sacrifice-outlet", "combo-enabler", "vampire"],
   "Carrion Feeder": ["sacrifice-outlet", "zombie"],
   "Yawgmoth, Thran Physician": ["sacrifice-outlet", "draw-engine", "human"],
   "Woe Strider": ["sacrifice-outlet", "escape"],
   "Goblin Bombardment": ["sacrifice-outlet", "direct-damage"],
-
-  // Payoffs de Aristócratas (Drenadores de vida / Muerte)
   "Blood Artist": ["sacrifice-payoff", "life-drain", "vampire"],
   "Zulaport Cutthroat": ["sacrifice-payoff", "life-drain", "human"],
   "Cruel Celebrant": ["sacrifice-payoff", "life-drain", "vampire"],
   "Mayhem Devil": ["sacrifice-payoff", "direct-damage", "devil"],
   "Bastion of Remembrance": ["sacrifice-payoff", "life-drain", "enchantment"],
-
-  // Habilitadores de Descarte / Dragado (Discard Outlets / Mill)
   "Putrid Imp": ["discard-outlet", "reanimator-enabler", "zombie"],
   "Stitcher's Supplier": ["mill-self", "reanimator-enabler", "zombie"],
   "Grief": ["discard-outlet", "interaction", "elemental"],
   "Faithless Looting": ["discard-outlet", "cantrip", "red-staple"],
   "Entomb": ["reanimator-enabler", "search-library"],
-
-  // Hechizos de Reanimación (Reanimation Spells)
   "Reanimate": ["reanimation-spell", "black-staple"],
   "Animate Dead": ["reanimation-spell", "aura"],
   "Priest of Fell Rites": ["reanimation-spell", "human", "lifelink"],
   "Archon of Cruelty": ["reanimator-payoff", "giant-threat"],
   "Griselbrand": ["reanimator-payoff", "giant-threat", "demon"],
-
-  // Spellslinger / Prowess
   "Young Pyromancer": ["spellslinger-payoff", "token-generator", "human"],
   "Murktide Regent": ["spellslinger-payoff", "delve-threat", "dragon"],
   "Dragon's Rage Channeler": ["spellslinger-payoff", "mill-self", "human"],
@@ -65,6 +59,10 @@ function ensureDirs() {
       fs.mkdirSync(dir, { recursive: true });
     }
   });
+  const outputDir = path.dirname(OUTPUT_INDEX_PATH);
+  if (!fs.existsSync(outputDir)) {
+    fs.mkdirSync(outputDir, { recursive: true });
+  }
 }
 
 // Limpiar nombres de ficheros
@@ -76,11 +74,85 @@ async function run() {
   console.log("🚀 [Obsidian Tagger] Iniciando sincronización de Scryfall Tagger...");
   ensureDirs();
 
-  // 1. Generar fichas de Etiquetas en `vault/Etiquetas/`
+  // 1. Cargar la DB local de cartas para mapear oracle_id -> name
+  console.log("⏳ [Obsidian Tagger] Cargando base de datos para mapear oracle_id a nombre...");
+  if (!fs.existsSync(DB_PATH)) {
+    console.error(`❌ [Obsidian Tagger] Error: No existe la base de datos de cartas en ${DB_PATH}.`);
+    process.exit(1);
+  }
+  
+  const cards = JSON.parse(fs.readFileSync(DB_PATH, 'utf8'));
+  const oracleIdToName = {};
+  for (const card of cards) {
+    if (card.oracle_id && card.name) {
+      oracleIdToName[card.oracle_id] = card.name.toLowerCase();
+    }
+  }
+  console.log(`✅ [Obsidian Tagger] Mapeados ${Object.keys(oracleIdToName).length} oracle_ids.`);
+
+  // 2. Descargar e indexar los tags oficiales de Scryfall Tagger
+  console.log("🌐 [Obsidian Tagger] Obteniendo metadata de Scryfall Bulk Data...");
+  const bulkRes = await fetch('https://api.scryfall.com/bulk-data', {
+    headers: { 'User-Agent': 'BattleboxArchitect/1.0', 'Accept': 'application/json' }
+  });
+  const bulkJson = await bulkRes.json();
+  const tagsObj = bulkJson.data.find(d => d.type === 'oracle_tags');
+  if (!tagsObj) {
+    throw new Error('oracle_tags not found in Scryfall bulk data list');
+  }
+
+  console.log(`📥 [Obsidian Tagger] Descargando tags oficiales desde: ${tagsObj.download_uri}`);
+  const tagsRes = await fetch(tagsObj.download_uri, {
+    headers: { 'User-Agent': 'BattleboxArchitect/1.0' }
+  });
+  const tagsJson = await tagsRes.json();
+  console.log(`✅ [Obsidian Tagger] Cargados ${tagsJson.length} tags oficiales.`);
+
+  const oracleTagsIndex = {};
+
+  // Procesar tags descargados
+  for (const tag of tagsJson) {
+    const tagSlug = tag.slug;
+    if (!tagSlug || !tag.taggings) continue;
+    
+    for (const tagging of tag.taggings) {
+      const oId = tagging.oracle_id;
+      if (!oId) continue;
+      const cardName = oracleIdToName[oId];
+      if (cardName) {
+        if (!oracleTagsIndex[cardName]) {
+          oracleTagsIndex[cardName] = [];
+        }
+        if (!oracleTagsIndex[cardName].includes(tagSlug)) {
+          oracleTagsIndex[cardName].push(tagSlug);
+        }
+      }
+    }
+  }
+
+  // Integrar CASUAL_TAGS_MAP manual en el índice también
+  console.log("➕ [Obsidian Tagger] Integrando tags manuales del CASUAL_TAGS_MAP...");
+  Object.entries(CASUAL_TAGS_MAP).forEach(([cardName, tags]) => {
+    const cardNameLower = cardName.toLowerCase();
+    if (!oracleTagsIndex[cardNameLower]) {
+      oracleTagsIndex[cardNameLower] = [];
+    }
+    tags.forEach(t => {
+      if (!oracleTagsIndex[cardNameLower].includes(t)) {
+        oracleTagsIndex[cardNameLower].push(t);
+      }
+    });
+  });
+
+  // Guardar archivo public/data/oracle_tags_index.json
+  fs.writeFileSync(OUTPUT_INDEX_PATH, JSON.stringify(oracleTagsIndex, null, 2), 'utf8');
+  console.log(`✨ [Obsidian Tagger] Índice de Oracle Tags exportado a: ${OUTPUT_INDEX_PATH}`);
+
+  // 3. Generar fichas de Etiquetas en `vault/Etiquetas/` para Obsidian
   const allUniqueTags = new Set();
   Object.values(CASUAL_TAGS_MAP).forEach(tags => tags.forEach(t => allUniqueTags.add(t)));
 
-  console.log(`🏷️ [Obsidian Tagger] Generando ${allUniqueTags.size} fichas de etiquetas mecánicas...`);
+  console.log(`🏷️ [Obsidian Tagger] Generando ${allUniqueTags.size} fichas de etiquetas mecánicas en Obsidian...`);
   allUniqueTags.forEach(tag => {
     const filename = cleanFilename(`tag-${tag}`) + '.md';
     const filepath = path.join(ETIQUETAS_DIR, filename);
@@ -103,7 +175,7 @@ ${matchingCards.map(c => `- [[${c}]]`).join('\n')}
     fs.writeFileSync(filepath, content, 'utf8');
   });
 
-  // 2. Modificar las fichas de Cartas en `vault/Cartas/` para inyectar los enlaces a las etiquetas
+  // 4. Modificar las fichas de Cartas en `vault/Cartas/` para inyectar los enlaces a las etiquetas
   console.log("🔗 [Obsidian Tagger] Enlazando etiquetas a las fichas de cartas en `vault/Cartas/`...");
   Object.keys(CASUAL_TAGS_MAP).forEach(cardName => {
     const filename = cleanFilename(cardName) + '.md';
@@ -119,7 +191,6 @@ ${matchingCards.map(c => `- [[${c}]]`).join('\n')}
       if (!content.includes('tag:')) {
         // Encontrar la sección de metadatos o el final del frontmatter para inyectar
         const lines = content.split('\n');
-        let newContent = '';
         let frontmatterEndIndex = -1;
         let countYaml = 0;
 

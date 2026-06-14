@@ -1,0 +1,53 @@
+{
+  "modern_control": {
+    "supreme verdict": {
+      "feedbackBoost": 80,
+      "avgRating": 4.5,
+      "winRateScore": 0.75
+    },
+    "teferi, time raveler": {
+      "feedbackBoost": 90,
+      "avgRating": 4.8,
+      "winRateScore": 0.85
+    },
+    "the wandering emperor": {
+      "feedbackBoost": 75,
+      "avgRating": 4.3,
+      "winRateScore": 0.65
+    }
+  },
+  "modern_aggro": {
+    "goblin guide": {
+      "feedbackBoost": 85,
+      "avgRating": 4.6,
+      "winRateScore": 0.8
+    },
+    "monastery swiftspear": {
+      "feedbackBoost": 95,
+      "avgRating": 4.9,
+      "winRateScore": 0.9
+    },
+    "lightning bolt": {
+      "feedbackBoost": 90,
+      "avgRating": 4.7,
+      "winRateScore": 0.85
+    }
+  },
+  "modern_combo": {
+    "lotus petal": {
+      "feedbackBoost": 95,
+      "avgRating": 4.9,
+      "winRateScore": 0.95
+    },
+    "underworld breach": {
+      "feedbackBoost": 90,
+      "avgRating": 4.8,
+      "winRateScore": 0.85
+    },
+    "grapeshot": {
+      "feedbackBoost": 80,
+      "avgRating": 4.4,
+      "winRateScore": 0.75
+    }
+  }
+}
