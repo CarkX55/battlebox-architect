@@ -1,6 +1,6 @@
 // src/services/ragService.js
 import { getBlueprint, getFormatAdjustedBlueprint } from '../constants/blueprintTemplates.js';
-import { MTG_TRIBES, MTG_STRATEGIES, PARASITIC_RULES, inferStrategyFromArchetype } from '../constants/legacyBattleBox.js';
+import { MTG_TRIBES, MTG_STRATEGIES, PARASITIC_RULES, inferStrategyFromArchetype, CO_OCCURRENCE_RULES } from '../constants/legacyBattleBox.js';
 import { getAllCards } from './dbIngestor.js';
 import { loadMetaFromDB } from './mtgtop8Service.js';
 import { getSignalBoosts } from './synergyActivationEngine.js';
@@ -311,6 +311,13 @@ export const buildCardPool = async (formData) => {
   strategyId = inferStrategyFromArchetype(formData.archetype, strategyId);
   const strategyData = MTG_STRATEGIES.find(s => s.id === strategyId || s.label === strategyId) || null;
   
+  // Registrar nombres activos pre-seleccionados para el motor de coocurrencia
+  const activePreSelectedNames = new Set([
+    ...(injectedCoreNames || []).map(n => n.toLowerCase()),
+    ...(formData.mustInclude ? formData.mustInclude.toLowerCase().split(/[,\n]/).map(s => s.trim()) : []),
+    ...(formData.dnaSkeleton || []).map(c => c.name.toLowerCase())
+  ]);
+
   // Respetamos los colores elegidos por el usuario de forma prioritaria
   const allowedColors = (formData.colores && formData.colores.length > 0) 
     ? formData.colores 
@@ -539,6 +546,20 @@ export const buildCardPool = async (formData) => {
       });
     }
 
+    // A.0.1.2) Reglas de Coocurrencia (Sinergias Cruzadas de Battle Box)
+    CO_OCCURRENCE_RULES.forEach(rule => {
+      if (activePreSelectedNames.has(rule.triggerCard.toLowerCase())) {
+        const matchesKeyword = rule.boostKeywords.some(kw => 
+          cardNameLower.includes(kw) || 
+          typeLine.includes(kw) || 
+          oracleText.includes(kw)
+        );
+        if (matchesKeyword) {
+          score += rule.boostScore;
+        }
+      }
+    });
+
     // A.0) Puntuación por Oracle Tags de Scryfall (Mejora 1)
     if (oracleTagsIndex && oracleTagsIndex[cardNameLower]) {
       const cardTags = oracleTagsIndex[cardNameLower];
@@ -566,7 +587,7 @@ export const buildCardPool = async (formData) => {
       }
     }
 
-    // A) Puntuación de Staples: Dinámico (torneos) con Fallback Estático
+    // A) Puntuación de Staples: Dinámico (torneos) con Fallback Estático + Staples Color Boost
     const inVivoPercentage = metaStaples[cardNameLower] || 0;
     const activeStaples = FORMAT_STAPLES[selectedFormat] || FORMAT_STAPLES.MODERN;
     const stapleWeight = activeStaples.has(cardNameLower) ? 65 : 0;
@@ -579,6 +600,13 @@ export const buildCardPool = async (formData) => {
       if (stapleWeight > 0) {
         score += stapleWeight;
       }
+    }
+
+    // Inyección y Boost dinámico de staples interactivos de colores (con penalización tribal)
+    if (activeStaples.has(cardNameLower)) {
+      const isTribal = tribeData || (formData.tribe && formData.tribe !== 'none' && formData.tribe !== 'ninguna');
+      const extraStapleBoost = isTribal ? 50 : 100;
+      score += extraStapleBoost;
     }
 
     // A.1) Grafo Semántico de Obsidian: Coocurrencias y Etiquetas Mecánicas

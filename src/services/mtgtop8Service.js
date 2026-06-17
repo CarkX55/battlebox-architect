@@ -175,6 +175,67 @@ export const MOCK_METAGAME_DECKS = {
         { name: "Retrofit Foundry", quantity: 2 },
         { name: "Kaito Shizuki", quantity: 2 }
       ]
+    },
+    {
+      name: "Modern Goblins",
+      main: [
+        { name: "Aether Vial", quantity: 4 },
+        { name: "Goblin Guide", quantity: 4 },
+        { name: "Conspicuous Snoop", quantity: 4 },
+        { name: "Goblin Matron", quantity: 4 },
+        { name: "Munitions Expert", quantity: 4 },
+        { name: "Sling-Gang Lieutenant", quantity: 2 },
+        { name: "Goblin Chieftain", quantity: 3 },
+        { name: "Goblin Warchief", quantity: 2 },
+        { name: "Rundvelt Hordemaster", quantity: 4 },
+        { name: "Boggart Harbinger", quantity: 3 },
+        { name: "Warren Instigator", quantity: 2 }
+      ]
+    },
+    {
+      name: "Modern Affinity",
+      main: [
+        { name: "Ornithopter", quantity: 4 },
+        { name: "Memnite", quantity: 4 },
+        { name: "Springleaf Drum", quantity: 4 },
+        { name: "Cranial Plating", quantity: 4 },
+        { name: "Patchwork Automaton", quantity: 4 },
+        { name: "Thought Monitor", quantity: 4 },
+        { name: "Frogmite", quantity: 4 },
+        { name: "Sojourner's Companion", quantity: 4 },
+        { name: "Nettlecyst", quantity: 2 },
+        { name: "Gingerbrute", quantity: 2 },
+        { name: "Steel Overseer", quantity: 4 }
+      ]
+    },
+    {
+      name: "Modern Elves",
+      main: [
+        { name: "Llanowar Elves", quantity: 4 },
+        { name: "Elvish Mystic", quantity: 4 },
+        { name: "Heritage Druid", quantity: 4 },
+        { name: "Elvish Archdruid", quantity: 4 },
+        { name: "Leaf-Crowned Visionary", quantity: 4 },
+        { name: "Ezuri, Renegade Leader", quantity: 2 },
+        { name: "Realmwalker", quantity: 3 },
+        { name: "Quirion Ranger", quantity: 4 },
+        { name: "Warmonger Refugee", quantity: 2 },
+        { name: "Chord of Calling", quantity: 4 },
+        { name: "Shaman of the Pack", quantity: 4 }
+      ]
+    },
+    {
+      name: "Modern Amulet Titan",
+      main: [
+        { name: "Amulet of Vigor", quantity: 4 },
+        { name: "Primeval Titan", quantity: 4 },
+        { name: "Summoner's Pact", quantity: 4 },
+        { name: "Arboreal Grazer", quantity: 4 },
+        { name: "Azusa, Lost but Seeking", quantity: 2 },
+        { name: "Dryad of the Ilysian Grove", quantity: 4 },
+        { name: "Cultivate", quantity: 4 },
+        { name: "Explore", quantity: 4 }
+      ]
     }
   ],
   LEGACY: [

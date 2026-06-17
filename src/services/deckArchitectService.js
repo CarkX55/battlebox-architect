@@ -199,6 +199,29 @@ const GEMINI_BLUEPRINT_SCHEMA = {
   required: ["deckName", "lore", "totalSpells", "strategy", "mulligan", "roles"]
 };
 
+// Schema para la Fase 4: Optimización y Auto-Crítica de Mazos (Pro Tour Deck Optimizer)
+const OPTIMIZATION_SCHEMA = {
+  type: "object",
+  properties: {
+    reasoning: { type: "string", description: "Breve explicación en español de qué problemas se detectaron y cómo se corrigieron." },
+    optimized_cards: {
+      type: "array",
+      description: "Lista completa y definitiva de los hechizos del mazo después de realizar las correcciones y swaps.",
+      items: {
+        type: "object",
+        properties: {
+          name: { type: "string" },
+          quantity: { type: "integer" },
+          role: { type: "string" }
+        },
+        required: ["name", "quantity", "role"]
+      }
+    }
+  },
+  required: ["reasoning", "optimized_cards"]
+};
+
+
 // 3. DICCIONARIO DE ADN ESTRATÉGICO Y CONSTRUCTOR TAXONÓMICO (Synergy Registry)
 export const ARCHETYPE_DNA = {
   // Estrategias de Modern
@@ -4360,144 +4383,128 @@ La suma de las cantidades de todos los roles debe ser exactamente igual a totalS
 
     addLog("[AGENTIC FLOW] Todas las fases completadas exitosamente.");
 
-    // --- NUEVO PASO: AUTO-CORRECCIÓN (JUEZ INTERNO) ---
-    addLog("[AGENTIC FLOW] Ejecutando Juez Interno para purgar parásitos...");
-    onProgress('assembler', '⚖️ Juez Interno revisando sinergias parasíticas...');
+    // --- NUEVO PASO: FASE 4 - AUTO-CRÍTICA Y OPTIMIZACIÓN POR IA (PRO TOUR DECK OPTIMIZER) ---
+    addLog("[AGENTIC FLOW] Iniciando Fase 4: Auto-Crítica y Optimización por IA...");
+    onProgress('assembler', '⚖️ Juez Interno revisando y optimizando con IA...');
     try {
       const internalAudit = await internalSynergyAudit(currentDeckContext, formData, aiConfig);
-      if (internalAudit && internalAudit.suggestions && internalAudit.suggestions.length > 0) {
-        addLog(`[AGENTIC FLOW] El Juez Interno encontró ${internalAudit.suggestions.length} problemas de sinergia.`);
-        internalAudit.suggestions.forEach(sug => {
-          let associatedRole = null;
-          
-          if (sug.removes && sug.removes.length > 0) {
-             sug.removes.forEach(r => {
-                const targetName = r.name.toLowerCase();
-                const idx = currentDeckContext.findIndex(c => c && c.name && c.name.toLowerCase().includes(targetName));
-                if (idx !== -1) {
-                   associatedRole = currentDeckContext[idx].role;
-                   addLog(`[AGENTIC FLOW] Auto-Corrigiendo: Eliminando ${currentDeckContext[idx].name} (${r.quantity || 1}x)`);
-                   
-                   // Reducir la cantidad o eliminar la carta del contexto
-                   if (!r.quantity || currentDeckContext[idx].quantity <= r.quantity) {
-                      currentDeckContext.splice(idx, 1);
-                   } else {
-                      currentDeckContext[idx].quantity -= r.quantity;
-                   }
-                }
-             });
-          }
-          
-          if (sug.adds && sug.adds.length > 0 && associatedRole) {
-             sug.adds.forEach(a => {
-                const dbCard = allCards.find(ac => ac && ac.name && ac.name.toLowerCase() === a.name.toLowerCase());
-                if (dbCard) {
-                   const selectedFormat = (formData.format || 'MODERN').toLowerCase();
-                   const isLegal = dbCard.legalities && dbCard.legalities[selectedFormat] === 'legal';
-                   
-                   const allowCustomCards = !!formData.allowCustomCards;
-                   const customSets = [
-                      'tla', 'atla', 'ttla', 'tle', 'jtla', 'atle', 'ftla', 'ttle',
-                      'fin', 'afic', 'afin', 'fic', 'tfin', 'tfic',
-                      'tmt', 'atmt', 'tmc', 'ftmc', 'ttmc', 'ttmt',
-                      'spm', 'aspm', 'spe', 'tspm',
-                      'psdg', 'pspl'
-                   ];
-                   const isCustom = dbCard.set && (customSets.includes(dbCard.set.toLowerCase()) || dbCard.set.toLowerCase().includes('custom'));
-                   
-                   let cardToUse = dbCard;
-                   
-                   if (!isLegal || (!allowCustomCards && isCustom)) {
-                       const allowedColors = formData?.colores || [];
-                       const targetCategory = dbCard.type_line?.toLowerCase().includes('creature') ? 'Creature' : (dbCard.type_line?.toLowerCase().includes('instant') ? 'Instant' : 'Spell');
-                       const targetCmc = dbCard.mana_value || dbCard.cmc || 2;
-                       
-                       let intelligentUsed = false;
-                       const replacementName = getIntelligentSubstitution(dbCard.name, associatedRole);
-                       if (replacementName && replacementName !== dbCard.name) {
-                          const repCard = allCards.find(ac => ac && ac.name && ac.name.toLowerCase() === replacementName.toLowerCase());
-                          if (repCard) {
-                             const repLegal = repCard.legalities && repCard.legalities[selectedFormat] === 'legal';
-                             const repCustom = repCard.set && (customSets.includes(repCard.set.toLowerCase()) || repCard.set.toLowerCase().includes('custom'));
-                             const colorsSet = new Set(allowedColors && allowedColors.length > 0 ? allowedColors : ['W', 'U', 'B', 'R', 'G']);
-                             const cardColors = repCard.colors || [];
-                             const isColorCompatible = cardColors.length === 0 || cardColors.every(col => colorsSet.has(col));
-                             
-                             if (repLegal && (allowCustomCards || !repCustom) && isColorCompatible) {
-                                addLog(`[AGENTIC FLOW] Juez Interno sugirió "${dbCard.name}" (Ilegal en ${formData.format}). Reemplazo inteligente encontrado: "${repCard.name}"`);
-                                cardToUse = repCard;
-                                intelligentUsed = true;
-                             }
-                          }
-                       }
-                       
-                       if (!intelligentUsed) {
-                          const rep = obtenerMejorCartaDeRemplazo(
-                             targetCategory, 
-                             targetCmc, 
-                             allowedColors, 
-                             formData.format, 
-                             ragResult.pool.filter(c => {
-                                const rCard = allCards.find(ac => ac && ac.name && ac.name.toLowerCase() === c.name.toLowerCase());
-                                if (!rCard) return false;
-                                const rLegal = rCard.legalities && rCard.legalities[selectedFormat] === 'legal';
-                                const rCustom = rCard.set && (customSets.includes(rCard.set.toLowerCase()) || rCard.set.toLowerCase().includes('custom'));
-                                return rLegal && (allowCustomCards || !rCustom);
-                             }),
-                             [dbCard.name.toLowerCase()],
-                             allCards
-                          );
-                          
-                          if (rep && rep.name) {
-                             const cleanDbCard = allCards.find(ac => ac && ac.name && ac.name.toLowerCase() === rep.name.toLowerCase());
-                             if (cleanDbCard) {
-                                addLog(`[AGENTIC FLOW] Juez Interno sugirió "${dbCard.name}" (Ilegal en ${formData.format}). Auto-Corrigiendo al reemplazo legal: "${cleanDbCard.name}"`);
-                                cardToUse = cleanDbCard;
-                             }
-                          } else {
-                             addLog(`[AGENTIC FLOW] Advertencia Juez Interno: "${dbCard.name}" es ilegal en ${formData.format} y no se encontró reemplazo. Omitiendo.`);
-                             return;
-                          }
-                       }
-                    }
+      
+      const hasSuggestions = internalAudit && internalAudit.suggestions && internalAudit.suggestions.length > 0;
+      const hasAlerts = internalAudit && internalAudit.criticalAlerts && internalAudit.criticalAlerts.length > 0;
+      
+      if (hasSuggestions || hasAlerts) {
+        addLog(`[AGENTIC FLOW] Juez detectó problemas de sinergia u optimización. Iniciando bucle de auto-crítica.`);
+        
+        // Formatear alertas y sugerencias
+        const criticalAlertsText = (internalAudit.criticalAlerts || []).join('\n');
+        const suggestionsText = (internalAudit.suggestions || []).map(sug => sug.text).join('\n');
+        
+        // Formatear baraja actual
+        const currentDeckListText = currentDeckContext.map(c => `${c.quantity}x ${c.name} (Rol: ${c.role}, CMC: ${c.cmc || '?'})`).join('\n');
+        
+        // Formatear pool del RAG para que la IA elija de ahí
+        const ragPoolListText = ragResult.pool.slice(0, 40).map(c => `- ${c.name} (CMC: ${c.mana_value}, Tipo: ${c.type_line}, Sinergia: ${c.score})`).join('\n');
+        
+        const criticSystemPrompt = `Eres un "Pro Tour Deck Optimizer", un refinador experto de barajas competitivas de Magic: The Gathering.
+Tu misión es optimizar y corregir el borrador de hechizos que te proporciona el Diseñador, resolviendo todas las alertas y sugerencias señaladas por el Juez Interno.
 
-                   addLog(`[AGENTIC FLOW] Auto-Corrigiendo: Añadiendo ${cardToUse.name} (${a.quantity || 1}x) para el rol "${associatedRole}"`);
-                   currentDeckContext.push({
-                      name: cardToUse.name,
-                      quantity: a.quantity || 1,
-                      category: cardToUse.type_line?.toLowerCase().includes('creature') ? 'Creature' : (cardToUse.type_line?.toLowerCase().includes('instant') ? 'Instant' : 'Spell'),
-                      cmc: cardToUse.mana_value || cardToUse.cmc || 2,
-                      role: associatedRole,
-                      mana_cost: cardToUse.mana_cost || '',
-                      type_line: cardToUse.type_line || ''
-                   });
+=== DATOS DE CONSTRUCCIÓN ===
+- Arquetipo: ${formData.archetype || 'Midrange'}
+- Estrategia: ${strategyObj.label || strategyId || 'General'}
+- Tribu: ${tribeLabel}
+- Colores: [${baseIdent_ColorStr}]
+- Formato: ${formData.format || 'MODERN'}
+- Instrucciones del Usuario / Temática: ${formData.prompt || 'Ninguno'}
 
-                   // Inyectar en el RAG pool si no existe, garantizando que el assemblerLoop pueda procesarla
-                   const existsInRag = ragResult.pool.some(p => p.name.toLowerCase() === cardToUse.name.toLowerCase());
-                   if (!existsInRag) {
-                      ragResult.pool.push({
-                         id: cardToUse.id || `custom-${cardToUse.name.replace(/\s+/g, '-').toLowerCase()}`,
-                         name: cardToUse.name,
-                         mana_value: cardToUse.mana_value || cardToUse.cmc || 2,
-                         type_line: cardToUse.type_line || '',
-                         oracle_text: cardToUse.oracle_text || '',
-                         colors: cardToUse.colors || [],
-                         color_identity: cardToUse.color_identity || [],
-                         mana_cost: cardToUse.mana_cost || '',
-                         rarity: cardToUse.rarity || 'common',
-                         score: 999, // Alta prioridad por haber sido sugerida por el Juez Interno
-                         metaPercent: 0
-                      });
-                   }
-                }
-             });
+=== REPORTE DEL JUEZ INTERNO ===
+Alertas Críticas:
+${criticalAlertsText || 'Ninguna'}
+
+Sugerencias de Cambio:
+${suggestionsText || 'Ninguna'}
+
+=== POOL DE CARTAS RAG COMPATIBLES (SELECCIÓN PRE-FILTRADA) ===
+Para tus reemplazos, prioriza siempre cartas de este pool de alta calidad:
+${ragPoolListText}
+
+=== DIRECTRICES DE OPTIMIZACIÓN (CRÍTICAS) ===
+1. Resuelve todos los problemas señalados por el Juez Interno realizando swaps (intercambios) de cartas coherentes.
+2. Mantén la cantidad total de copias de hechizos exactamente en ${blueprint.totalSpells} copias.
+3. Asegura que todas las cartas que agregues sean legales en el formato (${formData.format || 'MODERN'}) y compartan la identidad de color permitida ([${baseIdent_ColorStr}]).
+4. Si la tribu es "${tribeLabel}" (y no es 'Ninguna'), prioriza criaturas de esa tribu para no diluir la sinergia.
+5. NO incluyas tierras de ningún tipo (básicas, no básicas ni de utilidad) en la lista optimizada. Las tierras se calcularán automáticamente después en otra fase.
+6. Tu respuesta final debe ser exclusivamente un objeto JSON que siga el esquema requerido, detallando tu razonamiento en español y proporcionando la lista definitiva y optimizada de hechizos en 'optimized_cards'.`;
+
+        const criticUserPrompt = `A continuación se muestra el borrador actual de hechizos para optimizar:
+
+=== BORRADOR ACTUAL DE HECHIZOS (SIN TIERRAS) ===
+${currentDeckListText}
+
+Genera la lista de hechizos completamente corregida y optimizada en JSON.`;
+
+        const criticResponse = await callAI([
+          { role: 'system', content: criticSystemPrompt },
+          { role: 'user', content: criticUserPrompt }
+        ], aiConfig, { forceJSON: true, maxTokens: 2000, schema: OPTIMIZATION_SCHEMA });
+
+        const parsedCritic = typeof criticResponse === 'string' ? cleanAndParseJSON(criticResponse) : criticResponse;
+        
+        if (parsedCritic && parsedCritic.optimized_cards && parsedCritic.optimized_cards.length > 0) {
+          addLog(`[AGENTIC CRITIC] Razón del cambio: ${parsedCritic.reasoning}`);
+          
+          // Reconstruir currentDeckContext con las cartas optimizadas
+          const newDeckContext = [];
+          for (const oc of parsedCritic.optimized_cards) {
+            let dbCard = allCards.find(ac => ac && ac.name && ac.name.toLowerCase() === oc.name.toLowerCase());
+            if (!dbCard) {
+              dbCard = allCards.find(ac => ac && ac.name && ac.name.toLowerCase().includes(oc.name.toLowerCase()));
+            }
+            
+            if (dbCard) {
+              newDeckContext.push({
+                name: dbCard.name,
+                quantity: oc.quantity || 1,
+                category: dbCard.type_line?.toLowerCase().includes('creature') ? 'Creature' : (dbCard.type_line?.toLowerCase().includes('instant') ? 'Instant' : 'Spell'),
+                cmc: dbCard.mana_value || dbCard.cmc || 2,
+                role: oc.role || 'optimizer_swap',
+                mana_cost: dbCard.mana_cost || '',
+                type_line: dbCard.type_line || ''
+              });
+
+              // Asegurar que exista en el RAG pool para el assemblerLoop
+              const existsInRag = ragResult.pool.some(p => p.name.toLowerCase() === dbCard.name.toLowerCase());
+              if (!existsInRag) {
+                ragResult.pool.push({
+                  id: dbCard.id || `custom-${dbCard.name.replace(/\s+/g, '-').toLowerCase()}`,
+                  name: dbCard.name,
+                  mana_value: dbCard.mana_value || dbCard.cmc || 2,
+                  type_line: dbCard.type_line || '',
+                  oracle_text: dbCard.oracle_text || '',
+                  colors: dbCard.colors || [],
+                  color_identity: dbCard.color_identity || [],
+                  mana_cost: dbCard.mana_cost || '',
+                  rarity: dbCard.rarity || 'common',
+                  score: 999, // Alta prioridad
+                  metaPercent: 0
+                });
+              }
+            } else {
+              addLog(`[AGENTIC CRITIC] Advertencia: No se encontró la carta "${oc.name}" en la base de datos local. Omitiendo swap.`);
+            }
           }
-        });
+
+          // Verificar que mantengamos un número razonable de cartas antes de asignarlo
+          if (newDeckContext.length > 0) {
+            const newTotal = newDeckContext.reduce((sum, c) => sum + c.quantity, 0);
+            addLog(`[AGENTIC CRITIC] Mazo optimizado con éxito. Nuevo total de copias: ${newTotal} (Objetivo: ${blueprint.totalSpells})`);
+            currentDeckContext = newDeckContext;
+          }
+        }
       } else {
         addLog("[AGENTIC FLOW] Juez Interno: Sinergias limpias, no se detectaron parásitos.");
       }
-    } catch(e) {
-      addLog(`[AGENTIC FLOW] Error en Juez Interno (Ignorando): ${e.message}`);
+    } catch (e) {
+      addLog(`[AGENTIC FLOW] Error en Fase 4 de Auto-Crítica: ${e.message}. Continuando con el mazo preliminar.`);
     }
 
     // Transformar el resultado al formato compatible con el assemblerLoop actual, preservando la cantidad elegida por la IA (Problema 2)

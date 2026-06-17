@@ -886,3 +886,31 @@ export const CONTEXTUAL_DEPENDENCIES = [
   // Mecánicas que requieren enablers específicos
   { keywords: ['madness'], requiresText: 'discard' }
 ];
+
+// --- REGLAS DE COOCURRENCIA (SINERGIAS CRUZADAS DE BATTLE BOX) ---
+export const CO_OCCURRENCE_RULES = [
+  {
+    triggerCard: "amulet of vigor",
+    boostKeywords: ["karoo", "bounce land", "growth chamber", "rot farm", "garrison", "chancery", "turf", "carnarium", "sanctuary", "basilica", "boilerworks", "aqueduct"],
+    boostScore: 350,
+    description: "Amulet of Vigor requiere tierras de rebote (bounce lands) en el pool."
+  },
+  {
+    triggerCard: "hardened scales",
+    boostKeywords: ["+1/+1 counter", "modular", "proliferate", "walking ballista", "arcbound ravager", "hangarback walker"],
+    boostScore: 300,
+    description: "Hardened Scales exige cartas de contadores +1/+1 o modular."
+  },
+  {
+    triggerCard: "yawgmoth, thran physician",
+    boostKeywords: ["undying", "persist", "blood artist", "zulaport", "young wolf", "strangleroot geist"],
+    boostScore: 300,
+    description: "Yawgmoth requiere criaturas con resurgir (Undying) y drenadores."
+  },
+  {
+    triggerCard: "stoneforge mystic",
+    boostKeywords: ["equipment", "colossus hammer", "shadowspear", "batterskull", "kaldra compleat", "sword of"],
+    boostScore: 300,
+    description: "Stoneforge Mystic requiere objetivos de equipo de alto impacto."
+  }
+];

@@ -17,6 +17,9 @@ export default function CardSearch({ onAddCard }) {
   const [selectedType, setSelectedType] = useState(''); // creature, instant, sorcery, etc.
   const [selectedColors, setSelectedColors] = useState([]); // W, U, B, R, G, C
   const [showFilters, setShowFilters] = useState(false);
+  const [selectedRarity, setSelectedRarity] = useState(''); // common, uncommon, rare, mythic
+  const [selectedManaValue, setSelectedManaValue] = useState(''); // '', 0-6, 7+
+  const [oracleQuery, setOracleQuery] = useState(''); // rules text
 
   const cardTypes = [
     { id: 'creature', icon: <Swords size={14} />, label: 'Criatura' },
@@ -52,7 +55,15 @@ export default function CardSearch({ onAddCard }) {
   };
 
   useEffect(() => {
-    if (query.length < 3 && !selectedType && selectedColors.length === 0) {
+    // Si no hay texto de búsqueda largo y tampoco hay ningún filtro activo, limpiamos resultados.
+    if (
+      query.length < 3 && 
+      !selectedType && 
+      selectedColors.length === 0 && 
+      !selectedRarity && 
+      selectedManaValue === '' && 
+      !oracleQuery
+    ) {
       setResults([]);
       return;
     }
@@ -60,20 +71,41 @@ export default function CardSearch({ onAddCard }) {
     const timer = setTimeout(async () => {
       setLoading(true);
       try {
-        let scryfallQuery = query || '';
+        const queryParts = [];
+
+        // Soporte de nombres en cualquier idioma (incluyendo español)
+        if (query) {
+          queryParts.push(`lang:any ${query}`);
+        }
         
-        if (isModernOnly) scryfallQuery += ' f:modern';
-        if (selectedType) scryfallQuery += ` t:${selectedType}`;
+        if (isModernOnly) queryParts.push('f:modern');
+        if (selectedType) queryParts.push(`t:${selectedType}`);
         
         if (selectedColors.length > 0) {
           const colorsQuery = selectedColors.join('').toLowerCase();
-          // Usamos identity para que busque cartas que entren en esos colores (ideal para Commander/BattleBox)
-          // o color (c:) para búsqueda exacta. Usaremos c: para ser más precisos con lo que pide el usuario.
-          scryfallQuery += ` c:${colorsQuery}`;
+          queryParts.push(`c:${colorsQuery}`);
+        }
+
+        if (selectedRarity) {
+          queryParts.push(`r:${selectedRarity}`);
+        }
+
+        if (selectedManaValue !== '') {
+          if (selectedManaValue === '7+') {
+            queryParts.push('mv>=7');
+          } else {
+            queryParts.push(`mv:${selectedManaValue}`);
+          }
+        }
+
+        if (oracleQuery) {
+          queryParts.push(`o:"${oracleQuery}"`);
         }
         
         // Excluir universos más allá por defecto para mantener estética MTG pura
-        scryfallQuery += ' -is:universesbeyond';
+        queryParts.push('-is:universesbeyond');
+
+        const scryfallQuery = queryParts.join(' ');
 
         const res = await fetch(`https://api.scryfall.com/cards/search?q=${encodeURIComponent(scryfallQuery)}`);
         const data = await res.json();
@@ -91,7 +123,7 @@ export default function CardSearch({ onAddCard }) {
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [query, isModernOnly, selectedType, selectedColors]);
+  }, [query, isModernOnly, selectedType, selectedColors, selectedRarity, selectedManaValue, oracleQuery]);
 
   const isVetoed = (cardName) => BATTLEBOX_VETOS.includes(cardName);
   
@@ -178,6 +210,132 @@ export default function CardSearch({ onAddCard }) {
                 </div>
               </div>
 
+              {/* Filtro de Rarezas */}
+              <div className="flex items-center justify-between border-b border-white/5 pb-4">
+                <span className="text-[10px] font-bold text-magic-gold/40 uppercase tracking-widest">Rareza</span>
+                <div className="flex gap-2">
+                  {[
+                    { id: 'common', label: 'C', fullName: 'Común', color: 'bg-zinc-700/80 text-zinc-100 border-zinc-500/50 hover:border-zinc-400' },
+                    { id: 'uncommon', label: 'U', fullName: 'Infrecuente', color: 'bg-slate-400/80 text-slate-950 border-slate-300/50 hover:border-slate-200' },
+                    { id: 'rare', label: 'R', fullName: 'Rara', color: 'bg-amber-500/80 text-amber-950 border-amber-400/50 hover:border-amber-300' },
+                    { id: 'mythic', label: 'M', fullName: 'Mítica', color: 'bg-orange-600/85 text-orange-50 border-orange-500/50 hover:border-orange-400' }
+                  ].map(rarity => (
+                    <button
+                      key={rarity.id}
+                      onClick={() => setSelectedRarity(selectedRarity === rarity.id ? '' : rarity.id)}
+                      className={cn(
+                        "w-8 h-8 rounded-full border font-cinzel font-bold text-xs flex items-center justify-center transition-all duration-300",
+                        selectedRarity === rarity.id 
+                          ? `${rarity.color} scale-110 shadow-[0_0_10px_rgba(255,255,255,0.2)]` 
+                          : "bg-white/5 text-magic-gold/50 border-magic-gold/20 hover:border-magic-gold/40 hover:text-magic-gold"
+                      )}
+                      title={rarity.fullName}
+                    >
+                      {rarity.label}
+                    </button>
+                  ))}
+                  {selectedRarity && (
+                    <button 
+                      onClick={() => setSelectedRarity('')}
+                      className="ml-2 text-red-400/50 hover:text-red-400 transition-colors"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Filtro de Valor de Maná (CMC) */}
+              <div className="flex flex-col gap-2 border-b border-white/5 pb-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold text-magic-gold/40 uppercase tracking-widest">Valor de Maná</span>
+                  {selectedManaValue !== '' && (
+                    <button 
+                      onClick={() => setSelectedManaValue('')}
+                      className="text-red-400/50 hover:text-red-400 transition-colors"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {['0', '1', '2', '3', '4', '5', '6', '7+'].map(val => (
+                    <button
+                      key={val}
+                      onClick={() => setSelectedManaValue(selectedManaValue === val ? '' : val)}
+                      className={cn(
+                        "w-8 h-8 rounded-full border text-xs font-bold flex items-center justify-center transition-all duration-300",
+                        selectedManaValue === val 
+                          ? "bg-magic-gold text-black border-magic-gold shadow-[0_0_10px_rgba(193,155,69,0.3)] scale-105" 
+                          : "bg-white/5 text-magic-gold/60 border-white/10 hover:border-magic-gold/30"
+                      )}
+                    >
+                      {val}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Búsqueda por Texto (Oracle) / Habilidades */}
+              <div className="flex flex-col gap-2 border-b border-white/5 pb-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold text-magic-gold/40 uppercase tracking-widest">Texto de Reglas (Oracle) / Habilidades</span>
+                  {oracleQuery && (
+                    <button 
+                      onClick={() => setOracleQuery('')}
+                      className="text-red-400/50 hover:text-red-400 transition-colors"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={oracleQuery}
+                    onChange={(e) => setOracleQuery(e.target.value)}
+                    placeholder="Ej: deathtouch, flying, draw, exile..."
+                    className="flex-1 px-4 py-2 bg-black/40 border border-magic-gold/20 rounded-xl text-xs text-magic-gold placeholder:text-magic-gold/30 focus:border-magic-gold/50 focus:outline-none transition-all"
+                  />
+                  <button
+                    onClick={() => setOracleQuery(oracleQuery === '+1/+1' ? '' : '+1/+1')}
+                    className={cn(
+                      "px-3 py-2 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all border flex items-center gap-1",
+                      oracleQuery === '+1/+1'
+                        ? "bg-magic-gold text-black border-magic-gold shadow-[0_0_10px_rgba(193,155,69,0.3)]"
+                        : "bg-white/5 text-magic-gold/60 border-white/10 hover:border-magic-gold/30"
+                    )}
+                    title="Buscar cartas que den o usen contadores o buffs de +1/+1"
+                  >
+                    <Plus size={10} /> +1/+1
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-1.5 mt-1">
+                  {[
+                    { id: 'flying', label: 'Volar' },
+                    { id: 'haste', label: 'Prisa' },
+                    { id: 'trample', label: 'Arrollar' },
+                    { id: 'deathtouch', label: 'Toque Mortal' },
+                    { id: 'lifelink', label: 'Vínculo Vital' },
+                    { id: 'counterspell', label: 'Contrarrestar' }
+                  ].map(kw => (
+                    <button
+                      key={kw.id}
+                      onClick={() => setOracleQuery(oracleQuery === kw.id ? '' : kw.id)}
+                      className={cn(
+                        "px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-widest border transition-all",
+                        oracleQuery === kw.id
+                          ? "bg-[#D4AF37]/20 border-[#D4AF37] text-white"
+                          : "bg-transparent text-magic-gold/40 border-magic-gold/10 hover:border-magic-gold/30"
+                      )}
+                    >
+                      {kw.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Tipos de Carta y Formato */}
               <div className="flex flex-wrap gap-4 items-center justify-between">
                 <div className="flex flex-wrap gap-2">
                   {cardTypes.map(type => (
