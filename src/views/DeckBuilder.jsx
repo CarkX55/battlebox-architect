@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useAppStore } from '../store/useAppStore';
 import { cn } from '../utils/cn';
 import { 
@@ -166,6 +167,34 @@ export default function DeckBuilder() {
   const [mobileView, setMobileView] = useState('list'); // 'list' | 'search' | 'stats'
   const [inDeckFilter, setInDeckFilter] = useState('');
   const [priceModeFoil, setPriceModeFoil] = useState(false);
+  const [activeMobileOverlay, setActiveMobileOverlay] = useState(null);
+  const [previewCard, setPreviewCard] = useState(null);
+  const [flippedCards, setFlippedCards] = useState(new Set());
+  const [expandedCols, setExpandedCols] = useState({
+    '0': false,
+    '1': false,
+    '2': false,
+    '3': false,
+    '4': false,
+    '5+': false,
+    'Tierras': true
+  });
+
+  const toggleCol = (key) => {
+    setExpandedCols(prev => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
+  };
+
+  const toggleFlipCard = (cardName) => {
+    setFlippedCards(prev => {
+      const next = new Set(prev);
+      if (next.has(cardName)) next.delete(cardName);
+      else next.add(cardName);
+      return next;
+    });
+  };
 
   // Modales y procesos
   const [importModalOpen, setImportModalOpen] = useState(false);
@@ -1091,6 +1120,52 @@ export default function DeckBuilder() {
     setShowTribeSuggestion(null);
   };
 
+  // Clasificar las cartas del mazo principal por Coste de Maná Convertido (CMC)
+  const columnsByCmc = useMemo(() => {
+    const cols = {
+      '0': [],
+      '1': [],
+      '2': [],
+      '3': [],
+      '4': [],
+      '5+': [],
+      'Tierras': []
+    };
+
+    const isLandCard = (c) => {
+      if (!c) return false;
+      const category = (c.category || '').toLowerCase();
+      const typeLine = (c.type_line || '').toLowerCase();
+      const name = (c.name || '').toLowerCase();
+      return (
+        category.includes('land') || 
+        typeLine.includes('land') || 
+        ['plains', 'island', 'swamp', 'mountain', 'forest', 'wastes'].includes(name)
+      );
+    };
+
+    mainboard.forEach(c => {
+      if (isLandCard(c)) {
+        cols['Tierras'].push(c);
+      } else {
+        const rawCmc = c.mana_value !== undefined ? c.mana_value : (c.cmc !== undefined ? c.cmc : 0);
+        const cmc = Number(rawCmc || 0);
+        if (cmc === 0) cols['0'].push(c);
+        else if (cmc === 1) cols['1'].push(c);
+        else if (cmc === 2) cols['2'].push(c);
+        else if (cmc === 3) cols['3'].push(c);
+        else if (cmc === 4) cols['4'].push(c);
+        else cols['5+'].push(c);
+      }
+    });
+
+    Object.keys(cols).forEach(key => {
+      cols[key].sort((a, b) => a.name.localeCompare(b.name));
+    });
+
+    return cols;
+  }, [mainboard]);
+
   // Comparador de Blueprint e IA Assistant
   const blueprint = useMemo(() => {
     return getFormatAdjustedBlueprint(deckMeta.archetype, deckMeta.format);
@@ -1295,6 +1370,208 @@ export default function DeckBuilder() {
           >
             <Trash2 size={14} />
           </button>
+        </div>
+      </div>
+    );
+  };
+
+  // Renderizador visual de carta premium (estilo grid apilado con overlays superior e inferior)
+  const renderVisualCard = (c, zone) => {
+    const isFlipped = flippedCards.has(c.name);
+    const imageUrl = isFlipped
+      ? (c.card_faces?.[1]?.image_uris?.normal || c.card_faces?.[1]?.image_uris?.small || c.image_uris?.normal)
+      : (c.image_uris?.normal || c.image_uris?.small || c.card_faces?.[0]?.image_uris?.normal || c.card_faces?.[0]?.image_uris?.small);
+    const isFoil = c.rarity === 'mythic' || c.rarity === 'rare';
+    const overlayKey = `${c.name}-${zone}`;
+
+    const overlayVisibleClass = activeMobileOverlay === overlayKey
+      ? "opacity-100 pointer-events-auto"
+      : "opacity-0 lg:group-hover:opacity-100 pointer-events-none lg:group-hover:pointer-events-auto transition-all duration-200";
+
+    const legality = getCardLegalityInfo(c, deckMeta.format);
+
+    return (
+      <div
+        key={overlayKey}
+        onClick={(e) => {
+          if (isMobile) {
+            e.stopPropagation();
+            setActiveMobileOverlay(activeMobileOverlay === overlayKey ? null : overlayKey);
+          }
+        }}
+        className={cn(
+          "group relative w-full aspect-[63/88] rounded-xl overflow-hidden shadow-lg border transition-all duration-300 hover:z-20 cursor-pointer select-none",
+          legality.status === 'illegal' ? "border-red-500/40 shadow-[0_0_10px_rgba(239,68,68,0.2)]" :
+          legality.status === 'vetoed' ? "border-amber-500/40 shadow-[0_0_10px_rgba(245,158,11,0.2)]" :
+          "border-white/5 hover:border-magic-gold/50"
+        )}
+      >
+        {isFoil && (
+          <div className="absolute inset-0 bg-gradient-to-tr from-purple-500/10 via-pink-500/5 to-cyan-500/10 mix-blend-color-dodge opacity-60 pointer-events-none" />
+        )}
+
+        <img
+          src={imageUrl}
+          alt={c.name}
+          className="w-full h-full object-fill rounded-xl transition-transform duration-300 lg:group-hover:scale-105"
+          loading="lazy"
+        />
+
+        {/* Badges flotantes de error/legalidad sobre la carta */}
+        {legality.status === 'illegal' && (
+          <div className="absolute top-2 left-2 bg-red-600/90 border border-red-400 text-white text-[8px] font-bold px-1.5 py-0.5 rounded shadow-md group-hover:opacity-0 transition-opacity">
+            🚫 Ilegal
+          </div>
+        )}
+        {legality.status === 'vetoed' && (
+          <div className="absolute top-2 left-2 bg-amber-600/90 border border-amber-400 text-white text-[8px] font-bold px-1.5 py-0.5 rounded shadow-md group-hover:opacity-0 transition-opacity" title={`Vetada: Reemplazar por "${legality.suggestion}"`}>
+            ⚔️ Vetada
+          </div>
+        )}
+
+        {/* Insignia de Cantidad por Defecto (se oculta al hacer hover) */}
+        <div className="absolute top-2 right-2 bg-black/85 border border-magic-gold/30 px-2 py-0.5 rounded flex items-center justify-center font-sans font-bold text-xs text-white shadow-md transition-opacity lg:group-hover:opacity-0">
+          x{c.quantity}
+        </div>
+
+        {/* Superposición Superior (Glassmorphic) */}
+        <div className={cn(
+          "absolute top-0 left-0 right-0 bg-black/85 backdrop-blur-sm border-b border-white/10 p-1 flex items-center justify-between z-10 transition-all",
+          overlayVisibleClass
+        )}>
+          {/* Botón Lupa/Detalle */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setPreviewCard(c);
+            }}
+            className="p-1 text-white/70 hover:text-magic-gold hover:bg-white/5 rounded transition-all"
+            title="Ver detalles"
+          >
+            <Search size={13} />
+          </button>
+
+          {/* Botón Flip si es MDFC */}
+          {c.card_faces && c.card_faces.length > 1 && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleFlipCard(c.name);
+              }}
+              className="p-1 text-white/70 hover:text-magic-gold hover:bg-white/5 rounded transition-all"
+              title="Voltear"
+            >
+              <RefreshCw size={13} />
+            </button>
+          )}
+
+          {/* Transferir entre zonas */}
+          <div className="flex gap-0.5">
+            {zone !== 'main' && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleMoveCard(c, zone, 'main');
+                }}
+                className="px-1 py-0.5 bg-white/5 hover:bg-green-500/20 text-green-400 border border-green-500/30 rounded text-[9px] font-bold transition-all"
+                title="Mover a Principal"
+              >
+                Main
+              </button>
+            )}
+            {zone !== 'side' && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleMoveCard(c, zone, 'side');
+                }}
+                className="px-1 py-0.5 bg-white/5 hover:bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded text-[9px] font-bold transition-all"
+                title="Mover a Banquillo"
+              >
+                Side
+              </button>
+            )}
+            {zone !== 'maybe' && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleMoveCard(c, zone, 'maybe');
+                }}
+                className="px-1 py-0.5 bg-white/5 hover:bg-purple-500/20 text-purple-400 border border-purple-500/30 rounded text-[9px] font-bold transition-all"
+                title="Mover a Maybeboard"
+              >
+                Maybe
+              </button>
+            )}
+          </div>
+
+          {/* Eliminar de zona */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleRemoveCard(c.name, zone);
+            }}
+            className="p-1 text-red-500 hover:text-red-400 hover:bg-red-500/10 rounded transition-all"
+            title="Eliminar"
+          >
+            <Trash2 size={13} />
+          </button>
+        </div>
+
+        {/* Superposición Inferior (Glassmorphic) */}
+        <div className={cn(
+          "absolute bottom-0 left-0 right-0 bg-black/85 backdrop-blur-sm border-t border-white/10 p-1 flex flex-col gap-1 z-10 transition-all",
+          overlayVisibleClass
+        )}>
+          {zone === 'main' ? (
+            <select
+              value={c.role || 'generic'}
+              onChange={(e) => {
+                e.stopPropagation();
+                handleChangeRole(c.name, e.target.value);
+              }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full bg-black/95 border border-magic-gold/20 rounded px-1 py-0.5 text-[9px] text-[#ffca58] focus:outline-none focus:border-magic-gold/50 cursor-pointer font-sans"
+            >
+              {ROLES.map(r => (
+                <option key={r.id} value={r.id} className="bg-black text-[#f4ece0] text-[9px]">
+                  {r.label}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <div className="text-[8px] text-white/50 truncate font-serif text-center uppercase tracking-wide py-0.5">
+              {c.category || 'Carta'}
+            </div>
+          )}
+
+          <div className="flex items-center justify-between bg-black/60 rounded-lg border border-white/10 px-1 py-0.5">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleAdjustQuantity(c.name, zone, -1);
+              }}
+              className="p-1 text-white/50 hover:text-white transition-colors"
+            >
+              <Minus size={11} />
+            </button>
+            <span className="text-[11px] font-bold text-magic-gold font-sans">
+              {c.quantity}
+            </span>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleAdjustQuantity(c.name, zone, 1);
+              }}
+              disabled={c.quantity >= 4 && !hasNoCopyLimit(c) && zone !== 'maybe'}
+              className={cn(
+                "p-1 text-white/50 hover:text-white transition-colors",
+                (c.quantity >= 4 && !hasNoCopyLimit(c) && zone !== 'maybe') && "opacity-25 cursor-not-allowed"
+              )}
+            >
+              <Plus size={11} />
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -1519,108 +1796,294 @@ export default function DeckBuilder() {
           </button>
         </div>
       )}
-
-      {/* Layout Principal de Contenido */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1 min-h-0 overflow-y-auto lg:overflow-visible">
-        {/* Columna Izquierda: Búsqueda y Tierras Básicas */}
-        {(!isMobile || mobileView === 'search') && (
-          <div className="lg:col-span-5 flex flex-col gap-6">
-            {/* Control Destino de Añadido */}
-            <div className="frosted-panel border-white/5 p-4">
-              <span className="text-[10px] uppercase font-bold tracking-widest text-[#ffca58] block mb-3 text-center">Destino al Añadir Cartas</span>
-              <div className="flex bg-black/60 border border-white/10 p-1 rounded-xl">
-                <button
-                  onClick={() => setAddTarget('main')}
-                  className={cn(
-                    "flex-1 py-2 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all",
-                    addTarget === 'main' ? "bg-[#ffca58] text-black shadow-lg" : "text-[#f4ece0]/40 hover:text-white"
-                  )}
-                >
-                  Principal
-                </button>
-                <button
-                  onClick={() => setAddTarget('side')}
-                  className={cn(
-                    "flex-1 py-2 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all",
-                    addTarget === 'side' ? "bg-blue-500 text-white shadow-lg" : "text-[#f4ece0]/40 hover:text-white"
-                  )}
-                >
-                  Banquillo
-                </button>
-                <button
-                  onClick={() => setAddTarget('maybe')}
-                  className={cn(
-                    "flex-1 py-2 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all",
-                    addTarget === 'maybe' ? "bg-purple-600 text-white shadow-lg" : "text-[#f4ece0]/40 hover:text-white"
-                  )}
-                >
-                  Maybeboard
-                </button>
-              </div>
-            </div>
+        {/* Columna Izquierda: Búsqueda, Tierras y Estadísticas (lg:col-span-4) */}
+        {(!isMobile || mobileView === 'search' || mobileView === 'stats') && (
+          <div className="lg:col-span-4 flex flex-col gap-6">
+            {/* Sección de Búsqueda y Tierras (Visible en Desktop, o en Móvil cuando se selecciona 'search') */}
+            {(!isMobile || mobileView === 'search') && (
+              <>
+                {/* Control Destino de Añadido */}
+                <div className="frosted-panel border-white/5 p-4">
+                  <span className="text-[10px] uppercase font-bold tracking-widest text-[#ffca58] block mb-3 text-center">Destino al Añadir Cartas</span>
+                  <div className="flex bg-black/60 border border-white/10 p-1 rounded-xl">
+                    <button
+                      onClick={() => setAddTarget('main')}
+                      className={cn(
+                        "flex-1 py-2 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all",
+                        addTarget === 'main' ? "bg-[#ffca58] text-black shadow-lg" : "text-[#f4ece0]/40 hover:text-white"
+                      )}
+                    >
+                      Principal
+                    </button>
+                    <button
+                      onClick={() => setAddTarget('side')}
+                      className={cn(
+                        "flex-1 py-2 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all",
+                        addTarget === 'side' ? "bg-blue-500 text-white shadow-lg" : "text-[#f4ece0]/40 hover:text-white"
+                      )}
+                    >
+                      Banquillo
+                    </button>
+                    <button
+                      onClick={() => setAddTarget('maybe')}
+                      className={cn(
+                        "flex-1 py-2 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all",
+                        addTarget === 'maybe' ? "bg-purple-600 text-white shadow-lg" : "text-[#f4ece0]/40 hover:text-white"
+                      )}
+                    >
+                      Maybeboard
+                    </button>
+                  </div>
+                </div>
 
-            {/* Buscador de Cartas */}
-            <div className="frosted-panel border-white/5 p-5 flex flex-col">
-              <h3 className="font-cinzel text-magic-gold text-sm tracking-wider uppercase mb-4 flex items-center gap-2 border-b border-white/5 pb-2">
-                <Search size={16} /> Canalizar Base de Datos Scryfall
-              </h3>
-              <CardSearch onAddCard={handleAddCard} />
-            </div>
+                {/* Buscador de Cartas */}
+                <div className="frosted-panel border-white/5 p-5 flex flex-col">
+                  <h3 className="font-cinzel text-magic-gold text-sm tracking-wider uppercase mb-4 flex items-center gap-2 border-b border-white/5 pb-2">
+                    <Search size={16} /> Canalizar Base de Datos Scryfall
+                  </h3>
+                  <CardSearch onAddCard={handleAddCard} />
+                </div>
 
-            {/* Panel de Tierras Básicas Rápido */}
-            <div className="frosted-panel border-white/5 p-5">
-              <h3 className="font-cinzel text-magic-gold text-sm tracking-wider uppercase mb-4 flex items-center gap-2 border-b border-white/5 pb-2">
-                💧 Portal de Tierras Básicas
-              </h3>
-              <div className="grid grid-cols-2 gap-3">
-                {Object.keys(BASIC_LANDS).map((landName) => {
-                  const land = BASIC_LANDS[landName];
-                  const symbolMap = { Plains: 'W', Island: 'U', Swamp: 'B', Mountain: 'R', Forest: 'G', Wastes: 'C' };
-                  return (
-                    <div key={landName} className="bg-black/40 border border-white/5 rounded-xl p-2.5 flex items-center justify-between gap-2 hover:border-magic-gold/20 transition-all">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <ManaOrb color={symbolMap[landName]} size="w-7 h-7" />
-                        <span className="text-xs font-bold truncate">{landName}</span>
+                {/* Panel de Tierras Básicas Rápido */}
+                <div className="frosted-panel border-white/5 p-5">
+                  <h3 className="font-cinzel text-magic-gold text-sm tracking-wider uppercase mb-4 flex items-center gap-2 border-b border-white/5 pb-2">
+                    💧 Portal de Tierras Básicas
+                  </h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    {Object.keys(BASIC_LANDS).map((landName) => {
+                      const land = BASIC_LANDS[landName];
+                      const symbolMap = { Plains: 'W', Island: 'U', Swamp: 'B', Mountain: 'R', Forest: 'G', Wastes: 'C' };
+                      return (
+                        <div key={landName} className="bg-black/40 border border-white/5 rounded-xl p-2.5 flex items-center justify-between gap-2 hover:border-magic-gold/20 transition-all">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <ManaOrb color={symbolMap[landName]} size="w-7 h-7" />
+                            <span className="text-xs font-bold truncate">{landName}</span>
+                          </div>
+                          <div className="flex gap-1">
+                            <button 
+                              onClick={() => handleAddBasicLand(landName, 1)}
+                              className="px-2 py-1 bg-white/5 hover:bg-magic-gold/15 text-[#ffca58] border border-white/10 rounded-lg text-[10px] font-bold transition-all"
+                            >
+                              +1
+                            </button>
+                            <button 
+                              onClick={() => handleAddBasicLand(landName, 5)}
+                              className="px-2 py-1 bg-white/5 hover:bg-magic-gold/25 text-[#ffca58] border border-white/10 rounded-lg text-[10px] font-bold transition-all"
+                            >
+                              +5
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Sección de Estadísticas (Visible en Desktop, o en Móvil cuando se selecciona 'stats') */}
+            {(!isMobile || mobileView === 'stats') && (
+              <>
+                {/* Estimación de Precio */}
+                <div className="frosted-panel border-white/5 p-4">
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-1 text-sm font-cinzel text-magic-gold">
+                      <DollarSign size={16} /> Valor Estimado
+                    </div>
+                    <label className="flex items-center gap-1.5 cursor-pointer text-[10px] text-white/40 hover:text-white transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={priceModeFoil}
+                        onChange={(e) => setPriceModeFoil(e.target.checked)}
+                        className="rounded border-white/20 bg-black/60 text-magic-gold focus:ring-0 focus:ring-offset-0"
+                      />
+                      Foil
+                    </label>
+                  </div>
+                  <div className="text-2xl font-bold font-mono mt-2 text-white">
+                    ${deckPriceEstimate.total.toFixed(2)}
+                  </div>
+                  {deckPriceEstimate.untrackedCount > 0 && (
+                    <div className="text-[9px] text-amber-500/70 mt-1">
+                      * Precio desconocido para {deckPriceEstimate.untrackedCount} cartas
+                    </div>
+                  )}
+                </div>
+
+                {/* Curva de Maná y Distribución */}
+                <ManaCurve deck={mainboard} archetype={deckMeta.archetype} />
+
+                {/* Guía de Blueprint Comparativa */}
+                <div className="frosted-panel border-white/5 p-5">
+                  <h4 className="font-cinzel text-magic-gold text-xs tracking-wider uppercase mb-4 border-b border-white/5 pb-2 flex items-center gap-1.5">
+                    <CheckCircle2 size={14} /> Guía del Blueprint: {deckMeta.archetype}
+                  </h4>
+                  <div className="space-y-3.5 text-xs">
+                    {/* Comparar Tierras */}
+                    <div>
+                      <div className="flex justify-between text-white/70 mb-1">
+                        <span>Tierras en el Mazo:</span>
+                        <span className="font-mono font-bold">
+                          {actualTypes.Land} / {blueprint.lands?.total}
+                        </span>
                       </div>
-                      <div className="flex gap-1">
-                        <button 
-                          onClick={() => handleAddBasicLand(landName, 1)}
-                          className="px-2 py-1 bg-white/5 hover:bg-magic-gold/15 text-[#ffca58] border border-white/10 rounded-lg text-[10px] font-bold transition-all"
-                        >
-                          +1
-                        </button>
-                        <button 
-                          onClick={() => handleAddBasicLand(landName, 5)}
-                          className="px-2 py-1 bg-white/5 hover:bg-magic-gold/25 text-[#ffca58] border border-white/10 rounded-lg text-[10px] font-bold transition-all"
-                        >
-                          +5
-                        </button>
+                      <div className="flex justify-between items-center text-[10px]">
+                        <span className="text-white/40">Ideal para {deckMeta.archetype}</span>
+                        {actualTypes.Land === blueprint.lands?.total ? (
+                          <span className="text-green-400 font-bold">✅ Cumplido</span>
+                        ) : (
+                          <span className="text-amber-400">⚠️ Desviado</span>
+                        )}
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-            </div>
+
+                    {/* Comparar Criaturas */}
+                    {blueprint.spells?.distribution?.creatures && (
+                      <div>
+                        <div className="flex justify-between text-white/70 mb-1">
+                          <span>Criaturas en el Mazo:</span>
+                          <span className="font-mono font-bold">
+                            {actualTypes.Creature} / {blueprint.spells.distribution.creatures.min}-{blueprint.spells.distribution.creatures.max}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center text-[10px]">
+                          <span className="text-white/40">Rango sugerido</span>
+                          {actualTypes.Creature >= blueprint.spells.distribution.creatures.min &&
+                          actualTypes.Creature <= blueprint.spells.distribution.creatures.max ? (
+                            <span className="text-green-400 font-bold">✅ En rango</span>
+                          ) : (
+                            <span className="text-amber-400">⚠️ Fuera de rango</span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Distribución por Roles Funcionales */}
+                <div className="frosted-panel border-white/5 p-5">
+                  <h4 className="font-cinzel text-magic-gold text-xs tracking-wider uppercase mb-4 border-b border-white/5 pb-2">
+                    🛡️ Distribución de Roles Funcionales
+                  </h4>
+                  <div className="space-y-3">
+                    {ROLES.map(role => {
+                      const qty = mainboard.filter(c => (c.role || 'generic') === role.id).reduce((sum, c) => sum + c.quantity, 0);
+                      const totalSpells = mainboard.filter(c => c.category !== 'Land').reduce((sum, c) => sum + c.quantity, 0);
+                      const pct = totalSpells > 0 ? (qty / totalSpells) * 100 : 0;
+                      return (
+                        <div key={role.id} className="text-xs">
+                          <div className="flex justify-between text-white/60 mb-1">
+                            <span>{role.label}</span>
+                            <span className="font-mono font-bold">{qty}</span>
+                          </div>
+                          <div className="w-full h-1.5 bg-black/60 rounded-full overflow-hidden">
+                            <div 
+                              className="h-full bg-magic-gold/70"
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Asistente de Curva IA (Oráculo) */}
+                <div className="frosted-panel border-[#ffca58]/20 p-5 bg-[#ffdf91]/5">
+                  <h4 className="font-cinzel text-magic-gold text-xs tracking-wider uppercase mb-3 flex items-center gap-1.5">
+                    <Sparkles size={14} className="text-magic-gold" /> Asistente de Curva IA
+                  </h4>
+                  {curveDeficits.length > 0 ? (
+                    <div className="space-y-3">
+                      <p className="text-[10px] text-white/50 leading-normal">
+                        Se detectan huecos en la curva de maná de tu baraja respecto al arquetipo:
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {curveDeficits.map(def => (
+                          <button
+                            key={def.cmc}
+                            onClick={() => getOracleSuggestions(def.cmc)}
+                            className="px-2.5 py-1 bg-magic-gold/10 hover:bg-magic-gold/20 text-magic-gold rounded-lg border border-magic-gold/30 text-[10px] font-bold uppercase transition-all flex items-center gap-1"
+                          >
+                            🪄 Sugerir {def.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-[10px] text-green-400 font-bold">
+                      ✨ ¡Curva de maná equilibrada según el arquetipo! No se detectan déficits.
+                    </p>
+                  )}
+
+                  {/* Sugerencias sugeridas por la IA */}
+                  {selectedOracleCmc !== null && (
+                    <div className="mt-4 pt-4 border-t border-white/5 space-y-3.5">
+                      <div className="flex justify-between items-center">
+                        <span className="text-[10px] uppercase font-bold text-magic-gold/60">🔮 Sugerencias del Oráculo (MV{selectedOracleCmc})</span>
+                        <button 
+                          onClick={() => setSelectedOracleCmc(null)}
+                          className="text-red-400/50 hover:text-red-400"
+                        >
+                          <X size={12} />
+                        </button>
+                      </div>
+
+                      {oracleLoading ? (
+                        <div className="py-6 flex flex-col items-center justify-center gap-2">
+                          <RefreshCw size={18} className="text-magic-gold animate-spin" />
+                          <span className="text-[9px] uppercase tracking-wider text-magic-gold/50">Canalizando la Biblioteca...</span>
+                        </div>
+                      ) : (
+                        <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                          {oracleSuggestions.map(card => (
+                            <div 
+                              key={card.name} 
+                              className="flex items-center justify-between p-2 bg-black/45 rounded-lg border border-white/5 hover:border-magic-gold/20 transition-all text-xs"
+                            >
+                              <div className="min-w-0 flex-1">
+                                <div className="font-bold truncate text-[#ffca58]">{card.name}</div>
+                                <div className="text-[9px] text-white/40 truncate">{card.type_line}</div>
+                              </div>
+                              <button
+                                onClick={() => handleAddCard(card)}
+                                className="p-1.5 bg-green-500/10 hover:bg-green-500/20 text-green-400 border border-green-500/30 rounded-lg font-bold"
+                              >
+                                +
+                              </button>
+                            </div>
+                          ))}
+                          {oracleSuggestions.length === 0 && (
+                            <div className="text-[10px] text-white/30 italic text-center py-4">No se encontraron sugerencias.</div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         )}
 
-        {/* Columna Derecha: Listado de cartas y Tabs */}
+        {/* Columna Derecha: Listado de cartas en columnas (Mazo) / Grids (Banquillo y Maybe) */}
         {(!isMobile || mobileView === 'list') && (
-          <div className="lg:col-span-4 flex flex-col gap-6">
+          <div className="lg:col-span-8 flex flex-col gap-6">
             <div className="frosted-panel border-white/5 p-5 flex flex-col flex-1 min-h-[500px]">
               {/* Selector de Tabs de Listado */}
               <div className="flex border-b border-white/10 pb-3 mb-4 flex-wrap gap-2">
                 <button
-                  onClick={() => setActiveTab('main')}
+                  onClick={() => { vibrateTouch(); setActiveTab('main'); }}
                   className={cn(
                     "px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-lg transition-all flex items-center gap-2",
                     activeTab === 'main' ? "bg-magic-gold/10 text-magic-gold border border-magic-gold/30 shadow-md" : "text-white/40 hover:text-white"
                   )}
                 >
-                  <Layers size={14} /> Mazo ({totalMainCards})
+                  <Layers size={14} /> Mazo Principal ({totalMainCards})
                 </button>
                 <button
-                  onClick={() => setActiveTab('side')}
+                  onClick={() => { vibrateTouch(); setActiveTab('side'); }}
                   className={cn(
                     "px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-lg transition-all flex items-center gap-2",
                     activeTab === 'side' ? "bg-blue-500/10 text-blue-400 border border-blue-500/30 shadow-md" : "text-white/40 hover:text-white"
@@ -1629,7 +2092,7 @@ export default function DeckBuilder() {
                   <BookOpen size={14} /> Banquillo ({totalSideCards})
                 </button>
                 <button
-                  onClick={() => setActiveTab('maybe')}
+                  onClick={() => { vibrateTouch(); setActiveTab('maybe'); }}
                   className={cn(
                     "px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-lg transition-all flex items-center gap-2",
                     activeTab === 'maybe' ? "bg-purple-500/10 text-purple-400 border border-purple-500/30 shadow-md" : "text-white/40 hover:text-white"
@@ -1651,233 +2114,143 @@ export default function DeckBuilder() {
                 />
               </div>
 
-              {/* Render de las listas */}
-              <div className="flex-1 overflow-y-auto space-y-5 max-h-[600px] scrollbar-thin scrollbar-thumb-magic-gold/10">
+              {/* Render de las listas (7 columnas en Mainboard, grids en Sideboard y Maybeboard) */}
+              <div className="flex-1 overflow-y-auto space-y-5 scrollbar-thin scrollbar-thumb-magic-gold/10">
                 {activeTab === 'main' && (
                   <>
-                    {Object.entries(groupByCategory(filterList(mainboard))).map(([category, cards]) => (
-                      <div key={category} className="space-y-2">
-                        <span className="text-[10px] font-bold text-magic-gold/45 uppercase tracking-widest block border-b border-white/5 pb-1">
-                          {category} ({cards.reduce((sum, c) => sum + c.quantity, 0)})
-                        </span>
-                        <div className="space-y-2">
-                          {cards.map(c => renderCardRow(c, 'main'))}
-                        </div>
-                      </div>
-                    ))}
-                    {mainboard.length === 0 && (
+                    {mainboard.length === 0 ? (
                       <div className="h-full flex items-center justify-center py-20 text-white/20 italic text-sm">
-                        El mazo principal está vacío. Añade cartas usando el buscador.
+                        El mazo principal está vacío. Añade cartas usando el explorador de la izquierda.
+                      </div>
+                    ) : isMobile ? (
+                      /* Mobile View: Accordion style grouped by CMC/Lands */
+                      <div className="flex flex-col gap-2 w-full">
+                        {Object.keys(columnsByCmc).map((cmcKey) => {
+                          const colCards = filterList(columnsByCmc[cmcKey]);
+                          const colQuantity = colCards.reduce((sum, c) => sum + (c.quantity || 1), 0);
+                          const isExpanded = expandedCols[cmcKey];
+
+                          return (
+                            <div key={cmcKey} className="border border-white/10 rounded-xl overflow-hidden bg-black/35">
+                              <button
+                                onClick={() => toggleCol(cmcKey)}
+                                className="w-full flex justify-between items-center px-4 py-3 bg-white/5 hover:bg-white/10 transition-colors"
+                              >
+                                <span className="font-cinzel text-xs text-magic-gold uppercase tracking-widest font-bold">
+                                  {cmcKey === 'Tierras' ? 'Tierras' : `Coste ${cmcKey}`}
+                                </span>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[10px] text-gray-400 font-mono">
+                                    x{colQuantity} {colQuantity === 1 ? 'carta' : 'cartas'}
+                                  </span>
+                                  <span className="text-magic-gold text-xs transition-transform duration-200" style={{ transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}>
+                                    ▼
+                                  </span>
+                                </div>
+                              </button>
+
+                              <AnimatePresence initial={false}>
+                                {isExpanded && (
+                                  <motion.div
+                                    initial={{ height: 0, opacity: 0 }}
+                                    animate={{ height: 'auto', opacity: 1 }}
+                                    exit={{ height: 0, opacity: 0 }}
+                                    transition={{ duration: 0.2 }}
+                                    className="overflow-hidden"
+                                  >
+                                    <div className="p-3 bg-black/20">
+                                      {colCards.length === 0 ? (
+                                        <div className="py-4 text-center text-xs text-gray-500 italic">
+                                          Vacío o sin coincidencias de filtro
+                                        </div>
+                                      ) : (
+                                        <div className="grid grid-cols-3 gap-3">
+                                          {colCards.map((c) => renderVisualCard(c, 'main'))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </motion.div>
+                                )}
+                              </AnimatePresence>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      /* Desktop View: 7 Column Stacks Cascadadas */
+                      <div className="grid grid-cols-7 gap-4 min-h-[500px]">
+                        {Object.keys(columnsByCmc).map((cmcKey) => {
+                          const colCards = filterList(columnsByCmc[cmcKey]);
+                          const colQuantity = colCards.reduce((sum, c) => sum + (c.quantity || 1), 0);
+
+                          return (
+                            <div key={cmcKey} className="flex flex-col gap-3 min-h-0">
+                              {/* Cabecera de Columna */}
+                              <div className="flex justify-between items-center border-b border-white/10 pb-1.5 shrink-0">
+                                <span className="font-cinzel text-[10px] text-magic-gold uppercase tracking-widest font-bold">
+                                  {cmcKey === 'Tierras' ? 'Tierras' : `Coste ${cmcKey}`}
+                                </span>
+                                <span className="text-[10px] text-gray-500 font-mono font-bold">
+                                  x{colQuantity}
+                                </span>
+                              </div>
+
+                              {/* Cartas Apiladas (Cascada) */}
+                              <div className="flex-1 flex flex-col relative min-h-0 pb-16">
+                                {colCards.length === 0 ? (
+                                  <div className="h-24 border border-dashed border-white/5 rounded-xl flex items-center justify-center text-[9px] text-white/20 font-serif italic text-center p-2">
+                                    Vacío
+                                  </div>
+                                ) : (
+                                  <div className="space-y-[-115%] hover:space-y-[-85%] transition-all duration-300 animate-fade-in">
+                                    {colCards.map((c) => renderVisualCard(c, 'main'))}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                   </>
                 )}
 
                 {activeTab === 'side' && (
-                  <div className="space-y-2">
-                    {filterList(sideboard).map(c => renderCardRow(c, 'side'))}
-                    {sideboard.length === 0 && (
-                      <div className="h-full flex items-center justify-center py-20 text-white/20 italic text-sm">
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 border-b border-white/5 pb-2">
+                      <BookOpen size={14} className="text-magic-gold" />
+                      <span className="text-xs font-cinzel text-magic-gold uppercase tracking-wider">Cartas de Banquillo</span>
+                    </div>
+                    {sideboard.length === 0 ? (
+                      <div className="py-20 text-center text-white/20 italic text-sm">
                         El banquillo está vacío.
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-4">
+                        {filterList(sideboard).map(c => renderVisualCard(c, 'side'))}
                       </div>
                     )}
                   </div>
                 )}
 
                 {activeTab === 'maybe' && (
-                  <div className="space-y-2">
-                    {filterList(maybeboard).map(c => renderCardRow(c, 'maybe'))}
-                    {maybeboard.length === 0 && (
-                      <div className="h-full flex items-center justify-center py-20 text-white/20 italic text-sm">
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 border-b border-white/5 pb-2">
+                      <HelpCircle size={14} className="text-magic-gold" />
+                      <span className="text-xs font-cinzel text-magic-gold uppercase tracking-wider">Zona de Consideración</span>
+                    </div>
+                    {maybeboard.length === 0 ? (
+                      <div className="py-20 text-center text-white/20 italic text-sm">
                         No hay cartas en consideración.
                       </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Columna Lateral Ext: Gráficos de Estadísticas */}
-        {(!isMobile || mobileView === 'stats') && (
-          <div className="lg:col-span-3 flex flex-col gap-6">
-            {/* Estimación de Precio */}
-            <div className="frosted-panel border-white/5 p-4">
-              <div className="flex justify-between items-center">
-                <div className="flex items-center gap-1 text-sm font-cinzel text-magic-gold">
-                  <DollarSign size={16} /> Valor Estimado
-                </div>
-                <label className="flex items-center gap-1.5 cursor-pointer text-[10px] text-white/40 hover:text-white transition-colors">
-                  <input
-                    type="checkbox"
-                    checked={priceModeFoil}
-                    onChange={(e) => setPriceModeFoil(e.target.checked)}
-                    className="rounded border-white/20 bg-black/60 text-magic-gold focus:ring-0 focus:ring-offset-0"
-                  />
-                  Foil
-                </label>
-              </div>
-              <div className="text-2xl font-bold font-mono mt-2 text-white">
-                ${deckPriceEstimate.total.toFixed(2)}
-              </div>
-              {deckPriceEstimate.untrackedCount > 0 && (
-                <div className="text-[9px] text-amber-500/70 mt-1">
-                  * Precio desconocido para {deckPriceEstimate.untrackedCount} cartas
-                </div>
-              )}
-            </div>
-
-            {/* Curva de Maná y Distribución */}
-            <ManaCurve deck={mainboard} archetype={deckMeta.archetype} />
-
-            {/* Guía de Blueprint Comparativa */}
-            <div className="frosted-panel border-white/5 p-5">
-              <h4 className="font-cinzel text-magic-gold text-xs tracking-wider uppercase mb-4 border-b border-white/5 pb-2 flex items-center gap-1.5">
-                <CheckCircle2 size={14} /> Guía del Blueprint: {deckMeta.archetype}
-              </h4>
-              <div className="space-y-3.5 text-xs">
-                {/* Comparar Tierras */}
-                <div>
-                  <div className="flex justify-between text-white/70 mb-1">
-                    <span>Tierras en el Mazo:</span>
-                    <span className="font-mono font-bold">
-                      {actualTypes.Land} / {blueprint.lands?.total}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center text-[10px]">
-                    <span className="text-white/40">Ideal para {deckMeta.archetype}</span>
-                    {actualTypes.Land === blueprint.lands?.total ? (
-                      <span className="text-green-400 font-bold">✅ Cumplido</span>
                     ) : (
-                      <span className="text-amber-400">⚠️ Desviado</span>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-4">
+                        {filterList(maybeboard).map(c => renderVisualCard(c, 'maybe'))}
+                      </div>
                     )}
-                  </div>
-                </div>
-
-                {/* Comparar Criaturas */}
-                {blueprint.spells?.distribution?.creatures && (
-                  <div>
-                    <div className="flex justify-between text-white/70 mb-1">
-                      <span>Criaturas en el Mazo:</span>
-                      <span className="font-mono font-bold">
-                        {actualTypes.Creature} / {blueprint.spells.distribution.creatures.min}-{blueprint.spells.distribution.creatures.max}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center text-[10px]">
-                      <span className="text-white/40">Rango sugerido</span>
-                      {actualTypes.Creature >= blueprint.spells.distribution.creatures.min &&
-                      actualTypes.Creature <= blueprint.spells.distribution.creatures.max ? (
-                        <span className="text-green-400 font-bold">✅ En rango</span>
-                      ) : (
-                        <span className="text-amber-400">⚠️ Fuera de rango</span>
-                      )}
-                    </div>
                   </div>
                 )}
               </div>
-            </div>
-
-            {/* Distribución por Roles Funcionales */}
-            <div className="frosted-panel border-white/5 p-5">
-              <h4 className="font-cinzel text-magic-gold text-xs tracking-wider uppercase mb-4 border-b border-white/5 pb-2">
-                🛡️ Distribución de Roles Funcionales
-              </h4>
-              <div className="space-y-3">
-                {ROLES.map(role => {
-                  const qty = mainboard.filter(c => (c.role || 'generic') === role.id).reduce((sum, c) => sum + c.quantity, 0);
-                  const totalSpells = mainboard.filter(c => c.category !== 'Land').reduce((sum, c) => sum + c.quantity, 0);
-                  const pct = totalSpells > 0 ? (qty / totalSpells) * 100 : 0;
-                  return (
-                    <div key={role.id} className="text-xs">
-                      <div className="flex justify-between text-white/60 mb-1">
-                        <span>{role.label}</span>
-                        <span className="font-mono font-bold">{qty}</span>
-                      </div>
-                      <div className="w-full h-1.5 bg-black/60 rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-magic-gold/70"
-                          style={{ width: `${pct}%` }}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Asistente de Curva IA (Oráculo) */}
-            <div className="frosted-panel border-[#ffca58]/20 p-5 bg-[#ffdf91]/5">
-              <h4 className="font-cinzel text-magic-gold text-xs tracking-wider uppercase mb-3 flex items-center gap-1.5">
-                <Sparkles size={14} className="text-magic-gold" /> Asistente de Curva IA
-              </h4>
-              {curveDeficits.length > 0 ? (
-                <div className="space-y-3">
-                  <p className="text-[10px] text-white/50 leading-normal">
-                    Se detectan huecos en la curva de maná de tu baraja respecto al arquetipo:
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {curveDeficits.map(def => (
-                      <button
-                        key={def.cmc}
-                        onClick={() => getOracleSuggestions(def.cmc)}
-                        className="px-2.5 py-1 bg-magic-gold/10 hover:bg-magic-gold/20 text-magic-gold rounded-lg border border-magic-gold/30 text-[10px] font-bold uppercase transition-all flex items-center gap-1"
-                      >
-                        🪄 Sugerir {def.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <p className="text-[10px] text-green-400 font-bold">
-                  ✨ ¡Curva de maná equilibrada según el arquetipo! No se detectan déficits.
-                </p>
-              )}
-
-              {/* Sugerencias sugeridas por la IA */}
-              {selectedOracleCmc !== null && (
-                <div className="mt-4 pt-4 border-t border-white/5 space-y-3.5">
-                  <div className="flex justify-between items-center">
-                    <span className="text-[10px] uppercase font-bold text-magic-gold/60">🔮 Sugerencias del Oráculo (MV{selectedOracleCmc})</span>
-                    <button 
-                      onClick={() => setSelectedOracleCmc(null)}
-                      className="text-red-400/50 hover:text-red-400"
-                    >
-                      <X size={12} />
-                    </button>
-                  </div>
-
-                  {oracleLoading ? (
-                    <div className="py-6 flex flex-col items-center justify-center gap-2">
-                      <RefreshCw size={18} className="text-magic-gold animate-spin" />
-                      <span className="text-[9px] uppercase tracking-wider text-magic-gold/50">Canalizando la Biblioteca...</span>
-                    </div>
-                  ) : (
-                    <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                      {oracleSuggestions.map(card => (
-                        <div 
-                          key={card.name} 
-                          className="flex items-center justify-between p-2 bg-black/45 rounded-lg border border-white/5 hover:border-magic-gold/20 transition-all text-xs"
-                        >
-                          <div className="min-w-0 flex-1">
-                            <div className="font-bold truncate text-[#ffca58]">{card.name}</div>
-                            <div className="text-[9px] text-white/40 truncate">{card.type_line}</div>
-                          </div>
-                          <button
-                            onClick={() => handleAddCard(card)}
-                            className="p-1.5 bg-green-500/10 hover:bg-green-500/20 text-green-400 border border-green-500/30 rounded-lg font-bold"
-                          >
-                            +
-                          </button>
-                        </div>
-                      ))}
-                      {oracleSuggestions.length === 0 && (
-                        <div className="text-[10px] text-white/30 italic text-center py-4">No se encontraron sugerencias.</div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
             </div>
           </div>
         )}
@@ -2100,6 +2473,106 @@ export default function DeckBuilder() {
           </div>
         </div>
       )}
+      {/* Modal de Detalle/Previsualización de Carta */}
+      <AnimatePresence>
+        {previewCard && (
+          <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-[200] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="frosted-panel border-magic-gold/30 max-w-2xl w-full p-6 relative shadow-2xl flex flex-col md:flex-row gap-6 bg-[#0c0a09]/95 text-white overflow-y-auto max-h-[90vh]"
+            >
+              <button
+                onClick={() => setPreviewCard(null)}
+                className="absolute top-4 right-4 p-1.5 rounded-full bg-white/5 hover:bg-white/10 text-white/70 hover:text-white transition-all z-10"
+              >
+                <X size={20} />
+              </button>
+
+              {/* Lado Izquierdo: Imagen de Carta */}
+              <div className="w-full md:w-72 shrink-0 flex flex-col items-center gap-3">
+                <div className="relative w-64 aspect-[63/88] rounded-2xl overflow-hidden shadow-2xl border border-white/10">
+                  <img
+                    src={(() => {
+                      const isFlipped = flippedCards.has(previewCard.name);
+                      return isFlipped
+                        ? (previewCard.card_faces?.[1]?.image_uris?.normal || previewCard.image_uris?.normal)
+                        : (previewCard.image_uris?.normal || previewCard.card_faces?.[0]?.image_uris?.normal);
+                    })()}
+                    alt={previewCard.name}
+                    className="w-full h-full object-fill"
+                  />
+                </div>
+                {previewCard.card_faces && previewCard.card_faces.length > 1 && (
+                  <button
+                    onClick={() => toggleFlipCard(previewCard.name)}
+                    className="px-4 py-2 bg-white/5 hover:bg-magic-gold/15 text-magic-gold border border-white/10 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition-all"
+                  >
+                    <RefreshCw size={14} /> Voltear Carta
+                  </button>
+                )}
+              </div>
+
+              {/* Lado Derecho: Detalles */}
+              <div className="flex-1 space-y-4">
+                <div>
+                  <div className="flex justify-between items-start flex-wrap gap-2">
+                    <h3 className="font-cinzel text-xl text-magic-gold font-bold">{previewCard.name}</h3>
+                    <RenderManaCost manaCost={previewCard.mana_cost} className="scale-100" />
+                  </div>
+                  <p className="text-xs text-white/40 font-serif italic mt-1">{previewCard.type_line}</p>
+                </div>
+
+                <div className="border-t border-white/5 pt-3 space-y-2">
+                  <span className="text-[10px] uppercase font-bold text-magic-gold/60 block">Texto de Oráculo</span>
+                  <p className="text-xs text-white/80 leading-relaxed font-serif whitespace-pre-line bg-black/30 p-3 rounded-lg border border-white/5">
+                    {previewCard.oracle_text || (previewCard.card_faces && previewCard.card_faces.map((f, i) => `[Cara ${i+1}] ${f.name}\n${f.oracle_text}`).join('\n\n')) || "Sin texto de oráculo."}
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 border-t border-white/5 pt-3 text-xs">
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-magic-gold/60 block mb-1">Precios (USD)</span>
+                    <div className="space-y-1 font-mono">
+                      <div>Normal: <span className="text-white font-bold">${previewCard.prices?.usd || '?'}</span></div>
+                      <div>Foil: <span className="text-white font-bold">${previewCard.prices?.usd_foil || '?'}</span></div>
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-magic-gold/60 block mb-1">Legalidad en Formatos</span>
+                    <div className="grid grid-cols-2 gap-1 text-[10px] font-mono">
+                      {['standard', 'pioneer', 'modern', 'legacy'].map(fmt => {
+                        const status = previewCard.legalities?.[fmt];
+                        return (
+                          <div key={fmt} className="flex justify-between pr-2">
+                            <span className="uppercase text-white/50">{fmt}:</span>
+                            <span className={status === 'legal' ? "text-green-400" : "text-red-400"}>
+                              {status === 'legal' ? 'LEGAL' : 'ILG'}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Rol Funcional actual */}
+                <div className="border-t border-white/5 pt-3 flex justify-between items-center text-xs">
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-magic-gold/60 block">Rol Funcional</span>
+                    <span className="text-white font-serif">{ROLES.find(r => r.id === (previewCard.role || 'generic'))?.label || 'Genérico'}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-magic-gold/60 block text-right">Cantidad en Mazo</span>
+                    <span className="text-white font-bold block text-right">{previewCard.quantity}x</span>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
