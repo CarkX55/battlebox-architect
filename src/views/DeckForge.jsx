@@ -2,12 +2,15 @@ import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { BATTLEBOX_VETOS, COLORS, BATTLEBOX_RULES } from '../constants/legacyBattleBox';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../utils/cn';
+import { useIsMobile, useIsTouchDevice } from '../hooks/useIsMobile';
+import { vibrateTouch } from '../utils/haptic';
+import BottomSheet from '../components/atoms/BottomSheet';
 import ForgeForm from '../components/forge/ForgeForm';
 import MetaIngestor from '../components/forge/MetaIngestor';
 import ManaOrb from '../components/atoms/ManaOrb';
 import AiConfigPanel from '../components/forge/AiConfigPanel';
 import VisualGrid from '../components/battlebox/VisualGrid';
-import { hydrateDeckCards } from '../services/cardHydrator';
+import { hydrateDeckCards, getCardFromDB } from '../services/cardHydrator';
 import { callAI, suggestCards, forgeSideboard } from '../services/aiFactory';
 import { forgeMazoPerfecto } from '../services/deckArchitectService';
 import { archiveDeck, archiveDeckOnline, submitDeckFeedback } from '../services/archiveService';
@@ -18,7 +21,7 @@ import { PowerLevelMeter } from '../components/forge/PowerLevelMeter';
 import RadarChart from '../components/forge/RadarChart';
 import ManaCurve from '../components/forge/ManaCurve';
 import { AlertTriangle, Shield, Lightbulb, Target, Scroll, PenTool, CheckCircle2, XCircle, Info, Zap, Sparkles, Copy, PlusCircle, MinusCircle, GitFork, Share2, Download, Droplet, Activity } from 'lucide-react';
-import { calculateKarstenProbability, calculateLandDropProbability, calculateManaCoverage, calculateTurnoDeOro, generateManaBase, calculatePerfectLandCount, calculateVMP, calculateManaSources } from '../services/deckCalculator';
+import { calculateKarstenProbability, calculateLandDropProbability, calculateManaCoverage, calculateTurnoDeOro, generateManaBase, calculatePerfectLandCount, calculateVMP, calculateManaSources, checkCardManaRequirement } from '../services/deckCalculator';
 import { generateSideboard } from '../services/sideboardService';
 import SynergyGraphVisualizer from '../components/forge/SynergyGraphVisualizer';
 import DeckVisualExporter from '../components/forge/DeckVisualExporter';
@@ -49,6 +52,8 @@ const isLandCard = (c) => {
 
 // Componente Visual de la Matriz de Probabilidades de Frank Karsten
 const KarstenMatrix = ({ deck, validationEngine = 'local', validationData = null, chosenColors = [] }) => {
+  const isMobile = useIsMobile();
+  const [expandedColor, setExpandedColor] = useState(null);
   const [activeTab, setActiveTab] = useState('matrix'); // 'matrix' | 'details' | 'recs'
   const sources = useMemo(() => calculateManaSources(deck), [deck]);
   const deckSize = useMemo(() => deck.reduce((sum, c) => sum + (c.quantity || 1), 0), [deck]);
@@ -94,7 +99,6 @@ const KarstenMatrix = ({ deck, validationEngine = 'local', validationData = null
     }
     
     rows.forEach(r => {
-      // Ignorar colores no seleccionados para el mazo
       if (r.color === 'C' && !chosenColors.includes('C')) return;
       if (r.color !== 'C' && chosenColors.length > 0 && !chosenColors.includes(r.color)) return;
 
@@ -177,71 +181,161 @@ const KarstenMatrix = ({ deck, validationEngine = 'local', validationData = null
             Esta matriz calcula la probabilidad hipergeométrica exacta de tener fuentes de maná suficientes para jugar hechizos en la curva ideal en un mazo de {deckSize} cartas. Se recomienda apuntar al menos al <span className="text-emerald-400 font-bold">90%</span> para asegurar estabilidad competitiva.
           </p>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr className="border-b border-white/5 text-gray-500">
-                  <th className="py-2">Color</th>
-                  <th className="py-2">Fuentes</th>
-                  <th className="py-2 text-center">T1 (1 Pip)</th>
-                  <th className="py-2 text-center">T2 (1 Pip)</th>
-                  <th className="py-2 text-center">T2 (2 Pips)</th>
-                  <th className="py-2 text-center">T3 (2 Pips)</th>
-                  <th className="py-2 text-center">T4 (2 Pips)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row) => {
-                  if (row.color === 'C' && !chosenColors.includes('C')) return null;
-                  if (row.color !== 'C' && chosenColors.length > 0 && !chosenColors.includes(row.color)) return null;
-                  
-                  const srcCount = sources[row.color] || 0;
-                  if (srcCount === 0) return null;
+          {isMobile ? (
+            <div className="space-y-3">
+              {rows.map((row) => {
+                if (row.color === 'C' && !chosenColors.includes('C')) return null;
+                if (row.color !== 'C' && chosenColors.length > 0 && !chosenColors.includes(row.color)) return null;
+                
+                const srcCount = sources[row.color] || 0;
+                if (srcCount === 0) return null;
 
-                  const t1_1 = validationData?.karstenMatrix?.[row.color]?.t1_1 ?? calculateKarstenProbability(srcCount, 1, 1, deckSize);
-                  const t2_1 = validationData?.karstenMatrix?.[row.color]?.t2_1 ?? calculateKarstenProbability(srcCount, 2, 1, deckSize);
-                  const t2_2 = validationData?.karstenMatrix?.[row.color]?.t2_2 ?? calculateKarstenProbability(srcCount, 2, 2, deckSize);
-                  const t3_2 = validationData?.karstenMatrix?.[row.color]?.t3_2 ?? calculateKarstenProbability(srcCount, 3, 2, deckSize);
-                  const t4_2 = validationData?.karstenMatrix?.[row.color]?.t4_2 ?? calculateKarstenProbability(srcCount, 4, 2, deckSize);
+                const t1_1 = validationData?.karstenMatrix?.[row.color]?.t1_1 ?? calculateKarstenProbability(srcCount, 1, 1, deckSize);
+                const t2_1 = validationData?.karstenMatrix?.[row.color]?.t2_1 ?? calculateKarstenProbability(srcCount, 2, 1, deckSize);
+                const t2_2 = validationData?.karstenMatrix?.[row.color]?.t2_2 ?? calculateKarstenProbability(srcCount, 2, 2, deckSize);
+                const t3_2 = validationData?.karstenMatrix?.[row.color]?.t3_2 ?? calculateKarstenProbability(srcCount, 3, 2, deckSize);
+                const t4_2 = validationData?.karstenMatrix?.[row.color]?.t4_2 ?? calculateKarstenProbability(srcCount, 4, 2, deckSize);
 
-                  return (
-                    <tr key={row.color} className="border-b border-white/5 hover:bg-white/5 transition-colors">
-                      <td className="py-3 font-cinzel font-bold text-gray-200 flex items-center gap-2">
-                        <span className={`w-2.5 h-2.5 rounded-full bg-${row.color === 'W' ? 'yellow-100' : row.color === 'U' ? 'blue-500' : row.color === 'B' ? 'gray-700' : row.color === 'R' ? 'red-500' : row.color === 'C' ? 'gray-400' : 'green-500'} inline-block border border-white/10`} />
-                        {row.label}
-                      </td>
-                      <td className="py-3 text-gray-400 font-sans font-bold">{srcCount} fuentes</td>
-                      <td className="py-3 text-center">
-                        <span className={`px-2 py-0.5 rounded border text-[11px] font-sans font-bold ${getProbColor(t1_1)}`}>
-                          {t1_1}%
+                const avgProb = (t1_1 + t2_1 + t2_2 + t3_2 + t4_2) / 5;
+                const isExpanded = expandedColor === row.color;
+
+                return (
+                  <div 
+                    key={row.color} 
+                    className="border border-white/10 rounded-xl overflow-hidden bg-black/30"
+                  >
+                    <button
+                      onClick={() => {
+                        vibrateTouch();
+                        setExpandedColor(isExpanded ? null : row.color);
+                      }}
+                      className="w-full flex items-center justify-between p-4 text-left hover:bg-white/5 active:bg-white/10 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className={`w-3.5 h-3.5 rounded-full bg-${row.color === 'W' ? 'yellow-100' : row.color === 'U' ? 'blue-500' : row.color === 'B' ? 'gray-700' : row.color === 'R' ? 'red-500' : row.color === 'C' ? 'gray-400' : 'green-500'} border border-white/20`} />
+                        <div>
+                          <p className="font-cinzel font-bold text-white leading-tight">{row.label}</p>
+                          <p className="text-[10px] text-gray-400 font-mono mt-0.5">{srcCount} fuentes</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className={cn(
+                          "px-2 py-0.5 rounded text-[10px] font-bold uppercase",
+                          avgProb >= 90 ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/25" :
+                          avgProb >= 80 ? "bg-amber-500/10 text-amber-400 border border-amber-500/25" :
+                          "bg-rose-500/10 text-rose-400 border border-rose-500/25"
+                        )}>
+                          {avgProb >= 90 ? 'Excelente' : avgProb >= 80 ? 'Estable' : 'Deficiente'}
                         </span>
-                      </td>
-                      <td className="py-3 text-center">
-                        <span className={`px-2 py-0.5 rounded border text-[11px] font-sans font-bold ${getProbColor(t2_1)}`}>
-                          {t2_1}%
+                        <span className="text-gray-400 text-sm transition-transform duration-300" style={{ transform: isExpanded ? 'rotate(180deg)' : 'none' }}>
+                          ▼
                         </span>
-                      </td>
-                      <td className="py-3 text-center">
-                        <span className={`px-2 py-0.5 rounded border text-[11px] font-sans font-bold ${getProbColor(t2_2)}`}>
-                          {t2_2}%
-                        </span>
-                      </td>
-                      <td className="py-3 text-center">
-                        <span className={`px-2 py-0.5 rounded border text-[11px] font-sans font-bold ${getProbColor(t3_2)}`}>
-                          {t3_2}%
-                        </span>
-                      </td>
-                      <td className="py-3 text-center">
-                        <span className={`px-2 py-0.5 rounded border text-[11px] font-sans font-bold ${getProbColor(t4_2)}`}>
-                          {t4_2}%
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                      </div>
+                    </button>
+
+                    <AnimatePresence initial={false}>
+                      {isExpanded && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: "auto", opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.2 }}
+                          className="border-t border-white/5 bg-black/40 px-4 py-3 space-y-2 text-xs"
+                        >
+                          <div className="flex justify-between items-center py-1">
+                            <span className="text-gray-400 font-serif">T1 (1 Pip)</span>
+                            <span className={`px-2 py-0.5 rounded border font-mono font-bold ${getProbColor(t1_1)}`}>{t1_1}%</span>
+                          </div>
+                          <div className="flex justify-between items-center py-1">
+                            <span className="text-gray-400 font-serif">T2 (1 Pip)</span>
+                            <span className={`px-2 py-0.5 rounded border font-mono font-bold ${getProbColor(t2_1)}`}>{t2_1}%</span>
+                          </div>
+                          <div className="flex justify-between items-center py-1">
+                            <span className="text-gray-400 font-serif">T2 (2 Pips)</span>
+                            <span className={`px-2 py-0.5 rounded border font-mono font-bold ${getProbColor(t2_2)}`}>{t2_2}%</span>
+                          </div>
+                          <div className="flex justify-between items-center py-1">
+                            <span className="text-gray-400 font-serif">T3 (2 Pips)</span>
+                            <span className={`px-2 py-0.5 rounded border font-mono font-bold ${getProbColor(t3_2)}`}>{t3_2}%</span>
+                          </div>
+                          <div className="flex justify-between items-center py-1">
+                            <span className="text-gray-400 font-serif">T4 (2 Pips)</span>
+                            <span className={`px-2 py-0.5 rounded border font-mono font-bold ${getProbColor(t4_2)}`}>{t4_2}%</span>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="border-b border-white/5 text-gray-500">
+                    <th className="py-2">Color</th>
+                    <th className="py-2">Fuentes</th>
+                    <th className="py-2 text-center">T1 (1 Pip)</th>
+                    <th className="py-2 text-center">T2 (1 Pip)</th>
+                    <th className="py-2 text-center">T2 (2 Pips)</th>
+                    <th className="py-2 text-center">T3 (2 Pips)</th>
+                    <th className="py-2 text-center">T4 (2 Pips)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row) => {
+                    if (row.color === 'C' && !chosenColors.includes('C')) return null;
+                    if (row.color !== 'C' && chosenColors.length > 0 && !chosenColors.includes(row.color)) return null;
+                    
+                    const srcCount = sources[row.color] || 0;
+                    if (srcCount === 0) return null;
+
+                    const t1_1 = validationData?.karstenMatrix?.[row.color]?.t1_1 ?? calculateKarstenProbability(srcCount, 1, 1, deckSize);
+                    const t2_1 = validationData?.karstenMatrix?.[row.color]?.t2_1 ?? calculateKarstenProbability(srcCount, 2, 1, deckSize);
+                    const t2_2 = validationData?.karstenMatrix?.[row.color]?.t2_2 ?? calculateKarstenProbability(srcCount, 2, 2, deckSize);
+                    const t3_2 = validationData?.karstenMatrix?.[row.color]?.t3_2 ?? calculateKarstenProbability(srcCount, 3, 2, deckSize);
+                    const t4_2 = validationData?.karstenMatrix?.[row.color]?.t4_2 ?? calculateKarstenProbability(srcCount, 4, 2, deckSize);
+
+                    return (
+                      <tr key={row.color} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                        <td className="py-3 font-cinzel font-bold text-gray-200 flex items-center gap-2">
+                          <span className={`w-2.5 h-2.5 rounded-full bg-${row.color === 'W' ? 'yellow-100' : row.color === 'U' ? 'blue-500' : row.color === 'B' ? 'gray-700' : row.color === 'R' ? 'red-500' : row.color === 'C' ? 'gray-400' : 'green-500'} inline-block border border-white/10`} />
+                          {row.label}
+                        </td>
+                        <td className="py-3 text-gray-400 font-sans font-bold">{srcCount} fuentes</td>
+                        <td className="py-3 text-center">
+                          <span className={`px-2 py-0.5 rounded border text-[11px] font-sans font-bold ${getProbColor(t1_1)}`}>
+                            {t1_1}%
+                          </span>
+                        </td>
+                        <td className="py-3 text-center">
+                          <span className={`px-2 py-0.5 rounded border text-[11px] font-sans font-bold ${getProbColor(t2_1)}`}>
+                            {t2_1}%
+                          </span>
+                        </td>
+                        <td className="py-3 text-center">
+                          <span className={`px-2 py-0.5 rounded border text-[11px] font-sans font-bold ${getProbColor(t2_2)}`}>
+                            {t2_2}%
+                          </span>
+                        </td>
+                        <td className="py-3 text-center">
+                          <span className={`px-2 py-0.5 rounded border text-[11px] font-sans font-bold ${getProbColor(t3_2)}`}>
+                            {t3_2}%
+                          </span>
+                        </td>
+                        <td className="py-3 text-center">
+                          <span className={`px-2 py-0.5 rounded border text-[11px] font-sans font-bold ${getProbColor(t4_2)}`}>
+                            {t4_2}%
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
@@ -439,6 +533,8 @@ const getMatchupGuide = (mainDeck, sideboard, archetype = 'midrange') => {
 };
 
 export default function DeckForge() {
+  const isMobile = useIsMobile();
+  const isTouch = useIsTouchDevice();
   const [mode, setMode] = useState('form');
   const [selectedFormat, setSelectedFormat] = useState(() => localStorage.getItem('mtgtop8_selected_format') || 'MODERN');
 
@@ -539,7 +635,81 @@ export default function DeckForge() {
   const [cardSuggestions, setCardSuggestions] = useState(null);
   const [isSuggesting, setIsSuggesting] = useState(false);
   const [hoveredCard, setHoveredCard] = useState(null);
+  const [hoveredCardImgUrl, setHoveredCardImgUrl] = useState(null);
   const [hoverPos, setHoverPos] = useState({ x: 0, y: 0 });
+  const [showMobileMetrics, setShowMobileMetrics] = useState(false);
+
+  useEffect(() => {
+    if (!hoveredCard) {
+      setHoveredCardImgUrl(null);
+      return;
+    }
+    
+    let active = true;
+    let cleanName = hoveredCard.replace(/^\d+x\s+/, '').trim();
+    
+    // 1. Intentar cargar desde IndexedDB primero
+    async function loadFromDB() {
+      try {
+        const cached = await getCardFromDB(cleanName) || await getCardFromDB(hoveredCard);
+        if (cached && active) {
+          const imgUrl = cached.image_uris?.normal || cached.card_faces?.[0]?.image_uris?.normal;
+          if (imgUrl) {
+            setHoveredCardImgUrl(imgUrl);
+            return true;
+          }
+        }
+      } catch (err) {
+        console.warn("Error reading card from DB inside hover:", err);
+      }
+      return false;
+    }
+
+    loadFromDB().then(found => {
+      if (found) return;
+
+      // 2. Si no está en la DB, buscar en Scryfall (fallback)
+      if (cleanName.includes('//')) {
+        cleanName = cleanName.split('//')[0].trim();
+      } else if (cleanName.includes('/')) {
+        cleanName = cleanName.split('/')[0].trim();
+      }
+      
+      const searchQuery = `!"${cleanName}"`;
+      fetch(`https://api.scryfall.com/cards/search?q=${encodeURIComponent(searchQuery)}`)
+        .then(res => {
+          if (!res.ok) {
+            return fetch(`https://api.scryfall.com/cards/named?exact=${encodeURIComponent(cleanName)}`);
+          }
+          return res;
+        })
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (!active) return;
+          let cardData = data;
+          if (data && data.data && data.data.length > 0) {
+            cardData = data.data[0];
+          }
+          
+          let url = null;
+          if (cardData) {
+            if (cardData.image_uris && cardData.image_uris.normal) {
+              url = cardData.image_uris.normal;
+            } else if (cardData.card_faces && cardData.card_faces[0].image_uris) {
+              url = cardData.card_faces[0].image_uris.normal;
+            }
+          }
+          
+          if (url) {
+            setHoveredCardImgUrl(url);
+          }
+        })
+        .catch(() => {});
+    });
+    
+    return () => { active = false; };
+  }, [hoveredCard]);
+
   const [applyingSwap, setApplyingSwap] = useState(null);
   const [forgePhase, setForgePhase] = useState(null);
   const [elapsedTime, setElapsedTime] = useState(0);
@@ -638,10 +808,282 @@ export default function DeckForge() {
   };
 
   const handleCardHover = (e, name) => {
+    if (isTouch) return;
     setHoveredCard(name);
     setHoverPos({ x: e.clientX, y: e.clientY });
   };
-  const handleCardLeave = () => setHoveredCard(null);
+  const handleCardLeave = () => {
+    if (isTouch) return;
+    setHoveredCard(null);
+  };
+
+  const renderSidebarContent = () => {
+    return (
+      <>
+        {auditResult && (
+          <div className="bg-black/60 border-2 border-purple-500/30 rounded-2xl p-6 shadow-[0_0_20px_rgba(168,85,247,0.1)] relative overflow-hidden backdrop-blur-md">
+            <div className="absolute top-0 right-0 w-24 h-24 bg-purple-500/5 rounded-full blur-2xl pointer-events-none" />
+            
+            <div className="flex items-center justify-between mb-4 border-b border-purple-500/20 pb-3">
+              <div className="flex items-center gap-2">
+                <Activity className="text-purple-300 w-5 h-5 animate-pulse" />
+                <h4 className="font-cinzel text-purple-300 font-bold text-sm uppercase tracking-wider">Veredicto del Juez</h4>
+              </div>
+              <div className="flex items-baseline gap-1">
+                <span className="text-2xl font-black text-white drop-shadow-[0_0_6px_rgba(168,85,247,0.4)]">{auditResult.score}</span>
+                <span className="text-xs text-purple-400/50">/10</span>
+              </div>
+            </div>
+            
+            <p className="text-xs text-gray-300 italic font-serif leading-relaxed mb-4 bg-black/40 p-3 rounded-xl border border-white/5 shadow-inner">
+              "{auditResult.verdict}"
+            </p>
+
+            <div className="space-y-3 max-h-[200px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-purple-500/20 scrollbar-track-transparent">
+              {auditResult.criticalAlerts && auditResult.criticalAlerts.length > 0 && (
+                <div className="space-y-1 text-left">
+                  <p className="text-[9px] uppercase font-bold text-red-400 tracking-wider flex items-center gap-1">
+                    <AlertTriangle size={10} /> Alertas Críticas
+                  </p>
+                  <ul className="list-disc pl-4 text-[11px] text-red-200/80 space-y-0.5">
+                    {auditResult.criticalAlerts.map((a, i) => <li key={i}>{typeof a === 'object' ? a.text || JSON.stringify(a) : a}</li>)}
+                  </ul>
+                </div>
+              )}
+              
+              {auditResult.warnings && auditResult.warnings.length > 0 && (
+                <div className="space-y-1 text-left">
+                  <p className="text-[9px] uppercase font-bold text-amber-400 tracking-wider flex items-center gap-1">
+                    <AlertTriangle size={10} /> Advertencias
+                  </p>
+                  <ul className="list-disc pl-4 text-[11px] text-amber-200/80 space-y-0.5">
+                    {auditResult.warnings.map((w, i) => <li key={i}>{typeof w === 'object' ? w.text || JSON.stringify(w) : w}</li>)}
+                  </ul>
+                </div>
+              )}
+              
+              {auditResult.suggestions && auditResult.suggestions.length > 0 && (
+                <div className="space-y-1 text-left">
+                  <p className="text-[9px] uppercase font-bold text-emerald-400 tracking-wider flex items-center gap-1">
+                    <CheckCircle2 size={10} /> Opciones de Mejora
+                  </p>
+                  <ul className="list-disc pl-4 text-[11px] text-emerald-200/80 space-y-0.5">
+                    {auditResult.suggestions.map((s, i) => <li key={i}>{typeof s === 'object' ? s.text || JSON.stringify(s) : s}</li>)}
+                  </ul>
+                </div>
+              )}
+            </div>
+            
+            <div className="flex gap-2 mt-4 pt-3 border-t border-purple-500/10">
+              <button 
+                onClick={() => setShowAuditModal(true)}
+                className="flex-1 py-1.5 bg-purple-950/20 hover:bg-purple-900/40 border border-purple-500/30 hover:border-purple-400 text-purple-200 hover:text-white rounded-lg text-[10px] uppercase font-bold tracking-wider transition-all text-center"
+              >
+                🔍 Ver Completo
+              </button>
+              <button 
+                onClick={() => setAuditResult(null)}
+                className="py-1.5 px-3 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 text-gray-400 hover:text-white rounded-lg text-[10px] uppercase font-bold tracking-wider transition-all text-center"
+                title="Limpiar reporte"
+              >
+                Limpiar
+              </button>
+            </div>
+          </div>
+        )}
+
+        <div className="leather-panel p-6 shadow-2xl">
+          <h4 className="font-cinzel text-magic-gold text-lg mb-6 flex items-center gap-2">
+            <Target className="w-5 h-5" /> Potencial Bélico
+          </h4>
+          <RadarChart data={{
+            Velocidad: 8, Control: 7, Poder: 8, Complejidad: 7, Resiliencia: 6
+          }} />
+        </div>
+        <ManaCurve deck={renderDeck} archetype={aiMetadata?.archetype} />
+
+        {(aiMetadata || pocketGuide) && (
+          <div className="parchment-scroll shadow-2xl">
+            <div className="parchment-content space-y-6">
+              <h4 className="font-cinzel text-[#3d1a10] text-xl mb-5 flex items-center gap-2 border-b-2 border-[#4a3318]/25 pb-2">
+                <Scroll size={22} className="text-[#3d1a10]" /> Guía del Maestro
+              </h4>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-2">
+                <div className="space-y-2">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-[#3d1a10]/80 flex items-center gap-1">
+                    <Activity size={10} /> Estrategia General
+                  </p>
+                  <p className="text-[12px] text-[#1a0f05] leading-relaxed italic border-l-2 border-[#3d1a10]/30 pl-3 bg-black/5 py-2 pr-2 rounded-r-lg">
+                    "{pocketGuide?.plan || aiMetadata?.strategy || 'Estrategia general no descifrada. Utiliza el botón de abajo para expandir.'}"
+                  </p>
+                </div>
+                
+                <div className="space-y-2">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-[#3d1a10]/80 flex items-center gap-1">
+                    <Lightbulb size={10} /> Reglas de Mulligan
+                  </p>
+                  <p className="text-[12px] text-[#1a0f05] leading-relaxed bg-black/5 p-3 rounded-lg border border-[#4a3318]/10">
+                    {pocketGuide?.mulligan || aiMetadata?.mulligan || 'Conserva manos con al menos 2-3 tierras de tus colores y juego activo en los turnos 1 y 2.'}
+                  </p>
+                </div>
+              </div>
+
+              {sideboardStrategy && (
+                <div className="pt-5 border-t-2 border-dashed border-[#4a3318]/20 space-y-4">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-[#3d1a10]/90 flex items-center gap-1">
+                    <Shield size={12} className="text-[#3d1a10]" /> Plan de Banquilleo
+                  </p>
+                  
+                  {(() => {
+                    const sections = [];
+                    let currentSection = null;
+                    let currentMatchup = null;
+
+                    const lines = sideboardStrategy.split('\n');
+                    for (let line of lines) {
+                      const trimmed = line.trim();
+                      if (!trimmed) continue;
+
+                      if (trimmed.startsWith('===') && trimmed.endsWith('===')) {
+                        if (currentSection) {
+                          if (currentMatchup) {
+                            currentSection.matchups.push(currentMatchup);
+                            currentMatchup = null;
+                          }
+                          sections.push(currentSection);
+                        }
+                        currentSection = {
+                          title: trimmed.replace(/===/g, '').trim(),
+                          matchups: []
+                        };
+                        continue;
+                      }
+
+                      if (trimmed.startsWith('Guía Táctica')) {
+                        currentSection = {
+                          title: 'Guía de Emparejamientos (Matchups)',
+                          matchups: []
+                        };
+                        continue;
+                      }
+
+                      if (trimmed.startsWith('- Contra ')) {
+                        if (currentMatchup && currentSection) {
+                          currentSection.matchups.push(currentMatchup);
+                        }
+                        currentMatchup = {
+                          name: trimmed.substring(9).replace(/:$/, '').trim(),
+                          in: '',
+                          out: ''
+                        };
+                        continue;
+                      }
+
+                      if (trimmed.startsWith('IN:')) {
+                        if (currentMatchup) {
+                          currentMatchup.in = trimmed.substring(3).trim();
+                        }
+                        continue;
+                      }
+
+                      if (trimmed.startsWith('OUT:')) {
+                        if (currentMatchup) {
+                          currentMatchup.out = trimmed.substring(4).trim();
+                        }
+                        continue;
+                      }
+                    }
+
+                    if (currentMatchup && currentSection) {
+                      currentSection.matchups.push(currentMatchup);
+                    }
+                    if (currentSection) {
+                      sections.push(currentSection);
+                    }
+
+                    return (
+                      <div className="space-y-6">
+                        {sections.map((sec, secIdx) => {
+                          const isSwaps = sec.title.toLowerCase().includes('swaps');
+                          return (
+                            <div key={secIdx} className="space-y-3">
+                              <h5 className="font-cinzel text-[11px] font-bold uppercase tracking-wider text-[#3d1a10] border-b border-[#4a3318]/15 pb-1 flex items-center gap-1.5">
+                                {isSwaps ? <Target size={11} className="text-[#a04000]" /> : <Shield size={11} className="text-[#4a3318]" />}
+                                {sec.title}
+                              </h5>
+                              <div className="grid grid-cols-1 gap-3">
+                                {sec.matchups.map((match, mIdx) => (
+                                  <div key={mIdx} className="p-3.5 bg-[#4a3318]/5 rounded-xl border border-[#4a3318]/15 space-y-2.5 transition-all hover:bg-[#4a3318]/10">
+                                    <p className="text-[11px] font-bold text-[#2d1e12] flex items-center gap-1.5">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-[#3d1a10]" />
+                                      Contra {match.name}
+                                    </p>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-[11px] leading-relaxed">
+                                      {match.in && (
+                                        <div className="p-2 bg-emerald-800/5 border border-emerald-800/15 rounded-lg flex flex-col">
+                                          <span className="text-[9px] font-bold text-emerald-800 uppercase tracking-wider mb-0.5">IN (Poner)</span>
+                                          <span className="text-[#1a0f05] font-medium">{match.in}</span>
+                                        </div>
+                                      )}
+                                      {match.out && (
+                                        <div className="p-2 bg-red-800/5 border border-red-800/15 rounded-lg flex flex-col">
+                                          <span className="text-[9px] font-bold text-red-800 uppercase tracking-wider mb-0.5">OUT (Quitar)</span>
+                                          <span className="text-[#3d1a10]">{match.out}</span>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+
+              {aiMetadata?.recommendations && aiMetadata.recommendations.length > 0 && (
+                <div className="pt-5 border-t-2 border-dashed border-[#4a3318]/20">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-[#3d1a10]/60 mb-3 flex items-center gap-1">
+                    <Sparkles size={12} className="text-[#3d1a10]" /> Recomendaciones de Expertos
+                  </p>
+                  <div className="space-y-3">
+                    {aiMetadata.recommendations.map((rec, i) => (
+                      <div key={i} className="group p-3 bg-black/5 rounded-xl border border-[#4a3318]/10">
+                        <p className="text-[11px] font-bold text-[#2d1e12] flex items-center gap-2 mb-1">
+                          <span className="w-4 h-4 rounded-full bg-[#3d1a10]/10 flex items-center justify-center text-[9px] group-hover:bg-[#3d1a10]/20 transition-colors font-sans">
+                            {i + 1}
+                          </span>
+                          {rec.title}
+                        </p>
+                        <p className="text-[11px] text-[#4a3318]/85 leading-relaxed pl-6 italic">
+                          {rec.description}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+        
+        {!pocketGuide && (
+          <button 
+            onClick={generateGuide} 
+            disabled={isGeneratingGuide}
+            className="w-full btn-magic-glass btn-glass-gold py-4 flex items-center justify-center gap-2 mt-4"
+          >
+            {isGeneratingGuide ? <Zap className="animate-spin" size={16} /> : <PenTool size={16} />}
+            {isGeneratingGuide ? 'Descifrando...' : 'Generar Guía Estratégica'}
+          </button>
+        )}
+      </>
+    );
+  };
 
   // --- LÓGICA DE VALIDACIÓN DE REGLAS ---
   const stats = useMemo(() => {
@@ -667,6 +1109,77 @@ export default function DeckForge() {
   const matchupsList = useMemo(() => {
     return getMatchupGuide(renderDeck, renderSideboard, lastFormData?.archetype || 'midrange');
   }, [renderDeck, renderSideboard, lastFormData]);
+
+  const [activeSwaps, setActiveSwaps] = useState({}); // format: { [matchupId]: { in: { "CardName": qty }, out: { "CardName": qty } } }
+
+  const getSwapsForMatchup = useCallback((matchupId) => {
+    if (activeSwaps[matchupId]) {
+      return activeSwaps[matchupId];
+    }
+    
+    // Find the default matchup recommendations
+    const defaultMatchup = matchupsList.find(m => m.id === matchupId);
+    const initialIn = {};
+    const initialOut = {};
+    
+    if (defaultMatchup) {
+      defaultMatchup.cardsIn.forEach(c => {
+        initialIn[c.name] = c.quantity;
+      });
+      defaultMatchup.cardsOut.forEach(c => {
+        if (c && c.name) {
+          initialOut[c.name] = c.quantity;
+        }
+      });
+    }
+    
+    return { in: initialIn, out: initialOut };
+  }, [activeSwaps, matchupsList]);
+
+  const currentSwaps = useMemo(() => {
+    return getSwapsForMatchup(activeMatchupTab);
+  }, [activeMatchupTab, getSwapsForMatchup]);
+
+  const totalIn = useMemo(() => {
+    return Object.values(currentSwaps.in).reduce((sum, q) => sum + q, 0);
+  }, [currentSwaps]);
+
+  const totalOut = useMemo(() => {
+    return Object.values(currentSwaps.out).reduce((sum, q) => sum + q, 0);
+  }, [currentSwaps]);
+
+  const updateSwap = (matchupId, type, cardName, newQty) => {
+    setActiveSwaps(prev => {
+      const saved = prev[matchupId] || (() => {
+        const defaultMatchup = matchupsList.find(m => m.id === matchupId);
+        const initialIn = {};
+        const initialOut = {};
+        if (defaultMatchup) {
+          defaultMatchup.cardsIn.forEach(c => { initialIn[c.name] = c.quantity; });
+          defaultMatchup.cardsOut.forEach(c => { if (c && c.name) { initialOut[c.name] = c.quantity; } });
+        }
+        return { in: initialIn, out: initialOut };
+      })();
+      
+      const updatedType = { ...saved[type] };
+      if (newQty <= 0) {
+        delete updatedType[cardName];
+      } else {
+        updatedType[cardName] = newQty;
+      }
+      
+      return {
+        ...prev,
+        [matchupId]: {
+          ...saved,
+          [type]: updatedType
+        }
+      };
+    });
+  };
+
+  const mainDeckSources = useMemo(() => calculateManaSources(renderDeck), [renderDeck]);
+  const mainDeckSize = useMemo(() => renderDeck.reduce((sum, c) => sum + (c.quantity || 1), 0), [renderDeck]);
 
   const handleAutoGenerateSideboard = async () => {
     if (!renderDeck.length) return;
@@ -1063,8 +1576,8 @@ export default function DeckForge() {
     setApplyingSwap(index);
     try {
       const qty = sug.quantity || 1;
-      // 1. Fetch la carta nueva desde Scryfall para obtener imagen y type_line
-      const res = await fetch(`https://api.scryfall.com/cards/named?exact=${encodeURIComponent(sug.name)}`);
+      const cleanName = sug.name.includes('//') ? sug.name.split('//')[0].trim() : sug.name.includes('/') ? sug.name.split('/')[0].trim() : sug.name;
+      const res = await fetch(`https://api.scryfall.com/cards/named?exact=${encodeURIComponent(cleanName)}`);
       if (!res.ok) {
         setWarning(`❌ No se encontró "${sug.name}" en la base de datos de Scryfall. Quizás el Oráculo se equivocó de nombre.`);
         setApplyingSwap(null);
@@ -1686,7 +2199,7 @@ export default function DeckForge() {
                                   <div className="flex items-center gap-3 flex-1">
                                     <span 
                                       className="font-bold text-green-400 text-sm flex items-center gap-1 cursor-pointer hover:underline"
-                                      onMouseMove={(e) => handleCardHover(e, sug.name)}
+                                      onMouseEnter={(e) => handleCardHover(e, sug.name)}
                                       onMouseLeave={handleCardLeave}
                                     >
                                       <Sparkles size={12}/> +{sug.quantity || 1} {sug.name}
@@ -1694,7 +2207,7 @@ export default function DeckForge() {
                                     {sug.cut && (
                                       <span 
                                         className="font-bold text-red-400/80 text-sm flex items-center gap-1 cursor-pointer hover:underline"
-                                        onMouseMove={(e) => handleCardHover(e, sug.cut)}
+                                        onMouseEnter={(e) => handleCardHover(e, sug.cut)}
                                         onMouseLeave={handleCardLeave}
                                       >
                                         <XCircle size={12}/> -{sug.quantity || 1} {sug.cut}
@@ -1730,6 +2243,8 @@ export default function DeckForge() {
                   auditResult={showAuditModal ? auditResult : null}
                   onCloseAudit={() => setShowAuditModal(false)}
                   onOptimize={handleOptimizeDeck}
+                  manaSources={mainDeckSources}
+                  deckSize={mainDeckSize}
                 />
                 
                 {/* Matriz de Probabilidades de Frank Karsten */}
@@ -1830,55 +2345,193 @@ export default function DeckForge() {
                             </p>
                           </div>
 
+                          {/* Swap Balance Bar */}
+                          <div className={cn(
+                            "mb-6 p-4 rounded-xl border flex items-center justify-between text-xs font-semibold shadow-inner transition-all",
+                            totalIn === totalOut
+                              ? totalIn > 0
+                                ? "bg-green-500/10 border-green-500/30 text-green-400"
+                                : "bg-white/5 border-white/10 text-gray-400"
+                              : "bg-red-500/10 border-red-500/30 text-red-400 animate-pulse"
+                          )}>
+                            <div className="flex items-center gap-2">
+                              <Activity size={16} />
+                              <span>
+                                {totalIn === totalOut
+                                  ? totalIn > 0
+                                    ? `✅ Intercambio equilibrado (${totalIn}/${totalOut})`
+                                    : "No hay intercambios activos para este matchup"
+                                  : totalIn > totalOut
+                                    ? `⚠️ Desequilibrio: Debes retirar ${totalIn - totalOut} carta(s) del mainboard para mantener el mazo en ${stats.mainCount} cartas`
+                                    : `⚠️ Desequilibrio: Debes incluir ${totalOut - totalIn} carta(s) del banquillo para mantener el mazo en ${stats.mainCount} cartas`
+                                }
+                              </span>
+                            </div>
+                            {totalIn > 0 && (
+                              <button
+                                onClick={() => {
+                                  setActiveSwaps(prev => ({
+                                    ...prev,
+                                    [activeMatchupTab]: { in: {}, out: {} }
+                                  }));
+                                }}
+                                className="text-[10px] uppercase font-bold text-gray-400 hover:text-white transition-colors underline"
+                              >
+                                Reiniciar
+                              </button>
+                            )}
+                          </div>
+
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-                            {/* Cards IN */}
-                            <div className="bg-gradient-to-br from-green-500/10 to-transparent border border-green-500/30 rounded-xl p-5 shadow-lg backdrop-blur-sm">
+                            {/* Cards IN (Banquillo) */}
+                            <div className="bg-gradient-to-br from-green-500/10 to-transparent border border-green-500/30 rounded-xl p-5 shadow-lg backdrop-blur-sm flex flex-col">
                               <h5 className="font-cinzel text-sm text-green-400 font-bold mb-4 flex items-center gap-2 drop-shadow-md">
-                                <PlusCircle size={16} className="animate-pulse" /> ENTRAN (IN)
+                                <PlusCircle size={16} /> ENTRAN (IN)
                               </h5>
-                              {activeMatchup.cardsIn.length === 0 ? (
-                                <p className="text-xs text-gray-400 italic bg-black/30 p-2 rounded">No se requieren cambios específicos.</p>
+                              {renderSideboard.length === 0 ? (
+                                <p className="text-xs text-gray-400 italic bg-black/30 p-2 rounded">El banquillo está vacío.</p>
                               ) : (
-                                <div className="space-y-3">
-                                  {activeMatchup.cardsIn.map((c, i) => (
-                                    <div 
-                                      key={i}
-                                      onMouseEnter={(e) => handleCardHover(e, c.name)}
-                                      onMouseLeave={handleCardLeave}
-                                      className="group flex items-center justify-between text-sm bg-black/60 px-4 py-3 rounded-lg border border-green-500/20 hover:border-green-400 hover:bg-green-500/10 transition-all cursor-help shadow-md"
-                                    >
-                                      <span className="text-gray-100 font-semibold group-hover:text-green-300 transition-colors">{c.name}</span>
-                                      <span className="text-green-400 font-bold bg-green-500/20 px-3 py-1 rounded-md border border-green-500/40 shadow-inner">
-                                        +{c.quantity}
-                                      </span>
-                                    </div>
-                                  ))}
+                                <div className="space-y-2 max-h-[350px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-green-500/20 scrollbar-track-transparent">
+                                  {[...renderSideboard]
+                                    .sort((a, b) => {
+                                      const aQty = currentSwaps.in[a.name] || 0;
+                                      const bQty = currentSwaps.in[b.name] || 0;
+                                      return bQty - aQty; // Active swaps at top
+                                    })
+                                    .map((c, i) => {
+                                      const swapQty = currentSwaps.in[c.name] || 0;
+                                      return (
+                                        <div 
+                                          key={i}
+                                          className={cn(
+                                            "flex items-center justify-between text-sm bg-black/60 px-3 py-2.5 rounded-lg border transition-all shadow-md",
+                                            swapQty > 0 ? "border-green-500/40 bg-green-500/5" : "border-white/5"
+                                          )}
+                                        >
+                                          <span 
+                                            onMouseEnter={(e) => handleCardHover(e, c.name)}
+                                            onMouseLeave={handleCardLeave}
+                                            className={cn(
+                                              "text-gray-100 font-medium cursor-help hover:text-green-300 transition-colors truncate max-w-[140px] sm:max-w-xs",
+                                              swapQty > 0 ? "text-green-200 font-bold" : "text-gray-400"
+                                            )}
+                                          >
+                                            {c.name}
+                                          </span>
+                                          
+                                          <div className="flex items-center gap-2 shrink-0">
+                                            <button
+                                              onClick={() => updateSwap(activeMatchupTab, 'in', c.name, swapQty - 1)}
+                                              disabled={swapQty === 0}
+                                              className={cn(
+                                                "w-6 h-6 rounded flex items-center justify-center font-bold text-xs transition-colors",
+                                                swapQty > 0 
+                                                  ? "bg-green-950/40 text-green-400 border border-green-500/30 hover:bg-green-900/60"
+                                                  : "bg-white/5 text-gray-600 cursor-not-allowed border border-white/5"
+                                              )}
+                                            >
+                                              -
+                                            </button>
+                                            <span className={cn(
+                                              "text-xs font-mono font-bold w-12 text-center",
+                                              swapQty > 0 ? "text-green-400" : "text-gray-500"
+                                            )}>
+                                              {swapQty} / {c.quantity}
+                                            </span>
+                                            <button
+                                              onClick={() => updateSwap(activeMatchupTab, 'in', c.name, swapQty + 1)}
+                                              disabled={swapQty >= c.quantity}
+                                              className={cn(
+                                                "w-6 h-6 rounded flex items-center justify-center font-bold text-xs transition-colors",
+                                                swapQty < c.quantity 
+                                                  ? "bg-green-950/40 text-green-400 border border-green-500/30 hover:bg-green-900/60"
+                                                  : "bg-white/5 text-gray-600 cursor-not-allowed border border-white/5"
+                                              )}
+                                            >
+                                              +
+                                            </button>
+                                          </div>
+                                        </div>
+                                      );
+                                    })
+                                  }
                                 </div>
                               )}
                             </div>
 
-                            {/* Cards OUT */}
-                            <div className="bg-gradient-to-br from-red-500/10 to-transparent border border-red-500/30 rounded-xl p-5 shadow-lg backdrop-blur-sm">
+                            {/* Cards OUT (Mazo Principal) */}
+                            <div className="bg-gradient-to-br from-red-500/10 to-transparent border border-red-500/30 rounded-xl p-5 shadow-lg backdrop-blur-sm flex flex-col">
                               <h5 className="font-cinzel text-sm text-red-400 font-bold mb-4 flex items-center gap-2 drop-shadow-md">
                                 <MinusCircle size={16} /> SALEN (OUT)
                               </h5>
-                              {activeMatchup.cardsOut.length === 0 ? (
-                                <p className="text-xs text-gray-400 italic bg-black/30 p-2 rounded">No se requieren cambios específicos.</p>
+                              {renderDeck.filter(c => !isLandCard(c)).length === 0 ? (
+                                <p className="text-xs text-gray-400 italic bg-black/30 p-2 rounded">No hay hechizos en el mazo principal.</p>
                               ) : (
-                                <div className="space-y-3">
-                                  {activeMatchup.cardsOut.map((c, i) => (
-                                    <div 
-                                      key={i}
-                                      onMouseEnter={(e) => handleCardHover(e, c.name)}
-                                      onMouseLeave={handleCardLeave}
-                                      className="group flex items-center justify-between text-sm bg-black/60 px-4 py-3 rounded-lg border border-red-500/20 hover:border-red-400 hover:bg-red-500/10 transition-all cursor-help shadow-md"
-                                    >
-                                      <span className="text-gray-400 font-semibold line-through group-hover:text-red-300 transition-colors">{c.name}</span>
-                                      <span className="text-red-400 font-bold bg-red-500/20 px-3 py-1 rounded-md border border-red-500/40 shadow-inner">
-                                        -{c.quantity}
-                                      </span>
-                                    </div>
-                                  ))}
+                                <div className="space-y-2 max-h-[350px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-red-500/20 scrollbar-track-transparent">
+                                  {renderDeck
+                                    .filter(c => !isLandCard(c))
+                                    .sort((a, b) => {
+                                      const aQty = currentSwaps.out[a.name] || 0;
+                                      const bQty = currentSwaps.out[b.name] || 0;
+                                      return bQty - aQty; // Active swaps at top
+                                    })
+                                    .map((c, i) => {
+                                      const swapQty = currentSwaps.out[c.name] || 0;
+                                      return (
+                                        <div 
+                                          key={i}
+                                          className={cn(
+                                            "flex items-center justify-between text-sm bg-black/60 px-3 py-2.5 rounded-lg border transition-all shadow-md",
+                                            swapQty > 0 ? "border-red-500/40 bg-red-500/5" : "border-white/5"
+                                          )}
+                                        >
+                                          <span 
+                                            onMouseEnter={(e) => handleCardHover(e, c.name)}
+                                            onMouseLeave={handleCardLeave}
+                                            className={cn(
+                                              "text-gray-100 font-medium cursor-help hover:text-red-300 transition-colors truncate max-w-[140px] sm:max-w-xs",
+                                              swapQty > 0 ? "text-red-200 line-through font-bold" : "text-gray-400"
+                                            )}
+                                          >
+                                            {c.name}
+                                          </span>
+                                          
+                                          <div className="flex items-center gap-2 shrink-0">
+                                            <button
+                                              onClick={() => updateSwap(activeMatchupTab, 'out', c.name, swapQty - 1)}
+                                              disabled={swapQty === 0}
+                                              className={cn(
+                                                "w-6 h-6 rounded flex items-center justify-center font-bold text-xs transition-colors",
+                                                swapQty > 0 
+                                                  ? "bg-red-950/40 text-red-400 border border-red-500/30 hover:bg-red-900/60"
+                                                  : "bg-white/5 text-gray-600 cursor-not-allowed border border-white/5"
+                                              )}
+                                            >
+                                              -
+                                            </button>
+                                            <span className={cn(
+                                              "text-xs font-mono font-bold w-12 text-center",
+                                              swapQty > 0 ? "text-red-400" : "text-gray-500"
+                                            )}>
+                                              {swapQty} / {c.quantity}
+                                            </span>
+                                            <button
+                                              onClick={() => updateSwap(activeMatchupTab, 'out', c.name, swapQty + 1)}
+                                              disabled={swapQty >= c.quantity}
+                                              className={cn(
+                                                "w-6 h-6 rounded flex items-center justify-center font-bold text-xs transition-colors",
+                                                swapQty < c.quantity 
+                                                  ? "bg-red-950/40 text-red-400 border border-red-500/30 hover:bg-red-900/60"
+                                                  : "bg-white/5 text-gray-600 cursor-not-allowed border border-white/5"
+                                              )}
+                                            >
+                                              +
+                                            </button>
+                                          </div>
+                                        </div>
+                                      );
+                                    })
+                                  }
                                 </div>
                               )}
                             </div>
@@ -1890,275 +2543,42 @@ export default function DeckForge() {
                 </div>
               </div>
 
-              <div className="space-y-6 font-sans">
-                {auditResult && (
-                  <div className="bg-black/60 border-2 border-purple-500/30 rounded-2xl p-6 shadow-[0_0_20px_rgba(168,85,247,0.1)] relative overflow-hidden backdrop-blur-md">
-                    <div className="absolute top-0 right-0 w-24 h-24 bg-purple-500/5 rounded-full blur-2xl pointer-events-none" />
-                    
-                    <div className="flex items-center justify-between mb-4 border-b border-purple-500/20 pb-3">
-                      <div className="flex items-center gap-2">
-                        <Activity className="text-purple-300 w-5 h-5 animate-pulse" />
-                        <h4 className="font-cinzel text-purple-300 font-bold text-sm uppercase tracking-wider">Veredicto del Juez</h4>
-                      </div>
-                      <div className="flex items-baseline gap-1">
-                        <span className="text-2xl font-black text-white drop-shadow-[0_0_6px_rgba(168,85,247,0.4)]">{auditResult.score}</span>
-                        <span className="text-xs text-purple-400/50">/10</span>
-                      </div>
-                    </div>
-                    
-                    <p className="text-xs text-gray-300 italic font-serif leading-relaxed mb-4 bg-black/40 p-3 rounded-xl border border-white/5 shadow-inner">
-                      "{auditResult.verdict}"
-                    </p>
-
-                    <div className="space-y-3 max-h-[200px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-purple-500/20 scrollbar-track-transparent">
-                      {auditResult.criticalAlerts && auditResult.criticalAlerts.length > 0 && (
-                        <div className="space-y-1 text-left">
-                          <p className="text-[9px] uppercase font-bold text-red-400 tracking-wider flex items-center gap-1">
-                            <AlertTriangle size={10} /> Alertas Críticas
-                          </p>
-                          <ul className="list-disc pl-4 text-[11px] text-red-200/80 space-y-0.5">
-                            {auditResult.criticalAlerts.map((a, i) => <li key={i}>{typeof a === 'object' ? a.text || JSON.stringify(a) : a}</li>)}
-                          </ul>
-                        </div>
-                      )}
-                      
-                      {auditResult.warnings && auditResult.warnings.length > 0 && (
-                        <div className="space-y-1 text-left">
-                          <p className="text-[9px] uppercase font-bold text-amber-400 tracking-wider flex items-center gap-1">
-                            <AlertTriangle size={10} /> Advertencias
-                          </p>
-                          <ul className="list-disc pl-4 text-[11px] text-amber-200/80 space-y-0.5">
-                            {auditResult.warnings.map((w, i) => <li key={i}>{typeof w === 'object' ? w.text || JSON.stringify(w) : w}</li>)}
-                          </ul>
-                        </div>
-                      )}
-                      
-                      {auditResult.suggestions && auditResult.suggestions.length > 0 && (
-                        <div className="space-y-1 text-left">
-                          <p className="text-[9px] uppercase font-bold text-emerald-400 tracking-wider flex items-center gap-1">
-                            <CheckCircle2 size={10} /> Opciones de Mejora
-                          </p>
-                          <ul className="list-disc pl-4 text-[11px] text-emerald-200/80 space-y-0.5">
-                            {auditResult.suggestions.map((s, i) => <li key={i}>{typeof s === 'object' ? s.text || JSON.stringify(s) : s}</li>)}
-                          </ul>
-                        </div>
-                      )}
-                    </div>
-                    
-                    <div className="flex gap-2 mt-4 pt-3 border-t border-purple-500/10">
-                      <button 
-                        onClick={() => setShowAuditModal(true)}
-                        className="flex-1 py-1.5 bg-purple-950/20 hover:bg-purple-900/40 border border-purple-500/30 hover:border-purple-400 text-purple-200 hover:text-white rounded-lg text-[10px] uppercase font-bold tracking-wider transition-all text-center"
-                      >
-                        🔍 Ver Completo
-                      </button>
-                      <button 
-                        onClick={() => setAuditResult(null)}
-                        className="py-1.5 px-3 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 text-gray-400 hover:text-white rounded-lg text-[10px] uppercase font-bold tracking-wider transition-all text-center"
-                        title="Limpiar reporte"
-                      >
-                        Limpiar
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                <div className="leather-panel p-6 shadow-2xl">
-                  <h4 className="font-cinzel text-magic-gold text-lg mb-6 flex items-center gap-2">
-                    <Target className="w-5 h-5" /> Potencial Bélico
-                  </h4>
-                  <RadarChart data={{
-                    Velocidad: 8, Control: 7, Poder: 8, Complejidad: 7, Resiliencia: 6
-                  }} />
-                </div>
-                <ManaCurve deck={renderDeck} archetype={aiMetadata?.archetype} />
-
-                {(aiMetadata || pocketGuide) && (
-                  <div className="parchment-scroll shadow-2xl">
-                    <div className="parchment-content space-y-6">
-                      <h4 className="font-cinzel text-[#3d1a10] text-xl mb-5 flex items-center gap-2 border-b-2 border-[#4a3318]/25 pb-2">
-                        <Scroll size={22} className="text-[#3d1a10]" /> Guía del Maestro
-                      </h4>
-                      
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-2">
-                        <div className="space-y-2">
-                          <p className="text-[10px] font-bold uppercase tracking-wider text-[#3d1a10]/80 flex items-center gap-1">
-                            <Activity size={10} /> Estrategia General
-                          </p>
-                          <p className="text-[12px] text-[#1a0f05] leading-relaxed italic border-l-2 border-[#3d1a10]/30 pl-3 bg-black/5 py-2 pr-2 rounded-r-lg">
-                            "{pocketGuide?.plan || aiMetadata?.strategy || 'Estrategia general no descifrada. Utiliza el botón de abajo para expandir.'}"
-                          </p>
-                        </div>
-                        
-                        <div className="space-y-2">
-                          <p className="text-[10px] font-bold uppercase tracking-wider text-[#3d1a10]/80 flex items-center gap-1">
-                            <Lightbulb size={10} /> Reglas de Mulligan
-                          </p>
-                          <p className="text-[12px] text-[#1a0f05] leading-relaxed bg-black/5 p-3 rounded-lg border border-[#4a3318]/10">
-                            {pocketGuide?.mulligan || aiMetadata?.mulligan || 'Conserva manos con al menos 2-3 tierras de tus colores y juego activo en los turnos 1 y 2.'}
-                          </p>
-                        </div>
-                      </div>
-
-                      {sideboardStrategy && (
-                        <div className="pt-5 border-t-2 border-dashed border-[#4a3318]/20 space-y-4">
-                          <p className="text-[10px] font-bold uppercase tracking-wider text-[#3d1a10]/90 flex items-center gap-1">
-                            <Shield size={12} className="text-[#3d1a10]" /> Plan de Banquilleo
-                          </p>
-                          
-                          {/* Renderizado Estructurado y Premium del Banquillo */}
-                          {(() => {
-                            const sections = [];
-                            let currentSection = null;
-                            let currentMatchup = null;
-
-                            const lines = sideboardStrategy.split('\n');
-                            for (let line of lines) {
-                              const trimmed = line.trim();
-                              if (!trimmed) continue;
-
-                              if (trimmed.startsWith('===') && trimmed.endsWith('===')) {
-                                if (currentSection) {
-                                  if (currentMatchup) {
-                                    currentSection.matchups.push(currentMatchup);
-                                    currentMatchup = null;
-                                  }
-                                  sections.push(currentSection);
-                                }
-                                currentSection = {
-                                  title: trimmed.replace(/===/g, '').trim(),
-                                  matchups: []
-                                };
-                                continue;
-                              }
-
-                              if (trimmed.startsWith('Guía Táctica')) {
-                                currentSection = {
-                                  title: 'Guía de Emparejamientos (Matchups)',
-                                  matchups: []
-                                };
-                                continue;
-                              }
-
-                              if (trimmed.startsWith('- Contra ')) {
-                                if (currentMatchup && currentSection) {
-                                  currentSection.matchups.push(currentMatchup);
-                                }
-                                currentMatchup = {
-                                  name: trimmed.substring(9).replace(/:$/, '').trim(),
-                                  in: '',
-                                  out: ''
-                                };
-                                continue;
-                              }
-
-                              if (trimmed.startsWith('IN:')) {
-                                if (currentMatchup) {
-                                  currentMatchup.in = trimmed.substring(3).trim();
-                                }
-                                continue;
-                              }
-
-                              if (trimmed.startsWith('OUT:')) {
-                                if (currentMatchup) {
-                                  currentMatchup.out = trimmed.substring(4).trim();
-                                }
-                                continue;
-                              }
-                            }
-
-                            if (currentMatchup && currentSection) {
-                              currentSection.matchups.push(currentMatchup);
-                            }
-                            if (currentSection) {
-                              sections.push(currentSection);
-                            }
-
-                            return (
-                              <div className="space-y-6">
-                                {sections.map((sec, secIdx) => {
-                                  const isSwaps = sec.title.toLowerCase().includes('swaps');
-                                  return (
-                                    <div key={secIdx} className="space-y-3">
-                                      <h5 className="font-cinzel text-[11px] font-bold uppercase tracking-wider text-[#3d1a10] border-b border-[#4a3318]/15 pb-1 flex items-center gap-1.5">
-                                        {isSwaps ? <Target size={11} className="text-[#a04000]" /> : <Shield size={11} className="text-[#4a3318]" />}
-                                        {sec.title}
-                                      </h5>
-                                      <div className="grid grid-cols-1 gap-3">
-                                        {sec.matchups.map((match, mIdx) => (
-                                          <div key={mIdx} className="p-3.5 bg-[#4a3318]/5 rounded-xl border border-[#4a3318]/15 space-y-2.5 transition-all hover:bg-[#4a3318]/10">
-                                            <p className="text-[11px] font-bold text-[#2d1e12] flex items-center gap-1.5">
-                                              <span className="w-1.5 h-1.5 rounded-full bg-[#3d1a10]" />
-                                              Contra {match.name}
-                                            </p>
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-[11px] leading-relaxed">
-                                              {match.in && (
-                                                <div className="p-2 bg-emerald-800/5 border border-emerald-800/15 rounded-lg flex flex-col">
-                                                  <span className="text-[9px] font-bold text-emerald-800 uppercase tracking-wider mb-0.5">IN (Poner)</span>
-                                                  <span className="text-[#1a0f05] font-medium">{match.in}</span>
-                                                </div>
-                                              )}
-                                              {match.out && (
-                                                <div className="p-2 bg-red-800/5 border border-red-800/15 rounded-lg flex flex-col">
-                                                  <span className="text-[9px] font-bold text-red-800 uppercase tracking-wider mb-0.5">OUT (Quitar)</span>
-                                                  <span className="text-[#3d1a10]">{match.out}</span>
-                                                </div>
-                                              )}
-                                            </div>
-                                          </div>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            );
-                          })()}
-                        </div>
-                      )}
-
-                      {aiMetadata?.recommendations && aiMetadata.recommendations.length > 0 && (
-                        <div className="pt-5 border-t-2 border-dashed border-[#4a3318]/20">
-                          <p className="text-[10px] font-bold uppercase tracking-wider text-[#3d1a10]/60 mb-3 flex items-center gap-1">
-                            <Sparkles size={12} className="text-[#3d1a10]" /> Recomendaciones de Expertos
-                          </p>
-                          <div className="space-y-3">
-                            {aiMetadata.recommendations.map((rec, i) => (
-                              <div key={i} className="group p-3 bg-black/5 rounded-xl border border-[#4a3318]/10">
-                                <p className="text-[11px] font-bold text-[#2d1e12] flex items-center gap-2 mb-1">
-                                  <span className="w-4 h-4 rounded-full bg-[#3d1a10]/10 flex items-center justify-center text-[9px] group-hover:bg-[#3d1a10]/20 transition-colors font-sans">
-                                    {i + 1}
-                                  </span>
-                                  {rec.title}
-                                </p>
-                                <p className="text-[11px] text-[#4a3318]/85 leading-relaxed pl-6 italic">
-                                  {rec.description}
-                                </p>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-                
-                {!pocketGuide && (
-                  <button 
-                    onClick={generateGuide} 
-                    disabled={isGeneratingGuide}
-                    className="w-full btn-magic-glass btn-glass-gold py-4 flex items-center justify-center gap-2"
-                  >
-                    {isGeneratingGuide ? <Zap className="animate-spin" size={16} /> : <PenTool size={16} />}
-                    {isGeneratingGuide ? 'Descifrando...' : 'Generar Guía Estratégica'}
-                  </button>
-                )}
+              {/* Desktop Sidebar Wrapper */}
+              <div className="hidden lg:block lg:col-span-1 space-y-6 font-sans">
+                {renderSidebarContent()}
               </div>
             </div>
 
             <HandSimulator deck={renderDeck} isOpen={showHandSim} onClose={() => setShowHandSim(false)} aiConfig={aiConfig} />
             <SynergyGraphVisualizer deck={renderDeck} isOpen={showRagGraph} onClose={() => setShowRagGraph(false)} archetype={aiMetadata?.archetype || lastFormData?.archetype} colors={lastFormData?.colores} />
             <DeckVisualExporter deck={renderDeck} sideboard={renderSideboard} isOpen={showVisualGrid} onClose={() => setShowVisualGrid(false)} deckName={aiMetadata?.deckName || 'Mazo Forjado'} archetype={aiMetadata?.archetype || lastFormData?.archetype} colors={lastFormData?.colores} formData={lastFormData} onOptimize={handleOptimizeDeck} />
+
+            {/* Mobile Metrics FAB and BottomSheet */}
+            {isMobile && mode === 'deck' && (
+              <>
+                <motion.button
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => {
+                    vibrateTouch();
+                    setShowMobileMetrics(true);
+                  }}
+                  className="fixed bottom-24 right-4 z-40 bg-gradient-to-r from-[#B8860B] to-[#D4AF37] text-black w-14 h-14 rounded-full flex items-center justify-center shadow-[0_4px_20px_rgba(212,175,55,0.4)] border border-[#D4AF37]/50 active:scale-95 cursor-pointer"
+                >
+                  <Activity size={24} className="text-black" />
+                </motion.button>
+
+                <BottomSheet
+                  isOpen={showMobileMetrics}
+                  onClose={() => setShowMobileMetrics(false)}
+                  title="Métricas y Guía del Mazo"
+                >
+                  <div className="space-y-6 font-sans pb-8">
+                    {renderSidebarContent()}
+                  </div>
+                </BottomSheet>
+              </>
+            )}
 
             {/* Modal de Feedback (Mejora 5) */}
             <AnimatePresence>
@@ -2581,22 +3001,39 @@ export default function DeckForge() {
 
       {/* Floating Card Preview for Oracle */}
       <AnimatePresence>
-        {hoveredCard && (
+        {hoveredCard && hoveredCardImgUrl && (
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
             className="fixed z-[999] pointer-events-none rounded-xl overflow-hidden shadow-2xl border border-[#D4AF37]/40 bg-black/80 backdrop-blur-md"
-            style={{ 
-              left: hoverPos.x + 20, 
-              top: Math.min(hoverPos.y - 150, window.innerHeight - 360) 
-            }}
+            style={(() => {
+              const tooltipWidth = 240;
+              const tooltipHeight = 336;
+              const margin = 20;
+              
+              let left = hoverPos.x + margin;
+              if (typeof window !== 'undefined' && left + tooltipWidth > window.innerWidth - 10) {
+                left = hoverPos.x - tooltipWidth - margin;
+              }
+              left = Math.max(10, left);
+              
+              let top = hoverPos.y - tooltipHeight / 2;
+              if (typeof window !== 'undefined') {
+                top = Math.max(10, Math.min(top, window.innerHeight - tooltipHeight - 10));
+              }
+              
+              return { 
+                left, 
+                top, 
+                width: `${tooltipWidth}px`
+              };
+            })()}
           >
             <img 
-              src={`https://api.scryfall.com/cards/named?exact=${encodeURIComponent(hoveredCard)}&format=image`}
+              src={hoveredCardImgUrl}
               alt={hoveredCard}
-              className="w-[240px] h-auto rounded-xl shadow-2xl"
-              onError={(e) => e.target.style.display = 'none'}
+              className="w-full h-auto rounded-xl shadow-2xl"
             />
           </motion.div>
         )}

@@ -195,6 +195,45 @@ export function calculateManaSources(deck) {
   if (!Array.isArray(deck)) return { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 };
   
   const sources = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 };
+
+  // Determine the colors actually used by non-land cards in the deck
+  const usedColors = new Set();
+  deck.forEach(card => {
+    if (!card) return;
+    const typeLine = (card.type_line || card.type || '').toLowerCase();
+    const isLandCard = typeLine.includes('land') || card.category === 'Land';
+    
+    if (!isLandCard) {
+      const cost = (card.mana_cost || '').toUpperCase();
+      if (cost.includes('W')) usedColors.add('W');
+      if (cost.includes('U')) usedColors.add('U');
+      if (cost.includes('B')) usedColors.add('B');
+      if (cost.includes('R')) usedColors.add('R');
+      if (cost.includes('G')) usedColors.add('G');
+      
+      if (Array.isArray(card.color_identity)) {
+        card.color_identity.forEach(c => {
+          const up = c.toUpperCase();
+          if (['W', 'U', 'B', 'R', 'G'].includes(up)) {
+            usedColors.add(up);
+          }
+        });
+      }
+      
+      if (Array.isArray(card.card_faces)) {
+        card.card_faces.forEach(face => {
+          const fCost = (face.mana_cost || '').toUpperCase();
+          if (fCost.includes('W')) usedColors.add('W');
+          if (fCost.includes('U')) usedColors.add('U');
+          if (fCost.includes('B')) usedColors.add('B');
+          if (fCost.includes('R')) usedColors.add('R');
+          if (fCost.includes('G')) usedColors.add('G');
+        });
+      }
+    }
+  });
+
+  const colorsToIncrement = usedColors.size > 0 ? Array.from(usedColors) : ['W', 'U', 'B', 'R', 'G'];
   
   deck.forEach(card => {
     if (!card) return;
@@ -214,11 +253,9 @@ export function calculateManaSources(deck) {
       name.includes('arcane signet') || name.includes('chromatic lantern');
       
     if (producesAnyColor) {
-      sources.W += qty;
-      sources.U += qty;
-      sources.B += qty;
-      sources.R += qty;
-      sources.G += qty;
+      colorsToIncrement.forEach(col => {
+        sources[col] += qty;
+      });
       return; // Si da todos los colores, ya hemos terminado con esta carta
     }
     
@@ -273,7 +310,11 @@ export function calculateManaSources(deck) {
       if (/verdant catacombs/i.test(name)) { sources.B += qty; sources.G += qty; }
       if (/arid mesa/i.test(name)) { sources.R += qty; sources.W += qty; }
       if (/misty rainforest/i.test(name)) { sources.G += qty; sources.U += qty; }
-      if (/prismatic vista/i.test(name)) { sources.W += qty; sources.U += qty; sources.B += qty; sources.R += qty; sources.G += qty; }
+      if (/prismatic vista/i.test(name)) {
+        colorsToIncrement.forEach(col => {
+          sources[col] += qty;
+        });
+      }
     }
   });
   
@@ -1014,127 +1055,163 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
     }
     let totalDualsInjected = 0;
 
-    // A. FETCH LANDS INJECTION (Only Legacy and Modern)
-    if (format === 'LEGACY' || format === 'MODERN') {
+    // A. & B. FETCH & DUAL LANDS INJECTION (Heurística Pro Tour para Legacy y Modern vs Pioneer/Standard)
+    if ((format === 'LEGACY' || format === 'MODERN') && isMulticolor) {
+      let targetFetchCount = 4;
+      let targetShockCount = 3;
+      if (actualColors.length === 2) {
+        targetFetchCount = 4;
+        targetShockCount = 2;
+      } else if (actualColors.length === 3) {
+        targetFetchCount = 4;
+        targetShockCount = 3;
+      } else if (actualColors.length >= 4) {
+        targetFetchCount = 5;
+        targetShockCount = 3;
+      }
+
+      // 1. Fetch Lands
       const validFetches = fetchLands.filter(f => f.colors.every(c => actualColors.includes(c)));
-      
-      // Sort fetches by the sum of their colors' pip counts to prioritize dominant colors
-      validFetches.sort((a, b) => {
+      validFetches.forEach(f => {
+        f.score = (pipBalance[f.colors[0]] || 0) + (pipBalance[f.colors[1]] || 0);
+        f.allocated = 0;
+      });
+      validFetches.sort((a, b) => b.score - a.score);
+
+      let fetchesAllocated = 0;
+      validFetches.forEach(f => {
+        if (fetchesAllocated < targetFetchCount && f.score > 0 && remainingLands > currentMinBasics) {
+          f.allocated = 1;
+          fetchesAllocated++;
+        }
+      });
+      for (let i = 0; i < validFetches.length; i++) {
+        const f = validFetches[i];
+        while (fetchesAllocated < targetFetchCount && f.allocated < 4 && f.score > 0 && remainingLands > currentMinBasics) {
+          f.allocated++;
+          fetchesAllocated++;
+        }
+      }
+
+      validFetches.forEach(f => {
+        if (f.allocated > 0) {
+          manaBase.push({
+            name: f.name,
+            quantity: f.allocated,
+            category: 'Land',
+            type_line: 'Land — Fetch',
+            color_identity: f.colors
+          });
+          remainingLands -= f.allocated;
+          console.log(`[MANABASE GENERATOR] Inyectada fetch land Pro: ${f.allocated}x ${f.name}`);
+        }
+      });
+
+      // 2. Shock Lands / Original Duals
+      const targetDuals = (format === 'LEGACY') ? legacyDuals : shockLands;
+      const validDuals = targetDuals.filter(d => d.colors.every(c => actualColors.includes(c)));
+      validDuals.forEach(d => {
+        d.score = (pipBalance[d.colors[0]] || 0) + (pipBalance[d.colors[1]] || 0);
+        d.allocated = 0;
+      });
+      validDuals.sort((a, b) => b.score - a.score);
+
+      let shocksAllocated = 0;
+      validDuals.forEach(d => {
+        if (shocksAllocated < targetShockCount && d.score > 0 && remainingLands > currentMinBasics) {
+          d.allocated = 1;
+          shocksAllocated++;
+        }
+      });
+      for (let i = 0; i < validDuals.length; i++) {
+        const d = validDuals[i];
+        while (shocksAllocated < targetShockCount && d.allocated < 4 && d.score > 0 && remainingLands > currentMinBasics) {
+          d.allocated++;
+          shocksAllocated++;
+        }
+      }
+
+      validDuals.forEach(d => {
+        if (d.allocated > 0) {
+          manaBase.push({
+            name: d.name,
+            quantity: d.allocated,
+            category: 'Land',
+            type_line: (format === 'LEGACY') ? 'Land — Original Dual' : 'Land — Shock',
+            color_identity: d.colors
+          });
+          remainingLands -= d.allocated;
+          console.log(`[MANABASE GENERATOR] Inyectada tierra dual Pro: ${d.allocated}x ${d.name}`);
+        }
+      });
+    } else if (isMulticolor) {
+      // Fallback para Pioneer o Standard sin fetches, o si no hay fetches en general
+      const targetDuals = (format === 'LEGACY') ? legacyDuals : (format === 'STANDARD' ? painLands : shockLands);
+      const validDuals = targetDuals.filter(d => d.colors.every(c => actualColors.includes(c)));
+
+      validDuals.sort((a, b) => {
         const sumA = a.colors.reduce((sum, c) => sum + (pipBalance[c] || 0), 0);
         const sumB = b.colors.reduce((sum, c) => sum + (pipBalance[c] || 0), 0);
         return sumB - sumA;
       });
 
-      const maxFetches = (actualColors.length >= 3) ? 8 : 4;
-      let fetchesAllocated = 0;
-
-      validFetches.forEach(fetch => {
-        if (fetchesAllocated >= maxFetches) return;
-        const hasReq = fetch.colors.some(c => karstenRequirements[c]);
-        
-        let quantity;
-        if (actualColors.length >= 4) {
-          quantity = 1; // Toolbox approach: 1 copy of each fetch to cover all color pairs
-        } else if (actualColors.length === 3) {
-          quantity = hasReq ? 4 : 3; // Run 4 copies of critical fetches, 3 for others
-        } else {
-          quantity = 4; // In 2-color, run 4 of each
-        }
-
-        // Ensure basic lands guarantee
-        quantity = Math.min(quantity, remainingLands - currentMinBasics);
-        quantity = Math.min(quantity, maxFetches - fetchesAllocated);
-
-        if (quantity > 0) {
-          manaBase.push({
-            name: fetch.name,
-            quantity: quantity,
-            category: 'Land',
-            type_line: 'Land — Fetch',
-            color_identity: fetch.colors
+      const dualsToInject = validDuals.map(d => ({ ...d, quantityToInject: 0 }));
+      const coveredColors = new Set();
+      
+      dualsToInject.forEach(dual => {
+        if (totalDualsInjected >= maxTotalDuals || remainingLands <= currentMinBasics) return;
+        const hasUncoveredColor = dual.colors.some(c => actualColors.includes(c) && !coveredColors.has(c));
+        if (hasUncoveredColor) {
+          dual.quantityToInject = 1;
+          dual.colors.forEach(c => {
+            if (actualColors.includes(c)) coveredColors.add(c);
           });
-          remainingLands -= quantity;
-          fetchesAllocated += quantity;
-          console.log(`[MANABASE GENERATOR] Inyectada fetch land: ${quantity}x ${fetch.name}`);
+          totalDualsInjected += 1;
+          remainingLands -= 1;
+        }
+      });
+
+      dualsToInject.forEach(dual => {
+        if (totalDualsInjected >= maxTotalDuals || remainingLands <= currentMinBasics) return;
+        if (dual.quantityToInject === 0) {
+          dual.quantityToInject = 1;
+          dual.colors.forEach(c => {
+            if (actualColors.includes(c)) coveredColors.add(c);
+          });
+          totalDualsInjected += 1;
+          remainingLands -= 1;
+        }
+      });
+
+      dualsToInject.forEach(dual => {
+        if (totalDualsInjected >= maxTotalDuals || remainingLands <= currentMinBasics) return;
+        const hasReq = dual.colors.some(c => karstenRequirements[c]);
+        const maxAllowed = (actualColors.length === 2 || hasReq) ? maxCopiesPerUnique : Math.min(2, maxCopiesPerUnique);
+        const remainingAllowed = maxAllowed - dual.quantityToInject;
+        
+        const qty = Math.min(remainingAllowed, remainingLands - currentMinBasics);
+        const qtyCapped = Math.min(qty, maxTotalDuals - totalDualsInjected);
+
+        if (qtyCapped > 0) {
+          dual.quantityToInject += qtyCapped;
+          totalDualsInjected += qtyCapped;
+          remainingLands -= qtyCapped;
+        }
+      });
+
+      dualsToInject.forEach(dual => {
+        if (dual.quantityToInject > 0) {
+          manaBase.push({
+            name: dual.name,
+            quantity: dual.quantityToInject,
+            category: 'Land',
+            type_line: (format === 'LEGACY') ? 'Land — Original Dual' : (format === 'STANDARD' ? 'Land — Pain' : 'Land — Shock'),
+            color_identity: dual.colors
+          });
+          console.log(`[MANABASE GENERATOR] Inyectada tierra dual: ${dual.quantityToInject}x ${dual.name}`);
         }
       });
     }
-
-    // B. DUAL LANDS / SHOCKLANDS INJECTION
-    const targetDuals = (format === 'LEGACY') ? legacyDuals : (format === 'STANDARD' ? painLands : shockLands);
-    const validDuals = targetDuals.filter(d => d.colors.every(c => actualColors.includes(c)));
-
-    // Sort duals by the sum of their colors' pip counts to prioritize dominant colors
-    validDuals.sort((a, b) => {
-      const sumA = a.colors.reduce((sum, c) => sum + (pipBalance[c] || 0), 0);
-      const sumB = b.colors.reduce((sum, c) => sum + (pipBalance[c] || 0), 0);
-      return sumB - sumA;
-    });
-
-    // Two-pass injection to ensure we have at least 1 of each dual land for fetches, before adding second copies
-    const dualsToInject = validDuals.map(d => ({ ...d, quantityToInject: 0 }));
-    
-    // Pass 1: Greedy Color Coverage Sweep
-    const coveredColors = new Set();
-    
-    // Pass 1a: Greedy pass to cover all colors in actualColors with at least one dual land
-    dualsToInject.forEach(dual => {
-      if (totalDualsInjected >= maxTotalDuals || remainingLands <= currentMinBasics) return;
-      
-      const hasUncoveredColor = dual.colors.some(c => actualColors.includes(c) && !coveredColors.has(c));
-      if (hasUncoveredColor) {
-        dual.quantityToInject = 1;
-        dual.colors.forEach(c => {
-          if (actualColors.includes(c)) coveredColors.add(c);
-        });
-        totalDualsInjected += 1;
-        remainingLands -= 1;
-      }
-    });
-
-    // Pass 1b: Inject 1 copy of remaining valid dual lands up to maxTotalDuals (prioritizing sorted order)
-    dualsToInject.forEach(dual => {
-      if (totalDualsInjected >= maxTotalDuals || remainingLands <= currentMinBasics) return;
-      if (dual.quantityToInject === 0) {
-        dual.quantityToInject = 1;
-        dual.colors.forEach(c => {
-          if (actualColors.includes(c)) coveredColors.add(c);
-        });
-        totalDualsInjected += 1;
-        remainingLands -= 1;
-      }
-    });
-
-    // Pass 2: Inject remaining copies up to maxCopiesPerUnique
-    dualsToInject.forEach(dual => {
-      if (totalDualsInjected >= maxTotalDuals || remainingLands <= currentMinBasics) return;
-      const hasReq = dual.colors.some(c => karstenRequirements[c]);
-      const maxAllowed = (actualColors.length === 2 || hasReq) ? maxCopiesPerUnique : Math.min(2, maxCopiesPerUnique);
-      const remainingAllowed = maxAllowed - dual.quantityToInject;
-      
-      const qty = Math.min(remainingAllowed, remainingLands - currentMinBasics);
-      const qtyCapped = Math.min(qty, maxTotalDuals - totalDualsInjected);
-
-      if (qtyCapped > 0) {
-        dual.quantityToInject += qtyCapped;
-        totalDualsInjected += qtyCapped;
-        remainingLands -= qtyCapped;
-      }
-    });
-
-    // Actually push to manaBase
-    dualsToInject.forEach(dual => {
-      if (dual.quantityToInject > 0) {
-        manaBase.push({
-          name: dual.name,
-          quantity: dual.quantityToInject,
-          category: 'Land',
-          type_line: (format === 'LEGACY') ? 'Land — Original Dual' : (format === 'STANDARD' ? 'Land — Pain' : 'Land — Shock'),
-          color_identity: dual.colors
-        });
-        console.log(`[MANABASE GENERATOR] Inyectada tierra dual: ${dual.quantityToInject}x ${dual.name}`);
-      }
-    });
 
     // C. TRIOMES INJECTION (Only Modern/Pioneer and 3+ Colors)
     const curve = (formData?.curveProfile || '').toLowerCase();
@@ -1787,4 +1864,77 @@ export function getLandColors(landName) {
   if (nameLower.includes("waterlogged grove")) res.push("G", "U");
 
   return [...new Set(res)];
+}
+
+export function checkCardManaRequirement(card, sources, deckSize = 60) {
+  const result = { ok: true, required: 0, actual: 0, deficit: 0, color: '' };
+  if (!card) return result;
+  
+  const cost = (card.mana_cost || card.cost || '').toUpperCase();
+  const cmc = Number(card.mana_value !== undefined ? card.mana_value : (card.cmc || 0));
+  
+  if (!cost || card.category === 'Land') return result;
+  
+  const colorsToCheck = ['W', 'U', 'B', 'R', 'G'];
+  let maxDeficit = 0;
+  let targetColor = '';
+  let targetReq = 0;
+  let targetAct = 0;
+  
+  colorsToCheck.forEach(color => {
+    const symbol = `{${color}}`;
+    const pipsCount = (cost.split(symbol).length - 1);
+    if (pipsCount <= 0) return;
+    
+    let req = 0;
+    if (pipsCount === 1) {
+      if (cmc <= 1) {
+        req = 14;
+      } else if (cmc === 2) {
+        req = 13;
+      } else if (cmc === 3) {
+        req = 12;
+      } else if (cmc === 4) {
+        req = 11;
+      } else {
+        req = 10;
+      }
+    } else if (pipsCount === 2) {
+      if (cmc === 2) {
+        req = 21;
+      } else if (cmc === 3) {
+        req = 18;
+      } else if (cmc === 4) {
+        req = 16;
+      } else {
+        req = 14;
+      }
+    } else if (pipsCount >= 3) {
+      req = 22;
+    }
+    
+    if (deckSize === 80) {
+      req = Math.round(req * (80 / 60));
+    }
+    
+    const actualSources = sources ? (sources[color] || 0) : 0;
+    const deficit = Math.max(0, req - actualSources);
+    
+    if (deficit > maxDeficit || (deficit === maxDeficit && req > targetReq)) {
+      maxDeficit = deficit;
+      targetColor = color;
+      targetReq = req;
+      targetAct = actualSources;
+    }
+  });
+  
+  if (maxDeficit > 0) {
+    result.ok = false;
+    result.required = targetReq;
+    result.actual = targetAct;
+    result.deficit = maxDeficit;
+    result.color = targetColor;
+  }
+  
+  return result;
 }

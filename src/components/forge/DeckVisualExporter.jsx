@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Sparkles, Image, Check, Heart, Shield, Award, HelpCircle, Activity } from 'lucide-react';
 import { cn } from '../../utils/cn';
 import { auditarMazo } from '../../services/deckAuditorService';
+import { useIsMobile } from '../../hooks/useIsMobile';
 
 /**
  * DeckVisualExporter: Generador de Grid Visual premium (Social Decklist Card)
@@ -13,6 +14,23 @@ export default function DeckVisualExporter({ deck, sideboard = [], isOpen, onClo
   const [activeTab, setActiveTab] = useState('main'); // 'main' | 'sideboard' | 'audit'
   const [likeCount, setLikeCount] = useState(12);
   const [hasLiked, setHasLiked] = useState(false);
+  const isMobile = useIsMobile();
+  const [expandedCols, setExpandedCols] = useState({
+    '0': false,
+    '1': false,
+    '2': false,
+    '3': false,
+    '4': false,
+    '5+': false,
+    'Tierras': true
+  });
+
+  const toggleCol = (key) => {
+    setExpandedCols(prev => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
+  };
 
   const auditReport = useMemo(() => {
     return auditarMazo(deck || [], sideboard || [], formData);
@@ -89,56 +107,56 @@ export default function DeckVisualExporter({ deck, sideboard = [], isOpen, onClo
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/95 backdrop-blur-xl">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-2 md:p-4 bg-black/95 backdrop-blur-xl">
       <motion.div
         initial={{ scale: 0.95, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
-        className="bg-[#0c0a09] border-2 border-grimorio-gold/30 rounded-3xl w-full max-w-6xl p-6 shadow-[0_0_50px_rgba(0,0,0,0.8)] overflow-hidden flex flex-col max-h-[92vh] relative"
+        className="bg-[#0c0a09] border-2 border-grimorio-gold/30 md:rounded-3xl rounded-xl w-full max-w-full md:max-w-6xl p-4 md:p-6 shadow-[0_0_50px_rgba(0,0,0,0.8)] overflow-hidden flex flex-col h-full md:h-auto max-h-[100vh] md:max-h-[92vh] relative"
       >
         {/* Decorative subtle border line */}
         <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-grimorio-gold to-transparent" />
 
         {/* Header */}
-        <div className="flex justify-between items-center border-b border-white/5 pb-4 mb-4 shrink-0">
+        <div className="flex flex-col md:flex-row md:justify-between md:items-center border-b border-white/5 pb-4 mb-4 shrink-0 gap-3">
           <div className="flex items-center gap-3">
-            <Image className="text-grimorio-gold w-6 h-6 animate-pulse" />
+            <Image className="text-grimorio-gold w-6 h-6 animate-pulse shrink-0" />
             <div>
-              <h3 className="font-cinzel text-lg text-grimorio-gold tracking-wide">
+              <h3 className="font-cinzel text-base md:text-lg text-grimorio-gold tracking-wide">
                 Expositor Visual del Duelista
               </h3>
-              <p className="text-[10px] text-gray-500 font-sans tracking-wider uppercase">
+              <p className="text-[9px] md:text-[10px] text-gray-500 font-sans tracking-wider uppercase">
                 Social Decklist Card • Grid de costura por curva de maná
               </p>
             </div>
           </div>
           
-          <div className="flex items-center gap-3">
+          <div className="flex items-center justify-between md:justify-end gap-3 w-full md:w-auto">
             {/* Selector de Pestañas Mazo/Side/Audit */}
-            <div className="flex bg-white/5 border border-white/10 rounded-lg p-0.5 text-[10px]">
+            <div className="flex bg-white/5 border border-white/10 rounded-lg p-0.5 text-[9px] md:text-[10px]">
               <button 
                 onClick={() => setActiveTab('main')}
-                className={cn("px-3 py-1.5 rounded transition-all font-bold font-sans uppercase", activeTab === 'main' ? "bg-grimorio-gold text-black shadow-lg" : "text-gray-400 hover:text-gray-200")}
+                className={cn("px-2.5 py-1.5 rounded transition-all font-bold font-sans uppercase", activeTab === 'main' ? "bg-grimorio-gold text-black shadow-lg" : "text-gray-400 hover:text-gray-200")}
               >
                 Mazo Principal
               </button>
               <button 
                 onClick={() => setActiveTab('sideboard')}
-                className={cn("px-3 py-1.5 rounded transition-all font-bold font-sans uppercase", activeTab === 'sideboard' ? "bg-grimorio-gold text-black shadow-lg" : "text-gray-400 hover:text-gray-200")}
+                className={cn("px-2.5 py-1.5 rounded transition-all font-bold font-sans uppercase", activeTab === 'sideboard' ? "bg-grimorio-gold text-black shadow-lg" : "text-gray-400 hover:text-gray-200")}
               >
                 Banquillo
               </button>
               <button 
                 onClick={() => setActiveTab('audit')}
-                className={cn("px-3 py-1.5 rounded transition-all font-bold font-sans uppercase flex items-center gap-1", activeTab === 'audit' ? "bg-purple-600 text-white shadow-lg" : "text-gray-400 hover:text-gray-200")}
+                className={cn("px-2.5 py-1.5 rounded transition-all font-bold font-sans uppercase flex items-center gap-1", activeTab === 'audit' ? "bg-purple-600 text-white shadow-lg" : "text-gray-400 hover:text-gray-200")}
               >
-                <Activity size={12} />
+                <Activity size={10} />
                 Auditoría
               </button>
             </div>
 
             <button 
               onClick={onClose}
-              className="p-1.5 rounded-full hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
+              className="p-1.5 rounded-full hover:bg-white/10 text-gray-400 hover:text-white transition-colors shrink-0"
             >
               <X size={20} />
             </button>
@@ -224,76 +242,166 @@ export default function DeckVisualExporter({ deck, sideboard = [], isOpen, onClo
             {/* Poster Content: The Cascade Grid */}
             <AnimatePresence mode="wait">
               {activeTab === 'main' ? (
-                <motion.div 
-                  key="main"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 min-h-[400px]"
-                >
-                  {Object.keys(columnsByCmc).map((cmcKey) => {
-                    const colCards = columnsByCmc[cmcKey];
-                    const colQuantity = colCards.reduce((sum, c) => sum + (c.quantity || 1), 0);
+                isMobile ? (
+                  <motion.div
+                    key="main-mobile"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="flex flex-col gap-2 min-h-[400px] w-full"
+                  >
+                    {Object.keys(columnsByCmc).map((cmcKey) => {
+                      const colCards = columnsByCmc[cmcKey];
+                      const colQuantity = colCards.reduce((sum, c) => sum + (c.quantity || 1), 0);
+                      const isExpanded = expandedCols[cmcKey];
 
-                    return (
-                      <div key={cmcKey} className="flex flex-col gap-3 min-h-0">
-                        {/* Cabecera de Columna */}
-                        <div className="flex justify-between items-center border-b border-white/10 pb-1 shrink-0">
-                          <span className="font-cinzel text-[10px] text-magic-gold uppercase tracking-widest font-bold">
-                            {cmcKey === 'Tierras' ? 'Tierras' : `Coste ${cmcKey}`}
-                          </span>
-                          <span className="text-[10px] text-gray-500 font-mono">
-                            x{colQuantity}
-                          </span>
-                        </div>
-
-                        {/* Cartas Apiladas (Casada) */}
-                        <div className="flex-1 flex flex-col relative min-h-0 pb-4">
-                          {colCards.length === 0 ? (
-                            <div className="h-24 border border-dashed border-white/5 rounded-xl flex items-center justify-center text-[9px] text-gray-600 font-serif italic text-center p-2">
-                              Vacío
+                      return (
+                        <div key={cmcKey} className="border border-white/10 rounded-xl overflow-hidden bg-black/35">
+                          <button
+                            onClick={() => toggleCol(cmcKey)}
+                            className="w-full flex justify-between items-center px-4 py-3 bg-white/5 hover:bg-white/10 transition-colors"
+                          >
+                            <span className="font-cinzel text-xs text-magic-gold uppercase tracking-widest font-bold">
+                              {cmcKey === 'Tierras' ? 'Tierras' : `Coste ${cmcKey}`}
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] text-gray-400 font-mono">
+                                x{colQuantity} {colQuantity === 1 ? 'carta' : 'cartas'}
+                              </span>
+                              <motion.span
+                                animate={{ rotate: isExpanded ? 180 : 0 }}
+                                transition={{ duration: 0.2 }}
+                                className="text-grimorio-gold text-xs"
+                              >
+                                ▼
+                              </motion.span>
                             </div>
-                          ) : (
-                            <div className="space-y-[-110%] hover:space-y-[-80%] transition-all duration-300">
-                              {colCards.map((c, index) => {
-                                const imageUrl = c.image_uris?.normal || c.image_uris?.small || `https://api.scryfall.com/cards/named?exact=${encodeURIComponent(c.name)}&format=image`;
-                                const isFoil = c.rarity === 'mythic' || c.rarity === 'rare';
+                          </button>
 
-                                return (
-                                  <motion.div
-                                    key={`${c.name}-${index}`}
-                                    className="relative w-full rounded-xl overflow-hidden shadow-lg border border-white/5 hover:border-grimorio-gold/50 hover:shadow-2xl transition-all duration-300 hover:z-20 cursor-help"
-                                    style={{ 
-                                      transformOrigin: 'top center'
-                                    }}
-                                    whileHover={{ scale: 1.05 }}
-                                  >
-                                    {isFoil && (
-                                      /* Foil rainbow shimmer overlay effect */
-                                      <div className="absolute inset-0 bg-gradient-to-tr from-purple-500/10 via-pink-500/5 to-cyan-500/10 mix-blend-color-dodge opacity-60 pointer-events-none" />
-                                    )}
-
-                                    <img
-                                      src={imageUrl}
-                                      alt={c.name}
-                                      className="w-full h-auto object-cover rounded-xl"
-                                      loading="lazy"
-                                    />
-                                    
-                                    {/* Insignia de Cantidad Flotante */}
-                                    <div className="absolute top-2 right-2 bg-black/80 border border-grimorio-gold/30 w-6 h-6 rounded-md flex items-center justify-center font-sans font-bold text-xs text-white shadow-md">
-                                      x{c.quantity}
+                          <AnimatePresence initial={false}>
+                            {isExpanded && (
+                              <motion.div
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: 'auto', opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                transition={{ duration: 0.2 }}
+                                className="overflow-hidden"
+                              >
+                                <div className="p-3 bg-black/20">
+                                  {colCards.length === 0 ? (
+                                    <div className="py-4 text-center text-xs text-gray-500 italic">
+                                      Vacío
                                     </div>
-                                  </motion.div>
-                                );
-                              })}
-                            </div>
-                          )}
+                                  ) : (
+                                    <div className="grid grid-cols-3 gap-3">
+                                      {colCards.map((c, index) => {
+                                        const cleanName = c.name.includes('//') ? c.name.split('//')[0].trim() : c.name.includes('/') ? c.name.split('/')[0].trim() : c.name;
+                                        const imageUrl = c.image_uris?.normal || c.image_uris?.small || c.card_faces?.[0]?.image_uris?.normal || c.card_faces?.[0]?.image_uris?.small || `https://api.scryfall.com/cards/named?exact=${encodeURIComponent(cleanName)}&format=image`;
+                                        const isFoil = c.rarity === 'mythic' || c.rarity === 'rare';
+
+                                        return (
+                                          <div
+                                            key={`${c.name}-${index}`}
+                                            className="relative w-full aspect-[63/88] rounded-lg overflow-hidden border border-white/5 shadow-md"
+                                          >
+                                            {isFoil && (
+                                              <div className="absolute inset-0 bg-gradient-to-tr from-purple-500/10 via-pink-500/5 to-cyan-500/10 mix-blend-color-dodge opacity-60 pointer-events-none" />
+                                            )}
+                                            <img
+                                              src={imageUrl}
+                                              alt={c.name}
+                                              className="w-full h-full object-fill rounded-lg"
+                                              loading="lazy"
+                                            />
+                                            <div className="absolute top-1 right-1 bg-black/80 border border-grimorio-gold/30 w-5 h-5 rounded flex items-center justify-center font-sans font-bold text-[10px] text-white shadow-md">
+                                              x{c.quantity}
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
                         </div>
-                      </div>
-                    );
-                  })}
-                </motion.div>
+                      );
+                    })}
+                  </motion.div>
+                ) : (
+                  <motion.div 
+                    key="main-desktop"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 min-h-[400px]"
+                  >
+                    {Object.keys(columnsByCmc).map((cmcKey) => {
+                      const colCards = columnsByCmc[cmcKey];
+                      const colQuantity = colCards.reduce((sum, c) => sum + (c.quantity || 1), 0);
+
+                      return (
+                        <div key={cmcKey} className="flex flex-col gap-3 min-h-0">
+                          {/* Cabecera de Columna */}
+                          <div className="flex justify-between items-center border-b border-white/10 pb-1 shrink-0">
+                            <span className="font-cinzel text-[10px] text-magic-gold uppercase tracking-widest font-bold">
+                              {cmcKey === 'Tierras' ? 'Tierras' : `Coste ${cmcKey}`}
+                            </span>
+                            <span className="text-[10px] text-gray-500 font-mono">
+                              x{colQuantity}
+                            </span>
+                          </div>
+
+                          {/* Cartas Apiladas (Casada) */}
+                          <div className="flex-1 flex flex-col relative min-h-0 pb-4">
+                            {colCards.length === 0 ? (
+                              <div className="h-24 border border-dashed border-white/5 rounded-xl flex items-center justify-center text-[9px] text-gray-600 font-serif italic text-center p-2">
+                                Vacío
+                              </div>
+                            ) : (
+                              <div className="space-y-[-110%] hover:space-y-[-80%] transition-all duration-300">
+                                {colCards.map((c, index) => {
+                                  const cleanName = c.name.includes('//') ? c.name.split('//')[0].trim() : c.name.includes('/') ? c.name.split('/')[0].trim() : c.name;
+                                  const imageUrl = c.image_uris?.normal || c.image_uris?.small || c.card_faces?.[0]?.image_uris?.normal || c.card_faces?.[0]?.image_uris?.small || `https://api.scryfall.com/cards/named?exact=${encodeURIComponent(cleanName)}&format=image`;
+                                  const isFoil = c.rarity === 'mythic' || c.rarity === 'rare';
+
+                                  return (
+                                    <motion.div
+                                      key={`${c.name}-${index}`}
+                                      className="relative w-full aspect-[63/88] rounded-xl overflow-hidden shadow-lg border border-white/5 hover:border-grimorio-gold/50 hover:shadow-2xl transition-all duration-300 hover:z-20 cursor-help"
+                                      style={{ 
+                                        transformOrigin: 'top center'
+                                      }}
+                                      whileHover={{ scale: 1.05 }}
+                                    >
+                                      {isFoil && (
+                                        /* Foil rainbow shimmer overlay effect */
+                                        <div className="absolute inset-0 bg-gradient-to-tr from-purple-500/10 via-pink-500/5 to-cyan-500/10 mix-blend-color-dodge opacity-60 pointer-events-none" />
+                                      )}
+
+                                      <img
+                                        src={imageUrl}
+                                        alt={c.name}
+                                        className="w-full h-full object-fill rounded-xl"
+                                        loading="lazy"
+                                      />
+                                      
+                                      {/* Insignia de Cantidad Flotante */}
+                                      <div className="absolute top-2 right-2 bg-black/80 border border-grimorio-gold/30 w-6 h-6 rounded-md flex items-center justify-center font-sans font-bold text-xs text-white shadow-md">
+                                        x{c.quantity}
+                                      </div>
+                                    </motion.div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </motion.div>
+                )
               ) : activeTab === 'audit' ? (
                 // --- VISTA AUDITORIA ---
                 <motion.div 
@@ -404,17 +512,18 @@ export default function DeckVisualExporter({ deck, sideboard = [], isOpen, onClo
                   ) : (
                     <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-4">
                       {sideboardCards.map((c, index) => {
-                        const imageUrl = c.image_uris?.normal || c.image_uris?.small || `https://api.scryfall.com/cards/named?exact=${encodeURIComponent(c.name)}&format=image`;
+                        const cleanName = c.name.includes('//') ? c.name.split('//')[0].trim() : c.name.includes('/') ? c.name.split('/')[0].trim() : c.name;
+                        const imageUrl = c.image_uris?.normal || c.image_uris?.small || c.card_faces?.[0]?.image_uris?.normal || c.card_faces?.[0]?.image_uris?.small || `https://api.scryfall.com/cards/named?exact=${encodeURIComponent(cleanName)}&format=image`;
                         return (
                           <motion.div
                             key={`side-${c.name}-${index}`}
-                            className="relative rounded-xl overflow-hidden border border-white/10 shadow-lg hover:border-grimorio-gold/50 cursor-pointer"
+                            className="relative aspect-[63/88] rounded-xl overflow-hidden border border-white/10 shadow-lg hover:border-grimorio-gold/50 cursor-pointer"
                             whileHover={{ scale: 1.05 }}
                           >
                             <img
                               src={imageUrl}
                               alt={c.name}
-                              className="w-full h-auto object-cover rounded-xl"
+                              className="w-full h-full object-fill rounded-xl"
                             />
                             <div className="absolute top-2 right-2 bg-black/80 border border-grimorio-gold/30 w-6 h-6 rounded-md flex items-center justify-center font-sans font-bold text-xs text-white shadow-md">
                               x{c.quantity}

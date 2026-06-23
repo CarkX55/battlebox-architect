@@ -494,3 +494,50 @@ html, body {
   font-weight: 700; /* Letras en negrita para máxima legibilidad */
   letter-spacing: 0.04em;
 }
+
+/* --- OPTIMIZACIONES MÓVILES PREMIUM 2026 --- */
+
+/* Reset global de Highlight al tocar en móvil */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Áreas de Toque Cómodas para Dispositivos Táctiles (Zona del Pulgar) */
+@media (pointer: coarse) {
+  button, 
+  a, 
+  [role="button"],
+  .btn-magic,
+  .btn-magic-glass {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  /* Desactivar scrollbars visibles en touch para dar un look nativo */
+  ::-webkit-scrollbar {
+    display: none !important;
+  }
+  
+  * {
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none; /* Firefox */
+  }
+}
+
+/* Clases de Soporte para Safe Areas (Muescas y Barras de Gestos iOS/Android) */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+.px-safe {
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+.mb-safe {
+  margin-bottom: env(safe-area-inset-bottom, 0px);
+}
+.mt-safe {
+  margin-top: env(safe-area-inset-top, 0px);
+}

@@ -1,64 +1,161 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import MagicCard from '../atoms/MagicCard';
 import { cn } from '../../utils/cn';
 import { Layers, Swords, Zap, Gem, Mountain, Coins, Scroll, Sparkles, User, Flame, Activity, XCircle, AlertTriangle, CheckCircle2, Check } from 'lucide-react';
+import { checkCardManaRequirement } from '../../services/deckCalculator';
+import { useIsTouchDevice } from '../../hooks/useIsMobile';
+import MobileCardPreview from '../atoms/MobileCardPreview';
 
 const ScryfallHoverCard = ({ cardName, children }) => {
   const [imgUrl, setImgUrl] = useState(null);
   const [isHovered, setIsHovered] = useState(false);
+  const [showMobilePreview, setShowMobilePreview] = useState(false);
   const [coords, setCoords] = useState({ x: 0, y: 0 });
   const spanRef = useRef(null);
+  const isTouch = useIsTouchDevice();
 
   useEffect(() => {
     let active = true;
-    if (isHovered && !imgUrl) {
-      fetch(`https://api.scryfall.com/cards/named?exact=${encodeURIComponent(cardName)}`)
+    if ((isHovered || showMobilePreview) && !imgUrl) {
+      let cleanName = cardName.replace(/^\d+x\s+/, '').trim();
+      if (cleanName.includes('//')) {
+        cleanName = cleanName.split('//')[0].trim();
+      } else if (cleanName.includes('/')) {
+        cleanName = cleanName.split('/')[0].trim();
+      }
+      
+      const searchQuery = `!"${cleanName}"`;
+      fetch(`https://api.scryfall.com/cards/search?q=${encodeURIComponent(searchQuery)}`)
+        .then(res => {
+          if (!res.ok) {
+            return fetch(`https://api.scryfall.com/cards/named?exact=${encodeURIComponent(cleanName)}`);
+          }
+          return res;
+        })
         .then(r => r.ok ? r.json() : null)
         .then(data => {
           if (!active) return;
-          if (data && data.image_uris && data.image_uris.normal) {
-            setImgUrl(data.image_uris.normal);
-          } else if (data && data.card_faces && data.card_faces[0].image_uris) {
-            setImgUrl(data.card_faces[0].image_uris.normal);
+          let cardData = data;
+          if (data && data.data && data.data.length > 0) {
+            cardData = data.data[0];
+          }
+          
+          if (cardData && cardData.image_uris && cardData.image_uris.normal) {
+            setImgUrl(cardData.image_uris.normal);
+          } else if (cardData && cardData.card_faces && cardData.card_faces[0].image_uris) {
+            setImgUrl(cardData.card_faces[0].image_uris.normal);
           }
         })
         .catch(() => {});
     }
     return () => { active = false; };
-  }, [isHovered, cardName, imgUrl]);
+  }, [isHovered, showMobilePreview, cardName, imgUrl]);
 
   const handleMouseEnter = () => {
+    if (isTouch) return;
     if (spanRef.current) {
       const rect = spanRef.current.getBoundingClientRect();
-      setCoords({ x: rect.left + rect.width / 2, y: rect.top });
+      setCoords({ 
+        x: rect.left + rect.width / 2, 
+        y: rect.top,
+        bottom: rect.bottom
+      });
     }
     setIsHovered(true);
   };
 
+  const handleMouseLeave = () => {
+    if (isTouch) return;
+    setIsHovered(false);
+  };
+
+  const handleClick = (e) => {
+    if (isTouch) {
+      e.preventDefault();
+      e.stopPropagation();
+      setShowMobilePreview(true);
+    }
+  };
+
+  const cardWidth = 220;
+  const cardHeight = 308;
+  const margin = 8;
+  
+  const spaceAbove = coords.y - margin;
+  const spaceBelow = typeof window !== 'undefined' ? window.innerHeight - coords.bottom - margin : 400;
+  
+  // Prefer showing above if it fits
+  let showBelow = false;
+  if (spaceAbove >= cardHeight + 10) {
+    showBelow = false;
+  } else if (spaceBelow >= cardHeight + 10) {
+    showBelow = true;
+  } else {
+    showBelow = spaceBelow > spaceAbove;
+  }
+  
+  let leftPos = coords.x - cardWidth / 2;
+  if (typeof window !== 'undefined') {
+    leftPos = Math.max(10, Math.min(window.innerWidth - cardWidth - 10, leftPos));
+  }
+  
+  let topPos;
+  if (showBelow) {
+    topPos = (coords.bottom || coords.y) + margin;
+  } else {
+    topPos = coords.y - margin - cardHeight;
+  }
+
+  // Enforce viewport clamp to guarantee the card remains fully on screen
+  if (typeof window !== 'undefined') {
+    topPos = Math.max(10, Math.min(window.innerHeight - cardHeight - 10, topPos));
+  }
+
   return (
-    <span 
-      ref={spanRef}
-      className="text-purple-300 font-bold border-b border-dashed border-purple-400/50 hover:text-purple-200 transition-colors cursor-help inline-block relative"
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={() => setIsHovered(false)}
-    >
-      {children}
-      <AnimatePresence>
-        {isHovered && imgUrl && (
-          <motion.div
-            initial={{ opacity: 0, y: 10, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 10, scale: 0.95 }}
-            transition={{ duration: 0.15 }}
-            style={{ position: 'fixed', left: coords.x, top: coords.y, transform: 'translate(-50%, -100%)', marginTop: '-8px', zIndex: 99999, width: '220px' }}
-            className="pointer-events-none"
-          >
-            <img src={imgUrl} alt={cardName} className="w-full h-auto rounded-xl shadow-[0_20px_40px_rgba(0,0,0,0.8)] border border-purple-500/30" />
-          </motion.div>
+    <>
+      <span 
+        ref={spanRef}
+        className="text-purple-300 font-bold border-b border-dashed border-purple-400/50 hover:text-purple-200 transition-colors cursor-help inline-block relative"
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+        onClick={handleClick}
+      >
+        {children}
+        {typeof document !== 'undefined' && !isTouch && createPortal(
+          <AnimatePresence>
+            {isHovered && imgUrl && (
+              <motion.div
+                initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                transition={{ duration: 0.15 }}
+                style={{ 
+                  position: 'fixed', 
+                  left: `${leftPos}px`, 
+                  top: `${topPos}px`, 
+                  zIndex: 99999, 
+                  width: `${cardWidth}px` 
+                }}
+                className="pointer-events-none"
+              >
+                <img src={imgUrl} alt={cardName} className="w-full h-auto rounded-xl shadow-[0_20px_40px_rgba(0,0,0,0.8)] border border-purple-500/30" />
+              </motion.div>
+            )}
+          </AnimatePresence>,
+          document.body
         )}
-      </AnimatePresence>
-    </span>
+      </span>
+
+      {isTouch && showMobilePreview && (
+        <MobileCardPreview
+          card={{ name: cardName, image_uris: { normal: imgUrl } }}
+          isOpen={showMobilePreview}
+          onClose={() => setShowMobilePreview(false)}
+        />
+      )}
+    </>
   );
 };
 
@@ -137,7 +234,7 @@ const CATEGORIES = {
   Land: { label: 'Tierras', icon: Mountain },
 };
 
-function CategorySection({ title, icon: Icon, cards, onRemove, onAdd, isEditing }) {
+function CategorySection({ title, icon: Icon, cards, onRemove, onAdd, isEditing, isMainDeck, manaSources, deckSize }) {
   if (cards.length === 0) return null;
 
   return (
@@ -155,7 +252,7 @@ function CategorySection({ title, icon: Icon, cards, onRemove, onAdd, isEditing 
         </div>
       </div>
       
-      <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
+      <div className="grid grid-cols-2 xs:grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-8">
         {cards.map((card, idx) => (
           <MagicCard 
             key={`${card.name}-${idx}`} 
@@ -163,6 +260,7 @@ function CategorySection({ title, icon: Icon, cards, onRemove, onAdd, isEditing 
             isEditing={isEditing}
             onRemove={onRemove}
             onAdd={onAdd}
+            deficitInfo={isMainDeck && manaSources ? checkCardManaRequirement(card, manaSources, deckSize) : null}
           />
         ))}
       </div>
@@ -170,7 +268,7 @@ function CategorySection({ title, icon: Icon, cards, onRemove, onAdd, isEditing 
   );
 }
 
-export default function VisualGrid({ cards, onRemoveCard, onAddCard, isEditing, isMainDeck, onAudit, isAuditing, auditResult, onCloseAudit, onOptimize }) {
+export default function VisualGrid({ cards, onRemoveCard, onAddCard, isEditing, isMainDeck, onAudit, isAuditing, auditResult, onCloseAudit, onOptimize, manaSources, deckSize }) {
   const [selectedSuggestions, setSelectedSuggestions] = useState(new Set());
   const [selectedDropdownOptions, setSelectedDropdownOptions] = useState({});
 
@@ -280,6 +378,9 @@ export default function VisualGrid({ cards, onRemoveCard, onAddCard, isEditing, 
             onRemove={onRemoveCard}
             onAdd={onAddCard}
             isEditing={isEditing}
+            isMainDeck={isMainDeck}
+            manaSources={manaSources}
+            deckSize={deckSize}
           />
         ))}
       </div>
@@ -298,25 +399,26 @@ export default function VisualGrid({ cards, onRemoveCard, onAddCard, isEditing, 
               initial={{ scale: 0.95, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.95, opacity: 0, y: 20 }}
-              className="bg-[#0f0a14] border border-purple-500/30 rounded-3xl w-full max-w-3xl overflow-hidden shadow-[0_0_50px_rgba(168,85,247,0.15)] flex flex-col max-h-[90vh]"
+              className="bg-[#0f0a14] border border-purple-500/30 md:rounded-3xl rounded-xl w-full max-w-full md:max-w-3xl overflow-hidden shadow-[0_0_50px_rgba(168,85,247,0.15)] flex flex-col h-full md:h-auto max-h-[100vh] md:max-h-[90vh]"
             >
               {/* Header */}
-              <div className="p-6 border-b border-purple-500/20 bg-purple-950/20 flex items-center justify-between shrink-0">
+              <div className="p-4 md:p-6 border-b border-purple-500/20 bg-purple-950/20 flex flex-col sm:flex-row items-start sm:items-center justify-between shrink-0 gap-3">
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-xl bg-purple-900/50 border border-purple-400/30 flex items-center justify-center shadow-inner">
-                    <Activity className="text-purple-300 w-6 h-6 animate-pulse" />
+                  <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-purple-900/50 border border-purple-400/30 flex items-center justify-center shadow-inner shrink-0">
+                    <Activity className="text-purple-300 w-5 h-5 md:w-6 md:h-6 animate-pulse" />
                   </div>
                   <div>
-                    <h3 className="font-cinzel text-xl text-purple-300 tracking-wider">Veredicto del Juez</h3>
-                    <p className="text-xs text-purple-200/50 font-mono">Auditoría Competitiva de IA</p>
+                    <h3 className="font-cinzel text-lg text-purple-300 tracking-wider">Veredicto del Juez</h3>
+                    <p className="text-[10px] md:text-xs text-purple-200/50 font-mono">Auditoría Competitiva de IA</p>
                   </div>
                 </div>
                 
-                <div className="flex flex-col items-end">
-                  <div className="text-4xl font-black text-white drop-shadow-[0_0_10px_rgba(168,85,247,0.5)]">
-                    {auditResult.score}<span className="text-lg text-purple-400/50">/10</span>
+                <div className="flex flex-row sm:flex-col items-center sm:items-end justify-between w-full sm:w-auto border-t border-white/5 sm:border-0 pt-2 sm:pt-0">
+                  <span className="text-[10px] uppercase font-bold tracking-widest text-purple-400 sm:hidden">Score:</span>
+                  <div className="text-3xl md:text-4xl font-black text-white drop-shadow-[0_0_10px_rgba(168,85,247,0.5)]">
+                    {auditResult.score}<span className="text-base md:text-lg text-purple-400/50">/10</span>
                   </div>
-                  <span className="text-[10px] uppercase font-bold tracking-widest text-purple-400">Score de Viabilidad</span>
+                  <span className="text-[9px] md:text-[10px] uppercase font-bold tracking-widest text-purple-400 hidden sm:inline">Score de Viabilidad</span>
                 </div>
               </div>
 

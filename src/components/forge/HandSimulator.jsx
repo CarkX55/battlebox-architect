@@ -4,6 +4,8 @@ import MagicCard from '../atoms/MagicCard';
 import { AlertTriangle, CheckCircle2, Sparkles, HelpCircle, Activity, BarChart2, Info, BookOpen } from 'lucide-react';
 import { evaluateMulligan } from '../../services/aiFactory';
 import { cn } from '../../utils/cn';
+import { useIsMobile } from '../../hooks/useIsMobile';
+import { vibrateTouch } from '../../utils/haptic';
 
 // --- CÁLCULO ESTADÍSTICO HIPERGEOMÉTRICO NATIVO ---
 
@@ -127,9 +129,11 @@ const analyzeHandLocally = (hand) => {
 };
 
 export default function HandSimulator({ deck, isOpen, onClose, aiConfig }) {
+  const isMobile = useIsMobile();
   const [hand, setHand] = useState([]);
   const [mulliganCount, setMulliganCount] = useState(0);
   const [currentDeck, setCurrentDeck] = useState([]);
+  const [activeIndex, setActiveIndex] = useState(3); // Central card active by default
   
   // Pestañas del Panel de Asesoría: 'coach' | 'stats'
   const [activePanelTab, setActivePanelTab] = useState('coach');
@@ -153,17 +157,23 @@ export default function HandSimulator({ deck, isOpen, onClose, aiConfig }) {
   const restartSimulation = () => {
     if (!deck || deck.length === 0) return;
     const shuffled = shuffleDeck(deck);
-    setHand(shuffled.slice(0, 7));
+    const initialHand = shuffled.slice(0, 7);
+    setHand(initialHand);
     setCurrentDeck(shuffled.slice(7));
     setMulliganCount(prev => prev + 1);
     setAiAnalysis(null);
     setSelectedCardForStats(shuffled[7]?.name || null);
+    setActiveIndex(Math.floor(initialHand.length / 2));
   };
 
   const drawOne = () => {
     if (currentDeck.length === 0) return;
     const [next, ...rest] = currentDeck;
-    setHand(prev => [...prev, next]);
+    setHand(prev => {
+      const updated = [...prev, next];
+      setActiveIndex(updated.length - 1);
+      return updated;
+    });
     setCurrentDeck(rest);
   };
 
@@ -241,11 +251,11 @@ export default function HandSimulator({ deck, isOpen, onClose, aiConfig }) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/95 backdrop-blur-xl">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-4 bg-black/95 backdrop-blur-xl">
       <motion.div
         initial={{ scale: 0.95, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
-        className="bg-[#0f0d0c] border-2 border-grimorio-gold/30 rounded-3xl w-full max-w-6xl p-6 shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden relative flex flex-col min-h-[600px] max-h-[90vh]"
+        className="bg-[#0f0d0c] border-2 border-grimorio-gold/30 rounded-3xl w-full max-w-6xl p-4 sm:p-6 shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-y-auto md:overflow-hidden relative flex flex-col h-[95vh] md:h-auto max-h-[95vh]"
       >
         {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-center gap-4 shrink-0 border-b border-grimorio-gold/10 pb-4 animate-glow">
@@ -284,72 +294,141 @@ export default function HandSimulator({ deck, isOpen, onClose, aiConfig }) {
 
         {/* Main Work Area */}
         <div className="flex-1 flex flex-col lg:flex-row gap-6 mt-4 overflow-hidden min-h-0">
-          
-          {/* Left Column: Visual Hand Fan */}
-          <div className="flex-1 flex items-center justify-center relative py-6 min-h-[300px] lg:min-h-0">
-            <div className="relative w-full h-full flex justify-center items-center">
-              <AnimatePresence mode="popLayout">
-              {hand.map((card, idx) => {
-                const total = hand.length;
-                const mid = (total - 1) / 2;
-                
-                const spread = total > 10 ? 45 : 75; 
-                const rotFactor = total > 10 ? 1.0 : 1.8; 
-                
-                const rotation = (idx - mid) * rotFactor;
-                const yOffset = Math.pow(Math.abs(idx - mid), 1.5) * (total > 10 ? 3 : 6);
-                const xOffset = (idx - mid) * spread;
-
-                return (
-                  <motion.div
-                    key={`${mulliganCount}-${card.name}-${idx}`}
-                    variants={{
-                      hidden: { opacity: 0, y: 300, x: -50, rotate: -20 },
-                      visible: (i) => ({
-                        opacity: 1,
-                        y: yOffset,
-                        x: `calc(-50% + ${xOffset}px)`,
-                        rotate: rotation,
-                        zIndex: i,
-                        transition: {
-                          type: "spring",
-                          stiffness: 300,
-                          damping: 25,
-                          mass: 0.8,
-                          delay: i * 0.05
-                        }
-                      }),
-                      hover: {
-                        y: yOffset - 60,
-                        scale: 1.15,
-                        rotate: 0,
-                        zIndex: 100,
-                        transition: { type: "spring", stiffness: 400, damping: 28 }
-                      }
+          {/* Left Column: Visual Hand Fan or 3D Coverflow on Mobile */}
+          {isMobile ? (
+            <div className="h-64 py-2 shrink-0 flex items-center justify-center relative overflow-hidden select-none touch-none" style={{ perspective: 1000 }}>
+              <motion.div
+                drag="x"
+                dragConstraints={{ left: 0, right: 0 }}
+                onDragEnd={(e, info) => {
+                  const threshold = 40;
+                  if (info.offset.x < -threshold && activeIndex < hand.length - 1) {
+                    vibrateTouch();
+                    setActiveIndex(prev => prev + 1);
+                  } else if (info.offset.x > threshold && activeIndex > 0) {
+                    vibrateTouch();
+                    setActiveIndex(prev => prev - 1);
+                  }
+                }}
+                className="relative w-full h-full flex justify-center items-center overflow-visible"
+              >
+                <AnimatePresence mode="popLayout">
+                  {hand.map((card, idx) => {
+                    const offset = idx - activeIndex;
+                    const isActive = idx === activeIndex;
+                    
+                    return (
+                      <motion.div
+                        key={`${mulliganCount}-${card.name}-${idx}`}
+                        animate={{
+                          x: offset * 60,
+                          scale: isActive ? 1.1 : 0.8,
+                          rotateY: offset * -20,
+                          z: -Math.abs(offset) * 80,
+                          opacity: Math.abs(offset) > 2 ? 0.3 : 1
+                        }}
+                        style={{
+                          zIndex: 10 - Math.abs(offset),
+                          position: 'absolute',
+                          transformStyle: 'preserve-3d'
+                        }}
+                        className="w-[125px] aspect-[63/88]"
+                      >
+                        <MagicCard 
+                          card={card} 
+                          showQuantity={false} 
+                          isInteractive={false}
+                          className="shadow-2xl"
+                        />
+                      </motion.div>
+                    );
+                  })}
+                </AnimatePresence>
+              </motion.div>
+              {/* Carrusel Indicator Dots */}
+              <div className="absolute bottom-2 flex gap-1 z-20">
+                {hand.map((_, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => {
+                      vibrateTouch();
+                      setActiveIndex(idx);
                     }}
-                    initial="hidden"
-                    animate="visible"
-                    whileHover="hover"
-                    custom={idx}
-                    exit={{ opacity: 0, scale: 0.5, y: -200, transition: { duration: 0.2 } }}
-                    className="absolute left-1/2 w-[160px] sm:w-[180px]"
-                    style={{ transformOrigin: "bottom center" }}
-                  >
-                    <MagicCard 
-                      card={card} 
-                      showQuantity={false} 
-                      isInteractive={false}
-                      className="shadow-2xl animate-card-fan"
-                    />
-                  </motion.div>
-                );
-              })}
-              </AnimatePresence>
+                    className={cn(
+                      "w-2 h-2 rounded-full transition-all duration-300",
+                      idx === activeIndex ? "bg-[#ffca58] w-4" : "bg-white/20"
+                    )}
+                  />
+                ))}
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="flex-1 flex items-center justify-center relative py-6 min-h-[300px] lg:min-h-0">
+              <div className="relative w-full h-full flex justify-center items-center">
+                <AnimatePresence mode="popLayout">
+                {hand.map((card, idx) => {
+                  const total = hand.length;
+                  const mid = (total - 1) / 2;
+                  
+                  const spread = total > 10 ? 45 : 75; 
+                  const rotFactor = total > 10 ? 1.0 : 1.8; 
+                  
+                  const rotation = (idx - mid) * rotFactor;
+                  const yOffset = Math.pow(Math.abs(idx - mid), 1.5) * (total > 10 ? 3 : 6);
+                  const xOffset = (idx - mid) * spread;
 
+                  return (
+                    <motion.div
+                      key={`${mulliganCount}-${card.name}-${idx}`}
+                      variants={{
+                        hidden: { opacity: 0, y: 300, x: -50, rotate: -20 },
+                        visible: (i) => ({
+                          opacity: 1,
+                          y: yOffset,
+                          x: `calc(-50% + ${xOffset}px)`,
+                          rotate: rotation,
+                          zIndex: i,
+                          transition: {
+                            type: "spring",
+                            stiffness: 300,
+                            damping: 25,
+                            mass: 0.8,
+                            delay: i * 0.05
+                          }
+                        }),
+                        hover: {
+                          y: yOffset - 60,
+                          scale: 1.15,
+                          rotate: 0,
+                          zIndex: 100,
+                          transition: { type: "spring", stiffness: 400, damping: 28 }
+                        }
+                      }}
+                      initial="hidden"
+                      animate="visible"
+                      whileHover="hover"
+                      custom={idx}
+                      exit={{ opacity: 0, scale: 0.5, y: -200, transition: { duration: 0.2 } }}
+                      className="absolute left-1/2 w-[160px] sm:w-[180px]"
+                      style={{ transformOrigin: "bottom center" }}
+                    >
+                      <MagicCard 
+                        card={card} 
+                        showQuantity={false} 
+                        isInteractive={false}
+                        className="shadow-2xl animate-card-fan"
+                      />
+                    </motion.div>
+                  );
+                })}
+                </AnimatePresence>
+              </div>
+            </div>
+          )}
+ 
           {/* Right Column: Advanced Mulligan & Hipergeometric Coach Panel */}
-          <div className="w-full lg:w-96 bg-black/50 border border-[#D4AF37]/20 rounded-2xl p-5 flex flex-col justify-between max-h-full overflow-y-auto glassmorphic-panel">
+          <div className="w-full lg:w-96 bg-black/50 border border-[#D4AF37]/20 rounded-2xl p-4 sm:p-5 flex flex-col justify-between shrink-0 lg:max-h-full overflow-y-auto glassmorphic-panel">
             <div className="space-y-4">
               
               {/* Selector de Pestañas */}

@@ -1633,6 +1633,40 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
     // =========================================================================
     
     if (!preserveSpells) {
+        // Veto de Cartas Personalizadas del Usuario (Oracle Tuner)
+        if (formData?.vetoedCards) {
+            const userVetoedList = Array.isArray(formData.vetoedCards)
+                ? formData.vetoedCards.map(c => (typeof c === 'string' ? c : c.name || '').trim().toLowerCase())
+                : String(formData.vetoedCards).split(',').map(s => s.trim().toLowerCase());
+                
+            let originalLength = cards.length;
+            cards = cards.filter(c => {
+                if (c && c.name && typeof c.name === 'string') {
+                    const nameLower = c.name.toLowerCase();
+                    const isVetoed = userVetoedList.includes(nameLower);
+                    if (isVetoed) {
+                        addLog(`[JUEZ VETO] Carta "${c.name}" vetada por el usuario. Removiendo del mazo y reemplazándola.`);
+                        return false;
+                    }
+                }
+                return true;
+            });
+            
+            let removedCount = originalLength - cards.length;
+            if (removedCount > 0) {
+                // Rellenar con mejores reemplazos del RAG
+                const excludeNames = [...userVetoedList, ...getCappedCardsList()];
+                const rep = obtenerMejorCartaDeRemplazo("Instant", 1, Array.from(colors), formData?.format, ragPool, excludeNames);
+                cards = inyectarCartaDirecta(cards, {
+                    name: rep.name,
+                    quantity: removedCount,
+                    category: rep.category,
+                    cmc: rep.cmc,
+                    role: "utility"
+                }, ragPool);
+            }
+        }
+
         // A. EXCLUSIÓN DE CARTAS DE ODIO ESTRECHO DEL MAINDECK AL SIDEBOARD
         const narrowHateCards = ["rest in peace", "surgical extraction", "leyline of the void", "tormod's crypt", "grafdigger's cage", "stony silence"];
         let hateCardsFound = [];
@@ -4096,6 +4130,23 @@ function adjustManaCurve(deckSpells, curveProfile, ragPool, strategyId, allowedC
   return spells;
 }
 
+const guessCardColor = (cardName) => {
+    if (!cardName) return null;
+    const nameLower = cardName.toLowerCase();
+    const blackStaples = ["grief", "fatal push", "thoughtseize", "inquisition", "orcish bowmasters", "reanimat", "persist", "not dead after all", "archon of cruelty", "sheoldred", "drown in the loch", "blood artist", "zulaport", "yawgmoth", "takenuma", "damnation", "go for the throat", "dismember"];
+    const blueStaples = ["subtlety", "counterspell", "spell pierce", "mana leak", "consider", "preordain", "brainstorm", "ponder", "murktide regent", "tidebinder mage", "brazen borrower", "otawara", "lorien revealed", "expressive iteration", "archmage's charm", "cryptic command"];
+    const redStaples = ["fury", "lightning bolt", "unholy heat", "dragon's rage channeler", "ragavan", "fable of the mirror-breaker", "sokenzan", "expressive iteration", "goblin", "shaman", "pyromancer", "wrenn and six"];
+    const greenStaples = ["endurance", "tarmogoyf", "hardened scales", "boseiju", "dryad of the ilysian grove", "primeval titan", "amulet of vigor", "summoner's pact", "noble hierarch", "ignoble hierarch", "birds of paradise", "llanowar elves", "elvish", "veil of summer", "haywire mite", "up the beanstalk", "lead the stampede"];
+    const whiteStaples = ["solitude", "swords to plowshares", "path to exile", "prismatic ending", "supreme verdict", "esper sentinel", "thalia", "eiganjo", "ephemerate", "stoneforge mystic", "colossus hammer", "sigarda's aid", "puresteel paladin", "soul warden", "soul's attendant", "drannith magistrate", "archon of emeria", "surge of salvation"];
+    
+    if (blackStaples.some(st => nameLower.includes(st))) return "B";
+    if (blueStaples.some(st => nameLower.includes(st))) return "U";
+    if (redStaples.some(st => nameLower.includes(st))) return "R";
+    if (greenStaples.some(st => nameLower.includes(st))) return "G";
+    if (whiteStaples.some(st => nameLower.includes(st))) return "W";
+    return null;
+};
+
 export async function forgeMazoPerfecto(formData, aiConfig, onProgress = () => {}) {
    const logs = [];
    const addLog = (msg) => {
@@ -4235,7 +4286,8 @@ La suma de las cantidades de todos los roles debe ser exactamente igual a totalS
         formData.mustInclude = comboCardsText;
       }
     }
-    const coreCards = injectCorePackage(strategyId, formData.colores || [], formData.format || 'MODERN', allCards);
+    const hasTribe = formData.tribe && formData.tribe !== 'none' && formData.tribe !== 'ninguna';
+    const coreCards = !hasTribe ? injectCorePackage(strategyId, formData.colores || [], formData.format || 'MODERN', allCards) : [];
     const mergedCoreAndMustInclude = mergeUserMustIncludeWithCore(formData.mustInclude, coreCards, allCards, formData.format || 'MODERN', blueprint.totalSpells, addLog);
     const injectedCoreNames = mergedCoreAndMustInclude.filter(c => c && typeof c.name === 'string').map(c => c.name);
     const excludedNames = mergedCoreAndMustInclude.filter(c => c && typeof c.name === 'string').map(c => c.name);
@@ -4326,7 +4378,10 @@ La suma de las cantidades de todos los roles debe ser exactamente igual a totalS
       userPrompt: formData.prompt,
       archData: archetypeObj,
       dnaSkeleton: dnaSkeleton,
-      rarityMode: activeRarityMode
+      rarityMode: activeRarityMode,
+      engineFlavor: formData.engineFlavor || null,
+      vetoedKeywords: formData.vetoedKeywords || [],
+      vetoedCards: formData.vetoedCards || []
     };
 
     const runAgenticPhase = async (phaseName, targetRoles, attemptName) => {
@@ -4339,6 +4394,19 @@ La suma de las cantidades de todos los roles debe ser exactamente igual a totalS
         addLog(`[PHASE MEMORY] Inferencia dinámica: señales activadas = [${activationSignals.join(', ')}]`);
       }
       
+      let userVetoText = "";
+      if (formData.vetoedKeywords && formData.vetoedKeywords.length > 0) {
+        const kws = Array.isArray(formData.vetoedKeywords) ? formData.vetoedKeywords : String(formData.vetoedKeywords).split(',');
+        userVetoText += `\n- STRICT VETO: Do NOT suggest or include cards featuring these mechanics/keywords under any circumstance: ${kws.map(k => k.trim()).join(', ')}.`;
+      }
+      if (formData.vetoedCards && formData.vetoedCards.length > 0) {
+        const vcs = Array.isArray(formData.vetoedCards) ? formData.vetoedCards.map(c => typeof c === 'string' ? c : c.name || '') : String(formData.vetoedCards).split(',');
+        userVetoText += `\n- STRICT VETO: Do NOT suggest or include these specific cards under any circumstance: ${vcs.map(v => v.trim()).join(', ')}.`;
+      }
+      if (formData.engineFlavor) {
+        userVetoText += `\n- STRATEGIC FOCUS: Prioritize and enforce compatibility with the selected engine/flavor: "${formData.engineFlavor}".`;
+      }
+
       const phasePrompt = buildAgenticPhasePrompt(paramsForPrompt, phaseName, targetRoles, currentDeckContext, activationSignals);
       const contextGen_Prompt = `
       === RAG CARD POOL (MANDATORY SOURCE) ===
@@ -4346,6 +4414,7 @@ La suma de las cantidades de todos los roles debe ser exactamente igual a totalS
       ${poolText}
       ========================================
       ${formData.prompt ? `\n=== STRICT OVERRIDE: USER INSTRUCTIONS ===\n"${formData.prompt}"\n========================================` : ''}
+      ${userVetoText}
       `;
 
       try {
@@ -4383,18 +4452,30 @@ La suma de las cantidades de todos los roles debe ser exactamente igual a totalS
 
     addLog("[AGENTIC FLOW] Todas las fases completadas exitosamente.");
 
-    // --- NUEVO PASO: FASE 4 - AUTO-CRÍTICA Y OPTIMIZACIÓN POR IA (PRO TOUR DECK OPTIMIZER) ---
-    addLog("[AGENTIC FLOW] Iniciando Fase 4: Auto-Crítica y Optimización por IA...");
-    onProgress('assembler', '⚖️ Juez Interno revisando y optimizando con IA...');
-    try {
-      const internalAudit = await internalSynergyAudit(currentDeckContext, formData, aiConfig);
+    // --- NUEVO PASO: FASE 4 - BUCLE DE DEBATE DE COMITÉ (PRO TOUR COMMITTEE DEBATE) ---
+    addLog("[AGENTIC FLOW] Iniciando Bucle de Debate de Comité (Pro Tour Committee Debate)...");
+    onProgress('assembler', '⚖️ Comité de Agentes (Estratega + Auditor) debatiendo optimizaciones...');
+    
+    let debateIteration = 0;
+    const maxDebateIterations = 2;
+    let debateFinished = false;
+
+    while (debateIteration < maxDebateIterations && !debateFinished) {
+      debateIteration++;
+      addLog(`[AGENTIC FLOW] Iteración de Debate ${debateIteration} de ${maxDebateIterations}`);
       
-      const hasSuggestions = internalAudit && internalAudit.suggestions && internalAudit.suggestions.length > 0;
-      const hasAlerts = internalAudit && internalAudit.criticalAlerts && internalAudit.criticalAlerts.length > 0;
-      
-      if (hasSuggestions || hasAlerts) {
-        addLog(`[AGENTIC FLOW] Juez detectó problemas de sinergia u optimización. Iniciando bucle de auto-crítica.`);
+      try {
+        const internalAudit = await internalSynergyAudit(currentDeckContext, formData, aiConfig);
         
+        const hasSuggestions = internalAudit && internalAudit.suggestions && internalAudit.suggestions.length > 0;
+        const hasAlerts = internalAudit && internalAudit.criticalAlerts && internalAudit.criticalAlerts.length > 0;
+        
+        if (!hasSuggestions && !hasAlerts) {
+          addLog(`[AGENTIC FLOW] Auditoría limpia en iteración ${debateIteration}. Finalizando debate.`);
+          debateFinished = true;
+          break;
+        }
+
         // Formatear alertas y sugerencias
         const criticalAlertsText = (internalAudit.criticalAlerts || []).join('\n');
         const suggestionsText = (internalAudit.suggestions || []).map(sug => sug.text).join('\n');
@@ -4405,8 +4486,9 @@ La suma de las cantidades de todos los roles debe ser exactamente igual a totalS
         // Formatear pool del RAG para que la IA elija de ahí
         const ragPoolListText = ragResult.pool.slice(0, 40).map(c => `- ${c.name} (CMC: ${c.mana_value}, Tipo: ${c.type_line}, Sinergia: ${c.score})`).join('\n');
         
-        const criticSystemPrompt = `Eres un "Pro Tour Deck Optimizer", un refinador experto de barajas competitivas de Magic: The Gathering.
+        const criticSystemPrompt = `Eres un "Pro Tour Deck Auditor", un refinador y crítico experto de barajas competitivas de Magic: The Gathering.
 Tu misión es optimizar y corregir el borrador de hechizos que te proporciona el Diseñador, resolviendo todas las alertas y sugerencias señaladas por el Juez Interno.
+Estás en la ronda de debate número ${debateIteration} de ${maxDebateIterations}.
 
 === DATOS DE CONSTRUCCIÓN ===
 - Arquetipo: ${formData.archetype || 'Midrange'}
@@ -4432,7 +4514,7 @@ ${ragPoolListText}
 2. Mantén la cantidad total de copias de hechizos exactamente en ${blueprint.totalSpells} copias.
 3. Asegura que todas las cartas que agregues sean legales en el formato (${formData.format || 'MODERN'}) y compartan la identidad de color permitida ([${baseIdent_ColorStr}]).
 4. Si la tribu es "${tribeLabel}" (y no es 'Ninguna'), prioriza criaturas de esa tribu para no diluir la sinergia.
-5. NO incluyas tierras de ningún tipo (básicas, no básicas ni de utilidad) en la lista optimizada. Las tierras se calcularán automáticamente después en otra fase.
+5. NO incluyas tierras de ningún tipo.
 6. Tu respuesta final debe ser exclusivamente un objeto JSON que siga el esquema requerido, detallando tu razonamiento en español y proporcionando la lista definitiva y optimizada de hechizos en 'optimized_cards'.`;
 
         const criticUserPrompt = `A continuación se muestra el borrador actual de hechizos para optimizar:
@@ -4450,9 +4532,8 @@ Genera la lista de hechizos completamente corregida y optimizada en JSON.`;
         const parsedCritic = typeof criticResponse === 'string' ? cleanAndParseJSON(criticResponse) : criticResponse;
         
         if (parsedCritic && parsedCritic.optimized_cards && parsedCritic.optimized_cards.length > 0) {
-          addLog(`[AGENTIC CRITIC] Razón del cambio: ${parsedCritic.reasoning}`);
+          addLog(`[AGENTIC CRITIC - DEBATE ROUND ${debateIteration}] Razón del cambio: ${parsedCritic.reasoning}`);
           
-          // Reconstruir currentDeckContext con las cartas optimizadas
           const newDeckContext = [];
           for (const oc of parsedCritic.optimized_cards) {
             let dbCard = allCards.find(ac => ac && ac.name && ac.name.toLowerCase() === oc.name.toLowerCase());
@@ -4471,7 +4552,6 @@ Genera la lista de hechizos completamente corregida y optimizada en JSON.`;
                 type_line: dbCard.type_line || ''
               });
 
-              // Asegurar que exista en el RAG pool para el assemblerLoop
               const existsInRag = ragResult.pool.some(p => p.name.toLowerCase() === dbCard.name.toLowerCase());
               if (!existsInRag) {
                 ragResult.pool.push({
@@ -4484,7 +4564,7 @@ Genera la lista de hechizos completamente corregida y optimizada en JSON.`;
                   color_identity: dbCard.color_identity || [],
                   mana_cost: dbCard.mana_cost || '',
                   rarity: dbCard.rarity || 'common',
-                  score: 999, // Alta prioridad
+                  score: 999,
                   metaPercent: 0
                 });
               }
@@ -4493,18 +4573,16 @@ Genera la lista de hechizos completamente corregida y optimizada en JSON.`;
             }
           }
 
-          // Verificar que mantengamos un número razonable de cartas antes de asignarlo
           if (newDeckContext.length > 0) {
             const newTotal = newDeckContext.reduce((sum, c) => sum + c.quantity, 0);
-            addLog(`[AGENTIC CRITIC] Mazo optimizado con éxito. Nuevo total de copias: ${newTotal} (Objetivo: ${blueprint.totalSpells})`);
+            addLog(`[AGENTIC CRITIC] Mazo optimizado con éxito en ronda ${debateIteration}. Nuevo total de copias: ${newTotal} (Objetivo: ${blueprint.totalSpells})`);
             currentDeckContext = newDeckContext;
           }
         }
-      } else {
-        addLog("[AGENTIC FLOW] Juez Interno: Sinergias limpias, no se detectaron parásitos.");
+      } catch (e) {
+        addLog(`[AGENTIC FLOW] Error en Debate Iteración ${debateIteration}: ${e.message}`);
+        debateFinished = true;
       }
-    } catch (e) {
-      addLog(`[AGENTIC FLOW] Error en Fase 4 de Auto-Crítica: ${e.message}. Continuando con el mazo preliminar.`);
     }
 
     // Transformar el resultado al formato compatible con el assemblerLoop actual, preservando la cantidad elegida por la IA (Problema 2)
@@ -4688,6 +4766,38 @@ Genera la lista de hechizos completamente corregida y optimizada en JSON.`;
   Object.keys(recalculatedPips).forEach(color => {
       metricsPIPsStruct[color] = recalculatedPips[color];
   });
+
+  // --- POST-SIDEBOARD MANA CHECK ---
+  // Si una carta del banquillo requiere un color que no está presente en los hechizos del mazo principal (y por ende no genera fuentes),
+  // añadir 2 pips virtuales de ese color a metricsPIPsStruct antes de invocar a generateManaBase para que el generador de tierras lo soporte.
+  if (spellJuezResult && spellJuezResult.sideboard && Array.isArray(spellJuezResult.sideboard)) {
+    const sideboardColors = new Set();
+    spellJuezResult.sideboard.forEach(card => {
+      if (!card || !card.name) return;
+      const poolCard = (ragResult?.pool || []).find(p => p && p.name && p.name.toLowerCase() === card.name.toLowerCase());
+      let cardColors = poolCard?.colors || poolCard?.color_identity || card.colors || card.color_identity || [];
+      if (typeof cardColors === 'string') cardColors = [cardColors];
+      
+      if (cardColors.length === 0) {
+        const guessed = guessCardColor(card.name);
+        if (guessed) cardColors = [guessed];
+      }
+      
+      cardColors.forEach(col => {
+        const colUpper = String(col).toUpperCase();
+        if (['W', 'U', 'B', 'R', 'G'].includes(colUpper)) {
+          sideboardColors.add(colUpper);
+        }
+      });
+    });
+
+    sideboardColors.forEach(col => {
+      if ((recalculatedPips[col] || 0) === 0) {
+        addLog(`[POST-SIDEBOARD CHECK] Banquillo requiere color "${col}" no presente en Maindeck. Añadiendo 2 pips virtuales a metricsPIPsStruct.`);
+        metricsPIPsStruct[col] = (metricsPIPsStruct[col] || 0) + 2;
+      }
+    });
+  }
 
   // Generar base de tierras
   onProgress('judge', '🌐 Trazando Matemática Perfecta del Flujo Natural Generando Pips Lands de JS Puro..');

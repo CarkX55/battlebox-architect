@@ -8,6 +8,7 @@ import { getCardCount, clearScryfallData } from '../services/dbIngestor';
 import DataIngestor from '../components/molecules/DataIngestor';
 import AiConfigPanel from '../components/forge/AiConfigPanel';
 import MetaIngestor from '../components/forge/MetaIngestor';
+import { isHapticsEnabled, setHapticsEnabled, vibrateTouch } from '../utils/haptic';
 
 export default function AdminPanel() {
   const [activeTab, setActiveTab] = useState('ai'); // 'ai' | 'meta' | 'database'
@@ -16,6 +17,7 @@ export default function AdminPanel() {
   const [showConfirmWipe, setShowConfirmWipe] = useState(false);
   const [wiping, setWiping] = useState(false);
   const [wipeSuccess, setWipeSuccess] = useState(false);
+  const [haptics, setHaptics] = useState(() => isHapticsEnabled());
   
   const [selectedFormat, setSelectedFormat] = useState('MODERN');
 
@@ -103,7 +105,10 @@ export default function AdminPanel() {
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => {
+                  vibrateTouch();
+                  setActiveTab(tab.id);
+                }}
                 className={`btn-letra transition-all duration-300 ${
                   !isActive 
                     ? 'opacity-60 grayscale-[50%] scale-90 hover:scale-95 hover:opacity-100 hover:grayscale-0' 
@@ -149,6 +154,37 @@ export default function AdminPanel() {
                       console.log("Configuración de IA actualizada desde Admin:", cfg);
                     }}
                   />
+                </div>
+
+                {/* Preferencias de Interfaz */}
+                <div className="frosted-panel p-6 rounded-2xl border border-magic-gold/30 bg-gradient-to-br from-amber-950/15 via-black/85 to-stone-950/90 shadow-[0_0_30px_rgba(255,202,88,0.12)] backdrop-blur-sm relative">
+                  <h3 className="font-cinzel font-bold text-lg text-magic-gold mb-4 uppercase flex items-center gap-2">
+                    📳 Preferencias de Interfaz
+                  </h3>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-semibold text-white/95">Vibración Háptica (Móvil)</p>
+                      <p className="text-xs text-[#f4ece0]/60 font-serif italic mt-1">
+                        Activa una respuesta física táctil al pulsar botones y seleccionar cartas en dispositivos móviles.
+                      </p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        checked={haptics} 
+                        onChange={(e) => {
+                          const val = e.target.checked;
+                          setHaptics(val);
+                          setHapticsEnabled(val);
+                          if (val) {
+                            setTimeout(() => vibrateTouch(), 50);
+                          }
+                        }}
+                        className="sr-only peer" 
+                      />
+                      <div className="w-11 h-6 bg-stone-850 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-stone-500 after:border-stone-400 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-magic-gold peer-checked:after:bg-black peer-checked:after:border-black"></div>
+                    </label>
+                  </div>
                 </div>
               </motion.div>
             )}

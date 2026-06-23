@@ -249,8 +249,151 @@ function matchesSearchQuery(card, query) {
   return true;
 }
 
+const EXTRACT_SCHEMA = {
+  type: "object",
+  properties: {
+    keywords: {
+      type: "array",
+      items: { type: "string" },
+      description: "List of MTG keywords or game terms translated to English."
+    },
+    subtypes: {
+      type: "array",
+      items: { type: "string" },
+      description: "List of MTG creature subtypes (e.g., goblin, elf, sliver, vampire, rogue, wizard) translated to English."
+    },
+    englishTranslation: {
+      type: "string",
+      description: "Full English translation of the user's Spanish prompt."
+    }
+  },
+  required: ["keywords", "subtypes", "englishTranslation"]
+};
+
+function localCleanAndParseJSON(str) {
+  if (!str) return null;
+  let clean = typeof str === 'string' ? str.trim() : str;
+  if (typeof clean !== 'string') return clean;
+
+  if (clean.startsWith("```")) {
+    const firstNewLine = clean.indexOf("\n");
+    if (firstNewLine !== -1) {
+      clean = clean.substring(firstNewLine + 1);
+    }
+    if (clean.endsWith("```")) {
+      clean = clean.substring(0, clean.length - 3).trim();
+    }
+  }
+  const firstBrace = clean.search(/[\{\[]/);
+  if (firstBrace !== -1) {
+    clean = clean.substring(firstBrace);
+    const startChar = clean.charAt(0);
+    const endChar = startChar === '{' ? '}' : ']';
+    const endBrace = clean.lastIndexOf(endChar);
+    if (endBrace !== -1) {
+      clean = clean.substring(0, endBrace + 1);
+    }
+  }
+  return JSON.parse(clean);
+}
+
+export const extractKeywordsFromPrompt = async (userPrompt, aiConfig) => {
+  if (!userPrompt || !aiConfig) {
+    return { keywords: [], subtypes: [], englishTranslation: userPrompt || "" };
+  }
+  try {
+    const { callAI } = await import('./aiFactory.js');
+    const systemPrompt = `Eres un extractor semántico experto en Magic: The Gathering.
+Tu tarea es analizar el prompt del usuario en español, traducirlo al inglés de forma competitiva, y extraer un listado de:
+1. Mecánicas/Keywords clave de MTG en inglés (ej: "toxic", "infect", "sacrifice", "mill", "enters the battlefield", "flying", "haste", "lifelink").
+2. Subtipos de criatura o razas en inglés (ej: "goblin", "elf", "sliver", "merfolk", "vampire", "knight", "rogue", "wizard").
+
+Devuelve la información estrictamente estructurada según el JSON Schema requerido.`;
+
+    const userMsg = `Prompt del usuario: "${userPrompt}"`;
+    
+    const response = await callAI([
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userMsg }
+    ], aiConfig, { forceJSON: true, maxTokens: 1000, schema: EXTRACT_SCHEMA });
+
+    let parsed = typeof response === 'string' ? localCleanAndParseJSON(response) : response;
+    if (parsed) {
+      console.log(`[Semantic Parser] Extraído con éxito:`, parsed);
+      return {
+        keywords: Array.isArray(parsed.keywords) ? parsed.keywords.map(k => k.toLowerCase()) : [],
+        subtypes: Array.isArray(parsed.subtypes) ? parsed.subtypes.map(s => s.toLowerCase()) : [],
+        englishTranslation: parsed.englishTranslation || ""
+      };
+    }
+  } catch (err) {
+    console.warn(`⚠️ [Semantic Parser] Falló la extracción con IA, usando fallback básico. Error:`, err);
+  }
+  return { keywords: [], subtypes: [], englishTranslation: userPrompt };
+};
+
+function selectHybridWeighted(candidates, targetCount) {
+  if (candidates.length <= targetCount) {
+    return [...candidates];
+  }
+  if (targetCount <= 0) {
+    return [];
+  }
+  // 1. Staples (65%): El 65% de la capacidad de targetCount se asigna directamente a los de mayor score.
+  const stapleCount = Math.max(1, Math.round(targetCount * 0.65));
+  const selected = candidates.slice(0, stapleCount);
+  
+  // El restante es para variabilidad
+  const varCount = targetCount - stapleCount;
+  if (varCount <= 0) {
+    return selected;
+  }
+  
+  // 2. Variabilidad (35%): Elegir probabilísticamente mediante selección ponderada (ruleta) sobre los siguientes 15 candidatos.
+  const poolForVar = candidates.slice(stapleCount, stapleCount + 15);
+  if (poolForVar.length === 0) {
+    return selected;
+  }
+  
+  if (poolForVar.length <= varCount) {
+    selected.push(...poolForVar);
+    return selected;
+  }
+  
+  const tempPool = poolForVar.map(c => {
+    const weight = Math.max(1, c.score || 0);
+    return { card: c, weight };
+  });
+  
+  const chosen = [];
+  const tempPoolCopy = [...tempPool];
+  for (let i = 0; i < varCount; i++) {
+    if (tempPoolCopy.length === 0) break;
+    const totalWeight = tempPoolCopy.reduce((sum, item) => sum + item.weight, 0);
+    let r = Math.random() * totalWeight;
+    let selectedIndex = 0;
+    for (let j = 0; j < tempPoolCopy.length; j++) {
+      r -= tempPoolCopy[j].weight;
+      if (r <= 0) {
+        selectedIndex = j;
+        break;
+      }
+    }
+    chosen.push(tempPoolCopy[selectedIndex].card);
+    tempPoolCopy.splice(selectedIndex, 1);
+  }
+  
+  selected.push(...chosen);
+  return selected;
+}
+
 export const buildCardPool = async (formData) => {
   const allCards = await getAllCards();
+  
+  // Extraer keywords de forma asíncrona si hay prompt
+  const semanticData = (formData.prompt && formData.aiConfig) 
+    ? await extractKeywordsFromPrompt(formData.prompt, formData.aiConfig)
+    : null;
   const blueprint = getFormatAdjustedBlueprint(formData.archetype, formData.format || 'MODERN');
   const blueprintRoles = formData.blueprintRoles || blueprint?.roles || [];
   const allowCustomCards = !!formData.allowCustomCards;
@@ -310,6 +453,36 @@ export const buildCardPool = async (formData) => {
   let strategyId = formData.strategy || '';
   strategyId = inferStrategyFromArchetype(formData.archetype, strategyId);
   const strategyData = MTG_STRATEGIES.find(s => s.id === strategyId || s.label === strategyId) || null;
+
+  // Buscar sabor (flavor) de la tribu si aplica
+  let activeFlavor = null;
+  if (tribeData && tribeData.flavors) {
+    activeFlavor = tribeData.flavors.find(f => 
+      f.id === formData.strategy || 
+      f.id === strategyId || 
+      f.label === formData.strategy || 
+      f.label === strategyId
+    );
+  }
+  if (!activeFlavor) {
+    for (const t of MTG_TRIBES) {
+      if (t.flavors) {
+        const found = t.flavors.find(f => 
+          f.id === formData.strategy || 
+          f.id === strategyId || 
+          f.label === formData.strategy || 
+          f.label === strategyId
+        );
+        if (found) {
+          activeFlavor = found;
+          break;
+        }
+      }
+    }
+  }
+
+  const flavorKeywordsLower = (activeFlavor?.boostKeywords || []).map(k => k.toLowerCase());
+  const flavorVetoedKeywordsLower = (activeFlavor?.vetoedKeywords || []).map(k => k.toLowerCase());
   
   // Registrar nombres activos pre-seleccionados para el motor de coocurrencia
   const activePreSelectedNames = new Set([
@@ -408,6 +581,46 @@ export const buildCardPool = async (formData) => {
       if (cardNameLower.includes("hamato") || cardNameLower.includes("shredder") || cardNameLower.includes("yoshi") || cardNameLower.includes("oroku saki") || cardNameLower.includes("splinter, ")) {
         continue;
       }
+    }
+    // --- VETOS SEMÁNTICOS Y EXCLUSIONES DEL USUARIO (Oracle Tuner) ---
+    // 1. Vetar palabras clave
+    if (formData.vetoedKeywords) {
+      const keywordsArray = Array.isArray(formData.vetoedKeywords)
+        ? formData.vetoedKeywords
+        : String(formData.vetoedKeywords).split(',').map(k => k.trim());
+        
+      const combinedText = `${cardNameLower} | ${typeLine} | ${oracleText}`;
+      const isVetoedByKeyword = keywordsArray.some(kw => {
+        const cleanKw = kw.trim().toLowerCase();
+        if (!cleanKw) return false;
+        const regex = new RegExp(`\\b${cleanKw}\\b`, 'i');
+        return regex.test(combinedText);
+      });
+      if (isVetoedByKeyword) continue;
+    }
+
+    // 1.1 Vetar palabras clave específicas del sabor activo (flavor)
+    if (flavorVetoedKeywordsLower.length > 0) {
+      const combinedText = `${cardNameLower} | ${typeLine} | ${oracleText}`;
+      const isVetoedByFlavorKeyword = flavorVetoedKeywordsLower.some(kw => {
+        if (!kw) return false;
+        const regex = new RegExp(`\\b${kw}\\b`, 'i');
+        return regex.test(combinedText);
+      });
+      if (isVetoedByFlavorKeyword) continue;
+    }
+
+    // 2. Vetar cartas específicas por nombre
+    if (formData.vetoedCards) {
+      const cardsArray = Array.isArray(formData.vetoedCards)
+        ? formData.vetoedCards.map(c => (typeof c === 'string' ? c : c.name || ''))
+        : String(formData.vetoedCards).split(',').map(k => k.trim());
+        
+      const isVetoedByCard = cardsArray.some(vc => {
+        const cleanName = vc.trim().toLowerCase();
+        return cleanName && cardNameLower === cleanName;
+      });
+      if (isVetoedByCard) continue;
     }
 
     // --- FILTRADO PROACTIVO DE CARTAS PARASITARIAS ---
@@ -653,16 +866,36 @@ export const buildCardPool = async (formData) => {
             const cleanTag = t.replace('tag:', '').toLowerCase();
             let isAlignedTag = false;
 
-            if (strategyId === 'reanimator' && (cleanTag.includes('reanimat') || cleanTag.includes('mill') || cleanTag.includes('discard'))) {
+            if (strategyId === 'reanimator' && (cleanTag.includes('reanimat') || cleanTag.includes('mill') || cleanTag.includes('discard') || cleanTag.includes('graveyard'))) {
               isAlignedTag = true;
-            } else if (strategyId === 'aristocrats' && (cleanTag.includes('sacrifice') || cleanTag.includes('life-drain') || cleanTag.includes('vampire') || cleanTag.includes('zombie'))) {
+            } else if (strategyId === 'aristocrats' && (cleanTag.includes('sacrifice') || cleanTag.includes('life-drain') || cleanTag.includes('vampire') || cleanTag.includes('zombie') || cleanTag.includes('aristocrat'))) {
               isAlignedTag = true;
-            } else if (strategyId === 'spellslinger' && (cleanTag.includes('spellslinger') || cleanTag.includes('cantrip') || cleanTag.includes('dragon') || cleanTag.includes('prowess'))) {
+            } else if (strategyId === 'spellslinger' && (cleanTag.includes('spellslinger') || cleanTag.includes('cantrip') || cleanTag.includes('dragon') || cleanTag.includes('prowess') || cleanTag.includes('instant') || cleanTag.includes('sorcery'))) {
+              isAlignedTag = true;
+            } else if (strategyId === 'affinity' && (cleanTag.includes('affinity') || cleanTag.includes('artifact') || cleanTag.includes('metalcraft') || cleanTag.includes('equipment') || cleanTag.includes('improvise'))) {
+              isAlignedTag = true;
+            } else if (strategyId === 'blink' && (cleanTag.includes('blink') || cleanTag.includes('flicker') || cleanTag.includes('etb') || cleanTag.includes('bounce') || cleanTag.includes('exile'))) {
+              isAlignedTag = true;
+            } else if (strategyId === 'landfall' && (cleanTag.includes('landfall') || cleanTag.includes('land') || cleanTag.includes('ramp') || cleanTag.includes('basic-land'))) {
+              isAlignedTag = true;
+            } else if (strategyId === 'lifegain' && (cleanTag.includes('lifegain') || cleanTag.includes('life-drain') || cleanTag.includes('gain-life') || cleanTag.includes('lifelink'))) {
+              isAlignedTag = true;
+            } else if (strategyId === 'prison' && (cleanTag.includes('prison') || cleanTag.includes('tax') || cleanTag.includes('hatebear') || cleanTag.includes('stax') || cleanTag.includes('lock'))) {
+              isAlignedTag = true;
+            } else if (strategyId === 'vehicles' && (cleanTag.includes('vehicle') || cleanTag.includes('crew') || cleanTag.includes('pilot') || cleanTag.includes('artifact'))) {
+              isAlignedTag = true;
+            } else if (strategyId === 'cascade' && (cleanTag.includes('cascade') || cleanTag.includes('suspend') || cleanTag.includes('free-spell'))) {
+              isAlignedTag = true;
+            } else if (strategyId === 'storm' && (cleanTag.includes('storm') || cleanTag.includes('ritual') || cleanTag.includes('cantrip') || cleanTag.includes('spellslinger'))) {
+              isAlignedTag = true;
+            } else if (strategyId === 'toolbox' && (cleanTag.includes('tutor') || cleanTag.includes('search') || cleanTag.includes('silver-bullet') || cleanTag.includes('toolbox'))) {
+              isAlignedTag = true;
+            } else if (strategyId === 'sea_monsters' && (cleanTag.includes('kraken') || cleanTag.includes('leviathan') || cleanTag.includes('octopus') || cleanTag.includes('serpent') || cleanTag.includes('fish') || cleanTag.includes('sea'))) {
               isAlignedTag = true;
             }
 
             if (isAlignedTag) {
-              score += 90; // Sinergia mecánica abstracta
+              score += 180; // Sinergia mecánica abstracta (subido de 90)
             }
           });
         }
@@ -728,6 +961,39 @@ export const buildCardPool = async (formData) => {
         if (termMatches > 0) {
           score += termMatches * 30; // Impulso semántico instantáneo
         }
+      }
+
+      // --- INTEGRACIÓN CON EL AGENTE EXTRACTOR SEMÁNTICO (AI Semantic Parser Boost) ---
+      if (semanticData) {
+        const { keywords, subtypes, englishTranslation } = semanticData;
+        let semanticBoost = 0;
+        
+        keywords.forEach(kw => {
+          if (kw && (cardNameLower.includes(kw) || typeLine.includes(kw) || oracleText.includes(kw))) {
+            semanticBoost += 250;
+          }
+        });
+        
+        subtypes.forEach(st => {
+          if (st && typeLine.includes(st)) {
+            semanticBoost += 250;
+          }
+        });
+        
+        if (englishTranslation) {
+          const translationTerms = englishTranslation.toLowerCase()
+            .replace(/[^a-z0-9\s]/g, '')
+            .split(/\s+/)
+            .filter(w => w.length > 3 && !['with', 'want', 'deck', 'build', 'create', 'modern', 'standard', 'make', 'cards', 'like', 'play', 'need'].includes(w));
+          
+          translationTerms.forEach(term => {
+            if (cardNameLower.includes(term)) semanticBoost += 50;
+            if (typeLine.includes(term)) semanticBoost += 30;
+            if (oracleText.includes(term)) semanticBoost += 10;
+          });
+        }
+        
+        score += semanticBoost;
       }
 
       // Veto de Linealidad Generalizado (Protección contra Intrusos en Estrategias Lineales y Tribal en Todo Magic)
@@ -840,6 +1106,11 @@ export const buildCardPool = async (formData) => {
         if (!isMechanicalMatch && blueprint.ragModifiers && blueprint.ragModifiers.boost) {
           const boostLower = blueprint.ragModifiers.boost.map(k => k.toLowerCase());
           isMechanicalMatch = boostLower.some(kw => oracleText.includes(kw) || typeLine.includes(kw) || cardNameLower.includes(kw));
+        }
+
+        // Excepción de sabor (flavor/custom strategy)
+        if (!isMechanicalMatch && flavorKeywordsLower.length > 0) {
+          isMechanicalMatch = flavorKeywordsLower.some(kw => oracleText.includes(kw) || typeLine.includes(kw) || cardNameLower.includes(kw));
         }
 
         // Excepción 7: Staple interactivo / de utilidad general competitivo (CMC <= 3 con interacción/robo clásica)
@@ -1122,9 +1393,9 @@ export const buildCardPool = async (formData) => {
       const textMatches = countKeywords(oracleText, strategyKeywordsLower) + countKeywords(typeLine, strategyKeywordsLower);
       
       if (isKeyStrategyCard) {
-        score += 170; // Super-impulso para asegurar que entre en el RAG pool de cabeza
+        score += 350; // Super-impulso para asegurar que entre en el RAG pool de cabeza (subido de 170)
       } else if (textMatches > 0) {
-        score += 40 + (textMatches * 15);
+        score += 120 + (textMatches * 25); // (subido de 40 + matches * 15)
       }
 
       // Calibraciones específicas de alta fidelidad por estrategia para complementar el impulso genérico:
@@ -1163,9 +1434,61 @@ export const buildCardPool = async (formData) => {
         if (isDeliriumCore) {
           score += 150;
         }
+      } else if (strategyId === 'affinity') {
+        const isAffinityCore = ['steel overseer', 'cranial plating', 'memnite', 'ornithopter', 'frogmite', 'thought monitor', 'patchwork automaton', 'sojourner\'s companion', 'welder', 'springleaf drum', 'esper sentinel', 'skitterbeam kavu', 'stonecoil serpent'].includes(cardNameLower);
+        if (isAffinityCore) {
+          score += 220;
+        }
+      } else if (strategyId === 'blink') {
+        const isBlinkCore = ['ephemerate', 'soulherder', 'charming prince', 'thassa, deep-dwelling', 'flickerwisp', 'mulldrifter', 'solitude', 'aether channeler', 'wall of blossoms', 'coiling oracle', 'skyclave apparition'].includes(cardNameLower);
+        if (isBlinkCore) {
+          score += 220;
+        }
+      } else if (strategyId === 'landfall') {
+        const isLandfallCore = ['valakut exploration', 'dryad of the ilysian grove', 'omnath, locus of creation', 'scute swarm', 'lotus cobra', 'tireless tracker', 'wrenn and six', 'primeval titan', 'azusa, lost but seeking'].includes(cardNameLower);
+        if (isLandfallCore) {
+          score += 220;
+        }
+      } else if (strategyId === 'lifegain') {
+        const isLifegainCore = ['soul warden', 'ajani\'s pridemate', 'speaker of the heavens', 'heliod, sun-crowned', 'cruel celebrant', 'blood artist', 'daxos, blessed by the sun'].includes(cardNameLower);
+        if (isLifegainCore) {
+          score += 220;
+        }
+      } else if (strategyId === 'prison') {
+        const isPrisonCore = ['thalia, guardian of thraben', 'ghostly prison', 'ensnaring bridge', 'damping sphere', 'archon of emeria', 'esper sentinel', 'magus of the moon', 'blood moon'].includes(cardNameLower);
+        if (isPrisonCore) {
+          score += 220;
+        }
+      } else if (strategyId === 'vehicles') {
+        const isVehiclesCore = ['smuggler\'s copter', 'heart of kiran', 'esika\'s chariot', 'skysovereign, consul flagship', 'mox amber', 'depala, pilot exemplar', 'relic seeker'].includes(cardNameLower);
+        if (isVehiclesCore) {
+          score += 220;
+        }
+      } else if (strategyId === 'cascade') {
+        const isCascadeCore = ['shardless agent', 'ardent plea', 'crashing footfalls', 'living end', 'ancestral vision', 'violent outburst', 'bloodbraid elf'].includes(cardNameLower);
+        if (isCascadeCore) {
+          score += 220;
+        }
+      } else if (strategyId === 'storm') {
+        const isStormCore = ['grapeshot', 'empty the warrens', 'desperate ritual', 'pyretic ritual', 'manamorphose', 'ral, monsoon mage', 'past in flames', 'baral, chief of compliance', 'goblin electromancer', 'ruby medallion', 'seething song'].includes(cardNameLower);
+        if (isStormCore) {
+          score += 220;
+        }
       }
     } else if (strategyData) {
       score += countKeywords(oracleText, strategyIdKeywordsLower) * 5;
+    }
+
+    // === CALIBRACIÓN ESTRATÉGICA DE SABOR / FLAVOR (TRIBE-SPECIFIC STRATEGY BOOST) ===
+    if (flavorKeywordsLower.length > 0) {
+      const isKeyFlavorCard = flavorKeywordsLower.some(kw => cardNameLower === kw || cardNameLower.includes(kw));
+      const textMatches = countKeywords(oracleText, flavorKeywordsLower) + countKeywords(typeLine, flavorKeywordsLower);
+      
+      if (isKeyFlavorCard) {
+        score += 350; // Super-impulso para asegurar que entre en el RAG pool de cabeza
+      } else if (textMatches > 0) {
+        score += 120 + (textMatches * 25);
+      }
     }
 
     // Penalizamos cartas inútiles sin texto si no son criaturas grandes
@@ -1639,7 +1962,7 @@ export const buildCardPool = async (formData) => {
     targetCounts[bestKey] += diff;
   }
 
-  // Extraer las criaturas de cada bucket
+  // Extraer las criaturas de cada bucket con Selección Estocástica de Ruleta
   const topCreatures = [];
   const deficits = {};
 
@@ -1647,7 +1970,7 @@ export const buildCardPool = async (formData) => {
     const available = buckets[k];
     const target = targetCounts[k];
     if (available.length >= target) {
-      topCreatures.push(...available.slice(0, target));
+      topCreatures.push(...selectHybridWeighted(available, target));
       deficits[k] = 0;
     } else {
       topCreatures.push(...available);
@@ -1670,8 +1993,8 @@ export const buildCardPool = async (formData) => {
     topCreatures.push(...remainingCandidatos.slice(0, totalDeficit));
   }
 
-  // Tomamos los mejores hechizos no-criatura
-  const topSpells = spellsPool.slice(0, targetSpellCount);
+  // Tomamos los mejores hechizos no-criatura con Selección Estocástica de Ruleta
+  const topSpells = selectHybridWeighted(spellsPool, targetSpellCount);
 
   // Si alguna categoría tiene menos cartas de las solicitadas, compensamos con la otra para completar 200 en total
   let finalPool = [...topCreatures, ...topSpells];
@@ -1691,13 +2014,13 @@ export const buildCardPool = async (formData) => {
 
   console.log(`[RAG] Filtrado completado. Criaturas: ${topCreatures.length}/${targetCreatureCount}, Hechizos: ${topSpells.length}/${targetSpellCount}. Total: ${finalPool.length}`);
   
-  // --- NUEVO FASE 3: EXPANDIR RAG POOL POR ROL (Problema 1) ---
+  // --- NUEVO FASE 3: EXPANDIR RAG POOL POR ROL (Problema 1) con Shuffling de Refuerzos ---
   if (formData.blueprintRoles && Array.isArray(formData.blueprintRoles)) {
     formData.blueprintRoles.forEach(role => {
       const matches = finalPool.filter(c => matchesSearchQuery(c, role.search_query));
       if (matches.length < 4 && role.search_query) {
         console.log(`[RAG JIT EXPANSION] Rol "${role.name}" tiene pocos candidatos (${matches.length}/4) con query "${role.search_query}". Buscando refuerzos...`);
-        const reinforcementCandidates = allCards
+        const allReinforcements = allCards
           .filter(c => c.legalities && c.legalities[formatKey] === 'legal')
           .filter(c => !excludedNames.includes(c.name.toLowerCase()))
           .filter(c => !finalPool.some(fp => fp.name.toLowerCase() === c.name.toLowerCase()))
@@ -1712,13 +2035,25 @@ export const buildCardPool = async (formData) => {
             mana_cost: c.mana_cost || '',
             score: 80, // Score base moderado
             metaPercent: 0
-          }))
-          .sort((a, b) => b.score - a.score)
-          .slice(0, 6);
+          }));
           
-        if (reinforcementCandidates.length > 0) {
-          console.log(`[RAG JIT EXPANSION] Inyectando ${reinforcementCandidates.length} cartas de refuerzo para el rol "${role.name}":`, reinforcementCandidates.map(c => c.name));
-          finalPool.push(...reinforcementCandidates);
+        let selectedReinforcements = [];
+        if (allReinforcements.length > 0) {
+          const topTen = allReinforcements.slice(0, 10);
+          
+          // Fisher-Yates Shuffle
+          for (let i = topTen.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [topTen[i], topTen[j]] = [topTen[j], topTen[i]];
+          }
+          
+          // Elegir hasta 4 cartas al azar de entre el Top 10
+          selectedReinforcements = topTen.slice(0, 4);
+        }
+          
+        if (selectedReinforcements.length > 0) {
+          console.log(`[RAG JIT EXPANSION] Inyectando ${selectedReinforcements.length} cartas de refuerzo (azar de Top 10) para el rol "${role.name}":`, selectedReinforcements.map(c => c.name));
+          finalPool.push(...selectedReinforcements);
         }
       }
     });

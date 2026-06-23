@@ -2,6 +2,8 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Network, Info, Sparkles, HelpCircle } from 'lucide-react';
 import { cn } from '../../utils/cn';
+import { useIsMobile } from '../../hooks/useIsMobile';
+import BottomSheet from '../atoms/BottomSheet';
 
 /**
  * SynergyGraphVisualizer: Componente de simulación de física de fuerzas en SVG
@@ -32,12 +34,30 @@ export default function SynergyGraphVisualizer({ deck, isOpen, onClose, archetyp
   const [graphData, setGraphData] = useState(null);
 
   const containerRef = useRef(null);
+  const parentRef = useRef(null);
   const dragNodeRef = useRef(null);
   const animationRef = useRef(null);
+  const isMobile = useIsMobile();
 
-  // Dimensiones del SVG
-  const width = 800;
-  const height = 500;
+  // Dimensiones dinámicas del SVG con ResizeObserver
+  const [dimensions, setDimensions] = useState({ width: 800, height: 500 });
+  const { width, height } = dimensions;
+
+  useEffect(() => {
+    if (!isOpen || !parentRef.current) return;
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (let entry of entries) {
+        const { width: w } = entry.contentRect;
+        const calculatedHeight = Math.max(350, Math.floor((w || 800) * 5 / 8));
+        setDimensions({ width: w || 800, height: calculatedHeight || 500 });
+      }
+    });
+
+    resizeObserver.observe(parentRef.current);
+    return () => resizeObserver.disconnect();
+  }, [isOpen]);
+
+  const sizeMultiplier = isMobile ? 0.7 : 1;
 
   // Cargar el Grafo Consolidado synergy_graph.json
   useEffect(() => {
@@ -86,7 +106,7 @@ export default function SynergyGraphVisualizer({ deck, isOpen, onClose, archetyp
         category: c.category || 'Spell',
         color: nodeColor,
         x, y,
-        size: 15
+        size: 15 * sizeMultiplier
       });
 
       newLinks.push({
@@ -119,7 +139,7 @@ export default function SynergyGraphVisualizer({ deck, isOpen, onClose, archetyp
     const sliceCount = isYorionDeck ? 26 : 18;
     const list = deck.slice(0, sliceCount); // Usar top N cartas del mazo
     const newNodes = [
-      { id: 'root', name: `${archetype.toUpperCase()} Engine`, type: 'archetype', color: '#D4AF37', x: width / 2, y: height / 2, fx: width / 2, fy: height / 2, size: 24 }
+      { id: 'root', name: `${archetype.toUpperCase()} Engine`, type: 'archetype', color: '#D4AF37', x: width / 2, y: height / 2, fx: width / 2, fy: height / 2, size: 24 * sizeMultiplier }
     ];
     const newLinks = [];
     const addedNodeIds = new Set(['root']);
@@ -145,7 +165,7 @@ export default function SynergyGraphVisualizer({ deck, isOpen, onClose, archetyp
         isCritical: isCritical || isHiddenSynergy,
         synergyReason: c.synergyReason,
         x, y,
-        size: isHiddenSynergy ? 16 : (isCritical ? 18 : 14)
+        size: (isHiddenSynergy ? 16 : (isCritical ? 18 : 14)) * sizeMultiplier
       });
       addedNodeIds.add(c.name);
 
@@ -187,7 +207,7 @@ export default function SynergyGraphVisualizer({ deck, isOpen, onClose, archetyp
           category: 'Sinergia RAG',
           color: '#10B981', // Verde neón para recomendadas RAG
           x, y,
-          size: 12
+          size: 12 * sizeMultiplier
         });
 
         newLinks.push({
@@ -295,9 +315,45 @@ export default function SynergyGraphVisualizer({ deck, isOpen, onClose, archetyp
     return () => {
       if (animationRef.current) cancelAnimationFrame(animationRef.current);
     };
-  }, [nodes.length, links]);
+  }, [nodes.length, links, width, height]);
 
   // --- CONTROL DE ARRASTRE DE NODOS ---
+  // --- CONTROL DE ARRASTRE DE NODOS EN TOUCH ---
+  const handleTouchStart = (e, node) => {
+    if (node.id === 'root') return;
+    const touch = e.touches[0];
+    const rect = containerRef.current.getBoundingClientRect();
+    
+    const clientX = touch.clientX - rect.left;
+    const clientY = touch.clientY - rect.top;
+    
+    const scaleX = width / rect.width;
+    const scaleY = height / rect.height;
+    
+    dragNodeRef.current = {
+      ...node,
+      startX: clientX * scaleX,
+      startY: clientY * scaleY
+    };
+
+    setSelectedNode(node);
+  };
+
+  const handleTouchMove = (e) => {
+    if (!dragNodeRef.current) return;
+    const touch = e.touches[0];
+    const rect = containerRef.current.getBoundingClientRect();
+    
+    const clientX = touch.clientX - rect.left;
+    const clientY = touch.clientY - rect.top;
+    
+    const scaleX = width / rect.width;
+    const scaleY = height / rect.height;
+
+    dragNodeRef.current.x = clientX * scaleX;
+    dragNodeRef.current.y = clientY * scaleY;
+  };
+
   const handleMouseDown = (e, node) => {
     if (node.id === 'root') return; // Bloquear centro
     e.preventDefault();
@@ -307,7 +363,7 @@ export default function SynergyGraphVisualizer({ deck, isOpen, onClose, archetyp
     const clientX = e.clientX - rect.left;
     const clientY = e.clientY - rect.top;
     
-    // Escalar al viewport virtual del SVG (800x500)
+    // Escalar al viewport virtual del SVG
     const scaleX = width / rect.width;
     const scaleY = height / rect.height;
     
@@ -359,24 +415,24 @@ export default function SynergyGraphVisualizer({ deck, isOpen, onClose, archetyp
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/95 backdrop-blur-xl">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-2 md:p-4 bg-black/95 backdrop-blur-xl">
       <motion.div
         initial={{ scale: 0.95, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
-        className="bg-[#0b0a09]/98 border border-grimorio-gold/30 rounded-3xl w-full max-w-5xl p-6 shadow-[0_0_60px_rgba(212,175,55,0.15)] flex flex-col relative"
+        className="bg-[#0b0a09]/98 border border-grimorio-gold/30 md:rounded-3xl rounded-xl w-full max-w-full md:max-w-5xl p-4 md:p-6 shadow-[0_0_60px_rgba(212,175,55,0.15)] flex flex-col h-full md:h-auto max-h-[100vh] md:max-h-[92vh] relative"
       >
         {/* Decorative Top Border */}
         <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-grimorio-gold/40 to-transparent" />
         
         {/* Header */}
-        <div className="flex justify-between items-center border-b border-white/5 pb-4 mb-4">
+        <div className="flex justify-between items-center border-b border-white/5 pb-4 mb-4 shrink-0">
           <div className="flex items-center gap-3">
             <Network className="text-grimorio-gold w-6 h-6 animate-pulse" />
             <div>
-              <h3 className="font-cinzel text-lg text-grimorio-gold tracking-wide">
+              <h3 className="font-cinzel text-base md:text-lg text-grimorio-gold tracking-wide">
                 Grafo Semántico de Sinergias (RAG)
               </h3>
-              <p className="text-[10px] text-gray-500 font-sans tracking-wider uppercase">
+              <p className="text-[9px] md:text-[10px] text-gray-500 font-sans tracking-wider uppercase">
                 Visualización física interactiva de Obsidian & Scryfall Tagger
               </p>
             </div>
@@ -391,9 +447,12 @@ export default function SynergyGraphVisualizer({ deck, isOpen, onClose, archetyp
         </div>
 
         {/* Workspace */}
-        <div className="flex flex-col lg:flex-row gap-6 items-stretch flex-1">
+        <div className="flex flex-col lg:flex-row gap-6 items-stretch flex-1 min-h-0">
           {/* Left Canvas: SVG Sim */}
-          <div className="flex-1 bg-black/70 border border-[#D4AF37]/10 rounded-2xl relative overflow-hidden flex items-center justify-center min-h-[350px] lg:min-h-[500px]">
+          <div 
+            ref={parentRef}
+            className="flex-1 bg-black/70 border border-[#D4AF37]/10 rounded-2xl relative overflow-hidden flex items-center justify-center min-h-[300px] lg:min-h-[500px]"
+          >
             {isLoading ? (
               <div className="flex flex-col items-center gap-3">
                 <div className="w-8 h-8 border-2 border-grimorio-gold border-t-transparent rounded-full animate-spin" />
@@ -405,6 +464,8 @@ export default function SynergyGraphVisualizer({ deck, isOpen, onClose, archetyp
                 viewBox={`0 0 ${width} ${height}`}
                 className="w-full h-full select-none cursor-grab"
                 onMouseMove={handleMouseMove}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={handleMouseUp}
               >
                 {/* Definiciones para sombras neón e imágenes */}
                 <defs>
@@ -463,6 +524,7 @@ export default function SynergyGraphVisualizer({ deck, isOpen, onClose, archetyp
                       key={`node-${node.id}`}
                       transform={`translate(${node.x}, ${node.y})`}
                       onMouseDown={(e) => handleMouseDown(e, node)}
+                      onTouchStart={(e) => handleTouchStart(e, node)}
                       onMouseEnter={() => setHoveredNode(node)}
                       onMouseLeave={() => setHoveredNode(null)}
                       className="cursor-pointer"
@@ -513,7 +575,7 @@ export default function SynergyGraphVisualizer({ deck, isOpen, onClose, archetyp
           </div>
 
           {/* Right Information Panel */}
-          <div className="w-full lg:w-80 bg-black/40 border border-white/5 rounded-2xl p-5 flex flex-col justify-between glassmorphic-panel">
+          <div className="hidden lg:flex w-full lg:w-80 bg-black/40 border border-white/5 rounded-2xl p-5 flex flex-col justify-between glassmorphic-panel">
             <div className="space-y-4">
               <div className="flex items-center gap-2 border-b border-white/5 pb-2">
                 <Sparkles size={14} className="text-[#D4AF37]" />
@@ -536,7 +598,7 @@ export default function SynergyGraphVisualizer({ deck, isOpen, onClose, archetyp
                     </span>
                   </div>
 
-                  <div className="p-3 bg-black/60 rounded-xl border border-white/5 text-xs text-gray-300 leading-relaxed leading-normal">
+                  <div className="p-3 bg-black/60 rounded-xl border border-white/5 text-xs text-gray-300 leading-normal">
                     {selectedNode.type === 'archetype' ? (
                       `Este es el nodo central de tu mazo de tipo ${archetype}. Actúa como un imán gravitacional alineando todas las cartas con el arquetipo.`
                     ) : selectedNode.type === 'synergy' ? (
@@ -550,12 +612,17 @@ export default function SynergyGraphVisualizer({ deck, isOpen, onClose, archetyp
                   
                   {(selectedNode.type === 'card' || selectedNode.type === 'hidden_synergy') && (
                     <div className="mt-4">
-                      <img 
-                        src={`https://api.scryfall.com/cards/named?exact=${encodeURIComponent(selectedNode.name)}&format=image`}
-                        alt={selectedNode.name}
-                        className="w-full h-auto rounded-xl border border-white/10 shadow-2xl"
-                        onError={(e) => e.target.style.display = 'none'}
-                      />
+                      {(() => {
+                        const cleanName = selectedNode.name.includes('//') ? selectedNode.name.split('//')[0].trim() : selectedNode.name.includes('/') ? selectedNode.name.split('/')[0].trim() : selectedNode.name;
+                        return (
+                          <img 
+                            src={`https://api.scryfall.com/cards/named?exact=${encodeURIComponent(cleanName)}&format=image`}
+                            alt={selectedNode.name}
+                            className="w-full h-auto rounded-xl border border-white/10 shadow-2xl"
+                            onError={(e) => e.target.style.display = 'none'}
+                          />
+                        );
+                      })()}
                     </div>
                   )}
                 </div>
@@ -575,6 +642,57 @@ export default function SynergyGraphVisualizer({ deck, isOpen, onClose, archetyp
             </div>
           </div>
         </div>
+
+        {/* Panel inferior deslizable para móviles */}
+        <BottomSheet
+          isOpen={!!selectedNode && isMobile}
+          onClose={() => setSelectedNode(null)}
+          title="Detalle de la Sinapsis"
+        >
+          <div className="p-4 space-y-4 text-white">
+            <div className="space-y-1">
+              <span className="text-[9px] uppercase tracking-widest font-mono text-gray-500 block">Elemento Seleccionado</span>
+              <h5 className="font-cinzel text-base text-white font-bold leading-tight">{selectedNode?.name}</h5>
+              <span className={cn(
+                "inline-block px-2 py-0.5 rounded text-[9px] font-sans font-bold uppercase border mt-1",
+                selectedNode?.type === 'archetype' ? "bg-amber-500/10 border-amber-500/30 text-amber-400" :
+                selectedNode?.type === 'synergy' ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400" :
+                selectedNode?.type === 'hidden_synergy' ? "bg-fuchsia-500/10 border-fuchsia-500/30 text-fuchsia-400" :
+                "bg-blue-500/10 border-blue-500/30 text-blue-400"
+              )}>
+                {selectedNode?.category}
+              </span>
+            </div>
+
+            <div className="p-3 bg-black/60 rounded-xl border border-white/5 text-xs text-gray-300 leading-normal">
+              {selectedNode?.type === 'archetype' ? (
+                `Este es el nodo central de tu mazo de tipo ${archetype}. Actúa como un imán gravitacional alineando todas las cartas con el arquetipo.`
+              ) : selectedNode?.type === 'synergy' ? (
+                `Esta carta no está en tu mazo principal, pero posee un alto peso de sinergia en Obsidian. ¡Es una recomendación ideal para tu Sideboard o futuras modificaciones!`
+              ) : selectedNode?.type === 'hidden_synergy' ? (
+                selectedNode?.synergyReason || `Sinergia Oculta: Conexión profunda descubierta por la IA en el Grafo Semántico.`
+              ) : (
+                `Carta del mazo. Está perfectamente enlazada con la base central del ecosistema y genera múltiples vectores de sinergia de maná y mecánicas.`
+              )}
+            </div>
+            
+            {(selectedNode?.type === 'card' || selectedNode?.type === 'hidden_synergy') && (
+              <div className="mt-4 flex justify-center">
+                {(() => {
+                  const cleanName = selectedNode?.name.includes('//') ? selectedNode?.name.split('//')[0].trim() : selectedNode?.name.includes('/') ? selectedNode?.name.split('/')[0].trim() : selectedNode?.name;
+                  return (
+                    <img 
+                      src={`https://api.scryfall.com/cards/named?exact=${encodeURIComponent(cleanName)}&format=image`}
+                      alt={selectedNode?.name}
+                      className="w-full max-w-[200px] aspect-[63/88] object-fill rounded-xl border border-white/10 shadow-2xl"
+                      onError={(e) => e.target.style.display = 'none'}
+                    />
+                  );
+                })()}
+              </div>
+            )}
+          </div>
+        </BottomSheet>
       </motion.div>
     </div>
   );

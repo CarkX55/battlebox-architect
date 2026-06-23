@@ -91,7 +91,7 @@ function PocketGuideCard({ deck }) {
 
   return (
     <div 
-      className="w-[340px] min-h-[520px] bg-[#080b1a] border border-[#c19b45]/30 rounded-xl p-0 flex flex-col shadow-2xl relative overflow-hidden group"
+      className="w-full max-w-[340px] md:w-[340px] min-h-[520px] bg-[#080b1a] border border-[#c19b45]/30 rounded-xl p-0 flex flex-col shadow-2xl relative overflow-hidden group"
       style={{ boxShadow: `inset 0 0 40px rgba(0,0,0,0.8), 0 0 30px ${mainColor}15` }}
     >
       {/* Acento lateral de color */}
@@ -223,7 +223,7 @@ function GuideOverlay({ decks, onClose }) {
         </div>
       </div>
       {/* Vista en pantalla */}
-      <div className="print:hidden flex flex-wrap justify-center gap-8 p-10">
+      <div className="print:hidden flex flex-col md:flex-row flex-wrap items-center md:justify-center gap-6 p-4 md:p-10">
         {decks.map(d => <PocketGuideCard key={d.id} deck={d} />)}
       </div>
       {/* Vista de impresión: tamaño funda 63×88mm, optimizada para 1 página A4 */}
@@ -830,19 +830,19 @@ export default function BattleBox() {
           
           {/* Cabecera Épica */}
           <div className="flex flex-col lg:flex-row justify-between items-center lg:items-end gap-8 pb-8 border-b border-magic-gold/10">
-            <div className="flex flex-col items-center lg:items-start gap-4">
-               <div className="flex items-center gap-6">
+            <div className="flex flex-col items-center lg:items-start gap-4 w-full lg:w-auto">
+               <div className="flex flex-col sm:flex-row items-center sm:items-start text-center sm:text-left gap-4 md:gap-6">
                  <motion.div 
                    initial={{ rotate: -10, scale: 0.9 }}
                    animate={{ rotate: 0, scale: 1 }}
-                   className="relative"
+                   className="relative shrink-0"
                  >
                     <div className="absolute inset-0 bg-magic-gold/20 blur-2xl rounded-full" />
-                    <img src="/ASSETS/iconoDeck.webp" alt="Deck Icon" className="w-28 h-28 md:w-36 md:h-36 object-contain relative z-10 drop-shadow-[0_0_30px_rgba(255,202,88,0.4)]" />
+                    <img src="/ASSETS/iconoDeck.webp" alt="Deck Icon" className="w-20 h-20 md:w-36 md:h-36 object-contain relative z-10 drop-shadow-[0_0_30px_rgba(255,202,88,0.4)]" />
                  </motion.div>
                  
                  <div>
-                    <div className="flex gap-2 mb-2">
+                    <div className="flex justify-center sm:justify-start gap-2 mb-2">
                       {activeDeck.colors?.map(c => <ManaOrb key={c} color={c} size="w-8 h-8" />)}
                     </div>
                     {isEditing ? (

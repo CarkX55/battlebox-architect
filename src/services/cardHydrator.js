@@ -173,11 +173,13 @@ export async function findFuzzyMatchInDB(cardName) {
 async function fetchCardFromScryfall(cardName) {
   let cleanName = cardName.replace(/^\d+x\s+/, '').trim();
   
-  if (cleanName.includes('/') && !cleanName.includes('//')) {
-    cleanName = cleanName.replace(/\s*\/\s*/g, ' // ');
+  if (cleanName.includes('//')) {
+    cleanName = cleanName.split('//')[0].trim();
+  } else if (cleanName.includes('/')) {
+    cleanName = cleanName.split('/')[0].trim();
   }
   
-  const searchQuery = `!"${cleanName}" -is:ub -is:digital -is:split -is:adventure`; 
+  const searchQuery = `!"${cleanName}" -is:ub -is:digital`; 
   const url = `https://api.scryfall.com/cards/search?q=${encodeURIComponent(searchQuery)}`;
   
   const controller = new AbortController();
@@ -502,7 +504,7 @@ export async function buscarCartasEnBibliotecaTool(args) {
     scryfallQuery.push(`f:${format.toLowerCase()}`);
   }
   
-  scryfallQuery.push('-is:ub -is:digital -is:split -is:adventure');
+  scryfallQuery.push('-is:ub -is:digital');
   
   const searchUrl = `https://api.scryfall.com/cards/search?q=${encodeURIComponent(scryfallQuery.join(' '))}&order=edhrec`;
   console.log(`🔌 [Tool] Consultando Scryfall: ${searchUrl}`);

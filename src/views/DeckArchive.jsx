@@ -83,13 +83,22 @@ export default function DeckArchive() {
                     <img src="/ASSETS/iconoDeck.webp" alt="Deck Icon" className="w-9 h-9 object-contain" />
                     {deck.name}
                   </h3>
-                  <div className="flex gap-2 mt-2">
+                  <div className="flex gap-2 mt-2 flex-wrap">
                     <span className="text-[10px] px-2 py-0.5 bg-white/5 text-[#ffca58] border border-[#ffca58]/30 rounded uppercase font-bold tracking-wider">
                       {deck.format}
                     </span>
                     <span className="text-[10px] px-2 py-0.5 bg-white/5 text-[#f4ece0] border border-white/20 rounded uppercase font-bold tracking-wider">
                       {deck.archetype}
                     </span>
+                    {deck.source === 'manual' ? (
+                      <span className="text-[10px] px-2 py-0.5 bg-blue-500/10 text-blue-400 border border-blue-500/30 rounded uppercase font-bold tracking-wider">
+                        ✍️ Manual
+                      </span>
+                    ) : (
+                      <span className="text-[10px] px-2 py-0.5 bg-purple-500/10 text-purple-400 border border-purple-500/30 rounded uppercase font-bold tracking-wider">
+                        🤖 Forjado
+                      </span>
+                    )}
                   </div>
                 </div>
                 <button 
@@ -118,19 +127,39 @@ export default function DeckArchive() {
                 </div>
               </div>
 
-              <div className="mt-6 pt-4 border-t border-white/10 flex gap-3">
+              <div className="mt-6 pt-4 border-t border-white/10 flex gap-3 flex-wrap">
+                {deck.source === 'manual' ? (
+                  <button 
+                    className="flex-1 py-2.5 btn-stone-secondary text-blue-400 border-blue-500/30 hover:bg-blue-500/10"
+                    onClick={() => {
+                      setActiveDeck(deck);
+                      setCurrentView('DeckBuilder');
+                    }}
+                  >
+                    ✏️ Editar
+                  </button>
+                ) : (
+                  <button 
+                    className="flex-1 py-2.5 btn-stone-secondary"
+                    onClick={() => {
+                      setActiveDeck(deck);
+                      setCurrentView('BattleBox');
+                    }}
+                  >
+                    Ver Detalles
+                  </button>
+                )}
                 <button 
                   className="flex-1 py-2.5 btn-stone-secondary"
                   onClick={() => {
-                    setActiveDeck(deck);
-                    setCurrentView('BattleBox');
+                    const text = [
+                      ...deck.cards.map(c => `${c.quantity} ${c.name}`),
+                      deck.sideboard?.length ? '\nSideboard' : '',
+                      ...(deck.sideboard || []).map(c => `${c.quantity} ${c.name}`)
+                    ].filter(Boolean).join('\n');
+                    navigator.clipboard.writeText(text);
+                    alert('¡Lista de mazo copiada al portapapeles!');
                   }}
-                >
-                  Ver Detalles
-                </button>
-                <button 
-                  className="flex-1 py-2.5 btn-stone-secondary"
-                  onClick={() => alert('Copia la lista al portapapeles para la IA de razonamiento')}
                 >
                   Copiar Lista
                 </button>

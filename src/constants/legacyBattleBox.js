@@ -292,14 +292,313 @@ export const BATTLEBOX_RULES = {
   noFreeSpellsBeforeTurn: 4
 };
 
+export const UNIVERSAL_ENGINES = [
+  {
+    id: 'aristocrats_generic',
+    label: 'Aristócratas / Sacrificio',
+    description: 'Sacrifica tus criaturas para drenar vida y generar valor.',
+    requiredColors: ['B', 'R', 'W'],
+    vetoedKeywords: ['amass', 'orc'],
+    boostKeywords: ['sacrifice', 'dies', 'graveyard', 'blood artist', 'zulaport', 'carrion feeder'],
+    corePackageId: 'aristocrats'
+  },
+  {
+    id: 'reanimator_generic',
+    label: 'Reanimador / Graveyard Reanimate',
+    description: 'Descarta monstruos enormes para resucitarlos rápido.',
+    requiredColors: ['B', 'U', 'R', 'W'],
+    vetoedKeywords: ['amass', 'orc'],
+    boostKeywords: ['discard', 'reanimate', 'persist', 'unburial rites', 'archon of cruelty'],
+    corePackageId: 'reanimator'
+  },
+  {
+    id: 'spellslinger_generic',
+    label: 'Spellslinger / Prowess',
+    description: 'Lanza conjuros e instantáneos baratos para inflar tus criaturas.',
+    requiredColors: ['U', 'R', 'W'],
+    vetoedKeywords: ['graveyard', 'reanimate'],
+    boostKeywords: ['instant', 'sorcery', 'prowess', 'magecraft', 'draw', 'lightning bolt'],
+    corePackageId: 'spellslinger'
+  },
+  {
+    id: 'blink_generic',
+    label: 'Blink / Flicker (ETB Sinergia)',
+    description: 'Exilia y regresa tus criaturas para repetir sus efectos de entrada.',
+    requiredColors: ['W', 'U', 'G'],
+    vetoedKeywords: ['sacrifice', 'discard'],
+    boostKeywords: ['exile', 'return to battlefield', 'enters the battlefield', 'flicker', 'ephemerate'],
+    corePackageId: 'blink'
+  },
+  {
+    id: 'landfall_generic',
+    label: 'Landfall / Sinergia de Tierras',
+    description: 'Gana ventajas acumulativas cada vez que juegues una tierra.',
+    requiredColors: ['G', 'R', 'U'],
+    vetoedKeywords: ['sacrifice', 'discard'],
+    boostKeywords: ['landfall', 'whenever a land enters', 'search your library for a land', 'valakut'],
+    corePackageId: null
+  },
+  {
+    id: 'graveyard_generic',
+    label: 'Graveyard Value / Delirium / Dredge',
+    description: 'Usa tu cementerio como una extensión de tu mano.',
+    requiredColors: ['B', 'R', 'G', 'U'],
+    vetoedKeywords: ['amass', 'orc'],
+    boostKeywords: ['dredge', 'delirium', 'flashback', 'unearth', 'tarmogoyf', 'graveyard'],
+    corePackageId: null
+  },
+  {
+    id: 'lifegain_generic',
+    label: 'Lifegain (Ganar Vidas)',
+    description: 'Gana vidas de forma pasiva para disparar contadores y bonus.',
+    requiredColors: ['W', 'B', 'G'],
+    vetoedKeywords: [],
+    boostKeywords: ['whenever you gain life', 'lifelink', 'gain life', 'soul warden', 'ajani\'s pridemate'],
+    corePackageId: 'lifegain'
+  },
+  {
+    id: 'prison_generic',
+    label: 'Impuestos y Control Fiscal (Soft Prison)',
+    description: 'Ralentiza la mesa del oponente cobrando impuestos de maná y ataques.',
+    requiredColors: ['W', 'U', 'C'],
+    vetoedKeywords: [],
+    boostKeywords: ['costs', 'more to cast', 'can\'t attack', 'tax', 'thalia', 'ghostly prison'],
+    corePackageId: null
+  },
+  {
+    id: 'voltron_generic',
+    label: 'Voltron (Equipos y Auras)',
+    description: 'Potencia una única criatura con equipamientos pesados de bajo coste.',
+    requiredColors: ['W', 'R'],
+    vetoedKeywords: [],
+    boostKeywords: ['equipped', 'equipment', 'aura', 'attach', 'colossus hammer', 'sigarda\'s aid'],
+    corePackageId: 'voltron'
+  },
+  {
+    id: 'tron_generic',
+    label: 'Big Mana / Ramp (Tron & Titans)',
+    description: 'Acelera masivamente el maná para invocar amenazas de CMC 5+.',
+    requiredColors: ['G', 'C', 'R', 'U'],
+    vetoedKeywords: [],
+    boostKeywords: ['add ', 'mana', 'expedition map', 'ancient stirrings', 'wurmcoil', 'karn'],
+    corePackageId: 'tron'
+  },
+  {
+    id: 'vehicles_generic',
+    label: 'Vehículos / Tripulación',
+    description: 'Juega vehículos que esquivan limpiamesas conjuros y tripúlalos con criaturas.',
+    requiredColors: ['R', 'W', 'U'],
+    vetoedKeywords: [],
+    boostKeywords: ['crew', 'vehicle', 'smuggler\'s copter', 'pilot'],
+    corePackageId: null
+  },
+  {
+    id: 'cascade_generic',
+    label: 'Cascade / Cascada',
+    description: 'Lanza hechizos con cascada para jugar gratis cartas de coste 0.',
+    requiredColors: ['U', 'R', 'G', 'W', 'B'],
+    vetoedKeywords: [],
+    boostKeywords: ['cascade', 'suspend', 'crashing footfalls', 'shardless agent'],
+    corePackageId: 'cascade'
+  },
+  {
+    id: 'storm_generic',
+    label: 'Storm / Tormenta',
+    description: 'Encadena múltiples rituales y hechizos para lanzar un remate letal con Tormenta.',
+    requiredColors: ['R', 'U', 'B'],
+    vetoedKeywords: [],
+    boostKeywords: ['storm', 'grapeshot', 'ritual', 'add {r}', 'add {u}', 'manamorphose', 'past in flames'],
+    corePackageId: 'storm'
+  },
+  {
+    id: 'affinity_generic',
+    label: 'Affinity / Sinergias Metálicas',
+    description: 'Despliega artefactos baratos de coste 0-1 para habilitar afinidad y metalcraft.',
+    requiredColors: ['U', 'R', 'W', 'C'],
+    vetoedKeywords: [],
+    boostKeywords: ['affinity', 'metalcraft', 'artifact', 'steel overseer', 'cranial plating', 'memnite'],
+    corePackageId: null
+  }
+];
+
 export const MTG_TRIBES = [
   // TRIBUS CLÁSICAS
-  { id: 'human', label: 'Humanos', category: 'clasica', colors: ['W', 'U', 'B', 'R', 'G'], primaryColor: 'W', strategies: ['tokens', 'voltron'], archetypes: ['aggro', 'midrange', 'combo', 'prison'], subtypes: ['human'] },
-  { id: 'elf', label: 'Elfos', category: 'clasica', colors: ['G', 'B', 'W'], primaryColor: 'G', strategies: ['tokens', 'toolbox'], archetypes: ['aggro', 'midrange', 'combo', 'ramp'], subtypes: ['elf'] },
-  { id: 'goblin', label: 'Goblins', category: 'clasica', colors: ['R', 'B', 'G'], primaryColor: 'R', strategies: ['tokens', 'aristocrats'], archetypes: ['aggro', 'midrange'], subtypes: ['goblin'] },
-  { id: 'merfolk', label: 'Tritones (Merfolk)', category: 'clasica', colors: ['U', 'G'], primaryColor: 'U', strategies: ['blink', 'tokens'], archetypes: ['aggro', 'tempo', 'midrange'], subtypes: ['merfolk'] },
-  { id: 'zombie', label: 'Zombies', category: 'clasica', colors: ['B', 'U'], primaryColor: 'B', strategies: ['aristocrats', 'reanimator', 'tokens'], archetypes: ['aggro', 'midrange', 'combo'], subtypes: ['zombie'] },
-  { id: 'vampire', label: 'Vampiros', category: 'clasica', colors: ['B', 'R', 'W'], primaryColor: 'B', strategies: ['aristocrats', 'lifegain', 'reanimator'], archetypes: ['aggro', 'midrange'], subtypes: ['vampire'] },
+  { 
+    id: 'human', 
+    label: 'Humanos', 
+    category: 'clasica', 
+    colors: ['W', 'U', 'B', 'R', 'G'], 
+    primaryColor: 'W', 
+    strategies: ['tokens', 'voltron'], 
+    archetypes: ['aggro', 'midrange', 'combo', 'prison'], 
+    subtypes: ['human'],
+    flavors: [
+      {
+        id: 'human_aggro',
+        label: 'Gremio de Humanos (Aggro/Lords)',
+        description: 'Acumula lords que potencian a todos tus atacantes humanos.',
+        vetoedKeywords: [],
+        boostKeywords: ['human', 'humans you control get', 'thalia\'s lieutenant', 'champion of the parish']
+      },
+      {
+        id: 'human_taxes',
+        label: 'Impuestos y Leyes (Hatebears)',
+        description: 'Criaturas que entorpecen la estrategia del rival con reglas e impuestos.',
+        vetoedKeywords: [],
+        boostKeywords: ['human', 'costs', 'more to cast', 'can\'t search', 'thalia, guardian of thraben', 'magistrate'],
+        corePackageId: 'prison'
+      }
+    ]
+  },
+  { 
+    id: 'elf', 
+    label: 'Elfos', 
+    category: 'clasica', 
+    colors: ['G', 'B', 'W'], 
+    primaryColor: 'G', 
+    strategies: ['tokens', 'toolbox'], 
+    archetypes: ['aggro', 'midrange', 'combo', 'ramp'], 
+    subtypes: ['elf'],
+    flavors: [
+      {
+        id: 'elf_ramp',
+        label: 'Devoción y Rampa (Big Mana)',
+        description: 'Usa elfos dork para generar cantidades ingentes de maná y payoffs gigantes.',
+        vetoedKeywords: [],
+        boostKeywords: ['add ', 'mana', 'elf', 'archdruid', 'heritage druid', 'marwyn', 'craterhoof'],
+        corePackageId: 'tron'
+      },
+      {
+        id: 'elf_lords',
+        label: 'Señores de Llanowar (Aggro)',
+        description: 'Invade la mesa con elfos rápidos y señores que los potencian.',
+        vetoedKeywords: [],
+        boostKeywords: ['elves you control get', 'elf', 'elvish champion', 'eladamri', 'leaf-crowned visionary']
+      },
+      {
+        id: 'elf_toolbox',
+        label: 'Caja de Herramientas (Toolbox)',
+        description: 'Busca los elfos y criaturas adecuadas para cada situación usando tutores.',
+        vetoedKeywords: [],
+        boostKeywords: ['search your library for a creature card', 'elf', 'chord of calling', 'yisan', 'fauna shaman']
+      }
+    ]
+  },
+  { 
+    id: 'goblin', 
+    label: 'Goblins', 
+    category: 'clasica', 
+    colors: ['R', 'B', 'G'], 
+    primaryColor: 'R', 
+    strategies: ['tokens', 'aristocrats'], 
+    archetypes: ['aggro', 'midrange'], 
+    subtypes: ['goblin'],
+    flavors: [
+      {
+        id: 'goblin_aggro',
+        label: 'Asalto de Goblins (Aggro/Burn)',
+        description: 'Ataca rápido y lanza goblins directos a la cara del rival.',
+        vetoedKeywords: [],
+        boostKeywords: ['goblin', 'haste', 'damage to', 'goblin guide', 'goblin grenade', 'krenko']
+      },
+      {
+        id: 'goblin_sacrifice',
+        label: 'Combustión y Sacrificio',
+        description: 'Sacrifica goblins para generar maná y daño letal.',
+        vetoedKeywords: [],
+        boostKeywords: ['sacrifice', 'dies', 'goblin', 'sling-gang lieutenant', 'squee, dubious', 'conspicuous snoop'],
+        corePackageId: 'aristocrats'
+      }
+    ]
+  },
+  { 
+    id: 'merfolk', 
+    label: 'Tritones (Merfolk)', 
+    category: 'clasica', 
+    colors: ['U', 'G'], 
+    primaryColor: 'U', 
+    strategies: ['blink', 'tokens'], 
+    archetypes: ['aggro', 'tempo', 'midrange'], 
+    subtypes: ['merfolk'],
+    flavors: [
+      {
+        id: 'merfolk_tempo',
+        label: 'Tritones del Océano (Tempo)',
+        description: 'Ataca con tritones imbloqueables y frena el ritmo del oponente.',
+        vetoedKeywords: [],
+        boostKeywords: ['merfolk', 'islandwalk', 'cannot be blocked', 'lord of atlantis', 'master of the pearl trident', 'tidebinder']
+      }
+    ]
+  },
+  { 
+    id: 'zombie', 
+    label: 'Zombies', 
+    category: 'clasica', 
+    colors: ['B', 'U'], 
+    primaryColor: 'B', 
+    strategies: ['aristocrats', 'reanimator', 'tokens'], 
+    archetypes: ['aggro', 'midrange', 'combo'], 
+    subtypes: ['zombie'],
+    flavors: [
+      {
+        id: 'zombie_graveyard',
+        label: 'Plaga y Cementerio',
+        description: 'Zombies que vuelven del cementerio y generan valor recursivo.',
+        vetoedKeywords: ['amass', 'orc', 'army'],
+        boostKeywords: ['return from your graveyard', 'graveyard', 'zombie', 'gravecrawler', 'relentless dead', 'prized amalgam', 'stitcher\'s supplier'],
+        corePackageId: 'reanimator'
+      },
+      {
+        id: 'zombie_aristocrats',
+        label: 'Aristócratas del Pantano',
+        description: 'Sacrifica tus propios zombies para drenar vida al oponente.',
+        vetoedKeywords: ['amass', 'orc', 'army'],
+        boostKeywords: ['sacrifice', 'dies', 'zombie', 'plague belcher', 'diregraf captain', 'carrion feeder', 'blood artist'],
+        corePackageId: 'aristocrats'
+      },
+      {
+        id: 'zombie_lords',
+        label: 'Señores de la Horda (Lords)',
+        description: 'Dopa a todos tus zombies con señores tribales y ataca en masa.',
+        vetoedKeywords: ['amass', 'orc', 'army'],
+        boostKeywords: ['zombies you control get', 'zombie', 'death baron', 'cemetery reaper', 'lord of the accursed', 'diregraf colossus']
+      },
+      {
+        id: 'zombie_amass',
+        label: 'Horda Invasora (Amass)',
+        description: 'Acumula un enorme ejército zombie usando mecánicas de Amass.',
+        vetoedKeywords: [],
+        boostKeywords: ['amass', 'army', 'zombie', 'dreadhorde invasion', 'lazotep chancellor', 'widespread brutality']
+      }
+    ]
+  },
+  { 
+    id: 'vampire', 
+    label: 'Vampiros', 
+    category: 'clasica', 
+    colors: ['B', 'R', 'W'], 
+    primaryColor: 'B', 
+    strategies: ['aristocrats', 'lifegain', 'reanimator'], 
+    archetypes: ['aggro', 'midrange'], 
+    subtypes: ['vampire'],
+    flavors: [
+      {
+        id: 'vampire_aggro',
+        label: 'Sed de Sangre (Lords/Aggro)',
+        description: 'Ataca con vampiros voladores y rápidos potenciados por lords.',
+        vetoedKeywords: [],
+        boostKeywords: ['vampire', 'vampires you control get', 'flying', 'lifelink', 'legion lieutenant', 'stromkirk']
+      },
+      {
+        id: 'vampire_drain',
+        label: 'Drenaje de Sangre (Lifegain/Sacrifice)',
+        description: 'Gana vida al atacar y drena al rival con sacrificios.',
+        vetoedKeywords: [],
+        boostKeywords: ['gain life', 'sacrifice', 'vampire', 'vein ripper', 'cruel celebrant', 'blood artist'],
+        corePackageId: 'aristocrats'
+      }
+    ]
+  },
   { id: 'spirit', label: 'Espíritus', category: 'clasica', colors: ['W', 'U'], primaryColor: ['W', 'U'], strategies: ['blink', 'tokens'], archetypes: ['aggro', 'tempo', 'midrange', 'control'], subtypes: ['spirit'] },
   { id: 'soldier', label: 'Soldados', category: 'clasica', colors: ['W', 'U'], primaryColor: 'W', strategies: ['tokens', 'voltron'], archetypes: ['aggro', 'midrange', 'prison'], subtypes: ['soldier'] },
   { id: 'knight', label: 'Caballeros', category: 'clasica', colors: ['W', 'B', 'R'], primaryColor: 'W', strategies: ['voltron', 'tokens'], archetypes: ['aggro', 'midrange'], subtypes: ['knight'] },
@@ -332,7 +631,7 @@ export const MTG_TRIBES = [
   { id: 'human_army', label: '⚔️ Ejército (Humanos, Soldados, Caballeros)', category: 'alianza', colors: ['W', 'R'], primaryColor: 'W', strategies: ['tokens', 'voltron'], archetypes: ['aggro', 'midrange', 'prison'], subtypes: ['human', 'soldier', 'knight'] },
   { id: 'goblin_horde', label: '🔥 Horda (Goblins, Orcos, Ogros)', category: 'alianza', colors: ['R', 'B'], primaryColor: 'R', strategies: ['tokens', 'aristocrats'], archetypes: ['aggro', 'midrange'], subtypes: ['goblin', 'orc', 'ogre'] },
   { id: 'elf_druid', label: '🌿 Naturaleza (Elfos, Druidas, Elementales)', category: 'alianza', colors: ['G', 'R', 'U'], primaryColor: 'G', strategies: ['tokens', 'landfall'], archetypes: ['midrange', 'combo', 'ramp'], subtypes: ['elf', 'druid', 'elemental'] },
-  { id: 'sea_monsters', label: '🌊 Terrores Marinos (Tritones, Krakens, Leviatanes)', category: 'alianza', colors: ['U', 'G'], primaryColor: 'U', strategies: ['sea_monsters', 'blink'], archetypes: ['tempo', 'midrange', 'combo', 'control'], subtypes: ['merfolk', 'kraken', 'leviathan', 'octopus', 'serpent'], formats: ['MODERN'] },
+  { id: 'sea_monsters', label: '🌊 Terrores Marinos (Tritones, Krakens, Leviatanes)', category: 'alianza', colors: ['U', 'G'], primaryColor: 'U', strategies: ['sea_monsters', 'blink'], archetypes: ['tempo', 'midrange', 'combo', 'control'], subtypes: ['merfolk', 'kraken', 'leviathan', 'octopus', 'rose-monsters', 'serpent'], formats: ['MODERN'] },
   { id: 'undead_scourge', label: '💀 Plaga (Zombies, Esqueletos, Horrores)', category: 'alianza', colors: ['B', 'U'], primaryColor: 'B', strategies: ['aristocrats', 'reanimator', 'graveyard'], archetypes: ['midrange', 'combo', 'control'], subtypes: ['zombie', 'skeleton', 'horror'] },
   { id: 'apex_predators', label: '🦖 Depredadores del Ápice (Dinosaurios, Bestias, Hidras)', category: 'alianza', colors: ['G', 'R', 'W'], primaryColor: 'G', strategies: ['landfall', 'tokens', 'lifegain'], archetypes: ['midrange', 'ramp'], subtypes: ['dinosaur', 'beast', 'hydra', 'wurm', 'dragon'] },
   { id: 'sliver', label: 'Slivers (Fectidios Sinérgicos)', category: 'exotica', colors: ['W', 'U', 'B', 'R', 'G'], primaryColor: ['W', 'U', 'B', 'R', 'G'], strategies: ['tokens', 'voltron'], archetypes: ['aggro', 'midrange', 'combo'], subtypes: ['sliver'], formats: ['MODERN'] }
@@ -716,13 +1015,35 @@ export const COMPETITIVE_ANTI_SYNERGIES = [
 ];
 
 export function inferStrategyFromArchetype(archetypeId, currentStrategyId) {
+  if (!currentStrategyId) return '';
+  const s = currentStrategyId.toLowerCase();
+  let cleanStrategyId = s.replace('_generic', '').trim();
+
+  if (s.includes('aristocrat') || s.includes('sacrificio') || s.includes('sacrifice')) cleanStrategyId = 'aristocrats';
+  else if (s.includes('reanimador') || s.includes('reanimate') || s.includes('reanimator')) cleanStrategyId = 'reanimator';
+  else if (s.includes('spellslinger') || s.includes('prowess')) cleanStrategyId = 'spellslinger';
+  else if (s.includes('blink') || s.includes('flicker')) cleanStrategyId = 'blink';
+  else if (s.includes('landfall') || s.includes('tierras')) cleanStrategyId = 'landfall';
+  else if (s.includes('graveyard') || s.includes('delirium') || s.includes('cementerio')) cleanStrategyId = 'graveyard';
+  else if (s.includes('lifegain') || s.includes('vidas')) cleanStrategyId = 'lifegain';
+  else if (s.includes('prison') || s.includes('impuestos') || s.includes('taxes') || s.includes('fiscal')) cleanStrategyId = 'prison';
+  else if (s.includes('voltron') || s.includes('equipos') || s.includes('auras')) cleanStrategyId = 'voltron';
+  else if (s.includes('vehicle') || s.includes('vehículo') || s.includes('tripulación')) cleanStrategyId = 'vehicles';
+  else if (s.includes('cascade') || s.includes('cascada')) cleanStrategyId = 'cascade';
+  else if (s.includes('storm') || s.includes('tormenta')) cleanStrategyId = 'storm';
+  else if (s.includes('affinity') || s.includes('metálica')) cleanStrategyId = 'affinity';
+  else if (s.includes('sea monsters') || s.includes('sea_monsters') || s.includes('terrores marinos') || s.includes('krakens')) cleanStrategyId = 'sea_monsters';
+  else if (s.includes('tokens') || s.includes('fichas') || s.includes('enjambre')) cleanStrategyId = 'tokens';
+  else if (s.includes('toolbox') || s.includes('tutores')) cleanStrategyId = 'toolbox';
+  
+  const knownIds = ['aristocrats', 'reanimator', 'tokens', 'spellslinger', 'blink', 'enchantress', 'landfall', 'graveyard', 'lifegain', 'prison', 'voltron', 'tron', 'vehicles', 'cascade', 'storm', 'toolbox', 'affinity', 'sea_monsters'];
+  
+  if (knownIds.includes(cleanStrategyId)) {
+    return cleanStrategyId;
+  }
+
   const stringToAnalyze = `${currentStrategyId || ''} ${archetypeId || ''}`.toLowerCase().trim();
   if (!stringToAnalyze) return '';
-
-  const knownIds = ['aristocrats', 'reanimator', 'tokens', 'spellslinger', 'blink', 'enchantress', 'landfall', 'graveyard', 'lifegain', 'prison', 'voltron', 'tron', 'vehicles', 'cascade', 'storm', 'toolbox', 'affinity', 'sea_monsters'];
-  if (currentStrategyId && knownIds.includes(currentStrategyId.toLowerCase())) {
-    return currentStrategyId.toLowerCase();
-  }
 
   if (stringToAnalyze.includes('storm') || stringToAnalyze.includes('grapeshot') || stringToAnalyze.includes('past in flames') || stringToAnalyze.includes('ruby storm')) return 'storm';
   if (stringToAnalyze.includes('prowess') || stringToAnalyze.includes('spellslinger') || stringToAnalyze.includes('phoenix') || stringToAnalyze.includes('murktide') || stringToAnalyze.includes('delver') || stringToAnalyze.includes('lesson')) return 'spellslinger';

@@ -1,11 +1,111 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../../utils/cn';
-import { Sparkles, Swords, Shield, Zap, Flame, Crown, BookOpen, Search, Check, Plus, AlertCircle, Wand2, Compass, PlusCircle, MinusCircle, Scroll, TrendingUp, Lock, Unlock } from 'lucide-react';
+import { Sparkles, Swords, Shield, Zap, Flame, Crown, BookOpen, Search, Check, Plus, AlertCircle, Wand2, Compass, PlusCircle, MinusCircle, Scroll, TrendingUp, Lock, Unlock, ShieldAlert, RefreshCw } from 'lucide-react';
+import { useIsMobile } from '../../hooks/useIsMobile';
+import { vibrateTouch } from '../../utils/haptic';
+import BottomSheet from '../atoms/BottomSheet';
 
-import { BATTLEBOX_VETOS, BATTLEBOX_ARCHETYPES, getBattleBoxFormatName, BATTLEBOX_FORMAT_NAME, MTG_TRIBES, MTG_STRATEGIES, TRIBE_CATEGORIES, COLORS, HISTORICAL_DECKS_CATALOG, inferStrategyFromArchetype } from '../../constants/legacyBattleBox';
+import { BATTLEBOX_VETOS, BATTLEBOX_ARCHETYPES, getBattleBoxFormatName, BATTLEBOX_FORMAT_NAME, MTG_TRIBES, MTG_STRATEGIES, TRIBE_CATEGORIES, COLORS, HISTORICAL_DECKS_CATALOG, inferStrategyFromArchetype, UNIVERSAL_ENGINES } from '../../constants/legacyBattleBox';
 import ManaOrb from '../atoms/ManaOrb';
-import { getDynamicArchetypes } from '../../services/ragService';
+import { getDynamicArchetypes, buildCardPool } from '../../services/ragService';
+import { injectCorePackage } from '../../constants/corePackages';
+import { getAllCards } from '../../services/dbIngestor';
+
+// Componente de Renderizado Gráfico de Coste de Maná Premium (Scryfall Style)
+export function RenderManaCost({ manaCost, className }) {
+  if (!manaCost || typeof manaCost !== 'string') return null;
+
+  // Extraer los símbolos individuales encerrados entre llaves {}
+  const symbols = manaCost.match(/\{[^}]+\}/g) || [];
+
+  return (
+    <div className={cn("inline-flex items-center gap-0.5", className)}>
+      {symbols.map((sym, idx) => {
+        const cleanSym = sym.replace(/[{}]/g, '').toUpperCase();
+        let bgStyle = "bg-stone-500 text-white";
+        let label = cleanSym;
+
+        if (cleanSym === 'W') {
+          return <img key={idx} src="/ASSETS/manaBlanco.webp" alt="W" className="w-3.5 h-3.5 md:w-4 md:h-4 object-contain select-none" />;
+        } else if (cleanSym === 'U') {
+          return <img key={idx} src="/ASSETS/manaAzul.webp" alt="U" className="w-3.5 h-3.5 md:w-4 md:h-4 object-contain select-none" />;
+        } else if (cleanSym === 'B') {
+          return <img key={idx} src="/ASSETS/manaNegro.webp" alt="B" className="w-3.5 h-3.5 md:w-4 md:h-4 object-contain select-none" />;
+        } else if (cleanSym === 'R') {
+          return <img key={idx} src="/ASSETS/manaRojo.webp" alt="R" className="w-3.5 h-3.5 md:w-4 md:h-4 object-contain select-none" />;
+        } else if (cleanSym === 'G') {
+          return <img key={idx} src="/ASSETS/manaVerde.webp" alt="G" className="w-3.5 h-3.5 md:w-4 md:h-4 object-contain select-none" />;
+        } else if (cleanSym === 'C') {
+          bgStyle = "bg-gradient-to-br from-[#cfd4d6] to-[#7f888c] border-stone-500/30 text-stone-900 shadow-sm";
+        } else if (cleanSym === 'X') {
+          bgStyle = "bg-gradient-to-br from-[#8e8e8e] to-[#4c4c4c] border-stone-600/40 text-white shadow-sm";
+        } else if (cleanSym.includes('/')) {
+          const parts = cleanSym.split('/');
+          const colorsMap = {
+            'W': '#fffdf0',
+            'U': '#106296',
+            'B': '#150d12',
+            'R': '#ab1c0e',
+            'G': '#186b24',
+            'C': '#7f888c',
+            'P': '#7a2048'
+          };
+          const c1 = colorsMap[parts[0]] || '#4c4c4c';
+          const c2 = colorsMap[parts[1]] || '#4c4c4c';
+          
+          return (
+            <span
+              key={idx}
+              className="w-3.5 h-3.5 md:w-4 md:h-4 rounded-full flex items-center justify-center border border-black/40 text-[8px] md:text-[9.5px] font-black font-sans leading-none shadow-md"
+              style={{
+                background: `linear-gradient(135deg, ${c1} 50%, ${c2} 50%)`,
+                color: parts.includes('W') ? '#1c1917' : '#ffffff'
+              }}
+            >
+              {cleanSym.replace('/', '')}
+            </span>
+          );
+        } else {
+          bgStyle = "bg-gradient-to-br from-[#a3a3a3] to-[#525252] border-stone-600/20 text-white text-[9px] md:text-[10px] font-bold";
+        }
+
+        return (
+          <span 
+            key={idx} 
+            className={cn(
+              "w-3.5 h-3.5 md:w-4 md:h-4 rounded-full flex items-center justify-center border border-black/50 text-[8.5px] md:text-[10px] font-black font-sans leading-none shadow-sm select-none",
+              bgStyle
+            )}
+          >
+            {label}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+export function getProsaEpica(formData, currentArchetype) {
+  if (!currentArchetype) return '';
+  const nombresColores = (formData?.colores || []).map(c => COLORS.find(co => co.id === c)?.name).filter(Boolean);
+  const coloresTexto = nombresColores.length > 0 
+    ? nombresColores.slice(0, -1).join(', ') + (nombresColores.length > 1 ? ' y ' : '') + nombresColores.slice(-1)
+    : 'incoloras';
+
+  let prosepica = `Bajo el signo del arquetipo **${currentArchetype.label}**, canalizarás energías **${coloresTexto}** para dar forma a una estrategia de velocidad **${currentArchetype.speed}**.`;
+  if (formData?.tribe) {
+    prosepica += ` Invocarás la fuerza e identidad de la facción de los **${formData.tribe}**, `;
+  } else {
+    prosepica += ` Mantendrás un ejército diversificado sin afiliación tribal estricta, `;
+  }
+  if (formData?.strategy) {
+    prosepica += `articulando cada jugada en base al motor de **${formData.strategy}**.`;
+  } else {
+    prosepica += `confiando en la excelencia de la pura ventaja de cartas.`;
+  }
+  return prosepica;
+}
 
 function arraysEqual(a, b) {
   if (a.length !== b.length) return false;
@@ -64,23 +164,7 @@ function QuickGlancePanel({ formData, currentArchetype, selectedTribeInfo, selec
 
   const speedStyle = getSpeedStyle(currentArchetype.speed);
 
-  // Generar la prosa evocadora
-  const nombresColores = (formData?.colores || []).map(c => COLORS.find(co => co.id === c)?.name).filter(Boolean);
-  const coloresTexto = nombresColores.length > 0 
-    ? nombresColores.slice(0, -1).join(', ') + (nombresColores.length > 1 ? ' y ' : '') + nombresColores.slice(-1)
-    : 'incoloras';
-
-  let prosepica = `Bajo el signo del arquetipo **${currentArchetype.label}**, canalizarás energías **${coloresTexto}** para dar forma a una estrategia de velocidad **${currentArchetype.speed}**.`;
-  if (formData?.tribe) {
-    prosepica += ` Invocarás la fuerza e identidad de la facción de los **${formData.tribe}**, `;
-  } else {
-    prosepica += ` Mantendrás un ejército diversificado sin afiliación tribal estricta, `;
-  }
-  if (formData?.strategy) {
-    prosepica += `articulando cada jugada en base al motor de **${formData.strategy}**.`;
-  } else {
-    prosepica += `confiando en la excelencia de la pura ventaja de cartas.`;
-  }
+  const prosepica = getProsaEpica(formData, currentArchetype);
 
   return (
     <div className="frosted-panel border-2 border-magic-gold/45 p-6 rounded-2xl bg-gradient-to-b from-[#1c140e] via-[#0d0906] to-[#040303] shadow-[0_10px_40px_rgba(0,0,0,0.9),0_0_20px_rgba(255,202,88,0.15)] space-y-6 relative overflow-hidden h-fit sticky top-6">
@@ -260,6 +344,8 @@ const RARITY_MODES = [
 ];
 
 export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGenerationLogs, onOpenOracleLog, selectedFormat = 'MODERN', onFormatChange }) {
+  const isMobile = useIsMobile();
+  const [showMobileGlance, setShowMobileGlance] = useState(false);
   const [formData, setFormData] = useState(() => {
     let savedRarity = 'high-power';
     let savedAllowCustom = false;
@@ -278,12 +364,17 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
       colores: [],
       tribe: '',
       strategy: '',
+      selectedEngineId: '',
+      engineFlavor: '',
+      customPrompt: '',
       curveProfile: 'balanced',
       prompt: '',
       mustInclude: '',
       customBanlist: '',
       rarityMode: savedRarity,
       allowCustomCards: savedAllowCustom,
+      vetoedKeywords: [],
+      vetoedCards: [],
     };
   });
 
@@ -332,6 +423,326 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
   const [activeColorTab, setActiveColorTab] = useState('generic');
   const [searchQuery, setSearchQuery] = useState('');
   const [colorSuggestion, setColorSuggestion] = useState(null);
+
+  const [vetoedKeywords, setVetoedKeywords] = useState([]);
+  const [vetoedCards, setVetoedCards] = useState([]);
+  const [seedCards, setSeedCards] = useState({});
+  const [isTuningOpen, setIsTuningOpen] = useState(true);
+
+  const [seedSearchQuery, setSeedSearchQuery] = useState('');
+  const [seedSearchResults, setSeedSearchResults] = useState([]);
+  const [vetoSearchQuery, setVetoSearchQuery] = useState('');
+  const [vetoSearchResults, setVetoSearchResults] = useState([]);
+  const [allCards, setAllCards] = useState([]);
+  const [hoveredCard, setHoveredCard] = useState(null);
+  const [flipStates, setFlipStates] = useState({});
+
+  const [isPackLoading, setIsPackLoading] = useState(false);
+  const [packCards, setPackCards] = useState([]);
+
+  // Cargar todas las cartas de la base de datos local para búsquedas e inyección
+  useEffect(() => {
+    const loadCards = async () => {
+      try {
+        const cards = await getAllCards();
+        setAllCards(cards || []);
+      } catch (e) {
+        console.warn("Failed to load local IndexedDB cards:", e);
+      }
+    };
+    loadCards();
+  }, []);
+
+  const currentArchetype = useMemo(() => {
+    return archetypesList.find(a => a.value === formData.archetype);
+  }, [archetypesList, formData.archetype]);
+
+  const selectedTribeInfo = useMemo(() => {
+    if (!formData.tribe || isCustomTribe) return null;
+    return MTG_TRIBES.find(t => t.label === formData.tribe);
+  }, [formData.tribe, isCustomTribe]);
+
+  const selectedStrategyInfo = useMemo(() => {
+    if (!formData.strategy || isCustomStrategy) return null;
+    const realId = inferStrategyFromArchetype(formData.archetype, formData.strategy);
+    return MTG_STRATEGIES.find(s => s.id === realId || s.label === formData.strategy);
+  }, [formData.archetype, formData.strategy, isCustomStrategy]);
+
+  const allowedColorsInfo = useMemo(() => {
+    let allowed = [];
+    let primary = [];
+
+    if (currentArchetype) {
+      allowed = [...(currentArchetype.recommendedColors || [])];
+      primary = [...allowed];
+    }
+
+    // Unimos los colores de la tribu seleccionada para permitir combinaciones como Slivers 5C en Tempo
+    if (selectedTribeInfo && selectedTribeInfo.colors) {
+      allowed = [...new Set([...allowed, ...selectedTribeInfo.colors])];
+    }
+
+    // Unimos los colores de la estrategia seleccionada
+    if (selectedStrategyInfo && selectedStrategyInfo.colors) {
+      allowed = [...new Set([...allowed, ...selectedStrategyInfo.colors])];
+    }
+
+    // Fallback por si no queda ningún color habilitado
+    if (allowed.length === 0) {
+      allowed = ['W', 'U', 'B', 'R', 'G', 'C'];
+    }
+
+    return { allowed, primary: primary.length > 0 ? primary : allowed };
+  }, [currentArchetype, selectedTribeInfo, selectedStrategyInfo]);
+
+  const allEngines = useMemo(() => {
+    return [...UNIVERSAL_ENGINES, ...MTG_TRIBES.flatMap(t => t.flavors || [])];
+  }, []);
+
+  // --- INICIO DE AGREGACIONES ORACLE TUNER ---
+  const getEngineIcon = (id) => {
+    if (!id) return '🔮';
+    const cleanId = id.toLowerCase();
+    if (cleanId.includes('aristocrats')) return '💀';
+    if (cleanId.includes('reanimator')) return '⚰️';
+    if (cleanId.includes('spellslinger')) return '⚡';
+    if (cleanId.includes('blink')) return '🌀';
+    if (cleanId.includes('landfall')) return '🌳';
+    if (cleanId.includes('graveyard')) return '🪦';
+    if (cleanId.includes('lifegain')) return '❤️';
+    if (cleanId.includes('prison')) return '⛓️';
+    if (cleanId.includes('voltron')) return '🛡️';
+    if (cleanId.includes('storm')) return '🌪️';
+    if (cleanId.includes('affinity')) return '⚙️';
+    if (cleanId.includes('lords')) return '👑';
+    if (cleanId.includes('amass')) return '🧟';
+    if (cleanId.includes('aggro')) return '⚔️';
+    if (cleanId.includes('tempo')) return '⏱️';
+    return '🔮';
+  };
+
+  const getCardImageUrl = (card) => {
+    if (!card) return '';
+    const face = card.card_faces ? card.card_faces[flipStates[card.id] || 0] : null;
+    const uri = (face && face.image_uris?.normal) ? face.image_uris.normal : card.image_uris?.normal;
+    if (uri) return uri;
+    return `https://api.scryfall.com/cards/named?format=image&exact=${encodeURIComponent(card.name)}`;
+  };
+
+  const isEngineColorCompatible = useCallback((engine) => {
+    if (!engine.requiredColors || engine.requiredColors.length === 0) return true;
+    const currentColors = formData.colores || [];
+    if (currentColors.length === 0) return true;
+    return engine.requiredColors.some(c => currentColors.includes(c));
+  }, [formData.colores]);
+
+  const availableEngines = useMemo(() => {
+    const activeTribe = formData.tribe;
+    if (activeTribe) {
+      const tData = MTG_TRIBES.find(t => t.id === activeTribe || t.label === activeTribe);
+      if (tData && tData.flavors) {
+        return tData.flavors;
+      }
+    }
+    if (formData.archetype) {
+      const archLower = formData.archetype.toLowerCase();
+      return [...UNIVERSAL_ENGINES].sort((a, b) => {
+        const stratA = MTG_STRATEGIES.find(s => s.id === a.id.replace('_generic', ''));
+        const stratB = MTG_STRATEGIES.find(s => s.id === b.id.replace('_generic', ''));
+        
+        const isCompatibleA = stratA?.archetypes?.some(arch => archLower.includes(arch)) ? 1 : 0;
+        const isCompatibleB = stratB?.archetypes?.some(arch => archLower.includes(arch)) ? 1 : 0;
+        
+        return isCompatibleB - isCompatibleA;
+      });
+    }
+    return UNIVERSAL_ENGINES;
+  }, [formData.tribe, formData.archetype]);
+
+  const maxSpells = useMemo(() => {
+    const isYorion = formData?.companero?.toLowerCase().includes("yorion");
+    const baseCards = isYorion ? 80 : 60;
+    const landCount = currentArchetype?.landCount || 22;
+    const resolvedLandCount = isYorion ? Math.round(landCount * 1.33) : landCount;
+    return baseCards - resolvedLandCount;
+  }, [formData.companero, currentArchetype]);
+
+  const totalSelectedSpells = useMemo(() => {
+    return Object.values(seedCards).reduce((acc, q) => acc + q, 0);
+  }, [seedCards]);
+
+  // Cargar el pack de sinergias (estático o RAG local)
+  useEffect(() => {
+    const engineId = formData.selectedEngineId;
+    if (!engineId && !formData.archetype) {
+      setPackCards([]);
+      return;
+    }
+
+    const loadSynergyPack = async () => {
+      setIsPackLoading(true);
+      try {
+        const engine = allEngines.find(e => e.id === engineId);
+        const corePkgId = engine?.corePackageId;
+        let loadedCards = [];
+
+        const hasTribe = formData.tribe && formData.tribe !== 'none' && formData.tribe !== 'ninguna';
+        if (corePkgId && !hasTribe) {
+          const pkg = injectCorePackage(corePkgId, formData.colores || [], selectedFormat, allCards);
+          if (pkg && pkg.length > 0) {
+            loadedCards = pkg;
+            console.log(`[Tuner Pack] Loaded static pack "${corePkgId}" with ${loadedCards.length} cards.`);
+          }
+        }
+
+        if (loadedCards.length === 0) {
+          console.log(`[Tuner Pack] JIT RAG scan for engine "${engineId || formData.archetype}"...`);
+          const ragResult = await buildCardPool({
+            ...formData,
+            strategy: engineId || '',
+            format: selectedFormat || 'MODERN',
+            colores: formData.colores,
+            mustInclude: ''
+          });
+
+          if (ragResult && ragResult.pool) {
+            const sorted = [...ragResult.pool].sort((a, b) => (b.score || 0) - (a.score || 0));
+            loadedCards = sorted.slice(0, 12).map(card => {
+              const dbCard = allCards.find(c => c.name.toLowerCase() === card.name.toLowerCase());
+              return dbCard || card;
+            });
+            console.log(`[Tuner Pack] JIT RAG returned ${loadedCards.length} cards.`);
+          }
+        }
+
+        setPackCards(loadedCards);
+      } catch (err) {
+        console.warn("Failed to load synergy pack:", err);
+      } finally {
+        setIsPackLoading(false);
+      }
+    };
+
+    loadSynergyPack();
+  }, [formData.selectedEngineId, formData.archetype, formData.colores, selectedFormat, allCards, allEngines]);
+
+  // Sincronizar seedCards a mustInclude
+  useEffect(() => {
+    const list = [];
+    Object.entries(seedCards).forEach(([cardName, qty]) => {
+      for (let i = 0; i < qty; i++) {
+        list.push(cardName);
+      }
+    });
+    const mustIncludeStr = list.join(', ');
+    if (formData.mustInclude !== mustIncludeStr) {
+      setFormData(prev => ({ ...prev, mustInclude: mustIncludeStr }));
+    }
+  }, [seedCards]);
+
+  // Sincronizar vetoedKeywords y vetoedCards a formData
+  useEffect(() => {
+    const customBanlistStr = vetoedCards.join(', ');
+    if (formData.customBanlist !== customBanlistStr) {
+      setFormData(prev => ({
+        ...prev,
+        customBanlist: customBanlistStr,
+        vetoedCards: vetoedCards,
+        vetoedKeywords: vetoedKeywords
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        vetoedCards: vetoedCards,
+        vetoedKeywords: vetoedKeywords
+      }));
+    }
+  }, [vetoedCards, vetoedKeywords]);
+
+  // Autocompletes de Semillas
+  useEffect(() => {
+    if (!seedSearchQuery.trim()) {
+      setSeedSearchResults([]);
+      return;
+    }
+    const q = seedSearchQuery.toLowerCase();
+    const formatKey = selectedFormat.toLowerCase();
+    const deckColors = new Set(formData.colores || []);
+
+    const filtered = allCards.filter(card => {
+      if (!card.name) return false;
+      const nameLower = card.name.toLowerCase();
+      if (!nameLower.includes(q)) return false;
+
+      const typeLower = (card.type_line || '').toLowerCase();
+      if (typeLower.includes('land')) return false;
+
+      if (card.legalities && card.legalities[formatKey] !== 'legal') return false;
+
+      const cardColors = card.colors || [];
+      const isColorOk = cardColors.every(c => deckColors.has(c));
+      if (!isColorOk) return false;
+
+      return true;
+    });
+
+    setSeedSearchResults(filtered.slice(0, 10));
+  }, [seedSearchQuery, allCards, selectedFormat, formData.colores]);
+
+  // Autocompletes de Vetos
+  useEffect(() => {
+    if (!vetoSearchQuery.trim()) {
+      setVetoSearchResults([]);
+      return;
+    }
+    const q = vetoSearchQuery.toLowerCase();
+    const filtered = allCards.filter(card => {
+      if (!card.name) return false;
+      return card.name.toLowerCase().includes(q);
+    });
+    setVetoSearchResults(filtered.slice(0, 10));
+  }, [vetoSearchQuery, allCards]);
+
+  // LocalStorage tuner persistence
+  useEffect(() => {
+    if (formData.archetype) {
+      const storageKey = `mtg_tuner_state_${formData.archetype}_${formData.tribe || 'none'}`;
+      const stateToSave = {
+        selectedEngineId: formData.selectedEngineId,
+        seedCards,
+        vetoedKeywords,
+        vetoedCards
+      };
+      localStorage.setItem(storageKey, JSON.stringify(stateToSave));
+    }
+  }, [formData.archetype, formData.tribe, formData.selectedEngineId, seedCards, vetoedKeywords, vetoedCards]);
+
+  useEffect(() => {
+    if (formData.archetype) {
+      const storageKey = `mtg_tuner_state_${formData.archetype}_${formData.tribe || 'none'}`;
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          setFormData(prev => ({
+            ...prev,
+            selectedEngineId: parsed.selectedEngineId || ''
+          }));
+          setSeedCards(parsed.seedCards || {});
+          setVetoedKeywords(parsed.vetoedKeywords || []);
+          setVetoedCards(parsed.vetoedCards || []);
+        } catch (e) {
+          console.warn("Failed to load saved tuner state:", e);
+        }
+      } else {
+        setFormData(prev => ({ ...prev, selectedEngineId: '' }));
+        setSeedCards({});
+        setVetoedKeywords([]);
+        setVetoedCards([]);
+      }
+    }
+  }, [formData.archetype, formData.tribe]);
+  // --- FIN DE AGREGACIONES ORACLE TUNER ---
 
   // Filtrado de arquetipos por formato + grupo de color + búsqueda
   const filteredArchetypes = useMemo(() => {
@@ -435,48 +846,6 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
       onSubmit(formData);
     }
   };
-
-  const currentArchetype = useMemo(() => {
-    return archetypesList.find(a => a.value === formData.archetype);
-  }, [archetypesList, formData.archetype]);
-
-  const selectedTribeInfo = useMemo(() => {
-    if (!formData.tribe || isCustomTribe) return null;
-    return MTG_TRIBES.find(t => t.label === formData.tribe);
-  }, [formData.tribe, isCustomTribe]);
-
-  const selectedStrategyInfo = useMemo(() => {
-    if (!formData.strategy || isCustomStrategy) return null;
-    const realId = inferStrategyFromArchetype(formData.archetype, formData.strategy);
-    return MTG_STRATEGIES.find(s => s.id === realId || s.label === formData.strategy);
-  }, [formData.archetype, formData.strategy, isCustomStrategy]);
-
-  const allowedColorsInfo = useMemo(() => {
-    let allowed = [];
-    let primary = [];
-
-    if (currentArchetype) {
-      allowed = [...(currentArchetype.recommendedColors || [])];
-      primary = [...allowed];
-    }
-
-    // Unimos los colores de la tribu seleccionada para permitir combinaciones como Slivers 5C en Tempo
-    if (selectedTribeInfo && selectedTribeInfo.colors) {
-      allowed = [...new Set([...allowed, ...selectedTribeInfo.colors])];
-    }
-
-    // Unimos los colores de la estrategia seleccionada
-    if (selectedStrategyInfo && selectedStrategyInfo.colors) {
-      allowed = [...new Set([...allowed, ...selectedStrategyInfo.colors])];
-    }
-
-    // Fallback por si no queda ningún color habilitado
-    if (allowed.length === 0) {
-      allowed = ['W', 'U', 'B', 'R', 'G', 'C'];
-    }
-
-    return { allowed, primary: primary.length > 0 ? primary : allowed };
-  }, [currentArchetype, selectedTribeInfo, selectedStrategyInfo]);
 
   // Si cambia el arquetipo, reseteamos tribu y estrategia y los flags de limpieza manual
   useEffect(() => {
@@ -652,57 +1021,74 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
   return (
     <div className="space-y-8 max-w-5xl mx-auto">
       {/* 4-Step Magic Wizard Progress Bar */}
-      <div className="w-full py-6 px-6 frosted-panel shadow-xl relative overflow-hidden">
-        <div className="absolute inset-0 bg-[url('/ASSETS/FrostedGlass.webp')] bg-cover opacity-5 pointer-events-none" />
-        <div className="max-w-3xl mx-auto relative z-10">
-          <div className="flex items-center justify-between relative">
-            {/* Background progress line */}
-            <div className="absolute left-0 right-0 top-[18px] h-[2px] bg-white/10 z-0" />
-            {/* Active glowing progress line */}
+      {isMobile ? (
+        <div className="sticky top-0 z-30 w-full bg-black/90 backdrop-blur-md border-b border-magic-gold/20 py-3 px-4 flex flex-col gap-2 relative overflow-hidden">
+          <div className="flex justify-between items-center text-xs font-cinzel text-magic-gold font-bold">
+            <span>PASO {currentStep}/4</span>
+            <span className="uppercase tracking-wider">
+              {steps.find(s => s.id === currentStep)?.name}
+            </span>
+          </div>
+          <div className="w-full bg-white/10 h-1 rounded-full overflow-hidden">
             <div 
-              className="absolute left-0 top-[18px] h-[2px] bg-gradient-to-r from-magic-gold to-[#ffca58] shadow-[0_0_8px_#ffca58] z-0 transition-all duration-500 ease-out" 
-              style={{ width: `${((currentStep - 1) / 3) * 100}%` }}
+              className="bg-gradient-to-r from-magic-gold to-[#ffca58] h-full transition-all duration-300"
+              style={{ width: `${(currentStep / 4) * 100}%` }}
             />
-
-            {steps.map((step) => {
-              const isCompleted = currentStep > step.id;
-              const isActive = currentStep === step.id;
-              
-              return (
-                <div key={step.id} className="flex flex-col items-center relative z-10">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (step.id < currentStep || (step.id === 2 && formData.archetype) || (step.id === 3 && formData.archetype && ((formData?.colores || []).length > 0 || formData.archetype === 'legacy-eldrazi')) || (step.id === 4 && formData.archetype && ((formData?.colores || []).length > 0 || formData.archetype === 'legacy-eldrazi'))) {
-                        setCurrentStep(step.id);
-                      }
-                    }}
-                    className={cn(
-                      "w-9 h-9 rounded-full flex items-center justify-center border-2 transition-all duration-500 font-cinzel text-xs font-bold",
-                      isCompleted 
-                        ? "bg-[#ffca58] border-[#ffca58] text-black shadow-[0_0_10px_rgba(255,202,88,0.4)]"
-                        : isActive
-                          ? "bg-black border-[#ffca58] text-[#ffca58] shadow-[0_0_15px_rgba(255,202,88,0.3)] scale-110"
-                          : "bg-[#16120e] border-white/25 text-white/40 hover:border-white/50 hover:text-white"
-                    )}
-                  >
-                    {isCompleted ? <Check size={14} className="stroke-[3]" /> : step.id}
-                  </button>
-                  <span className={cn(
-                    "text-[10px] uppercase tracking-widest mt-2 font-bold transition-all duration-300",
-                    isActive ? "text-magic-gold font-black drop-shadow-[0_0_5px_rgba(255,202,88,0.3)]" : isCompleted ? "text-[#f4ece0]/80" : "text-[#f4ece0]/40"
-                  )}>
-                    {step.name}
-                  </span>
-                  <span className="text-[8px] text-white/30 hidden sm:block mt-0.5 font-medium">
-                    {step.desc}
-                  </span>
-                </div>
-              );
-            })}
           </div>
         </div>
-      </div>
+      ) : (
+        <div className="w-full py-6 px-6 frosted-panel shadow-xl relative overflow-hidden">
+          <div className="absolute inset-0 bg-[url('/ASSETS/FrostedGlass.webp')] bg-cover opacity-5 pointer-events-none" />
+          <div className="max-w-3xl mx-auto relative z-10">
+            <div className="flex items-center justify-between relative">
+              {/* Background progress line */}
+              <div className="absolute left-0 right-0 top-[18px] h-[2px] bg-white/10 z-0" />
+              {/* Active glowing progress line */}
+              <div 
+                className="absolute left-0 top-[18px] h-[2px] bg-gradient-to-r from-magic-gold to-[#ffca58] shadow-[0_0_8px_#ffca58] z-0 transition-all duration-500 ease-out" 
+                style={{ width: `${((currentStep - 1) / 3) * 100}%` }}
+              />
+
+              {steps.map((step) => {
+                const isCompleted = currentStep > step.id;
+                const isActive = currentStep === step.id;
+                
+                return (
+                  <div key={step.id} className="flex flex-col items-center relative z-10">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (step.id < currentStep || (step.id === 2 && formData.archetype) || (step.id === 3 && formData.archetype && ((formData?.colores || []).length > 0 || formData.archetype === 'legacy-eldrazi')) || (step.id === 4 && formData.archetype && ((formData?.colores || []).length > 0 || formData.archetype === 'legacy-eldrazi'))) {
+                          setCurrentStep(step.id);
+                        }
+                      }}
+                      className={cn(
+                        "w-9 h-9 rounded-full flex items-center justify-center border-2 transition-all duration-500 font-cinzel text-xs font-bold",
+                        isCompleted 
+                          ? "bg-[#ffca58] border-[#ffca58] text-black shadow-[0_0_10px_rgba(255,202,88,0.4)]"
+                          : isActive
+                            ? "bg-black border-[#ffca58] text-[#ffca58] shadow-[0_0_15px_rgba(255,202,88,0.3)] scale-110"
+                            : "bg-[#16120e] border-white/25 text-white/40 hover:border-white/50 hover:text-white"
+                      )}
+                    >
+                      {isCompleted ? <Check size={14} className="stroke-[3]" /> : step.id}
+                    </button>
+                    <span className={cn(
+                      "text-[10px] uppercase tracking-widest mt-2 font-bold transition-all duration-300",
+                      isActive ? "text-magic-gold font-black drop-shadow-[0_0_5px_rgba(255,202,88,0.3)]" : isCompleted ? "text-[#f4ece0]/80" : "text-[#f4ece0]/40"
+                    )}>
+                      {step.name}
+                    </span>
+                    <span className="text-[8px] text-white/30 hidden sm:block mt-0.5 font-medium">
+                      {step.desc}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
 
       <form onSubmit={handleSubmit}>
         {error && (
@@ -1066,10 +1452,24 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                 </div>
               )}
 
-              {/* Grid Responsivo de Doble Columna */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 relative z-10 items-start">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8 relative z-10 items-start">
                 {/* Lado Izquierdo: Controles */}
-                <div className="lg:col-span-2 space-y-6">
+                <div className="md:col-span-2 space-y-6">
+                  {/* Banner de Leyenda */}
+                  {currentArchetype && (
+                    <div className="p-4 bg-black/90 border border-magic-gold/30 rounded-xl shadow-2xl relative overflow-hidden">
+                      <span className="text-[9.5px] uppercase tracking-[0.15em] text-magic-gold font-black block mb-2 flex items-center gap-1.5">
+                        <Scroll size={10} className="text-magic-gold" /> Revelación del Oráculo (Leyenda del Mazo)
+                      </span>
+                      <p 
+                        className="text-[12px] text-white/95 font-serif leading-relaxed"
+                        dangerouslySetInnerHTML={{ 
+                          __html: getProsaEpica(formData, currentArchetype)
+                            .replace(/\*\*(.*?)\*\*/g, '<strong class="text-[#ffdf91] font-black">$1</strong>')
+                        }}
+                      />
+                    </div>
+                  )}
                   {/* Glowing Mana Orbs Grid */}
                   <div className="flex flex-wrap gap-6 justify-center py-6 bg-black/20 border border-white/10 rounded-2xl relative">
                     {COLORS.map(color => {
@@ -1174,7 +1574,7 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                 </div>
 
                 {/* Lado Derecho: Vistazo Rápido */}
-                <div className="lg:col-span-1">
+                <div className="hidden md:block md:col-span-1">
                   <QuickGlancePanel
                     formData={formData}
                     currentArchetype={currentArchetype}
@@ -1272,8 +1672,8 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
               </div>
 
               {formData.isExpertMode ? (
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 relative z-10 items-start">
-                  <div className="lg:col-span-2 space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-8 relative z-10 items-start">
+                  <div className="md:col-span-2 space-y-6">
                     <div className="bg-black/40 border border-[#ffca58]/30 p-6 rounded-2xl shadow-[0_0_15px_rgba(255,202,88,0.1)]">
                       <h4 className="text-[#ffca58] font-cinzel text-lg font-bold mb-4 flex items-center gap-2">
                         <Wand2 size={18} /> Petición Directa al Oráculo
@@ -1316,7 +1716,7 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                       </div>
                     </div>
                   </div>
-                  <div className="lg:col-span-1">
+                  <div className="hidden md:block md:col-span-1">
                     <QuickGlancePanel
                       formData={formData}
                       currentArchetype={currentArchetype}
@@ -1328,8 +1728,23 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                   </div>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 relative z-10 items-start">
-                  <div className="lg:col-span-2 space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-8 relative z-10 items-start">
+                  <div className="md:col-span-2 space-y-6">
+                    {/* Banner de Leyenda */}
+                    {currentArchetype && (
+                      <div className="p-4 bg-black/90 border border-magic-gold/30 rounded-xl shadow-2xl relative overflow-hidden">
+                        <span className="text-[9.5px] uppercase tracking-[0.15em] text-magic-gold font-black block mb-2 flex items-center gap-1.5">
+                          <Scroll size={10} className="text-magic-gold" /> Revelación del Oráculo (Leyenda del Mazo)
+                        </span>
+                        <p 
+                          className="text-[12px] text-white/95 font-serif leading-relaxed"
+                          dangerouslySetInnerHTML={{ 
+                            __html: getProsaEpica(formData, currentArchetype)
+                              .replace(/\*\*(.*?)\*\*/g, '<strong class="text-[#ffdf91] font-black">$1</strong>')
+                          }}
+                        />
+                      </div>
+                    )}
                     {/* Historical Modules Carousel */}
                     {HISTORICAL_DECKS_CATALOG[formData.archetype] && HISTORICAL_DECKS_CATALOG[formData.archetype].filter(deck => !deck.formats || deck.formats.includes(selectedFormat)).length > 0 && (
                       <div className="bg-black/40 border border-magic-gold/30 p-5 rounded-2xl shadow-[0_0_15px_rgba(255,202,88,0.1)] relative overflow-hidden">
@@ -1399,7 +1814,7 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                             <button
                               type="button"
                               onClick={() => {
-                                setFormData(prev => ({ ...prev, tribe: '' }));
+                                setFormData(prev => ({ ...prev, tribe: '', selectedEngineId: '' }));
                                 setIsCustomTribe(false);
                                 setHasUserClearedTribe(true);
                               }}
@@ -1438,7 +1853,7 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                             <button
                               type="button"
                               onClick={() => {
-                                setFormData(prev => ({ ...prev, tribe: '' }));
+                                setFormData(prev => ({ ...prev, tribe: '', selectedEngineId: '' }));
                                 setHasUserClearedTribe(true);
                               }}
                               className={cn(
@@ -1464,7 +1879,8 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                                   onClick={() => {
                                     setFormData(prev => ({
                                       ...prev,
-                                      tribe: tribe.label
+                                      tribe: tribe.label,
+                                      selectedEngineId: ''
                                     }));
                                     setHasUserClearedTribe(false);
                                   }}
@@ -1515,128 +1931,329 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                         )}
                       </div>
 
-                      {/* Estrategia Section (Guided Mode) */}
-                      <div className="space-y-4 bg-black/35 p-5 rounded-2xl border border-white/5 relative overflow-hidden">
-                        <div className="absolute inset-0 bg-[url('/ASSETS/FrostedGlass.webp')] bg-cover opacity-5 pointer-events-none" />
-                        <div className="flex justify-between items-center border-b border-white/10 pb-2 relative z-10">
-                          <label className="text-xs font-cinzel font-bold text-[#ffca58] uppercase tracking-wider flex items-center gap-1.5">
-                            <Swords size={12} className="text-magic-gold" /> Estrategia (Guía Visual)
-                          </label>
-                          {formData.strategy && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setFormData(prev => ({ ...prev, strategy: '' }));
-                                setIsCustomStrategy(false);
-                                setHasUserClearedStrategy(true);
-                              }}
-                              className="text-[9px] text-red-400 hover:text-red-300 uppercase tracking-widest font-black"
-                            >
-                              ✕ Quitar
-                            </button>
-                          )}
-                        </div>
-
-                        {/* Strategies List Selector */}
-                        <div className="h-[210px] overflow-y-auto p-2 bg-black/60 border border-white/10 rounded-xl space-y-2 relative z-10">
-                          <div
-                            onClick={() => {
-                              setFormData(prev => ({ ...prev, strategy: '' }));
-                              setHasUserClearedStrategy(true);
-                            }}
-                            className={cn(
-                              "p-2.5 rounded-lg border transition-all duration-300 flex flex-col justify-between min-h-[70px] cursor-pointer",
-                              !formData.strategy
-                                ? "border-gray-400 bg-gradient-to-b from-gray-500/15 to-black/90 shadow-[0_0_8px_rgba(156,163,175,0.2)]"
-                                : "bg-black/75 border-white/10 text-white/80 hover:text-white hover:border-white/30"
-                            )}
+                      {/* Oracle Tuner Accordion (Personalización Avanzada del Motor) */}
+                      <div className="space-y-4">
+                        <div className="border border-magic-gold/30 bg-black/40 rounded-2xl overflow-hidden shadow-lg">
+                          <button
+                            type="button"
+                            onClick={() => setIsTuningOpen(!isTuningOpen)}
+                            className="w-full px-5 py-4 bg-gradient-to-r from-black/80 to-black/40 flex items-center justify-between text-left border-b border-white/10 hover:bg-black/90 transition-colors"
                           >
-                            <p className={cn("text-[10px] font-black uppercase tracking-wider", !formData.strategy ? "text-gray-300" : "text-white/60")}>
-                              Sin Mecánica Específica
-                            </p>
-                            <p className="text-[9px] text-[#f4ece0]/40 font-serif leading-tight mt-1">
-                              El mazo operará de forma versátil sin atarse a un combo o sinergia en particular.
-                            </p>
-                          </div>
-
-                          {availableStrategies.map(strat => {
-                            const isSelected = formData.strategy === strat.label;
-                            const isCompatible = isStrategyCompatible(strat);
-                            
-                            return (
-                              <div
-                                key={strat.id}
-                                onClick={() => {
-                                  if (!isCompatible) return;
-                                  setIsCustomStrategy(false);
-                                  setFormData(prev => ({ ...prev, strategy: strat.label }));
-                                  setHasUserClearedStrategy(false);
-                                }}
-                                title={!isCompatible ? `Incompatible con la raza/tribu "${formData.tribe}"` : `Seleccionar ${strat.label}`}
-                                className={cn(
-                                  "p-3 rounded-xl border transition-all duration-300 flex flex-col gap-2 relative overflow-hidden",
-                                  isSelected
-                                    ? "border-[#ffca58] bg-gradient-to-b from-[#ffca58]/20 to-black/95 shadow-[0_0_15px_rgba(255,202,88,0.3)] cursor-pointer scale-[1.02] z-10"
-                                    : !isCompatible
-                                      ? "bg-black/30 border-white/5 text-white/30 opacity-40 grayscale cursor-not-allowed pointer-events-none"
-                                      : "bg-black/80 border-white/10 text-white/80 hover:text-white hover:border-white/30 hover:bg-black cursor-pointer"
-                                )}
-                              >
-                                {isSelected && <div className="absolute top-0 right-0 w-16 h-16 bg-[#ffca58]/10 blur-xl rounded-full" />}
-                                
-                                <div className="flex justify-between items-start gap-1 relative z-10">
-                                  <span className={cn("font-cinzel text-xs font-black flex items-center gap-1.5", isSelected ? "text-magic-gold drop-shadow-md" : "text-white", !isCompatible && "text-white/30")}>
-                                    {!isCompatible && <Lock size={10} className="text-magic-gold/60 shrink-0" />}
-                                    {strat.label}
-                                  </span>
-                                  <div className="flex -space-x-1 shrink-0">
-                                    {strat.colors.map(col => (
-                                      <div key={col} className={cn("w-3.5 h-3.5 rounded-full overflow-hidden border border-black/20 shadow-sm", !isCompatible && "opacity-50")}>
-                                        <img src={COLORS.find(co => co.id === col)?.icon} alt={col} className="w-full h-full object-cover" />
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                                <p className={cn("text-[10px] font-serif leading-relaxed relative z-10", isSelected ? "text-white/90 font-medium" : "text-white/60", !isCompatible && "text-white/20")}>
-                                  {strat.mechanics}
+                            <div className="flex items-center gap-3">
+                              <Wand2 className="text-magic-gold w-5 h-5 animate-pulse" />
+                              <div>
+                                <h4 className="font-cinzel text-xs font-black uppercase tracking-[0.15em] text-[#ffca58]">
+                                  Oracle Tuner (Motor de Sinergias)
+                                </h4>
+                                <p className="text-[10px] text-white/50 font-serif">
+                                  {formData.tribe ? `Sintoniza los sabores para la tribu de ${formData.tribe}` : 'Sintoniza los motores de sinergia universales'}
                                 </p>
-                                
-                                {strat.keywords && strat.keywords.length > 0 && (
-                                  <div className="flex flex-wrap gap-1 mt-1 relative z-10">
-                                    {strat.keywords.slice(0, 3).map((kw, idx) => (
-                                      <span key={idx} className={cn(
-                                        "px-1.5 py-0.5 text-[8px] uppercase tracking-widest font-bold rounded border",
-                                        isSelected ? "bg-[#ffca58]/20 text-[#ffca58] border-[#ffca58]/30" : "bg-white/5 text-white/40 border-white/10"
-                                      )}>
-                                        {kw}
-                                      </span>
-                                    ))}
-                                    {strat.keywords.length > 3 && (
-                                      <span className="px-1.5 py-0.5 text-[8px] uppercase tracking-widest font-bold rounded border bg-transparent text-white/30 border-transparent">
-                                        +{strat.keywords.length - 3}
-                                      </span>
-                                    )}
-                                  </div>
-                                )}
                               </div>
-                            );
-                          })}
+                            </div>
+                            <span className="text-magic-gold text-xs font-bold">{isTuningOpen ? '▲ OCULTAR' : '▼ MOSTRAR'}</span>
+                          </button>
+
+                          <AnimatePresence>
+                            {isTuningOpen && (
+                              <motion.div
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: 'auto', opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                transition={{ duration: 0.3 }}
+                                className="p-4 space-y-4 overflow-hidden border-t border-white/5"
+                              >
+                                <div className="grid grid-cols-1 gap-2 max-h-[220px] overflow-y-auto p-1 scrollbar-thin">
+                                  {availableEngines.map(engine => {
+                                    const isSelected = formData.selectedEngineId === engine.id;
+                                    const isColorOk = isEngineColorCompatible(engine);
+                                    
+                                    const strat = MTG_STRATEGIES.find(s => s.id === engine.id.replace('_generic', ''));
+                                    const isRecommended = formData.archetype && strat?.archetypes?.some(arch => formData.archetype.toLowerCase().includes(arch));
+
+                                    return (
+                                      <button
+                                        key={engine.id}
+                                        type="button"
+                                        disabled={!isColorOk}
+                                        onClick={() => {
+                                          setFormData(prev => ({
+                                            ...prev,
+                                            selectedEngineId: engine.id,
+                                            strategy: engine.label,
+                                            engineFlavor: engine.label
+                                          }));
+                                        }}
+                                        className={cn(
+                                          "p-3 rounded-xl border text-left transition-all duration-300 flex items-start gap-3 relative",
+                                          isSelected
+                                            ? "border-[#ffca58] bg-[#ffca58]/10 shadow-[0_0_12px_rgba(255,202,88,0.2)] font-black scale-[1.01]"
+                                            : !isColorOk
+                                              ? "opacity-30 cursor-not-allowed border-white/5 bg-transparent"
+                                              : "bg-black/60 border-white/10 hover:border-white/30 hover:bg-black/85"
+                                        )}
+                                      >
+                                        <span className="text-xl shrink-0 mt-0.5">{getEngineIcon(engine.id)}</span>
+                                        <div className="flex-1">
+                                          <div className="flex items-center justify-between gap-2">
+                                            <span className="font-cinzel text-xs font-bold text-white leading-tight">
+                                              {engine.label}
+                                            </span>
+                                            <div className="flex items-center gap-1.5 shrink-0">
+                                              {isRecommended && !formData.tribe && (
+                                                <span className="text-[8px] bg-emerald-950/60 border border-emerald-500/30 text-emerald-400 px-1.5 py-0.5 rounded font-bold uppercase tracking-widest">
+                                                  ★ Sinergia
+                                                </span>
+                                              )}
+                                              {!isColorOk && (
+                                                <span className="text-[8px] bg-red-950/60 border border-red-500/30 text-red-400 px-1.5 py-0.5 rounded font-mono uppercase tracking-widest">
+                                                  Incompatible
+                                                </span>
+                                              )}
+                                            </div>
+                                          </div>
+                                          <p className="text-[10px] text-white/50 font-serif leading-snug mt-1">
+                                            {engine.description}
+                                          </p>
+                                          {engine.requiredColors && engine.requiredColors.length > 0 && (
+                                            <div className="flex gap-1 mt-1.5">
+                                              {engine.requiredColors.map(c => (
+                                                <div key={c} className="w-3 h-3 rounded-full overflow-hidden border border-black/30 shadow-sm">
+                                                  <img src={COLORS.find(co => co.id === c)?.icon} alt={c} className="w-full h-full object-cover" />
+                                                </div>
+                                              ))}
+                                            </div>
+                                          )}
+                                        </div>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
                         </div>
                       </div>
                     </div>
+
+                    {/* Synergy Pack Selector */}
+                    {(formData.selectedEngineId || formData.archetype) && (
+                      <div className="space-y-4 bg-black/45 p-5 rounded-2xl border border-white/5 relative overflow-hidden">
+                        <div className="absolute inset-0 bg-[url('/ASSETS/FrostedGlass.webp')] bg-cover opacity-5 pointer-events-none" />
+                        
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-3 relative z-10">
+                          <div>
+                            <label className="text-xs font-cinzel font-bold text-[#ffca58] uppercase tracking-wider flex items-center gap-1.5">
+                              <Scroll size={12} className="text-magic-gold" /> Synergy Pack (Cartas Sugeridas)
+                            </label>
+                            <p className="text-[10px] text-white/50 font-serif">
+                              {formData.selectedEngineId 
+                                ? "Ajusta las copias de las cartas recomendadas para tu motor estratégico."
+                                : "Ajusta las copias de las cartas recomendadas para tu arquetipo y colores."}
+                            </p>
+                          </div>
+                          
+                          {/* Barra de progreso de hechizos */}
+                          <div className="flex flex-col items-end shrink-0">
+                            <span className={cn(
+                              "text-[10px] font-black uppercase tracking-wider",
+                              totalSelectedSpells > maxSpells ? "text-red-400 font-extrabold animate-pulse" : "text-magic-gold"
+                            )}>
+                              Hechizos Seleccionados: {totalSelectedSpells} / {maxSpells}
+                            </span>
+                            <div className="w-36 h-2 bg-white/10 rounded-full mt-1.5 overflow-hidden border border-white/5 relative">
+                              <div 
+                                className={cn(
+                                  "h-full transition-all duration-300 rounded-full",
+                                  totalSelectedSpells > maxSpells 
+                                    ? "bg-red-500 shadow-[0_0_8px_#ef4444]" 
+                                    : "bg-emerald-500 shadow-[0_0_8px_#10b981]"
+                                )}
+                                style={{ width: `${Math.min(100, (totalSelectedSpells / maxSpells) * 100)}%` }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                        {/* Selector de Filtros por Color en Paso 2 */}
+                        <div className="relative z-10 space-y-1.5 pt-1.5 pb-2 border-b border-white/5">
+                          <span className="text-[9px] text-[#ffca58] uppercase tracking-[0.15em] font-extrabold block">
+                            Filtrar sugerencias por color de maná:
+                          </span>
+                          <div className="flex gap-2 justify-center p-2 bg-black/40 border border-white/10 rounded-xl">
+                            {COLORS.map(color => {
+                              const isSelected = (formData?.colores || []).includes(color.id);
+                              const allowedList = allowedColorsInfo?.allowed || [];
+                              const isAllowed = allowedList.length === 6 || allowedList.includes(color.id);
+                              
+                              let shadowGlow = "";
+                              if (isSelected) {
+                                if (color.id === 'W') shadowGlow = 'shadow-[0_0_12px_rgba(248,246,216,0.6)] border-[#f8f6d8]/60 scale-105';
+                                else if (color.id === 'U') shadowGlow = 'shadow-[0_0_12px_rgba(14,104,171,0.7)] border-[#0e68ab]/60 scale-105';
+                                else if (color.id === 'B') shadowGlow = 'shadow-[0_0_12px_rgba(255,255,255,0.3)] border-white/40 scale-105';
+                                else if (color.id === 'R') shadowGlow = 'shadow-[0_0_12px_rgba(211,32,42,0.7)] border-[#d3202a]/60 scale-105';
+                                else if (color.id === 'G') shadowGlow = 'shadow-[0_0_12px_rgba(0,115,62,0.7)] border-[#00733e]/60 scale-105';
+                                else if (color.id === 'C') shadowGlow = 'shadow-[0_0_12px_rgba(150,153,154,0.6)] border-[#96999a]/60 scale-105';
+                              }
+
+                              return (
+                                <button
+                                  key={color.id}
+                                  type="button"
+                                  disabled={!isAllowed || lockedColors}
+                                  onClick={() => {
+                                    vibrateTouch();
+                                    toggleColor(color.id);
+                                  }}
+                                  className={cn(
+                                    "transition-all duration-300 relative flex items-center justify-center rounded-full focus:outline-none border border-transparent p-0.5",
+                                    (!isAllowed || lockedColors) ? "opacity-20 grayscale cursor-not-allowed" :
+                                    isSelected ? "opacity-100" : "opacity-35 hover:opacity-85"
+                                  )}
+                                  title={color.name}
+                                >
+                                  <ManaOrb color={color.id} size="w-7 h-7" className={shadowGlow} />
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Spinner de carga */}
+                        {isPackLoading ? (
+                          <div className="py-12 flex flex-col items-center justify-center gap-3 relative z-10">
+                            <RefreshCw className="text-[#ffca58] w-6 h-6 animate-spin" />
+                            <span className="text-xs text-white/40 font-mono tracking-widest uppercase animate-pulse">Sintonizando frecuencias RAG...</span>
+                          </div>
+                        ) : packCards.length > 0 ? (
+                          <div className={cn(
+                            "relative z-10 p-1",
+                            isMobile 
+                              ? "flex flex-row overflow-x-auto snap-x shrink-0 gap-3 pb-2 custom-scrollbar" 
+                              : "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 max-h-[300px] overflow-y-auto"
+                          )}>
+                            {packCards.map(card => {
+                              const copies = seedCards[card.name] || 0;
+                              const isLegal = !card.legalities || card.legalities[selectedFormat.toLowerCase()] === 'legal';
+                              
+                              return (
+                                <div
+                                  key={card.id || card.name}
+                                  onMouseEnter={() => setHoveredCard(card)}
+                                  onMouseLeave={() => setHoveredCard(null)}
+                                  className={cn(
+                                    "p-2.5 rounded-xl border transition-all duration-300 bg-black/60 flex flex-col justify-between min-h-[96px] group hover:bg-black/80 hover:border-white/25",
+                                    isMobile ? "min-w-[160px] snap-center shrink-0" : "",
+                                    copies > 0 ? "border-[#ffca58]/50 shadow-[0_0_8px_rgba(255,202,88,0.1)]" : "border-white/15"
+                                  )}
+                                >
+                                  <div>
+                                    <div className="flex justify-between items-start gap-1">
+                                      <span className="font-cinzel text-[10.5px] font-bold text-white group-hover:text-[#ffca58] transition-colors leading-tight truncate w-full" title={card.name}>
+                                        {card.name}
+                                      </span>
+                                      {card.mana_cost && (
+                                        <RenderManaCost manaCost={card.mana_cost} className="shrink-0 select-none" />
+                                      )}
+                                    </div>
+                                    <span className="text-[8px] text-white/45 font-sans block mt-0.5 truncate uppercase tracking-widest">
+                                      {card.type_line?.split('—')[0].trim()}
+                                    </span>
+                                    
+                                    {!isLegal && (
+                                      <span className="text-[8px] text-red-400 bg-red-950/40 border border-red-500/20 px-1 py-0.5 rounded uppercase font-bold tracking-wider mt-1 inline-block">
+                                        No legal en {selectedFormat}
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  <div className="flex items-center justify-between gap-2 mt-2 pt-1.5 border-t border-white/5">
+                                    <span className="text-[9px] text-white/30 font-semibold">
+                                      {card.score ? `Sinergia: ${card.score}` : 'Payoff'}
+                                    </span>
+                                    
+                                    <div className="flex items-center gap-1.5">
+                                      <button
+                                        type="button"
+                                        disabled={copies === 0}
+                                        onClick={() => {
+                                          setSeedCards(prev => {
+                                            const next = { ...prev };
+                                            if (copies === 1) {
+                                              delete next[card.name];
+                                            } else {
+                                              next[card.name] = copies - 1;
+                                            }
+                                            return next;
+                                          });
+                                        }}
+                                        className={cn(
+                                          "rounded-full flex items-center justify-center border transition-all text-xs font-bold font-mono",
+                                          isMobile ? "w-8 h-8 min-w-[32px] min-h-[32px]" : "w-5 h-5",
+                                          copies > 0 
+                                            ? "border-[#ffca58]/40 hover:bg-[#ffca58] hover:text-black text-[#ffca58]" 
+                                            : "border-white/10 text-white/20 cursor-not-allowed"
+                                        )}
+                                      >
+                                        -
+                                      </button>
+                                      
+                                      <span className={cn(
+                                        "text-xs font-black font-mono w-4 text-center",
+                                        copies > 0 ? "text-[#ffca58]" : "text-white/40"
+                                      )}>
+                                        {copies}
+                                      </span>
+                                      
+                                      <button
+                                        type="button"
+                                        disabled={copies === 4 || totalSelectedSpells >= maxSpells}
+                                        onClick={() => {
+                                          setSeedCards(prev => ({ ...prev, [card.name]: copies + 1 }));
+                                        }}
+                                        className={cn(
+                                          "rounded-full flex items-center justify-center border transition-all text-xs font-bold font-mono",
+                                          isMobile ? "w-8 h-8 min-w-[32px] min-h-[32px]" : "w-5 h-5",
+                                          copies < 4 && totalSelectedSpells < maxSpells
+                                            ? "border-[#ffca58]/40 hover:bg-[#ffca58] hover:text-black text-[#ffca58]"
+                                            : "border-white/10 text-white/20 cursor-not-allowed"
+                                        )}
+                                      >
+                                        +
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="p-8 text-center bg-black/30 rounded-xl border border-white/5 relative z-10">
+                            <span className="text-white/40 text-[10px] font-mono uppercase tracking-widest">Selecciona colores viables o un motor para cargar sinergias</span>
+                          </div>
+                        )}
+                        
+                        {totalSelectedSpells > maxSpells && (
+                          <div className="p-3 bg-red-950/40 border border-red-500/30 rounded-xl flex items-center gap-2 relative z-10 animate-pulse">
+                            <ShieldAlert className="text-red-400 shrink-0" size={16} />
+                            <span className="text-[10px] text-red-200 font-sans font-bold">
+                              ¡Límite de hechizos superado! Has seleccionado {totalSelectedSpells} copias obligatorias pero el mazo admite máximo {maxSpells}. Reduce copias para habilitar la forja.
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {/* Lado Derecho: Vistazo Rápido */}
-                  <div className="lg:col-span-1">
+                  <div className="hidden md:block md:col-span-1">
                     <QuickGlancePanel
                       formData={formData}
                       currentArchetype={currentArchetype}
                       selectedTribeInfo={selectedTribeInfo}
-                    selectedStrategyInfo={selectedStrategyInfo}
-                    isCustomTribe={isCustomTribe}
-                    isCustomStrategy={isCustomStrategy}
-                  />
-                </div>
+                      selectedStrategyInfo={selectedStrategyInfo}
+                      isCustomTribe={isCustomTribe}
+                      isCustomStrategy={isCustomStrategy}
+                    />
+                  </div>
               </div>
             )}
               {/* Curve Profile Selector Removed as per user request */}
@@ -1683,9 +2300,9 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
 
               {/* Prompts and Rules */}
               {/* Grid Responsivo de Doble Columna */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 relative z-10 items-start">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8 relative z-10 items-start">
                 {/* Lado Izquierdo: Controles */}
-                <div className="lg:col-span-2 space-y-6">
+                <div className="md:col-span-2 space-y-6">
                   {/* Prompts and Rules */}
                   <div className="space-y-5">
                     {/* Restricción de Rareza */}
@@ -1824,40 +2441,223 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div className="space-y-2 bg-black/45 p-4 rounded-xl border border-white/5 relative overflow-hidden">
+                      {/* Lado Izquierdo: Cartas Firma (Semillas) */}
+                      <div className="space-y-4 bg-black/45 p-5 rounded-2xl border border-white/5 relative overflow-hidden">
                         <div className="absolute inset-0 bg-[url('/ASSETS/FrostedGlass.webp')] bg-cover opacity-5 pointer-events-none" />
-                        <label className="flex items-center gap-1.5 text-xs font-bold text-emerald-400 uppercase tracking-wider relative z-10">
-                          <PlusCircle size={12} /> Incluir Obligatoriamente
+                        <label className="flex items-center justify-between text-xs font-bold text-emerald-400 uppercase tracking-wider relative z-10">
+                          <span className="flex items-center gap-1.5"><PlusCircle size={14} /> Cartas Firma Obligatorias (Semillas)</span>
+                          <span className={cn("text-[9px] font-mono", totalSelectedSpells > maxSpells ? "text-red-400 font-extrabold" : "text-white/40")}>
+                            {totalSelectedSpells} / {maxSpells}
+                          </span>
                         </label>
-                        <input
-                          type="text"
-                          value={formData.mustInclude}
-                          onChange={(e) => setFormData(prev => ({ ...prev, mustInclude: e.target.value }))}
-                          placeholder="Ej: Grief, Solitude, Sliver Queen"
-                          className="w-full px-3 py-2 bg-black border border-white/20 rounded-lg text-white placeholder-white/35 text-xs font-medium focus:border-emerald-500 focus:outline-none relative z-10"
-                        />
-                        <p className="text-[9px] text-white/40 relative z-10">Nombres separados por comas que se incluirán sí o sí en el mazo.</p>
+                        
+                        {/* Buscador Autocompletable */}
+                        <div className="relative z-10">
+                          <div className="relative">
+                            <Search className="absolute left-3 top-2.5 h-4 w-4 text-white/40" />
+                            <input
+                              type="text"
+                              value={seedSearchQuery}
+                              onChange={(e) => setSeedSearchQuery(e.target.value)}
+                              placeholder="Buscar cartas firma legales..."
+                              className="w-full pl-9 pr-4 py-2 bg-black border border-white/20 rounded-lg text-white placeholder-white/35 text-xs font-medium focus:border-emerald-500 focus:outline-none"
+                            />
+                          </div>
+                          
+                          {seedSearchResults.length > 0 && (
+                            <div className="absolute left-0 right-0 mt-1 bg-black/95 border border-white/15 rounded-lg shadow-xl z-50 max-h-48 overflow-y-auto">
+                              {seedSearchResults.map(card => (
+                                <button
+                                  key={card.id}
+                                  type="button"
+                                  onClick={() => {
+                                    const current = seedCards[card.name] || 0;
+                                    if (current < 4 && totalSelectedSpells < maxSpells) {
+                                      setSeedCards(prev => ({ ...prev, [card.name]: current + 1 }));
+                                    }
+                                    setSeedSearchQuery('');
+                                    setSeedSearchResults([]);
+                                  }}
+                                  className="w-full px-4 py-2 text-left text-xs text-white hover:bg-emerald-500/20 hover:text-[#ffca58] transition-colors border-b border-white/5 flex items-center justify-between"
+                                >
+                                  <span>{card.name}</span>
+                                  <RenderManaCost manaCost={card.mana_cost} className="text-[10px]" />
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Lista de Semillas Seleccionadas */}
+                        <div className="flex flex-wrap gap-2 pt-2 relative z-10 max-h-[140px] overflow-y-auto">
+                          {Object.keys(seedCards).length === 0 ? (
+                            <span className="text-[9.5px] text-white/30 font-mono uppercase tracking-widest py-2">Sin semillas obligatorias</span>
+                          ) : (
+                            Object.entries(seedCards).map(([cardName, copies]) => (
+                              <div 
+                                key={cardName} 
+                                className="px-2 py-1 bg-emerald-950/40 border border-emerald-500/30 text-emerald-400 rounded-lg text-[10.5px] font-sans font-semibold flex items-center gap-1.5 shadow-md"
+                              >
+                                <span>{cardName}</span>
+                                <div className="flex items-center gap-1 bg-black/40 px-1 py-0.5 rounded border border-white/5">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setSeedCards(prev => {
+                                        const next = { ...prev };
+                                        if (copies === 1) {
+                                          delete next[cardName];
+                                        } else {
+                                          next[cardName] = copies - 1;
+                                        }
+                                        return next;
+                                      });
+                                    }}
+                                    className="text-[9px] hover:text-[#ffca58] w-3 h-3 flex items-center justify-center font-bold"
+                                  >
+                                    -
+                                  </button>
+                                  <span className="text-[10px] font-black font-mono text-white/80">{copies}</span>
+                                  <button
+                                    type="button"
+                                    disabled={copies === 4 || totalSelectedSpells >= maxSpells}
+                                    onClick={() => {
+                                      setSeedCards(prev => ({ ...prev, [cardName]: copies + 1 }));
+                                    }}
+                                    className="text-[9px] hover:text-[#ffca58] disabled:opacity-20 disabled:hover:text-emerald-400 w-3 h-3 flex items-center justify-center font-bold"
+                                  >
+                                    +
+                                  </button>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSeedCards(prev => {
+                                      const next = { ...prev };
+                                      delete next[cardName];
+                                      return next;
+                                    });
+                                  }}
+                                  className="text-red-400 hover:text-red-300 ml-1 font-bold text-[9px]"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                            ))
+                          )}
+                        </div>
                       </div>
 
-                      <div className="space-y-2 bg-black/45 p-4 rounded-xl border border-white/5 relative overflow-hidden">
+                      {/* Lado Derecho: Vetos y Exclusiones */}
+                      <div className="space-y-4 bg-black/45 p-5 rounded-2xl border border-white/5 relative overflow-hidden">
                         <div className="absolute inset-0 bg-[url('/ASSETS/FrostedGlass.webp')] bg-cover opacity-5 pointer-events-none" />
                         <label className="flex items-center gap-1.5 text-xs font-bold text-red-400 uppercase tracking-wider relative z-10">
-                          <MinusCircle size={12} /> Prohibiciones de la Casa
+                          <MinusCircle size={14} /> Vetos Mecánicos y de Cartas
                         </label>
-                        <input
-                          type="text"
-                          value={formData.customBanlist}
-                          onChange={(e) => setFormData(prev => ({ ...prev, customBanlist: e.target.value }))}
-                          placeholder="Ej: Ragavan, Black Lotus"
-                          className="w-full px-3 py-2 bg-black border border-white/20 rounded-lg text-white placeholder-white/35 text-xs font-medium focus:border-red-500 focus:outline-none relative z-10"
-                        />
-                        <p className="text-[9px] text-white/40 relative z-10">Nombres separados por comas que se prohibirán por completo en la forja.</p>
+                        
+                        {/* A. Veto de Palabras Clave */}
+                        <div className="space-y-1.5 relative z-10">
+                          <span className="text-[8.5px] text-white/40 uppercase tracking-widest font-sans font-bold">Veto de Conceptos / Palabras Clave</span>
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              id="tuner-keyword-input"
+                              placeholder="Ej: amass, poison, infect, zombie..."
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  const val = e.target.value.trim().toLowerCase();
+                                  if (val && !vetoedKeywords.includes(val)) {
+                                    setVetoedKeywords(prev => [...prev, val]);
+                                  }
+                                  e.target.value = '';
+                                }
+                              }}
+                              className="flex-1 px-3 py-2 bg-black border border-white/20 rounded-lg text-white placeholder-white/35 text-xs font-medium focus:border-red-500 focus:outline-none"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const input = document.getElementById('tuner-keyword-input');
+                                const val = input.value.trim().toLowerCase();
+                                if (val && !vetoedKeywords.includes(val)) {
+                                  setVetoedKeywords(prev => [...prev, val]);
+                                }
+                                input.value = '';
+                              }}
+                              className="px-3 bg-red-950/40 hover:bg-red-900 border border-red-500/30 text-red-400 rounded-lg text-xs font-bold uppercase transition-colors"
+                            >
+                              Añadir
+                            </button>
+                          </div>
+                          <div className="flex flex-wrap gap-1.5 pt-1.5">
+                            {vetoedKeywords.length === 0 ? (
+                              <span className="text-[8.5px] text-white/30 font-mono">Sin palabras clave excluidas</span>
+                            ) : (
+                              vetoedKeywords.map(kw => (
+                                <span key={kw} className="px-2 py-0.5 bg-red-950/40 border border-red-500/30 text-red-400 text-[9.5px] rounded-lg font-sans font-semibold flex items-center gap-1 shadow-sm">
+                                  {kw}
+                                  <button type="button" onClick={() => setVetoedKeywords(prev => prev.filter(k => k !== kw))} className="text-red-400/60 hover:text-red-300 font-bold ml-0.5">✕</button>
+                                </span>
+                              ))
+                            )}
+                          </div>
+                        </div>
+
+                        {/* B. Veto de Cartas Específicas */}
+                        <div className="space-y-1.5 relative z-10">
+                          <span className="text-[8.5px] text-white/40 uppercase tracking-widest font-sans font-bold">Prohibir Cartas Específicas</span>
+                          <div className="relative">
+                            <Search className="absolute left-3 top-2.5 h-4 w-4 text-white/40" />
+                            <input
+                              type="text"
+                              value={vetoSearchQuery}
+                              onChange={(e) => setVetoSearchQuery(e.target.value)}
+                              placeholder="Buscar cartas a vetar..."
+                              className="w-full pl-9 pr-4 py-2 bg-black border border-white/20 rounded-lg text-white placeholder-white/35 text-xs font-medium focus:border-red-500 focus:outline-none"
+                            />
+                          </div>
+
+                          {vetoSearchResults.length > 0 && (
+                            <div className="absolute left-0 right-0 mt-1 bg-black/95 border border-white/15 rounded-lg shadow-xl z-50 max-h-48 overflow-y-auto">
+                              {vetoSearchResults.map(card => (
+                                <button
+                                  key={card.id}
+                                  type="button"
+                                  onClick={() => {
+                                    if (!vetoedCards.includes(card.name)) {
+                                      setVetoedCards(prev => [...prev, card.name]);
+                                    }
+                                    setVetoSearchQuery('');
+                                    setVetoSearchResults([]);
+                                  }}
+                                  className="w-full px-4 py-2 text-left text-xs text-white hover:bg-red-500/20 hover:text-[#ffca58] transition-colors border-b border-white/5"
+                                >
+                                  {card.name}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+
+                          <div className="flex flex-wrap gap-1.5 pt-1.5 max-h-[80px] overflow-y-auto">
+                            {vetoedCards.length === 0 ? (
+                              <span className="text-[8.5px] text-white/30 font-mono">Sin cartas prohibidas</span>
+                            ) : (
+                              vetoedCards.map(cardName => (
+                                <span key={cardName} className="px-2 py-0.5 bg-red-950/40 border border-red-500/30 text-red-400 text-[9.5px] rounded-lg font-sans font-semibold flex items-center gap-1 shadow-sm">
+                                  {cardName}
+                                  <button type="button" onClick={() => setVetoedCards(prev => prev.filter(c => c !== cardName))} className="text-red-400/60 hover:text-red-300 font-bold ml-0.5">✕</button>
+                                </span>
+                              ))
+                            )}
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
 
                 {/* Lado Derecho: Vistazo Rápido */}
-                <div className="lg:col-span-1">
+                <div className="hidden md:block md:col-span-1">
                   <QuickGlancePanel
                     formData={formData}
                     currentArchetype={currentArchetype}
@@ -1903,6 +2703,98 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
           )}
         </AnimatePresence>
       </form>
+
+      {/* Visual Hover Preview Card Overlay */}
+      <AnimatePresence>
+        {hoveredCard && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.8, y: 20 }}
+            transition={{ duration: 0.2 }}
+            className="fixed bottom-6 right-6 z-50 w-64 p-3 bg-black/90 border border-magic-gold/30 rounded-2xl shadow-[0_0_30px_rgba(255,202,88,0.25)] backdrop-blur-md overflow-hidden"
+          >
+            <div className="relative w-full h-full">
+              {/* Card Image */}
+              <img 
+                src={getCardImageUrl(hoveredCard)} 
+                alt={hoveredCard.name} 
+                onClick={() => {
+                  if (hoveredCard.card_faces) {
+                    setFlipStates(prev => ({
+                      ...prev,
+                      [hoveredCard.id]: (prev[hoveredCard.id] || 0) === 0 ? 1 : 0
+                    }));
+                  }
+                }}
+                className={cn(
+                  "w-full h-auto rounded-xl shadow-lg border border-white/10 select-none block",
+                  hoveredCard.card_faces ? "cursor-pointer hover:ring-2 hover:ring-[#ffca58]" : ""
+                )}
+              />
+              
+              {/* Extra details on hover preview */}
+              <div className="mt-2.5 space-y-1">
+                <div className="flex justify-between items-center text-[10px]">
+                  <span className="font-cinzel font-black text-[#ffca58] truncate max-w-[160px]">
+                    {hoveredCard.name}
+                  </span>
+                  <RenderManaCost manaCost={hoveredCard.mana_cost} className="text-[10px]" />
+                </div>
+                <p className="text-[8.5px] text-[#f4ece0]/65 font-serif leading-relaxed line-clamp-3">
+                  {hoveredCard.oracle_text || 'Sin texto de reglas.'}
+                </p>
+                {hoveredCard.card_faces && (
+                  <div className="pt-1.5 flex justify-center">
+                    <span className="text-[8px] bg-white/10 hover:bg-white/20 text-[#ffca58] px-2 py-0.5 rounded-full border border-white/15 cursor-pointer uppercase tracking-widest font-black" onClick={() => {
+                      setFlipStates(prev => ({
+                        ...prev,
+                        [hoveredCard.id]: (prev[hoveredCard.id] || 0) === 0 ? 1 : 0
+                      }));
+                    }}>
+                      🔄 Girar Carta (MDFC)
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Mobile Quick Glance FAB and BottomSheet */}
+      {isMobile && currentArchetype && (
+        <>
+          <motion.button
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.9 }}
+            onClick={() => {
+              vibrateTouch();
+              setShowMobileGlance(true);
+            }}
+            className="fixed bottom-24 right-4 z-40 bg-gradient-to-r from-[#B8860B] to-[#D4AF37] text-black w-14 h-14 rounded-full flex items-center justify-center shadow-[0_4px_20px_rgba(212,175,55,0.4)] border border-[#D4AF37]/50 active:scale-95 cursor-pointer"
+          >
+            <Scroll size={24} className="text-black" />
+          </motion.button>
+
+          <BottomSheet
+            isOpen={showMobileGlance}
+            onClose={() => setShowMobileGlance(false)}
+            title="Vistazo del Ecosistema"
+          >
+            <div className="pb-8">
+              <QuickGlancePanel
+                formData={formData}
+                currentArchetype={currentArchetype}
+                selectedTribeInfo={selectedTribeInfo}
+                selectedStrategyInfo={selectedStrategyInfo}
+                isCustomTribe={isCustomTribe}
+                isCustomStrategy={isCustomStrategy}
+              />
+            </div>
+          </BottomSheet>
+        </>
+      )}
     </div>
   );
 }

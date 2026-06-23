@@ -12,6 +12,10 @@ export default {
           gold: '#c19b45',
           parchment: '#f4ece0',
         }
+      },
+      screens: {
+        'xs': '400px',
+        'touch': { 'raw': '(pointer: coarse)' }
       }
     },
   },
