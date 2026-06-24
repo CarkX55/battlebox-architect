@@ -137,6 +137,108 @@ export const CORE_PACKAGES = {
         { name: "Charming Prince", qty: 4, role: "etb_creature" }
       ]
     }
+  },
+
+  ninjutsu: {
+    MODERN: {
+      default: [
+        { name: "Ornithopter", qty: 4, role: "enabler" },
+        { name: "Changeling Outcast", qty: 4, role: "enabler" },
+        { name: "Moon-Circuit Hacker", qty: 4, role: "ninja_payoff" },
+        { name: "Ninja of the Deep Hours", qty: 4, role: "ninja_payoff" },
+        { name: "Thousand-Faced Shadow", qty: 2, role: "ninja_payoff" }
+      ]
+    }
+  },
+
+  faeries: {
+    MODERN: {
+      default: [
+        { name: "Spellstutter Sprite", qty: 4, role: "interaction" },
+        { name: "Bitterblossom", qty: 4, role: "engine" },
+        { name: "Mistbind Clique", qty: 2, role: "finisher" },
+        { name: "Faerie Seer", qty: 4, role: "enabler" }
+      ]
+    }
+  },
+
+  dragons: {
+    MODERN: {
+      default: [
+        { name: "Dragonlord's Servant", qty: 4, role: "ramp" },
+        { name: "Dragonspeaker Shaman", qty: 2, role: "ramp" },
+        { name: "Thunderbreak Regent", qty: 4, role: "threat" },
+        { name: "Goldspan Dragon", qty: 2, role: "finisher" }
+      ]
+    }
+  },
+
+  dinosaurs: {
+    MODERN: {
+      default: [
+        { name: "Marauding Raptor", qty: 4, role: "engine" },
+        { name: "Drover of the Mighty", qty: 4, role: "ramp" },
+        { name: "Regisaur Alpha", qty: 2, role: "threat" },
+        { name: "Carnage Tyrant", qty: 2, role: "finisher" }
+      ]
+    }
+  },
+
+  angels: {
+    MODERN: {
+      default: [
+        { name: "Giada, Font of Hope", qty: 4, role: "engine" },
+        { name: "Righteous Valkyrie", qty: 4, role: "payoff" },
+        { name: "Lyra Dawnbringer", qty: 2, role: "finisher" },
+        { name: "Youthful Valkyrie", qty: 4, role: "threat" }
+      ]
+    }
+  },
+
+  pirates: {
+    MODERN: {
+      default: [
+        { name: "Ragavan, Nimble Pilferer", qty: 4, role: "enabler" },
+        { name: "Malcolm, Keen-Eyed Navigator", qty: 4, role: "engine" },
+        { name: "Breeches, Eager Pillager", qty: 2, role: "payoff" },
+        { name: "Kari Zev, Skyship Raider", qty: 4, role: "threat" }
+      ]
+    }
+  },
+
+  druids_shaman: {
+    MODERN: {
+      default: [
+        { name: "Burning-Tree Emissary", qty: 4, role: "enabler" },
+        { name: "Rage Forger", qty: 4, role: "payoff" },
+        { name: "Elvish Archdruid", qty: 4, role: "ramp" },
+        { name: "Bosk Banneret", qty: 4, role: "reducer" }
+      ]
+    }
+  },
+
+  discard_rack: {
+    MODERN: {
+      default: [
+        { name: "The Rack", qty: 4, role: "payoff" },
+        { name: "Shrieking Affliction", qty: 4, role: "payoff" },
+        { name: "Waste Not", qty: 4, role: "engine" },
+        { name: "Liliana's Caress", qty: 4, role: "engine" },
+        { name: "Inquisition of Kozilek", qty: 4, role: "discard_spell" }
+      ]
+    }
+  },
+
+  dredge: {
+    MODERN: {
+      default: [
+        { name: "Stinkweed Imp", qty: 4, role: "dredger" },
+        { name: "Golgari Thug", qty: 4, role: "dredger" },
+        { name: "Prized Amalgam", qty: 4, role: "payoff" },
+        { name: "Narcomoeba", qty: 4, role: "payoff" },
+        { name: "Cathartic Reunion", qty: 4, role: "enabler" }
+      ]
+    }
   }
 };
 

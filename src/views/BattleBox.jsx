@@ -924,7 +924,7 @@ export default function BattleBox() {
             {/* Grid de Cartas (Principal) */}
             <div className="lg:col-span-8 space-y-12">
               {isEditing && (
-                <div className="frosted-panel p-6 border-blue-500/20">
+                <div className="frosted-panel p-6 border-blue-500/20 relative z-30">
                   <h4 className="font-cinzel text-blue-400 text-sm mb-4 uppercase tracking-[0.2em]">Infundir nuevas cartas</h4>
                   <CardSearch onAddCard={handleAddCard} />
                 </div>

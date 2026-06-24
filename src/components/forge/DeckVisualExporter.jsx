@@ -453,10 +453,14 @@ export default function DeckVisualExporter({ deck, sideboard = [], isOpen, onClo
                   </div>
 
                   {/* Metricas */}
-                  <div className="grid grid-cols-4 gap-4 mt-6">
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mt-6">
+                    <div className="bg-black/50 p-3 rounded-lg border border-white/5 text-center">
+                      <div className="text-[10px] text-gray-500 uppercase font-bold mb-1">Estructura</div>
+                      <div className="text-xl font-black text-white">{auditReport.metrics.structureScore}/20</div>
+                    </div>
                     <div className="bg-black/50 p-3 rounded-lg border border-white/5 text-center">
                       <div className="text-[10px] text-gray-500 uppercase font-bold mb-1">Maná Score</div>
-                      <div className="text-xl font-black text-white">{auditReport.metrics.manaScore}/30</div>
+                      <div className="text-xl font-black text-white">{auditReport.metrics.manaScore}/20</div>
                     </div>
                     <div className="bg-black/50 p-3 rounded-lg border border-white/5 text-center">
                       <div className="text-[10px] text-gray-500 uppercase font-bold mb-1">Curva (VMP)</div>
@@ -466,9 +470,9 @@ export default function DeckVisualExporter({ deck, sideboard = [], isOpen, onClo
                       <div className="text-[10px] text-gray-500 uppercase font-bold mb-1">Consistencia</div>
                       <div className="text-xl font-black text-white">{auditReport.metrics.consistencyScore}/20</div>
                     </div>
-                    <div className="bg-black/50 p-3 rounded-lg border border-white/5 text-center">
-                      <div className="text-[10px] text-gray-500 uppercase font-bold mb-1">Estructura</div>
-                      <div className="text-xl font-black text-white">{auditReport.metrics.structureScore}/30</div>
+                    <div className="bg-black/50 p-3 rounded-lg border border-white/5 text-center col-span-2 md:col-span-1">
+                      <div className="text-[10px] text-gray-500 uppercase font-bold mb-1">Estrategia</div>
+                      <div className="text-xl font-black text-white">{auditReport.metrics.strategyScore}/20</div>
                     </div>
                   </div>
 

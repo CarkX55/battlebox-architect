@@ -1243,7 +1243,7 @@ export default function DeckBuilder() {
       <div 
         key={`${c.name}-${zone}`} 
         className={cn(
-          "flex items-center gap-3 p-3 bg-black/40 border border-white/5 hover:border-magic-gold/30 rounded-xl transition-all",
+          "flex items-center gap-3 p-3 bg-black/40 border border-white/5 hover:border-magic-gold/30 rounded-xl transition-all relative hover:z-20",
           legality.status === 'illegal' && "border-red-500/25 bg-red-950/5",
           legality.status === 'vetoed' && "border-amber-500/25 bg-amber-950/5"
         )}
@@ -1267,17 +1267,39 @@ export default function DeckBuilder() {
             
             {/* Badges de error */}
             {legality.status === 'vetoed' && (
-              <span 
-                className="text-[9px] bg-amber-500/10 text-amber-400 border border-amber-500/30 px-1.5 py-0.5 rounded cursor-help"
-                title={`Recomendación: Reemplazar por "${legality.suggestion}"`}
-              >
-                ⚔️ Vetada
-              </span>
+              <div className="relative group/tooltip-list-veto z-[60]">
+                <span className="text-[9px] bg-amber-500/10 text-amber-400 border border-amber-500/30 px-1.5 py-0.5 rounded cursor-help">
+                  ⚔️ Vetada
+                </span>
+                {/* Tooltip de Veto en Lista */}
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 bg-black/95 border border-amber-500/50 rounded-xl shadow-[0_10px_30px_rgba(0,0,0,0.95)] opacity-0 pointer-events-none group-hover/tooltip-list-veto:opacity-100 transition-opacity duration-200 z-[9999] text-[11px] text-amber-200 leading-relaxed font-sans normal-case text-left backdrop-blur-md">
+                  <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-amber-500 rotate-45 border-r border-b border-amber-500/50" />
+                  <p className="font-semibold text-amber-400 uppercase tracking-wider mb-1">Carta Vetada</p>
+                  <p>
+                    Esta carta está prohibida en el formato casual de Battle Box.
+                    {legality.suggestion && legality.suggestion !== 'N/A' && (
+                      <>
+                        {" "}Recomendación: Reemplazar por <span className="text-green-400 font-bold">{legality.suggestion}</span>.
+                      </>
+                    )}
+                  </p>
+                </div>
+              </div>
             )}
             {legality.status === 'illegal' && (
-              <span className="text-[9px] bg-red-500/10 text-red-400 border border-red-500/30 px-1.5 py-0.5 rounded">
-                🚫 Ilegal {deckMeta.format}
-              </span>
+              <div className="relative group/tooltip-list-illegal z-[60]">
+                <span className="text-[9px] bg-red-500/10 text-red-400 border border-red-500/30 px-1.5 py-0.5 rounded cursor-help">
+                  🚫 Ilegal {deckMeta.format}
+                </span>
+                {/* Tooltip de Ilegal en Lista */}
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 bg-black/95 border border-red-500/50 rounded-xl shadow-[0_10px_30px_rgba(0,0,0,0.95)] opacity-0 pointer-events-none group-hover/tooltip-list-illegal:opacity-100 transition-opacity duration-200 z-[9999] text-[11px] text-red-200 leading-relaxed font-sans normal-case text-left backdrop-blur-md">
+                  <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-red-500 rotate-45 border-r border-b border-red-500/50" />
+                  <p className="font-semibold text-red-400 uppercase tracking-wider mb-1">Carta Ilegal</p>
+                  <p>
+                    Esta carta no es legal en el formato oficial seleccionado ({deckMeta.format}).
+                  </p>
+                </div>
+              </div>
             )}
           </div>
           <div className="text-[10px] text-white/40 truncate font-serif">{c.type_line}</div>
@@ -1400,179 +1422,209 @@ export default function DeckBuilder() {
           }
         }}
         className={cn(
-          "group relative w-full aspect-[63/88] rounded-xl overflow-hidden shadow-lg border transition-all duration-300 hover:z-20 cursor-pointer select-none",
+          "group relative w-full aspect-[63/88] rounded-xl shadow-lg border transition-all duration-300 hover:z-[100] cursor-pointer select-none",
           legality.status === 'illegal' ? "border-red-500/40 shadow-[0_0_10px_rgba(239,68,68,0.2)]" :
           legality.status === 'vetoed' ? "border-amber-500/40 shadow-[0_0_10px_rgba(245,158,11,0.2)]" :
           "border-white/5 hover:border-magic-gold/50"
         )}
       >
-        {isFoil && (
-          <div className="absolute inset-0 bg-gradient-to-tr from-purple-500/10 via-pink-500/5 to-cyan-500/10 mix-blend-color-dodge opacity-60 pointer-events-none" />
-        )}
+        {/* Inner container to hold card image/layers and force round corners via overflow-hidden */}
+        <div className="absolute inset-0 rounded-xl overflow-hidden">
+          {isFoil && (
+            <div className="absolute inset-0 bg-gradient-to-tr from-purple-500/10 via-pink-500/5 to-cyan-500/10 mix-blend-color-dodge opacity-60 pointer-events-none" />
+          )}
 
-        <img
-          src={imageUrl}
-          alt={c.name}
-          className="w-full h-full object-fill rounded-xl transition-transform duration-300 lg:group-hover:scale-105"
-          loading="lazy"
-        />
+          <img
+            src={imageUrl}
+            alt={c.name}
+            className="w-full h-full object-fill rounded-xl transition-transform duration-300 lg:group-hover:scale-105"
+            loading="lazy"
+          />
 
-        {/* Badges flotantes de error/legalidad sobre la carta */}
+          {/* Insignia de Cantidad por Defecto (se oculta al hacer hover) */}
+          <div className="absolute top-2 right-2 bg-black/85 border border-magic-gold/30 px-2 py-0.5 rounded flex items-center justify-center font-sans font-bold text-xs text-white shadow-md transition-opacity lg:group-hover:opacity-0">
+            x{c.quantity}
+          </div>
+
+          {/* Superposición Superior (Glassmorphic) */}
+          <div className={cn(
+            "absolute top-0 left-0 right-0 bg-black/85 backdrop-blur-sm border-b border-white/10 p-1 flex items-center justify-between z-10 transition-all",
+            overlayVisibleClass
+          )}>
+            {/* Botón Lupa/Detalle */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setPreviewCard(c);
+              }}
+              className="p-1 text-white/70 hover:text-magic-gold hover:bg-white/5 rounded transition-all"
+              title="Ver detalles"
+            >
+              <Search size={13} />
+            </button>
+
+            {/* Botón Flip si es MDFC */}
+            {c.card_faces && c.card_faces.length > 1 && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleFlipCard(c.name);
+                }}
+                className="p-1 text-white/70 hover:text-magic-gold hover:bg-white/5 rounded transition-all"
+                title="Voltear"
+              >
+                <RefreshCw size={13} />
+              </button>
+            )}
+
+            {/* Transferir entre zonas */}
+            <div className="flex gap-0.5">
+              {zone !== 'main' && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleMoveCard(c, zone, 'main');
+                  }}
+                  className="px-1 py-0.5 bg-white/5 hover:bg-green-500/20 text-green-400 border border-green-500/30 rounded text-[9px] font-bold transition-all"
+                  title="Mover a Principal"
+                >
+                  Main
+                </button>
+              )}
+              {zone !== 'side' && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleMoveCard(c, zone, 'side');
+                  }}
+                  className="px-1 py-0.5 bg-white/5 hover:bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded text-[9px] font-bold transition-all"
+                  title="Mover a Banquillo"
+                >
+                  Side
+                </button>
+              )}
+              {zone !== 'maybe' && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleMoveCard(c, zone, 'maybe');
+                  }}
+                  className="px-1 py-0.5 bg-white/5 hover:bg-purple-500/20 text-purple-400 border border-purple-500/30 rounded text-[9px] font-bold transition-all"
+                  title="Mover a Maybeboard"
+                >
+                  Maybe
+                </button>
+              )}
+            </div>
+
+            {/* Eliminar de zona */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleRemoveCard(c.name, zone);
+              }}
+              className="p-1 text-red-500 hover:text-red-400 hover:bg-red-500/10 rounded transition-all"
+              title="Eliminar"
+            >
+              <Trash2 size={13} />
+            </button>
+          </div>
+
+          {/* Superposición Inferior (Glassmorphic) */}
+          <div className={cn(
+            "absolute bottom-0 left-0 right-0 bg-black/85 backdrop-blur-sm border-t border-white/10 p-1 flex flex-col gap-1 z-10 transition-all",
+            overlayVisibleClass
+          )}>
+            {zone === 'main' ? (
+              <select
+                value={c.role || 'generic'}
+                onChange={(e) => {
+                  e.stopPropagation();
+                  handleChangeRole(c.name, e.target.value);
+                }}
+                onClick={(e) => e.stopPropagation()}
+                className="w-full bg-black/95 border border-magic-gold/20 rounded px-1 py-0.5 text-[9px] text-[#ffca58] focus:outline-none focus:border-magic-gold/50 cursor-pointer font-sans"
+              >
+                {ROLES.map(r => (
+                  <option key={r.id} value={r.id} className="bg-black text-[#f4ece0] text-[9px]">
+                    {r.label}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <div className="text-[8px] text-white/50 truncate font-serif text-center uppercase tracking-wide py-0.5">
+                {c.category || 'Carta'}
+              </div>
+            )}
+
+            <div className="flex items-center justify-between bg-black/60 rounded-lg border border-white/10 px-1 py-0.5">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleAdjustQuantity(c.name, zone, -1);
+                }}
+                className="p-1 text-white/50 hover:text-white transition-colors"
+              >
+                <Minus size={11} />
+              </button>
+              <span className="text-[11px] font-bold text-magic-gold font-sans">
+                {c.quantity}
+              </span>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleAdjustQuantity(c.name, zone, 1);
+                }}
+                disabled={c.quantity >= 4 && !hasNoCopyLimit(c) && zone !== 'maybe'}
+                className={cn(
+                  "p-1 text-white/50 hover:text-white transition-colors",
+                  (c.quantity >= 4 && !hasNoCopyLimit(c) && zone !== 'maybe') && "opacity-25 cursor-not-allowed"
+                )}
+              >
+                <Plus size={11} />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Warning Badges & Tooltips - Placed outside the inner overflow-hidden container to allow full overflow */}
         {legality.status === 'illegal' && (
-          <div className="absolute top-2 left-2 bg-red-600/90 border border-red-400 text-white text-[8px] font-bold px-1.5 py-0.5 rounded shadow-md group-hover:opacity-0 transition-opacity">
-            🚫 Ilegal
+          <div className="absolute top-2 left-2 z-[60] group/tooltip-illegal">
+            <div className="bg-red-600/90 border border-red-400 text-white text-[8px] font-bold px-1.5 py-0.5 rounded shadow-md cursor-help">
+              🚫 Ilegal
+            </div>
+            
+            {/* Tooltip de Ilegalidad */}
+            <div className="absolute top-full left-0 mt-2 w-64 p-3 bg-black/95 border border-red-500/50 rounded-xl shadow-[0_10px_30px_rgba(0,0,0,0.95)] opacity-0 pointer-events-none group-hover/tooltip-illegal:opacity-100 transition-opacity duration-200 z-[9999] text-[11px] text-red-200 leading-relaxed font-sans normal-case text-left backdrop-blur-md">
+              <div className="absolute -top-1 left-3 w-2 h-2 bg-red-500 rotate-45 border-t border-l border-red-500/50" />
+              <p className="font-semibold text-red-400 uppercase tracking-wider mb-1">Carta Ilegal</p>
+              <p>
+                Esta carta no es legal en el formato oficial seleccionado ({deckMeta.format}).
+              </p>
+            </div>
           </div>
         )}
         {legality.status === 'vetoed' && (
-          <div className="absolute top-2 left-2 bg-amber-600/90 border border-amber-400 text-white text-[8px] font-bold px-1.5 py-0.5 rounded shadow-md group-hover:opacity-0 transition-opacity" title={`Vetada: Reemplazar por "${legality.suggestion}"`}>
-            ⚔️ Vetada
+          <div className="absolute top-2 left-2 z-[60] group/tooltip-veto">
+            <div className="bg-amber-600/90 border border-amber-400 text-white text-[8px] font-bold px-1.5 py-0.5 rounded shadow-md cursor-help">
+              ⚔️ Vetada
+            </div>
+            
+            {/* Tooltip de Veto */}
+            <div className="absolute top-full left-0 mt-2 w-64 p-3 bg-black/95 border border-amber-500/50 rounded-xl shadow-[0_10px_30px_rgba(0,0,0,0.95)] opacity-0 pointer-events-none group-hover/tooltip-veto:opacity-100 transition-opacity duration-200 z-[9999] text-[11px] text-amber-200 leading-relaxed font-sans normal-case text-left backdrop-blur-md">
+              <div className="absolute -top-1 left-3 w-2 h-2 bg-amber-500 rotate-45 border-t border-l border-amber-500/50" />
+              <p className="font-semibold text-amber-400 uppercase tracking-wider mb-1">Carta Vetada</p>
+              <p>
+                Esta carta está prohibida en el formato casual de Battle Box.
+                {legality.suggestion && legality.suggestion !== 'N/A' && (
+                  <>
+                    {" "}Recomendación: Reemplazar por <span className="text-green-400 font-bold">{legality.suggestion}</span>.
+                  </>
+                )}
+              </p>
+            </div>
           </div>
         )}
-
-        {/* Insignia de Cantidad por Defecto (se oculta al hacer hover) */}
-        <div className="absolute top-2 right-2 bg-black/85 border border-magic-gold/30 px-2 py-0.5 rounded flex items-center justify-center font-sans font-bold text-xs text-white shadow-md transition-opacity lg:group-hover:opacity-0">
-          x{c.quantity}
-        </div>
-
-        {/* Superposición Superior (Glassmorphic) */}
-        <div className={cn(
-          "absolute top-0 left-0 right-0 bg-black/85 backdrop-blur-sm border-b border-white/10 p-1 flex items-center justify-between z-10 transition-all",
-          overlayVisibleClass
-        )}>
-          {/* Botón Lupa/Detalle */}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setPreviewCard(c);
-            }}
-            className="p-1 text-white/70 hover:text-magic-gold hover:bg-white/5 rounded transition-all"
-            title="Ver detalles"
-          >
-            <Search size={13} />
-          </button>
-
-          {/* Botón Flip si es MDFC */}
-          {c.card_faces && c.card_faces.length > 1 && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                toggleFlipCard(c.name);
-              }}
-              className="p-1 text-white/70 hover:text-magic-gold hover:bg-white/5 rounded transition-all"
-              title="Voltear"
-            >
-              <RefreshCw size={13} />
-            </button>
-          )}
-
-          {/* Transferir entre zonas */}
-          <div className="flex gap-0.5">
-            {zone !== 'main' && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleMoveCard(c, zone, 'main');
-                }}
-                className="px-1 py-0.5 bg-white/5 hover:bg-green-500/20 text-green-400 border border-green-500/30 rounded text-[9px] font-bold transition-all"
-                title="Mover a Principal"
-              >
-                Main
-              </button>
-            )}
-            {zone !== 'side' && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleMoveCard(c, zone, 'side');
-                }}
-                className="px-1 py-0.5 bg-white/5 hover:bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded text-[9px] font-bold transition-all"
-                title="Mover a Banquillo"
-              >
-                Side
-              </button>
-            )}
-            {zone !== 'maybe' && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleMoveCard(c, zone, 'maybe');
-                }}
-                className="px-1 py-0.5 bg-white/5 hover:bg-purple-500/20 text-purple-400 border border-purple-500/30 rounded text-[9px] font-bold transition-all"
-                title="Mover a Maybeboard"
-              >
-                Maybe
-              </button>
-            )}
-          </div>
-
-          {/* Eliminar de zona */}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              handleRemoveCard(c.name, zone);
-            }}
-            className="p-1 text-red-500 hover:text-red-400 hover:bg-red-500/10 rounded transition-all"
-            title="Eliminar"
-          >
-            <Trash2 size={13} />
-          </button>
-        </div>
-
-        {/* Superposición Inferior (Glassmorphic) */}
-        <div className={cn(
-          "absolute bottom-0 left-0 right-0 bg-black/85 backdrop-blur-sm border-t border-white/10 p-1 flex flex-col gap-1 z-10 transition-all",
-          overlayVisibleClass
-        )}>
-          {zone === 'main' ? (
-            <select
-              value={c.role || 'generic'}
-              onChange={(e) => {
-                e.stopPropagation();
-                handleChangeRole(c.name, e.target.value);
-              }}
-              onClick={(e) => e.stopPropagation()}
-              className="w-full bg-black/95 border border-magic-gold/20 rounded px-1 py-0.5 text-[9px] text-[#ffca58] focus:outline-none focus:border-magic-gold/50 cursor-pointer font-sans"
-            >
-              {ROLES.map(r => (
-                <option key={r.id} value={r.id} className="bg-black text-[#f4ece0] text-[9px]">
-                  {r.label}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <div className="text-[8px] text-white/50 truncate font-serif text-center uppercase tracking-wide py-0.5">
-              {c.category || 'Carta'}
-            </div>
-          )}
-
-          <div className="flex items-center justify-between bg-black/60 rounded-lg border border-white/10 px-1 py-0.5">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                handleAdjustQuantity(c.name, zone, -1);
-              }}
-              className="p-1 text-white/50 hover:text-white transition-colors"
-            >
-              <Minus size={11} />
-            </button>
-            <span className="text-[11px] font-bold text-magic-gold font-sans">
-              {c.quantity}
-            </span>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                handleAdjustQuantity(c.name, zone, 1);
-              }}
-              disabled={c.quantity >= 4 && !hasNoCopyLimit(c) && zone !== 'maybe'}
-              className={cn(
-                "p-1 text-white/50 hover:text-white transition-colors",
-                (c.quantity >= 4 && !hasNoCopyLimit(c) && zone !== 'maybe') && "opacity-25 cursor-not-allowed"
-              )}
-            >
-              <Plus size={11} />
-            </button>
-          </div>
-        </div>
       </div>
     );
   };
@@ -1838,7 +1890,7 @@ export default function DeckBuilder() {
                 </div>
 
                 {/* Buscador de Cartas */}
-                <div className="frosted-panel border-white/5 p-5 flex flex-col">
+                <div className="frosted-panel border-white/5 p-5 flex flex-col relative z-30">
                   <h3 className="font-cinzel text-magic-gold text-sm tracking-wider uppercase mb-4 flex items-center gap-2 border-b border-white/5 pb-2">
                     <Search size={16} /> Canalizar Base de Datos Scryfall
                   </h3>

@@ -607,20 +607,166 @@ export const MTG_TRIBES = [
   { id: 'wizard', label: 'Magos (Wizards)', category: 'vocacion', colors: ['U', 'R', 'B'], primaryColor: 'U', strategies: ['spellslinger', 'blink'], archetypes: ['aggro', 'tempo', 'midrange', 'combo', 'control'], subtypes: ['wizard'] },
   { id: 'cleric', label: 'Clérigos', category: 'vocacion', colors: ['W', 'B'], primaryColor: 'W', strategies: ['lifegain', 'aristocrats', 'reanimator'], archetypes: ['aggro', 'midrange', 'combo', 'prison'], subtypes: ['cleric'] },
   { id: 'rogue', label: 'Pícaros (Rogues)', category: 'vocacion', colors: ['U', 'B'], primaryColor: ['U', 'B'], strategies: ['aristocrats'], archetypes: ['aggro', 'tempo', 'midrange', 'combo'], subtypes: ['rogue'] },
-  { id: 'shaman', label: 'Chamanes', category: 'vocacion', colors: ['G', 'R', 'B'], primaryColor: 'G', strategies: ['tokens', 'landfall'], archetypes: ['midrange', 'combo'], subtypes: ['shaman'] },
-  { id: 'druid', label: 'Druidas', category: 'vocacion', colors: ['G', 'W'], primaryColor: 'G', strategies: ['tokens', 'landfall'], archetypes: ['midrange', 'combo', 'ramp'], subtypes: ['druid'] },
-  { id: 'ninja', label: 'Ninjas', category: 'vocacion', colors: ['U', 'B'], primaryColor: ['U', 'B'], strategies: ['ninjutsu', 'blink'], archetypes: ['tempo', 'midrange'], subtypes: ['ninja'], formats: ['MODERN'] },
+  { 
+    id: 'shaman', 
+    label: 'Chamanes', 
+    category: 'vocacion', 
+    colors: ['G', 'R', 'B'], 
+    primaryColor: 'G', 
+    strategies: ['tokens', 'landfall'], 
+    archetypes: ['midrange', 'combo'], 
+    subtypes: ['shaman'],
+    flavors: [
+      {
+        id: 'shaman_rage',
+        label: 'Furia Chamánica (Aggro/Lords)',
+        description: 'Usa chamanes agresivos y potenciadores de contadores.',
+        vetoedKeywords: [],
+        boostKeywords: ['shaman', 'rage forger', 'burning-tree emissary', 'goblin ruin-blaster', 'bosk banneret']
+      }
+    ]
+  },
+  { 
+    id: 'druid', 
+    label: 'Druidas', 
+    category: 'vocacion', 
+    colors: ['G', 'W'], 
+    primaryColor: 'G', 
+    strategies: ['tokens', 'landfall'], 
+    archetypes: ['midrange', 'combo', 'ramp'], 
+    subtypes: ['druid'],
+    flavors: [
+      {
+        id: 'druid_ramp',
+        label: 'Círculo del Bosque (Big Mana/Ramp)',
+        description: 'Genera maná masivo y acelera con devoción a las tierras.',
+        vetoedKeywords: [],
+        boostKeywords: ['druid', 'add ', 'mana', 'devoted druid', 'heritage druid', 'leaf-crowned visionary']
+      }
+    ]
+  },
+  { 
+    id: 'ninja', 
+    label: 'Ninjas', 
+    category: 'vocacion', 
+    colors: ['U', 'B'], 
+    primaryColor: ['U', 'B'], 
+    strategies: ['ninjutsu', 'blink'], 
+    archetypes: ['tempo', 'midrange'], 
+    subtypes: ['ninja'], 
+    formats: ['MODERN'],
+    flavors: [
+      {
+        id: 'ninja_tempo',
+        label: 'Infiltración Ninja (Ninjutsu/Tempo)',
+        description: 'Ataca con criaturas evasivas baratas y juega ninjas con descuento por combate.',
+        vetoedKeywords: [],
+        boostKeywords: ['ninja', 'ninjutsu', 'combat damage', 'can\'t be blocked', 'yuriko', 'thousand-faced shadow', 'ingenious artillerist', 'silver-raven']
+      }
+    ]
+  },
+  { 
+    id: 'pirate', 
+    label: 'Piratas', 
+    category: 'vocacion', 
+    colors: ['U', 'B', 'R'], 
+    primaryColor: 'R', 
+    strategies: ['tempo', 'tokens'], 
+    archetypes: ['aggro', 'tempo', 'midrange'], 
+    subtypes: ['pirate'],
+    flavors: [
+      {
+        id: 'pirate_tempo',
+        label: 'Invasores de Alta Mar (Tempo/Treasure)',
+        description: 'Ataca con piratas veloces y genera tesoros para acelerar tus hechizos de tempo.',
+        vetoedKeywords: [],
+        boostKeywords: ['pirate', 'treasure', 'ragavan', 'malcolm', 'breeches', 'coercive portal']
+      }
+    ]
+  },
 
   // MONSTRUOS
-  { id: 'angel', label: 'Ángeles', category: 'monstruo', colors: ['W', 'R', 'B'], primaryColor: 'W', strategies: ['lifegain', 'blink', 'reanimator'], archetypes: ['midrange', 'combo', 'control'], subtypes: ['angel'] },
+  { 
+    id: 'angel', 
+    label: 'Ángeles', 
+    category: 'monstruo', 
+    colors: ['W', 'R', 'B'], 
+    primaryColor: 'W', 
+    strategies: ['lifegain', 'blink', 'reanimator'], 
+    archetypes: ['midrange', 'combo', 'control'], 
+    subtypes: ['angel'],
+    flavors: [
+      {
+        id: 'angel_lifegain',
+        label: 'Corte Celestial (Lifegain Angels)',
+        description: 'Invoca ángeles majestuosos que ganan vida y se potencian mutuamente.',
+        vetoedKeywords: [],
+        boostKeywords: ['angel', 'flying', 'gain life', 'angels you control', 'giada', 'righteous valkyrie', 'lyra dawnbringer']
+      }
+    ]
+  },
   { id: 'demon', label: 'Demonios', category: 'monstruo', colors: ['B'], primaryColor: 'B', strategies: ['aristocrats', 'reanimator'], archetypes: ['midrange', 'combo'], subtypes: ['demon'] },
-  { id: 'dragon', label: 'Dragones', category: 'monstruo', colors: ['R', 'B', 'G'], primaryColor: 'R', strategies: ['reanimator', 'tokens'], archetypes: ['midrange', 'combo'], subtypes: ['dragon'] },
-  { id: 'dinosaur', label: 'Dinosaurios', category: 'monstruo', colors: ['R', 'G', 'W'], primaryColor: 'G', strategies: ['landfall', 'tokens'], archetypes: ['aggro', 'midrange', 'combo'], subtypes: ['dinosaur'] },
+  { 
+    id: 'dragon', 
+    label: 'Dragones', 
+    category: 'monstruo', 
+    colors: ['R', 'B', 'G'], 
+    primaryColor: 'R', 
+    strategies: ['reanimator', 'tokens'], 
+    archetypes: ['midrange', 'combo'], 
+    subtypes: ['dragon'],
+    flavors: [
+      {
+        id: 'dragon_ramp',
+        label: 'Tempestad de Dragones (Big Mana)',
+        description: 'Lanza dragones voladores devastadores con prisa y daño directo.',
+        vetoedKeywords: [],
+        boostKeywords: ['dragon', 'flying', 'haste', 'dragons you control', 'sarkhan', 'thunderbreak regent', 'dragonlord']
+      }
+    ]
+  },
+  { 
+    id: 'dinosaur', 
+    label: 'Dinosaurios', 
+    category: 'monstruo', 
+    colors: ['R', 'G', 'W'], 
+    primaryColor: 'G', 
+    strategies: ['landfall', 'tokens'], 
+    archetypes: ['aggro', 'midrange', 'combo'], 
+    subtypes: ['dinosaur'],
+    flavors: [
+      {
+        id: 'dinosaur_enrage',
+        label: 'Furia Jurásica (Enrage/Stomp)',
+        description: 'Aprovecha habilidades de enfurecer al recibir daño y arrolla al rival.',
+        vetoedKeywords: [],
+        boostKeywords: ['dinosaur', 'enrage', 'trample', 'gishath', 'marauding raptor', 'carnage tyrant']
+      }
+    ]
+  },
   { id: 'elemental', label: 'Elementales', category: 'monstruo', colors: ['R', 'G', 'U', 'W', 'B'], primaryColor: ['R', 'G'], strategies: ['landfall', 'blink', 'reanimator'], archetypes: ['aggro', 'midrange', 'combo', 'ramp'], subtypes: ['elemental'] },
 
   // EXÓTICAS
   { id: 'eldrazi', label: 'Eldrazi (Eldrazi Tron / Aggro)', category: 'exotica', colors: ['W', 'U', 'B', 'R', 'G', 'C'], primaryColor: 'C', strategies: ['tokens', 'blink'], archetypes: ['aggro', 'midrange', 'prison', 'ramp'], subtypes: ['eldrazi'], formats: ['MODERN'] },
-  { id: 'faerie', label: 'Hadas (Faeries)', category: 'exotica', colors: ['U', 'B'], primaryColor: 'U', strategies: ['blink', 'spellslinger'], archetypes: ['tempo', 'midrange', 'control'], subtypes: ['faerie', 'fairy'] },
+  { 
+    id: 'faerie', 
+    label: 'Hadas (Faeries)', 
+    category: 'exotica', 
+    colors: ['U', 'B'], 
+    primaryColor: 'U', 
+    strategies: ['blink', 'spellslinger'], 
+    archetypes: ['tempo', 'midrange', 'control'], 
+    subtypes: ['faerie', 'fairy'],
+    flavors: [
+      {
+        id: 'faerie_tempo',
+        label: 'Travesura de Hadas (Faeries Flash/Tempo)',
+        description: 'Juega en el turno oponente con destello e interrumpe sus hechizos.',
+        vetoedKeywords: [],
+        boostKeywords: ['faerie', 'fairy', 'flash', 'flying', 'counter target', 'spellstutter', 'bitterblossom', 'mistbind clique']
+      }
+    ]
+  },
   { id: 'constructs', label: 'Constructos & Myr (Affinity)', category: 'exotica', colors: ['C', 'U', 'R', 'W'], primaryColor: 'C', strategies: ['tokens', 'vehicles'], archetypes: ['aggro', 'midrange', 'combo', 'prison'], subtypes: ['construct', 'myr', 'golem', 'thopter'], formats: ['MODERN'] },
   { id: 'sliver-5c', label: 'Slivers (Pentacolor 5C)', category: 'exotica', colors: ['W', 'U', 'B', 'R', 'G'], primaryColor: ['W', 'U', 'B', 'R', 'G'], strategies: ['tokens', 'slivers'], archetypes: ['aggro', 'midrange', 'combo', 'tempo'], subtypes: ['sliver'], formats: ['MODERN'] },
   { id: 'sliver-bant', label: 'Slivers (Bant/Naya Base)', category: 'exotica', colors: ['W', 'U', 'G', 'R'], primaryColor: ['G', 'W'], strategies: ['tokens', 'slivers'], archetypes: ['aggro', 'midrange', 'combo', 'tempo'], subtypes: ['sliver'], formats: ['MODERN'] },
@@ -848,7 +994,10 @@ export const PARASITIC_RULES = [
   {
     id: 'energy',
     regex: /\{e\}|energy counter/i,
-    allowed: (formData) => false,
+    allowed: (formData) => {
+      const format = (formData?.format || '').toUpperCase();
+      return format === 'PIONEER' || format === 'MODERN';
+    },
     message: 'requiere soporte de la mecánica de Energía'
   },
   {

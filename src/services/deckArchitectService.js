@@ -348,6 +348,51 @@ export const ARCHETYPE_DNA = {
     prioridad: "Aceleradores de MANÁ rápidos (Mana Dorks como Llanowar Elves, Birds of Paradise o hechizos de búsqueda como Farseek, Cultivate) combinados con payoffs masivos e interactivos de coste 5 o más (Primeval Titan, Wurmcoil Engine, Karn).",
     estilo: "Desarrollo y Aceleración / Big Mana",
     regla_de_oro: "Las cartas de coste 1-3 DEBEN acelerar tu MANÁ, buscar tierras o proveer interacción defensiva para sobrevivir hasta lanzar tus amenazas de coste 5+."
+  },
+  ninjutsu: {
+    prioridad: "Atacar con criaturas evasivas baratas (Ornithopter, Changeling Outcast) y regresarlas a la mano para jugar Ninjas mediante la habilidad de Ninjutsu, abusando de robos.",
+    estilo: "Ninjutsu / Tempo",
+    regla_de_oro: "Las criaturas de coste 1-2 deben tener evasión (volar, imbloqueable) o destello para habilitar el ninjutsu."
+  },
+  faeries: {
+    prioridad: "Jugar un juego tempo-reactivo mediante hadas con destello (Spellstutter Sprite) apoyadas en Bitterblossom y contrahechizos eficientes.",
+    estilo: "Faeries Flash / Tempo",
+    regla_de_oro: "Las criaturas deben ser hadas (Faerie) con destello o volar, que interactúen con los hechizos del rival en su turno."
+  },
+  dragons: {
+    prioridad: "Rampa e inyección acelerada de dragones míticos potentes con prisa mediante reductores de coste (Dragonlord's Servant).",
+    estilo: "Dragons Aggro-Midrange / Big Mana",
+    regla_de_oro: "Las criaturas de coste 4+ deben ser dragones voladores masivos que impacten la mesa al entrar."
+  },
+  dinosaurs: {
+    prioridad: "Lanzar dinosaurios masivos y disparar habilidades de enfurecer (Enrage) mediante efectos de daño global leve.",
+    estilo: "Dinosaurios Midrange / Stompy",
+    regla_de_oro: "Las criaturas deben ser dinosaurios o aceleradores de tierras, y los hechizos interactivos deben poder infligir daño directo."
+  },
+  angels: {
+    prioridad: "Invocar ángeles de coste medio que vuelen, ganen vidas masivas y escalen la mesa mediante Giada y Righteous Valkyrie.",
+    estilo: "Angels Midrange / Lifegain",
+    regla_de_oro: "Las criaturas deben ser ángeles o Soul Sisters que ganen vida, y potenciar a tus criaturas voladoras."
+  },
+  pirates: {
+    prioridad: "Atacar rápido con piratas evasivos, generar fichas de Tesoro y robar recursos mediante Ragavan, Malcolm y Breeches.",
+    estilo: "Piratas Tempo / Aggro",
+    regla_de_oro: "Las criaturas deben ser piratas de coste 1-3 que generen tesoros, tengan prisa o evasión."
+  },
+  druids_shaman: {
+    prioridad: "Aggro tribal rápido de chamanes potenciados por Rage Forger, o rampa explosiva de druidas de maná.",
+    estilo: "Chamanes Aggro / Druidas Ramp",
+    regla_de_oro: "Las criaturas de coste 1-3 deben ser druidas o chamanes que aceleren el maná o tengan contadores +1/+1."
+  },
+  discard_rack: {
+    prioridad: "Destrucción sistemática de la mano rival mediante descartadores repetitivos para infligir daño sostenido con The Rack y Shrieking Affliction.",
+    estilo: "8-Rack Control / Disrupción",
+    regla_de_oro: "Los hechizos deben forzar al oponente a descartar cartas a coste bajo, y el mazo debe tener payoffs pasivos de daño por cartas en mano."
+  },
+  dredge: {
+    prioridad: "Llenar el cementerio de forma masiva usando la mecánica de dragar (Dredge) para invocar gratis a Prized Amalgam y Narcomoeba.",
+    estilo: "Dredge / Cementerio Combo",
+    regla_de_oro: "Las cartas con Dragar deben poder ir al cementerio rápidamente mediante cantrips o descartadores eficientes."
   }
 };
 
@@ -432,6 +477,87 @@ function getDeckBlueprint(archetype, strategyId, formData) {
       // Regla especial de Toolbox en los Blueprints Modulares
       totalSpells = 38;
       roles = { core_tutors: 8, silver_bullets_cmc1_to_4: 10, value_creatures: 10, interaction: 10 };
+    } else if (strategyId === 'ninjutsu') {
+      totalSpells = 38;
+      roles = { evasive_enablers_cmc1_2: 12, ninja_payoffs: 10, tempo_interaction: 10, card_draw_advantage: 6 };
+    } else if (strategyId === 'discard_rack') {
+      roles = { hand_disruption: 12, rack_payoffs: 8, spot_removal: 8, card_draw_advantage: 8 };
+    } else if (strategyId === 'dredge') {
+      totalSpells = 41;
+      roles = { dredge_cards: 12, discard_draw_enablers: 12, graveyard_payoffs: 10, interaction_or_flashback: 7 };
+    }
+  }
+
+  // 2.5 STANCE MODIFIER (Ajuste de Enfoque Táctico)
+  const stance = (formData?.stance || 'balanced').toLowerCase();
+  if (stance === 'proactive' || stance === 'reactive') {
+    const proKeys = [];
+    const reactKeys = [];
+    
+    Object.keys(roles).forEach(key => {
+      const kl = key.toLowerCase();
+      const isReact = kl.includes('interaction') || kl.includes('removal') || kl.includes('counter') || 
+                      kl.includes('wipe') || kl.includes('sweep') || kl.includes('protection') || 
+                      kl.includes('discard') || kl.includes('disruption') || kl.includes('stax') || 
+                      kl.includes('tax') || kl.includes('protect');
+      if (isReact) {
+        reactKeys.push(key);
+      } else {
+        proKeys.push(key);
+      }
+    });
+
+    if (proKeys.length > 0 && reactKeys.length > 0) {
+      const shiftAmount = 4;
+      let remainingShift = shiftAmount;
+
+      if (stance === 'proactive') {
+        reactKeys.forEach(k => {
+          if (remainingShift <= 0) return;
+          const currentVal = roles[k] || 0;
+          const maxReduction = Math.min(2, Math.max(0, currentVal - 2));
+          const actualReduction = Math.min(remainingShift, maxReduction);
+          if (actualReduction > 0) {
+            roles[k] = currentVal - actualReduction;
+            remainingShift -= actualReduction;
+          }
+        });
+        
+        const addedShift = shiftAmount - remainingShift;
+        if (addedShift > 0) {
+          let count = addedShift;
+          let idx = 0;
+          while (count > 0) {
+            const k = proKeys[idx % proKeys.length];
+            roles[k] = (roles[k] || 0) + 1;
+            count--;
+            idx++;
+          }
+        }
+      } else {
+        proKeys.forEach(k => {
+          if (remainingShift <= 0) return;
+          const currentVal = roles[k] || 0;
+          const maxReduction = Math.min(2, Math.max(0, currentVal - 2));
+          const actualReduction = Math.min(remainingShift, maxReduction);
+          if (actualReduction > 0) {
+            roles[k] = currentVal - actualReduction;
+            remainingShift -= actualReduction;
+          }
+        });
+
+        const addedShift = shiftAmount - remainingShift;
+        if (addedShift > 0) {
+          let count = addedShift;
+          let idx = 0;
+          while (count > 0) {
+            const k = reactKeys[idx % reactKeys.length];
+            roles[k] = (roles[k] || 0) + 1;
+            count--;
+            idx++;
+          }
+        }
+      }
     }
   }
 
@@ -789,6 +915,25 @@ export function getProCopiesForCard(card, role, ragPool = [], formData = null) {
 
   // Si es una pieza clave inyectable del Core o Must Include, priorizar 4 copias
   if (card.isCore || card.isMustInclude) return 4;
+
+  const playstyle = (formData?.playstyle || 'balanced').toLowerCase();
+
+  // Si el estilo es Lineal y NO es una carta legendaria o básica, intentamos meter 4 copias
+  if (playstyle === 'linear' && !isLegendary && !isBasic) {
+    return Math.min(4, getMaxAllowedCopies(card.name, typeLine, cmc, ragPool));
+  }
+
+  // Si el estilo es Adaptativo y no es una carta básica, ni del Core inyectable/Firma obligatorio:
+  if (playstyle === 'adaptive' && !card.isCore && !card.isMustInclude && !isBasic) {
+    if (isLegendary) return 1;
+    if (cmc >= 3) return 1;
+    const isCantripCard = cmc <= 1 && (oracleText.includes("draw a card") || oracleText.includes("look at the top") || oracleText.includes("scry") || nameLower === "mishra's bauble");
+    const isCheapInteractCard = isInstantOrSorcery && cmc <= 2 && (
+      oracleText.includes("destroy") || oracleText.includes("damage") || oracleText.includes("counter") || 
+      oracleText.includes("exile") || oracleText.includes("discard") || nameLower.includes("bolt") || nameLower.includes("push") || nameLower.includes("leak")
+    );
+    if (cmc <= 2 && !isCantripCard && !isCheapInteractCard) return 2;
+  }
 
   const roleLower = (role?.name || role || '').toLowerCase();
   const isTutorRole = roleLower.includes('tutor') || roleLower.includes('wish');

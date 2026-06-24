@@ -2166,8 +2166,8 @@ export default function DeckForge() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-12">
               <div className="lg:col-span-2">
                 {isEditing && (
-                  <div className="mb-6 space-y-4">
-                    <CardSearch onAddCard={handleAddCard} />
+                  <div className="mb-6 space-y-4 relative z-30">
+                    <CardSearch onAddCard={handleAddCard} formData={lastFormData} />
                     
                     {/* El Oráculo de Sinergias */}
                     <div className="p-4 rounded-xl border border-green-500/30 bg-black/50 backdrop-blur-md shadow-lg relative overflow-hidden">

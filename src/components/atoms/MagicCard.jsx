@@ -5,6 +5,7 @@ import { RefreshCw, AlertTriangle } from 'lucide-react';
 import { useIsTouchDevice } from '../../hooks/useIsMobile';
 import { vibrateTouch } from '../../utils/haptic';
 import MobileCardPreview from './MobileCardPreview';
+import { BATTLEBOX_VETOS, BANLIST_SUBSTITUTIONS } from '../../constants/legacyBattleBox';
 
 const MagicCard = memo(function MagicCard({ 
   card, 
@@ -153,14 +154,15 @@ const MagicCard = memo(function MagicCard({
         whileHover={isInteractive && !isTouch ? { 
           scale: 1.05, 
           y: -5,
-          boxShadow: '0 0 25px rgba(193,155,69,0.5)'
+          boxShadow: '0 0 25px rgba(193,155,69,0.5)',
+          zIndex: 100
         } : {}}
         animate={isPressing ? { scale: 0.95 } : { scale: 1 }}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
         onTouchMove={handleTouchEnd}
         onClick={handleCardClick}
-        className={cn("relative group cursor-pointer", className)}
+        className={cn("relative group cursor-pointer hover:z-[100]", className)}
       >
         <div className={cn(
           "relative rounded-xl overflow-hidden border-2",
@@ -211,6 +213,8 @@ const MagicCard = memo(function MagicCard({
                     e.stopPropagation();
                     onRemove(card.name);
                   }}
+                  onTouchStart={(e) => e.stopPropagation()}
+                  onTouchEnd={(e) => e.stopPropagation()}
                   className="px-2.5 py-1 text-red-400 hover:bg-red-500/20 transition-colors font-bold text-lg leading-none flex items-center justify-center"
                 >
                   -
@@ -225,7 +229,9 @@ const MagicCard = memo(function MagicCard({
                     e.stopPropagation();
                     onAdd(card.name);
                   }}
-                  className="px-2 py-1 text-green-400 hover:bg-green-500/20 transition-colors font-bold text-lg leading-none flex items-center justify-center"
+                  onTouchStart={(e) => e.stopPropagation()}
+                  onTouchEnd={(e) => e.stopPropagation()}
+                  className="px-2.5 py-1 text-green-400 hover:bg-green-500/20 transition-colors font-bold text-lg leading-none flex items-center justify-center"
                 >
                   +
                 </button>
@@ -240,8 +246,38 @@ const MagicCard = memo(function MagicCard({
           )}
         </div>
 
+        {card?.name && BATTLEBOX_VETOS.includes(card.name) && (
+          <div 
+            onTouchStart={(e) => e.stopPropagation()}
+            onTouchEnd={(e) => e.stopPropagation()}
+            className="absolute top-2 right-2 z-[60] group/tooltip-veto"
+          >
+            <div className="w-6 h-6 rounded-full bg-black/95 border border-red-500/80 flex items-center justify-center cursor-help shadow-lg backdrop-blur-sm hover:bg-black transition-colors">
+              <AlertTriangle className="w-3.5 h-3.5 text-red-500 animate-pulse" />
+            </div>
+            
+            {/* Tooltip de Veto */}
+            <div className="absolute top-full right-0 mt-2 w-64 p-3 bg-black/95 border border-red-500/50 rounded-xl shadow-[0_10px_30px_rgba(0,0,0,0.95)] opacity-0 pointer-events-none group-hover/tooltip-veto:opacity-100 transition-opacity duration-200 z-[9999] text-[11px] text-red-200 leading-relaxed font-sans backdrop-blur-md">
+              <div className="absolute -top-1 right-2 w-2 h-2 bg-red-500 rotate-45 border-t border-l border-red-500/50" />
+              <p className="font-semibold text-red-400 uppercase tracking-wider mb-1">Carta Vetada</p>
+              <p>
+                Esta carta está vetada en el formato casual de Battle Box.
+                {BANLIST_SUBSTITUTIONS[card.name] && (
+                  <>
+                    {" "}Recomendación: Reemplazar por <span className="text-green-400 font-bold">{BANLIST_SUBSTITUTIONS[card.name]}</span>.
+                  </>
+                )}
+              </p>
+            </div>
+          </div>
+        )}
+
         {deficitInfo && !deficitInfo.ok && (
-          <div className="absolute top-1/2 -translate-y-1/2 right-2 z-[60] group/tooltip">
+          <div 
+            onTouchStart={(e) => e.stopPropagation()}
+            onTouchEnd={(e) => e.stopPropagation()}
+            className="absolute top-1/2 -translate-y-1/2 right-2 z-[60] group/tooltip"
+          >
             <div className="w-6 h-6 rounded-full bg-black/95 border border-[#D4AF37] flex items-center justify-center cursor-help shadow-lg backdrop-blur-sm hover:bg-black transition-colors">
               <AlertTriangle className="w-3.5 h-3.5 text-[#D4AF37]" />
             </div>

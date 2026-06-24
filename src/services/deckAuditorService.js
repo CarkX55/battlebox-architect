@@ -4,6 +4,8 @@ import {
   calculateVMP, 
   calculatePerfectLandCount 
 } from './deckCalculator.js';
+import { CORE_PACKAGES } from '../constants/corePackages.js';
+import { COMPETITIVE_ANTI_SYNERGIES } from '../constants/legacyBattleBox.js';
 
 export const CURVE_BOUNDS = {
   blitz: { min: 0.5, max: 1.8 },
@@ -45,8 +47,6 @@ export function calculateRealTimeVMPWarning(currentSpells, curveProfile = 'balan
   return { panicMode: false, currentVmp: vmp, maxAllowedCmc: 99 };
 }
 
-
-
 /**
  * Evalúa la competitividad de un mazo y devuelve un Grade de Perfección.
  * @param {Array} deckList - Array de objetos carta en el mazo principal
@@ -64,6 +64,7 @@ export function auditarMazo(deckList, sideboardList, formData) {
     curveScore: 0,
     consistencyScore: 0,
     structureScore: 0,
+    strategyScore: 20, // Inicializado a 20, penalizado según no-bos o core ausente
     totalCardsMain: 0,
     totalCardsSide: 0,
     vmp: 0,
@@ -80,17 +81,15 @@ export function auditarMazo(deckList, sideboardList, formData) {
   const isYorion = formData?.companero?.toLowerCase().includes('yorion');
   const targetMainSize = isYorion ? 80 : 60;
 
-  // --- STRUCTURE SCORE (Max 30) ---
+  // --- STRUCTURE SCORE (Max 20) ---
   if (totalMain === targetMainSize) {
-    metrics.structureScore = 30;
+    metrics.structureScore = 20;
     strengths.push(`Tamaño del mazo perfecto (${targetMainSize} cartas).`);
   } else {
     metrics.structureScore = 0;
     warnings.push(`El mazo principal tiene ${totalMain} cartas (debería tener ${targetMainSize}).`);
   }
-
   score += metrics.structureScore;
-
 
   // 2. Separación de Tierras y Spells
   const lands = deckList.filter(isLand);
@@ -98,20 +97,20 @@ export function auditarMazo(deckList, sideboardList, formData) {
   
   const landCount = lands.reduce((sum, c) => sum + (c.quantity || 1), 0);
 
-  // --- MANA SCORE (Max 30) ---
+  // --- MANA SCORE (Max 20) ---
   if (totalMain > 0 && spells.length > 0) {
     const perfectLands = calculatePerfectLandCount(spells, formData, isYorion);
     const deviation = Math.abs(landCount - Math.round(perfectLands));
     metrics.landDeviation = deviation;
 
     if (deviation <= 0.5) {
-      metrics.manaScore = 30;
+      metrics.manaScore = 20;
       strengths.push(`Base de maná matemáticamente perfecta (Karsten). Ideal: ~${Math.round(perfectLands)}, Actual: ${landCount}.`);
     } else if (deviation <= 1.5) {
-      metrics.manaScore = 25;
+      metrics.manaScore = 15;
       strengths.push("Base de maná aceptable, desviación menor a 2 tierras.");
     } else if (deviation <= 2.5) {
-      metrics.manaScore = 15;
+      metrics.manaScore = 10;
       warnings.push(`Desviación de maná. Tienes ${landCount} tierras, la matemática recomienda ~${Math.round(perfectLands)}.`);
     } else {
       metrics.manaScore = 0;
@@ -171,22 +170,115 @@ export function auditarMazo(deckList, sideboardList, formData) {
       const singletonRatio = singletons / totalNonLegendarySpells;
       const playsetRatio = playsets / totalNonLegendarySpells;
 
-      if (playsetRatio >= 0.4 && singletonRatio < 0.2) {
-        metrics.consistencyScore = 20;
-        strengths.push("Alta redundancia. Gran cantidad de Playsets (4x) minimiza la varianza.");
-      } else if (playsetRatio >= 0.2 && singletonRatio < 0.4) {
-        metrics.consistencyScore = 15;
-        strengths.push("Consistencia aceptable.");
-      } else if (singletonRatio >= 0.6) {
-        metrics.consistencyScore = 5;
-        warnings.push("Varianza alta. Demasiadas copias únicas (1-of) sin tutores obvios.");
+      const playstyle = (formData?.playstyle || 'balanced').toLowerCase();
+
+      if (playstyle === 'linear') {
+        // En lineal queremos máxima redundancia (muchos playsets)
+        if (playsetRatio >= 0.5 && singletonRatio < 0.1) {
+          metrics.consistencyScore = 20;
+          strengths.push("Alta redundancia lineal ideal. Mazo repleto de playsets de 4x.");
+        } else if (playsetRatio >= 0.3 && singletonRatio < 0.25) {
+          metrics.consistencyScore = 15;
+        } else {
+          metrics.consistencyScore = 10;
+          warnings.push("Varianza lineal mejorable. Se recomiendan más playsets (4x) para esta configuración lineal.");
+        }
+      } else if (playstyle === 'adaptive') {
+        // En adaptativo valoramos la variedad (singletons y doubletons)
+        if (singletonRatio >= 0.4 && playsetRatio <= 0.1) {
+          metrics.consistencyScore = 20;
+          strengths.push("Excelente versatilidad adaptativa. Configuración tipo Toolbox con variedad de 1-ofs.");
+        } else if (singletonRatio >= 0.25 && playsetRatio <= 0.25) {
+          metrics.consistencyScore = 15;
+        } else {
+          metrics.consistencyScore = 10;
+          warnings.push("Varianza adaptativa subóptima. Se sugieren más cartas únicas (1-of/2-of) para mayor flexibilidad.");
+        }
       } else {
-        metrics.consistencyScore = 10;
+        // Modo balanceado estándar
+        if (playsetRatio >= 0.4 && singletonRatio < 0.2) {
+          metrics.consistencyScore = 20;
+          strengths.push("Alta redundancia balanceada. Gran cantidad de Playsets (4x) minimiza la varianza.");
+        } else if (playsetRatio >= 0.2 && singletonRatio < 0.4) {
+          metrics.consistencyScore = 15;
+          strengths.push("Consistencia aceptable.");
+        } else if (singletonRatio >= 0.6) {
+          metrics.consistencyScore = 5;
+          warnings.push("Varianza alta. Demasiadas copias únicas (1-of) sin tutores obvios.");
+        } else {
+          metrics.consistencyScore = 10;
+        }
       }
     } else {
-      metrics.consistencyScore = 10; // Si todos son legendarios, neutral.
+      metrics.consistencyScore = 10;
     }
     score += metrics.consistencyScore;
+  }
+
+  // --- STRATEGY SCORE (Max 20) ---
+  if (spells.length > 0) {
+    const activeStrategy = (formData?.strategy || '').toLowerCase();
+    const activeTribe = (formData?.tribe || '').toLowerCase();
+    
+    // A. Control de Anti-sinergias Graves
+    COMPETITIVE_ANTI_SYNERGIES.forEach(rule => {
+      if (rule.strategy.toLowerCase() === activeStrategy) {
+        const hasAntiSynergyCard = deckList.some(c => c.name.toLowerCase() === rule.card.toLowerCase());
+        if (hasAntiSynergyCard) {
+          metrics.strategyScore = Math.max(0, metrics.strategyScore - 5);
+          warnings.push(`Anti-sinergia severa: "${rule.card}" fricciona con tu estrategia "${activeStrategy}". Razón: ${rule.reason}`);
+        }
+      }
+    });
+
+    // B. Presencia del Core Package
+    if (activeStrategy && CORE_PACKAGES[activeStrategy]) {
+      const formatKey = (formData?.format || 'MODERN').toUpperCase();
+      const pkg = CORE_PACKAGES[activeStrategy];
+      const formatPkg = pkg[formatKey] || pkg.MODERN || pkg.default;
+      const variant = formatPkg?.default || [];
+      
+      if (variant.length > 0) {
+        let corePresent = 0;
+        let totalCoreNeeded = variant.length;
+        
+        variant.forEach(item => {
+          const inDeck = deckList.some(c => c.name.toLowerCase() === item.name.toLowerCase());
+          if (inDeck) corePresent++;
+        });
+
+        const coreRatio = corePresent / totalCoreNeeded;
+        if (coreRatio < 0.75) {
+          const missingPct = Math.round((1 - coreRatio) * 100);
+          const penalty = Math.round((1 - coreRatio) * 10); // penalización de hasta 10 puntos
+          metrics.strategyScore = Math.max(0, metrics.strategyScore - penalty);
+          warnings.push(`Falta de consistencia Core. Has omitido el ${missingPct}% de las cartas clave del Core de la estrategia.`);
+        } else {
+          strengths.push(`Coherencia de Motores excelente: el ${Math.round(coreRatio * 100)}% del core táctico está presente.`);
+        }
+      }
+    }
+
+    // C. Distribución de Criaturas por Arquetipo
+    const totalCreatures = deckList.filter(c => !isLand(c) && (c.type_line || '').toLowerCase().includes('creature')).reduce((sum, c) => sum + (c.quantity || 1), 0);
+    const arch = (formData?.archetype || 'midrange').toLowerCase();
+    
+    if (arch === 'aggro' && totalCreatures < 16) {
+      metrics.strategyScore = Math.max(0, metrics.strategyScore - 5);
+      warnings.push(`Falta de amenaza física: Tu mazo es Aggro pero solo tienes ${totalCreatures} criaturas (se recomiendan >= 20).`);
+    } else if (arch === 'control' && totalCreatures > 12) {
+      metrics.strategyScore = Math.max(0, metrics.strategyScore - 5);
+      warnings.push(`Exceso de criaturas en mazo de Control: Tienes ${totalCreatures} criaturas (se recomiendan <= 8 para evitar no-bos con iras).`);
+    } else if (arch === 'tempo' && (totalCreatures < 8 || totalCreatures > 16)) {
+      metrics.strategyScore = Math.max(0, metrics.strategyScore - 3);
+      warnings.push(`Inconsistencia en amenazas de Tempo: Tienes ${totalCreatures} criaturas (se recomiendan de 10 a 14).`);
+    }
+
+    if (metrics.strategyScore >= 18) {
+      strengths.push("Coherencia táctica y sinérgica impecable. Sin conflictos estratégicos detectados.");
+    }
+    
+    score += metrics.strategyScore;
   }
 
   // CALCULAR GRADO FINAL

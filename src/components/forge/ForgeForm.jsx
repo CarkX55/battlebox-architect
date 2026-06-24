@@ -375,6 +375,8 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
       allowCustomCards: savedAllowCustom,
       vetoedKeywords: [],
       vetoedCards: [],
+      playstyle: 'balanced',
+      stance: 'balanced',
     };
   });
 
@@ -2395,6 +2397,81 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                             Activo
                           </span>
                         )}
+                      </div>
+                    </div>
+
+                    {/* Parámetros Tácticos de Estilo de Juego */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5 bg-black/45 p-5 rounded-2xl border border-white/5 relative overflow-hidden">
+                      <div className="absolute inset-0 bg-[url('/ASSETS/FrostedGlass.webp')] bg-cover opacity-5 pointer-events-none" />
+                      
+                      {/* Sub-bloque Playstyle */}
+                      <div className="space-y-3 relative z-10">
+                        <label className="block text-[#ffca58] text-xs font-bold uppercase tracking-[0.15em] flex items-center gap-1.5">
+                          📈 Estilo de Redundancia
+                        </label>
+                        <p className="text-[9px] text-[#f4ece0]/60 leading-tight font-sans">
+                          Controla la redundancia de cartas. Lineal favorece 4x copias. Adaptativo prefiere variedad de 1x/2x copias (Toolbox).
+                        </p>
+                        <div className="flex flex-col gap-2">
+                          {[
+                            { value: 'balanced', label: 'Equilibrado', desc: 'Sinergia balanceada estándar' },
+                            { value: 'linear', label: 'Lineal (Consistente)', desc: 'Maximiza playsets de 4x' },
+                            { value: 'adaptive', label: 'Adaptativo (Diversificado)', desc: 'Favorece 1-ofs (Toolbox)' }
+                          ].map(opt => {
+                            const isSel = formData.playstyle === opt.value;
+                            return (
+                              <button
+                                type="button"
+                                key={opt.value}
+                                onClick={() => setFormData(prev => ({ ...prev, playstyle: opt.value }))}
+                                className={cn(
+                                  "p-2 text-left rounded-xl border text-xs transition-all duration-200",
+                                  isSel 
+                                    ? "border-[#ffca58] bg-[#ffca58]/10 text-white shadow-md font-bold" 
+                                    : "border-white/10 bg-black/30 hover:bg-black/60 text-white/70 hover:text-white"
+                                )}
+                              >
+                                <span className="block text-[10px] tracking-wide uppercase">{opt.label}</span>
+                                <span className="block text-[8px] opacity-50 font-sans mt-0.5">{opt.desc}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Sub-bloque Stance */}
+                      <div className="space-y-3 relative z-10">
+                        <label className="block text-[#ffca58] text-xs font-bold uppercase tracking-[0.15em] flex items-center gap-1.5">
+                          ⚔️ Enfoque Táctico
+                        </label>
+                        <p className="text-[9px] text-[#f4ece0]/60 leading-tight font-sans">
+                          Ajusta la postura del mazo. Proactivo inyecta más criaturas y amenazas. Reactivo prioriza counterspells e interacción.
+                        </p>
+                        <div className="flex flex-col gap-2">
+                          {[
+                            { value: 'balanced', label: 'Equilibrado', desc: 'Ratio recomendado estándar' },
+                            { value: 'proactive', label: 'Proactivo (Agresivo)', desc: 'Más amenazas, menos interacción' },
+                            { value: 'reactive', label: 'Reactivo (Controlador)', desc: 'Más interacción, menos amenazas' }
+                          ].map(opt => {
+                            const isSel = formData.stance === opt.value;
+                            return (
+                              <button
+                                type="button"
+                                key={opt.value}
+                                onClick={() => setFormData(prev => ({ ...prev, stance: opt.value }))}
+                                className={cn(
+                                  "p-2 text-left rounded-xl border text-xs transition-all duration-200",
+                                  isSel 
+                                    ? "border-blue-500/50 bg-blue-500/10 text-white shadow-md font-bold" 
+                                    : "border-white/10 bg-black/30 hover:bg-black/60 text-white/70 hover:text-white"
+                                )}
+                              >
+                                <span className="block text-[10px] tracking-wide uppercase">{opt.label}</span>
+                                <span className="block text-[8px] opacity-50 font-sans mt-0.5">{opt.desc}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
                     </div>
 

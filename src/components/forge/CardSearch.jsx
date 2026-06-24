@@ -1,14 +1,14 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../../utils/cn';
-import { BATTLEBOX_VETOS, COLORS } from '../../constants/legacyBattleBox';
+import { BATTLEBOX_VETOS, BANLIST_SUBSTITUTIONS, COLORS } from '../../constants/legacyBattleBox';
 import { Search, Filter, ShieldAlert, Swords, Zap, Scroll, Book, Box, Gem, Map, X, Plus, Check, RefreshCw, AlertTriangle, HelpCircle } from 'lucide-react';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { vibrateTouch } from '../../utils/haptic';
 import BottomSheet from '../atoms/BottomSheet';
 import MobileCardPreview from '../atoms/MobileCardPreview';
 
-export default function CardSearch({ onAddCard }) {
+export default function CardSearch({ onAddCard, formData = {} }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -20,9 +20,20 @@ export default function CardSearch({ onAddCard }) {
   const [selectedMobileCard, setSelectedMobileCard] = useState(null);
   
   // Filtros Avanzados
-  const [isModernOnly, setIsModernOnly] = useState(true);
+  const activeFormat = (formData?.format || 'MODERN').toUpperCase();
+  const isCustomFormat = activeFormat === 'CUSTOM';
+  const [isFormatOnly, setIsFormatOnly] = useState(() => !isCustomFormat);
   const [selectedType, setSelectedType] = useState(''); // creature, instant, sorcery, etc.
-  const [selectedColors, setSelectedColors] = useState([]); // W, U, B, R, G, C
+  const [selectedColors, setSelectedColors] = useState(() => formData?.colores || []); // W, U, B, R, G, C
+
+  useEffect(() => {
+    if (formData?.format) {
+      setIsFormatOnly(formData.format.toUpperCase() !== 'CUSTOM');
+    }
+    if (formData?.colores) {
+      setSelectedColors(formData.colores);
+    }
+  }, [formData]);
   const [showFilters, setShowFilters] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [selectedRarity, setSelectedRarity] = useState(''); // common, uncommon, rare, mythic
@@ -96,7 +107,13 @@ export default function CardSearch({ onAddCard }) {
           queryParts.push(`lang:any ${query}`);
         }
         
-        if (isModernOnly) queryParts.push('f:modern');
+        if (isFormatOnly) {
+          if (isCustomFormat) {
+            queryParts.push('f:modern');
+          } else {
+            queryParts.push(`f:${activeFormat.toLowerCase()}`);
+          }
+        }
         if (selectedType) queryParts.push(`t:${selectedType}`);
         
         if (selectedColors.length > 0) {
@@ -141,7 +158,7 @@ export default function CardSearch({ onAddCard }) {
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [query, isModernOnly, selectedType, selectedColors, selectedRarity, selectedManaValue, oracleQuery]);
+  }, [query, isFormatOnly, activeFormat, selectedType, selectedColors, selectedRarity, selectedManaValue, oracleQuery]);
 
   const isVetoed = (cardName) => BATTLEBOX_VETOS.includes(cardName);
   
@@ -152,6 +169,58 @@ export default function CardSearch({ onAddCard }) {
            text.includes("win the game") || 
            text.includes("life total becomes") ||
            text.includes("poison counter");
+  };
+
+  const getSynergyLabel = (card) => {
+    if (!formData) return null;
+    const activeStrat = (formData.strategy || '').toLowerCase();
+    const activeTribe = (formData.tribe || '').toLowerCase();
+    const name = (card.name || '').toLowerCase();
+    const text = (card.oracle_text || '').toLowerCase();
+    const type = (card.type_line || '').toLowerCase();
+
+    // 1. Parasitic rules warning check for Energy
+    const isLegacy = (formData.format || '').toUpperCase() === 'LEGACY' || (formData.format || '').toUpperCase() === 'STANDARD';
+    if (isLegacy && (/\{e\}|energy counter/i.test(name) || /\{e\}|energy counter/i.test(text))) {
+      return { type: 'parasitic', text: '⚠️ Parásita: Requiere Energía' };
+    }
+
+    // 2. Tribe Synergy
+    if (activeTribe && activeTribe !== 'none' && activeTribe !== 'ninguna') {
+      if (type.includes(activeTribe) || text.includes(activeTribe) || name.includes(activeTribe)) {
+        return { type: 'synergy', text: `Sinergia ${formData.tribe}` };
+      }
+    }
+
+    // 3. Strategy Synergy
+    if (activeStrat) {
+      const stratKeywords = {
+        aristocrats: ['sacrifice', 'dies', 'death', 'creature card from your graveyard', 'sacrificio', 'drenaje'],
+        reanimator: ['reanimate', 'return', 'graveyard', 'battlefield under your control', 'discard'],
+        cascade: ['cascade', 'cascada'],
+        tron: ['urza', 'mine', 'power plant', 'tower', 'colorless'],
+        storm: ['storm', 'tormenta', 'add {', 'instant', 'sorcery'],
+        voltron: ['equip', 'equipment', 'aura', 'enchant creature'],
+        enchantress: ['enchantment', 'aura', 'enchantress'],
+        lifegain: ['gain life', 'lifelink', 'life'],
+        spellslinger: ['prowess', 'instant', 'sorcery', 'damage'],
+        blink: ['exile', 'return', 'enters the battlefield', 'flicker', 'blink'],
+        tokens: ['token', 'create', 'fichas'],
+        landfall: ['landfall', 'tierra', 'land enters'],
+        graveyard: ['delirium', 'graveyard', 'cementerio', 'dredge'],
+        vehicles: ['crew', 'vehicle', 'tripular', 'vehículo'],
+        toolbox: ['search your library', 'tutor', 'buscar en tu biblioteca'],
+        affinity: ['affinity', 'metalcraft', 'artifact', 'artefacto'],
+        ninjutsu: ['ninja', 'ninjutsu', 'unblocked', 'imbloqueable'],
+        discard_rack: ['discard', 'descarte', 'hand', 'rack'],
+        dredge: ['dredge', 'dragar', 'graveyard']
+      }[activeStrat] || [];
+
+      if (stratKeywords.some(kw => text.includes(kw) || name.includes(kw))) {
+        return { type: 'synergy', text: `Alta Sinergia ${activeStrat.charAt(0).toUpperCase() + activeStrat.slice(1)}` };
+      }
+    }
+    return null;
   };
 
   const renderFiltersContent = () => {
@@ -402,20 +471,22 @@ export default function CardSearch({ onAddCard }) {
             <div 
               onClick={() => {
                 vibrateTouch();
-                setIsModernOnly(!isModernOnly);
+                setIsFormatOnly(!isFormatOnly);
               }}
               className={cn(
                 "w-10 h-5 rounded-full relative transition-all duration-300",
-                isModernOnly ? "bg-green-500/40 border-green-500/50" : "bg-gray-800 border-gray-700"
+                isFormatOnly ? "bg-green-500/40 border-green-500/50" : "bg-gray-800 border-gray-700"
               )}
             >
               <div className={cn(
                 "absolute top-1 w-3 h-3 rounded-full transition-all duration-300",
-                isModernOnly ? "left-6 bg-green-400" : "left-1 bg-gray-500"
+                isFormatOnly ? "left-6 bg-green-400" : "left-1 bg-gray-500"
               )} />
             </div>
             <span className="text-[10px] font-bold text-magic-gold/60 uppercase tracking-widest group-hover:text-magic-gold transition-colors">
-              Solo Modern
+              {isCustomFormat 
+                ? (isFormatOnly ? "Forzar Modern" : "Sin Filtro de Formato")
+                : `Solo ${activeFormat.charAt(0) + activeFormat.slice(1).toLowerCase()}`}
             </span>
           </label>
         </div>
@@ -424,7 +495,7 @@ export default function CardSearch({ onAddCard }) {
   };
 
   return (
-    <div className="relative w-full max-w-lg mx-auto mb-12">
+    <div className="relative z-30 w-full max-w-lg mx-auto mb-12">
       {/* Barra de Búsqueda Estilo Grimorio */}
       <div className="relative group">
         <div className="absolute left-4 top-1/2 -translate-y-1/2 text-magic-gold/40 group-focus-within:text-magic-gold transition-colors">
@@ -658,7 +729,7 @@ export default function CardSearch({ onAddCard }) {
                     }
                   }}
                   className={cn(
-                    "group relative flex items-center gap-4 p-4 transition-all border-b border-white/5 last:border-0",
+                    "group relative flex items-center gap-4 p-4 transition-all border-b border-white/5 last:border-0 hover:z-50",
                     banned ? "opacity-50 cursor-not-allowed bg-red-950/10" : "hover:bg-magic-gold/5 cursor-pointer"
                   )}
                 >
@@ -678,17 +749,58 @@ export default function CardSearch({ onAddCard }) {
                         {card.name}
                       </p>
                       {banned && (
-                        <span className="flex items-center gap-1 text-[8px] bg-red-500/20 text-red-400 px-2 py-0.5 rounded-full border border-red-500/30 uppercase tracking-tighter">
-                          <ShieldAlert size={10} /> Vetada
-                        </span>
+                        <div className="relative group/tooltip-search-veto z-[60]">
+                          <span className="flex items-center gap-1 text-[8px] bg-red-500/20 text-red-400 px-2 py-0.5 rounded-full border border-red-500/30 uppercase tracking-tighter cursor-help">
+                            <ShieldAlert size={10} /> Vetada
+                          </span>
+                          
+                          {/* Tooltip de Veto en buscador */}
+                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 bg-black/95 border border-red-500/50 rounded-xl shadow-[0_10px_30px_rgba(0,0,0,0.95)] opacity-0 pointer-events-none group-hover/tooltip-search-veto:opacity-100 transition-opacity duration-200 z-[9999] text-[11px] text-red-200 leading-relaxed font-sans normal-case text-left backdrop-blur-md">
+                            <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-red-500 rotate-45 border-r border-b border-red-500/50" />
+                            <p className="font-semibold text-red-400 uppercase tracking-wider mb-1">Carta Vetada</p>
+                            <p>
+                              Esta carta está prohibida en el formato casual de Battle Box.
+                              {BANLIST_SUBSTITUTIONS[card.name] && (
+                                <>
+                                  {" "}Recomendación: Reemplazar por <span className="text-green-400 font-bold">{BANLIST_SUBSTITUTIONS[card.name]}</span>.
+                                </>
+                              )}
+                            </p>
+                          </div>
+                        </div>
                       )}
                       {!banned && isUnsportsmanlike(card) && (
-                        <span className="flex items-center gap-1 text-[8px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded-full border border-amber-500/30 uppercase tracking-tighter" title="Esta carta tiene mecánicas que pueden no ser divertidas en juego casual">
-                          <AlertTriangle size={10} /> Antideportiva
-                        </span>
+                        <div className="relative group/tooltip-search-anti z-[60]">
+                          <span className="flex items-center gap-1 text-[8px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded-full border border-amber-500/30 uppercase tracking-tighter cursor-help">
+                            <AlertTriangle size={10} /> Antideportiva
+                          </span>
+
+                          {/* Tooltip de Antideportiva en buscador */}
+                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 bg-black/95 border border-amber-500/50 rounded-xl shadow-[0_10px_30px_rgba(0,0,0,0.95)] opacity-0 pointer-events-none group-hover/tooltip-search-anti:opacity-100 transition-opacity duration-200 z-[9999] text-[11px] text-amber-200 leading-relaxed font-sans normal-case text-left backdrop-blur-md">
+                            <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-amber-500 rotate-45 border-r border-b border-amber-500/50" />
+                            <p className="font-semibold text-amber-400 uppercase tracking-wider mb-1">Mecánica Antideportiva</p>
+                            <p>
+                              Esta carta contiene mecánicas de juego (Infect, Annihilator, Poison, etc.) que pueden no resultar divertidas o interactivas en juego casual de Battle Box.
+                            </p>
+                          </div>
+                        </div>
                       )}
                     </div>
                     <p className="text-[10px] text-white/40 truncate italic">{card.type_line}</p>
+                    {(() => {
+                      const syn = getSynergyLabel(card);
+                      if (!syn) return null;
+                      return (
+                        <span className={cn(
+                          "inline-flex items-center gap-1 text-[8px] px-2 py-0.5 rounded-full border uppercase tracking-tighter mt-1 font-bold w-fit",
+                          syn.type === 'parasitic' 
+                            ? "bg-red-500/10 border-red-500/25 text-red-400" 
+                            : "bg-[#D4AF37]/15 border-[#D4AF37]/35 text-[#D4AF37] shadow-[0_0_8px_rgba(212,175,55,0.1)] animate-pulse"
+                        )}>
+                          {syn.text}
+                        </span>
+                      );
+                    })()}
                   </div>
 
                   {/* Botones de Acción */}

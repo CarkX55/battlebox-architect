@@ -203,6 +203,56 @@ export const BLUEPRINTS = {
       boost: ['storm', 'add {r}', 'add {u}', 'ritual', 'draw a card', 'scry', 'cost', 'less to cast', 'untap'],
       penalty: ['defender', 'enters the battlefield tapped', 'graveyard']
     }
+  },
+  
+  discard_rack: {
+    id: 'discard_rack',
+    deckSize: 60,
+    lands: { total: 24 },
+    spells: {
+      total: 36,
+      distribution: {
+        discard_spells: { min: 10, max: 14 },
+        payoffs: { min: 6, max: 10 },
+        removal_interaction: { min: 8, max: 12 },
+        card_advantage: { min: 4, max: 8 }
+      },
+      curve: {
+        mv1: { min: 12, max: 16 },
+        mv2: { min: 10, max: 14 },
+        mv3: { min: 4, max: 8 },
+        mv4_plus: { min: 0, max: 4 }
+      }
+    },
+    ragModifiers: {
+      boost: ['discard', 'opponent discards', 'the rack', 'shrieking affliction', 'waste not', 'liliana', 'rack'],
+      penalty: ['haste', 'trample']
+    }
+  },
+
+  dredge: {
+    id: 'dredge',
+    deckSize: 60,
+    lands: { total: 19 },
+    spells: {
+      total: 41,
+      distribution: {
+        dredgers: { min: 10, max: 14 },
+        enablers_draw: { min: 12, max: 16 },
+        payoffs: { min: 8, max: 12 },
+        interaction: { min: 4, max: 8 }
+      },
+      curve: {
+        mv1: { min: 12, max: 16 },
+        mv2: { min: 12, max: 16 },
+        mv3: { min: 6, max: 10 },
+        mv4_plus: { min: 2, max: 6 }
+      }
+    },
+    ragModifiers: {
+      boost: ['dredge', 'put', 'graveyard', 'from your library', 'prized amalgam', 'creature card from your graveyard', 'discard'],
+      penalty: ['counter target', 'destroy target planeswalker']
+    }
   }
 };
 
@@ -216,6 +266,12 @@ export const getBlueprint = (archetypeId) => {
   }
   
   // Heurísticas inteligentes para arquetipos dinámicos
+  if (idLower.includes('discard') || idLower.includes('rack') || idLower.includes('8-rack')) {
+    return BLUEPRINTS['discard_rack'];
+  }
+  if (idLower.includes('dredge') || idLower.includes('self-mill') || idLower.includes('dredging')) {
+    return BLUEPRINTS['dredge'];
+  }
   if (idLower.includes('storm') || idLower.includes('grapeshot') || idLower.includes('past in flames') || idLower.includes('ruby storm')) {
     return BLUEPRINTS['storm'];
   }
