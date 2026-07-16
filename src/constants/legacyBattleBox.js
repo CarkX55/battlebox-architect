@@ -202,7 +202,8 @@ export const BATTLEBOX_ARCHETYPES = [
     spellCount: 38,
     difficulty: 1,
     signatureCards: ['Lightning Bolt', 'Monastery Swiftspear'],
-    jargonTags: ['Aggro', 'Burn']
+    jargonTags: ['Aggro', 'Burn'],
+    beginnerTip: 'Ideal si prefieres partidas rápidas y directas. Presiona constantemente al oponente atacando con criaturas de bajo coste.'
   },
   {
     id: 'tempo',
@@ -215,7 +216,8 @@ export const BATTLEBOX_ARCHETYPES = [
     spellCount: 40,
     difficulty: 2,
     signatureCards: ['Murktide Regent', 'Death\'s Shadow'],
-    jargonTags: ['Tempo', 'Cantrips']
+    jargonTags: ['Tempo', 'Cantrips'],
+    beginnerTip: 'Ideal si te gusta frustrar al oponente. Juega una criatura fuerte pronto y protégela con contrahechizos e interacción barata.'
   },
   {
     id: 'midrange',
@@ -228,7 +230,8 @@ export const BATTLEBOX_ARCHETYPES = [
     spellCount: 36,
     difficulty: 2,
     signatureCards: ['Tarmogoyf', 'Thoughtseize'],
-    jargonTags: ['Midrange', 'Value']
+    jargonTags: ['Midrange', 'Value'],
+    beginnerTip: 'El equilibrio perfecto. Recomendado si quieres adaptabilidad; combina buenas criaturas con descarte y remoción.'
   },
   {
     id: 'combo',
@@ -241,7 +244,8 @@ export const BATTLEBOX_ARCHETYPES = [
     spellCount: 38,
     difficulty: 3,
     signatureCards: ['Yawgmoth, Thran Physician', 'Primeval Titan'],
-    jargonTags: ['Combo', 'Engine']
+    jargonTags: ['Combo', 'Engine'],
+    beginnerTip: 'Para amantes de los rompecabezas. Junta piezas clave para ganar al instante en un solo turno espectacular.'
   },
   {
     id: 'control',
@@ -254,7 +258,8 @@ export const BATTLEBOX_ARCHETYPES = [
     spellCount: 34,
     difficulty: 2,
     signatureCards: ['Teferi, Hero of Dominaria', 'Supreme Verdict'],
-    jargonTags: ['Control', 'Boardwipe']
+    jargonTags: ['Control', 'Boardwipe'],
+    beginnerTip: 'Para jugadores pacientes. Controla la mesa destruyendo amenazas enemigas y gana en partida larga con recursos infinitos.'
   },
   {
     id: 'prison',
@@ -267,7 +272,8 @@ export const BATTLEBOX_ARCHETYPES = [
     spellCount: 35,
     difficulty: 3,
     signatureCards: ['Thalia, Guardian of Thraben', 'Chalice of the Void'],
-    jargonTags: ['Stax', 'Tax']
+    jargonTags: ['Stax', 'Tax'],
+    beginnerTip: 'Para jugadores tácticos. Pone reglas que ralentizan el juego y asfixian los recursos del oponente.'
   },
   {
     id: 'ramp',
@@ -280,7 +286,8 @@ export const BATTLEBOX_ARCHETYPES = [
     spellCount: 35,
     difficulty: 1,
     signatureCards: ['Karn Liberated', 'Cultivate'],
-    jargonTags: ['Ramp', 'Tron']
+    jargonTags: ['Ramp', 'Tron'],
+    beginnerTip: 'Para amantes del maná masivo. Acelera tus recursos para jugar criaturas gigantescas y finishers devastadores antes de tiempo.'
   }
 ];
 

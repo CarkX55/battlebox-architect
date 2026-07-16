@@ -1,3 +1,5 @@
+import { matchesScryfallQuery } from '../utils/scryfallParser.js';
+
 const DB_NAME = 'MagicGrimorioDB';
 const DB_VERSION = 1;
 const STORE_NAME = 'cards';
@@ -86,7 +88,28 @@ export async function ingestScryfallData(jsonFile, onProgress) {
   return { saved: totalSaved };
 }
 
+let cachedOracleTags = null;
+async function loadOracleTags() {
+  if (cachedOracleTags) return cachedOracleTags;
+  try {
+    const response = await fetch('/data/oracle_tags_index.json');
+    if (response.ok) {
+      cachedOracleTags = await response.json();
+      console.log(`🏷️ [Oracle Tags - dbIngestor] Índice de tags cargado con éxito.`);
+    }
+  } catch (err) {
+    console.warn(`⚠️ [Oracle Tags - dbIngestor] No se pudo cargar el índice de tags.`, err);
+  }
+  return cachedOracleTags;
+}
+
 export async function searchCards(query, limit = 20, format = 'MODERN') {
+  // Cargar tags comunitarios de forma perezosa si la consulta usa filtros de tags
+  const needsTags = query.includes('otag:') || query.includes('oracletag:') || query.includes('oracle_tags:') || query.includes('oracle_tag:') || query.includes('function:');
+  if (needsTags) {
+    await loadOracleTags();
+  }
+
   const database = await openDB();
   const tx = database.transaction(STORE_NAME, 'readonly');
   const store = tx.objectStore(STORE_NAME);
@@ -96,6 +119,8 @@ export async function searchCards(query, limit = 20, format = 'MODERN') {
   const lowerQuery = query.toLowerCase();
   const formatKey = format.toLowerCase();
   
+  const isAdvanced = query.includes(':') || query.includes('<') || query.includes('>') || query.includes('=') || query.includes('(');
+  
   return new Promise((resolve, reject) => {
     const results = [];
     const request = index.openCursor();
@@ -104,9 +129,20 @@ export async function searchCards(query, limit = 20, format = 'MODERN') {
       const cursor = event.target.result;
       if (cursor && results.length < limit * 3) {
         const name = cursor.value.name?.toLowerCase() || '';
-        const isLegal = cursor.value.legalities && cursor.value.legalities[formatKey] === 'legal';
-        if (name.includes(lowerQuery) && isLegal) {
-          results.push(cursor.value);
+        const isLegal = (formatKey === 'custom' || formatKey === 'any')
+          ? true
+          : (cursor.value.legalities && cursor.value.legalities[formatKey] === 'legal');
+        
+        if (isLegal) {
+          if (isAdvanced) {
+            if (matchesScryfallQuery(cursor.value, query, cachedOracleTags)) {
+              results.push(cursor.value);
+            }
+          } else {
+            if (name.includes(lowerQuery)) {
+              results.push(cursor.value);
+            }
+          }
         }
         cursor.continue();
       } else {

@@ -127,10 +127,19 @@ export default function DeckArchive() {
                 </div>
               </div>
 
-              <div className="mt-6 pt-4 border-t border-white/10 flex gap-3 flex-wrap">
+              <div className="mt-6 pt-4 border-t border-white/10 flex gap-2 flex-wrap">
+                <button 
+                  className="flex-1 py-2 text-[11px] font-cinzel font-black uppercase tracking-wider bg-[#ffca58]/10 hover:bg-[#ffca58]/20 text-[#ffca58] border border-[#ffca58]/30 hover:border-[#ffca58]/60 rounded-lg transition-all"
+                  onClick={() => {
+                    setActiveDeck(deck);
+                    setCurrentView('DeckForge');
+                  }}
+                >
+                  🔥 Refinar Forge
+                </button>
                 {deck.source === 'manual' ? (
                   <button 
-                    className="flex-1 py-2.5 btn-stone-secondary text-blue-400 border-blue-500/30 hover:bg-blue-500/10"
+                    className="flex-1 py-2 text-[11px] btn-stone-secondary text-blue-400 border-blue-500/20 hover:bg-blue-500/10"
                     onClick={() => {
                       setActiveDeck(deck);
                       setCurrentView('DeckBuilder');
@@ -140,17 +149,17 @@ export default function DeckArchive() {
                   </button>
                 ) : (
                   <button 
-                    className="flex-1 py-2.5 btn-stone-secondary"
+                    className="flex-1 py-2 text-[11px] btn-stone-secondary animate-pulse"
                     onClick={() => {
                       setActiveDeck(deck);
                       setCurrentView('BattleBox');
                     }}
                   >
-                    Ver Detalles
+                    Detalles
                   </button>
                 )}
                 <button 
-                  className="flex-1 py-2.5 btn-stone-secondary"
+                  className="flex-1 py-2 text-[11px] btn-stone-secondary"
                   onClick={() => {
                     const text = [
                       ...deck.cards.map(c => `${c.quantity} ${c.name}`),
@@ -161,7 +170,7 @@ export default function DeckArchive() {
                     alert('¡Lista de mazo copiada al portapapeles!');
                   }}
                 >
-                  Copiar Lista
+                  Copiar
                 </button>
               </div>
             </motion.div>

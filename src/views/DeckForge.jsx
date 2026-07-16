@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { BATTLEBOX_VETOS, COLORS, BATTLEBOX_RULES } from '../constants/legacyBattleBox';
+import { useAppStore } from '../store/useAppStore';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../utils/cn';
 import { useIsMobile, useIsTouchDevice } from '../hooks/useIsMobile';
@@ -12,10 +13,11 @@ import AiConfigPanel from '../components/forge/AiConfigPanel';
 import VisualGrid from '../components/battlebox/VisualGrid';
 import { hydrateDeckCards, getCardFromDB } from '../services/cardHydrator';
 import { callAI, suggestCards, forgeSideboard } from '../services/aiFactory';
-import { forgeMazoPerfecto } from '../services/deckArchitectService';
+import { forgeMazoPerfecto, generateBlueprintFromAI, assembleDeckFromBlueprint } from '../services/deckArchitectService';
 import { archiveDeck, archiveDeckOnline, submitDeckFeedback } from '../services/archiveService';
 import { getAllCards } from '../services/dbIngestor';
 import CardSearch from '../components/forge/CardSearch';
+import BlueprintEditor from '../components/forge/BlueprintEditor';
 import HandSimulator from '../components/forge/HandSimulator';
 import { PowerLevelMeter } from '../components/forge/PowerLevelMeter';
 import RadarChart from '../components/forge/RadarChart';
@@ -27,8 +29,21 @@ import SynergyGraphVisualizer from '../components/forge/SynergyGraphVisualizer';
 import DeckVisualExporter from '../components/forge/DeckVisualExporter';
 import { optimizarMazo, applyAuditChangesProgrammatically } from '../services/deckOptimizerService';
 import { auditDeckWithAI } from '../services/auditService';
+import ForgeLoadingScreen from '../components/forge/ForgeLoadingScreen';
 
 const FORGE_STORAGE_KEY = 'mtg_ai_config_forge';
+
+const cleanCardNameForMatching = (name) => {
+  if (!name) return "";
+  let n = name.toLowerCase().trim();
+  if (n.includes('//')) {
+    n = n.split('//')[0].trim();
+  }
+  if (n.includes('/')) {
+    n = n.split('/')[0].trim();
+  }
+  return n;
+};
 
 // Función auxiliar ultra-robusta para detectar tierras de cualquier tipo (básicas y especiales)
 const isLandCard = (c) => {
@@ -440,47 +455,152 @@ const TurnoDeOroSim = ({ deck }) => {
 const isBasicLand = (name) => name && (['Plains', 'Island', 'Swamp', 'Mountain', 'Forest', 'Wastes'].includes(name) || (typeof name === 'string' && name.startsWith('Snow-Covered')));
 
 // Generador de Guía Táctica Interactiva de Banquillo
-const getMatchupGuide = (mainDeck, sideboard, archetype = 'midrange') => {
+const getMatchupGuide = (mainDeck, sideboard, archetype = 'midrange', format = 'MODERN') => {
   const arch = (archetype || 'midrange').toLowerCase();
+  const fmt = (format || 'MODERN').toUpperCase();
   
-  const matchups = [
-    {
-      id: 'aggro',
-      name: '⚔️ vs Aggro / Burn',
-      difficulty: arch === 'control' || arch === 'midrange' ? 'Favorable' : arch === 'aggro' ? 'Equilibrado' : 'Desfavorable',
-      difficultyColor: arch === 'control' || arch === 'midrange' ? 'text-green-400 bg-green-500/10 border-green-500/30' : arch === 'aggro' ? 'text-yellow-400 bg-yellow-500/10 border-yellow-500/30' : 'text-red-400 bg-red-500/10 border-red-500/30',
-      tip: 'Prioriza sobrevivir los primeros 3 turnos. Conserva tu total de vidas y no seas codicioso con tus tierras no básicas. Banquea removal de bajo costo y cartas con ganancia de vidas.',
-      inKeywords: ['push', 'brutality', 'path', 'exile', 'recall', 'silence', 'peace', 'swords', 'bolt', 'fateful', 'ending', 'appirition', 'swiftspear', 'ragavan', 'fatal', 'removal'],
-      outKeywords: ['thoughtseize', 'draw', 'pain', 'horizon', 'reanimate', 'teferi', 'wandering', 'slow']
-    },
-    {
-      id: 'control',
-      name: '🔮 vs Azorius / Dimir Control',
-      difficulty: arch === 'aggro' || arch === 'tempo' ? 'Favorable' : arch === 'control' ? 'Equilibrado' : 'Desfavorable',
-      difficultyColor: arch === 'aggro' || arch === 'tempo' ? 'text-green-400 bg-green-500/10 border-green-500/30' : arch === 'control' ? 'text-yellow-400 bg-yellow-500/10 border-yellow-500/30' : 'text-red-400 bg-red-500/10 border-red-500/30',
-      tip: 'Juega en el turno del oponente. No sobre-extiendas tu mesa contra barredores (Supreme Verdict). Usa contrahechizos y descarte para proteger tus amenazas clave.',
-      inKeywords: ['veil', 'summer', 'dispute', 'pierce', 'negation', 'will', 'thoughtseize', 'vortex', 'kozilek', 'spell', 'counterspell', 'thalia', 'sentinel'],
-      outKeywords: ['push', 'downfall', 'bolt', 'fury', 'solitude', 'verdict', 'wipe', 'wrath', 'remoción', 'fatal', 'path']
-    },
-    {
-      id: 'graveyard',
-      name: '💀 vs Reanimator / Combo',
-      difficulty: arch === 'prison' || arch === 'tempo' || arch === 'control' ? 'Favorable' : 'Equilibrado',
-      difficultyColor: arch === 'prison' || arch === 'tempo' || arch === 'control' ? 'text-green-400 bg-green-500/10 border-green-500/30' : 'text-yellow-400 bg-yellow-500/10 border-yellow-500/30',
-      tip: 'Mantén maná abierto para contrahechizos o efectos de exilio en respuesta a sus hechizos de reanimación. Ataca su mano antes de que puedan combar.',
-      inKeywords: ['peace', 'void', 'silence', 'pierce', 'negation', 'dispute', 'thoughtseize', 'trap', 'stony', 'chalice', 'aether', 'vial', 'exile', 'rest'],
-      outKeywords: ['wipe', 'verdict', 'artifact', 'slow', 'adeline', 'heroic', 'scute', 'craterhoof']
-    },
-    {
-      id: 'bigmana',
-      name: '🪐 vs Tron / Amulet Titan',
-      difficulty: arch === 'aggro' || arch === 'tempo' ? 'Favorable' : 'Desfavorable',
-      difficultyColor: arch === 'aggro' || arch === 'tempo' ? 'text-green-400 bg-green-500/10 border-green-500/30' : 'text-red-400 bg-red-500/10 border-red-500/30',
-      tip: 'Destruye o anula sus tierras clave (Urza\'s Tower) de inmediato. Debes establecer un reloj de daño rápido antes de que bajen sus amenazas de coste 6+.',
-      inKeywords: ['moon', 'alpine', 'vigor', 'ouphe', 'stony', 'thoughtseize', 'pierce', 'blood', 'collector'],
-      outKeywords: ['push', 'bolt', 'remoción', 'creature', 'small', 'fatal']
-    }
-  ];
+  let matchups = [];
+  
+  if (fmt === 'PIONEER') {
+    matchups = [
+      {
+        id: 'pioneer_rakdos',
+        name: '👺 vs Rakdos Midrange',
+        difficulty: arch === 'control' || arch === 'combo' ? 'Favorable' : 'Equilibrado',
+        difficultyColor: arch === 'control' || arch === 'combo' ? 'text-green-400 bg-green-500/10 border-green-500/30' : 'text-yellow-400 bg-yellow-500/10 border-yellow-500/30',
+        tip: 'Rakdos es el rey de la eficiencia en Pioneer. Cuidado con Sheoldred, the Apocalypse y el descarte inicial. Banquea eliminación robusta y motores de ventaja de cartas.',
+        inKeywords: ['push', 'decay', 'trophy', 'path', 'fateful', 'dreadbore', 'sheoldred', 'draw', 'extraction', 'hearse'],
+        outKeywords: ['thoughtseize', 'duress', 'pain', 'burn', 'bolt']
+      },
+      {
+        id: 'pioneer_phoenix',
+        name: '🐦 vs Izzet Phoenix',
+        difficulty: arch === 'control' || arch === 'tempo' ? 'Favorable' : 'Desfavorable',
+        difficultyColor: arch === 'control' || arch === 'tempo' ? 'text-green-400 bg-green-500/10 border-green-500/30' : 'text-red-400 bg-red-500/10 border-red-500/30',
+        tip: 'Phoenix abusa del cementerio y de conjuros baratos. Exiliar sus cartas clave del cementerio es vital. Banquea odio contra el cementerio y contrahechizos de bajo coste.',
+        inKeywords: ['rest', 'peace', 'hearse', 'leylines', 'dispute', 'veto', 'pierce', 'graveyard', 'lantern'],
+        outKeywords: ['push', 'removal', 'fury', 'verdict', 'wipe']
+      },
+      {
+        id: 'pioneer_devotion',
+        name: '🌳 vs Mono-Green Devotion',
+        difficulty: arch === 'aggro' || arch === 'tempo' ? 'Favorable' : 'Desfavorable',
+        difficultyColor: arch === 'aggro' || arch === 'tempo' ? 'text-green-400 bg-green-500/10 border-green-500/30' : 'text-red-400 bg-red-500/10 border-red-500/30',
+        tip: 'Mono-Green genera cantidades insanas de maná con Nykthos. Destruye sus elfos aceleradores de inmediato y exilia sus amenazas grandes de Karn.',
+        inKeywords: ['damping', 'sphere', 'needle', 'trophy', 'push', 'disdainful', 'exile', 'removal'],
+        outKeywords: ['thoughtseize', 'pain', 'horizon', 'draw']
+      },
+      {
+        id: 'pioneer_control',
+        name: '🔮 vs Azorius Control',
+        difficulty: arch === 'aggro' || arch === 'tempo' ? 'Favorable' : 'Desfavorable',
+        difficultyColor: arch === 'aggro' || arch === 'tempo' ? 'text-green-400 bg-green-500/10 border-green-500/30' : 'text-red-400 bg-red-500/10 border-red-500/30',
+        tip: 'Azorius limpia la mesa en turno 4 con Supreme Verdict y maneja contrahechizos. Evita sobre-extenderte y juega al final de su turno.',
+        inKeywords: ['dispute', 'pierce', 'veto', 'negate', 'thoughtseize', 'thalia', 'sentinel'],
+        outKeywords: ['push', 'decay', 'bolt', 'removal', 'fatal']
+      }
+    ];
+  } else if (fmt === 'LEGACY') {
+    matchups = [
+      {
+        id: 'legacy_delver',
+        name: '🐉 vs Dimir / Izzet Delver',
+        difficulty: arch === 'control' || arch === 'midrange' ? 'Favorable' : 'Equilibrado',
+        difficultyColor: arch === 'control' || arch === 'midrange' ? 'text-green-400 bg-green-500/10 border-green-500/30' : 'text-yellow-400 bg-yellow-500/10 border-yellow-500/30',
+        tip: 'Delver es el mazo de tempo por excelencia de Legacy. Cuídate de Daze y Wasteland jugando alrededor de ellos. Conserva tus vidas y mantén tus tierras básicas.',
+        inKeywords: ['push', 'swords', 'plowshares', 'bolt', 'dispute', 'veil', 'pyroblast', 'red', 'blast'],
+        outKeywords: ['force', 'will', 'thoughtseize', 'pain', 'reanimate', 'heavy']
+      },
+      {
+        id: 'legacy_reanimator',
+        name: '💀 vs Reanimator',
+        difficulty: arch === 'tempo' || arch === 'control' ? 'Favorable' : 'Desfavorable',
+        difficultyColor: arch === 'tempo' || arch === 'control' ? 'text-green-400 bg-green-500/10 border-green-500/30' : 'text-red-400 bg-red-500/10 border-red-500/30',
+        tip: 'Puede combar en Turno 1 o 2 con Griselbrand o Atraxa. Mantén interrupción de coste 0 (Force of Will, Surgical Extraction) y odio al cementerio listo.',
+        inKeywords: ['surgical', 'extraction', 'leyline', 'void', 'macabre', 'rest', 'peace', 'cage', 'deafening'],
+        outKeywords: ['push', 'verdict', 'wipe', 'removal', 'heavy', 'slow']
+      },
+      {
+        id: 'legacy_lands',
+        name: '🪐 vs Lands Control',
+        difficulty: arch === 'combo' ? 'Favorable' : 'Desfavorable',
+        difficultyColor: arch === 'combo' ? 'text-green-400 bg-green-500/10 border-green-500/30' : 'text-red-400 bg-red-500/10 border-red-500/30',
+        tip: 'Usa Wasteland recursivo y genera un 20/20 Marit Lage indestructible. Banquea Blood Moon, agujas para The Tabernacle, o respuestas rápidas al token.',
+        inKeywords: ['blood', 'moon', 'needle', 'karakas', 'swords', 'plowshares', 'exile', 'subtlety', 'force'],
+        outKeywords: ['thoughtseize', 'duress', 'discard', 'push', 'bolt']
+      }
+    ];
+  } else if (fmt === 'STANDARD') {
+    matchups = [
+      {
+        id: 'std_aggro',
+        name: '⚔️ vs Mono-Red Aggro',
+        difficulty: arch === 'control' || arch === 'midrange' ? 'Favorable' : 'Equilibrado',
+        difficultyColor: arch === 'control' || arch === 'midrange' ? 'text-green-400 bg-green-500/10 border-green-500/30' : 'text-yellow-400 bg-yellow-500/10 border-yellow-500/30',
+        tip: 'Mono-Red es hiper-rápido en Estándar. Prioriza eliminar a Slickshot Show-off de inmediato y mete cartas que ganen vida o bloqueadores eficientes.',
+        inKeywords: ['cut', 'down', 'go', 'throat', 'knock', 'life', 'gain', 'sheoldred', 'path', 'removal'],
+        outKeywords: ['draw', 'pain', 'slow', 'heavy', 'planeswalker']
+      },
+      {
+        id: 'std_midrange',
+        name: '👺 vs Golgari Midrange',
+        difficulty: 'Equilibrado',
+        difficultyColor: 'text-yellow-400 bg-yellow-500/10 border-yellow-500/30',
+        tip: 'Golgari desgasta con removal y planeswalkers de valor. Banquea cartas de ventaja acumulable, respuestas contra encantamientos y amenazas difíciles de remover.',
+        inKeywords: ['throat', 'exile', 'draw', 'counterspell', 'negate', 'duress', 'breach'],
+        outKeywords: ['cut', 'down', 'shock', 'play', 'small']
+      },
+      {
+        id: 'std_ramp',
+        name: '🪐 vs Domain Ramp',
+        difficulty: arch === 'tempo' || arch === 'aggro' ? 'Favorable' : 'Desfavorable',
+        difficultyColor: arch === 'tempo' || arch === 'aggro' ? 'text-green-400 bg-green-500/10 border-green-500/30' : 'text-red-400 bg-red-500/10 border-red-500/30',
+        tip: 'Domain busca resolver Atraxa o barredores como Sunfall. Establece un reloj de daño rápido y mantén contrahechizos listos para neutralizar sus hechizos clave.',
+        inKeywords: ['negate', 'pierce', 'duress', 'disdainful', 'stroke', 'tidebinder', 'counterspell'],
+        outKeywords: ['cut', 'down', 'removal', 'small', 'spot']
+      }
+    ];
+  } else {
+    // MODERN (Default / Fallback)
+    matchups = [
+      {
+        id: 'aggro',
+        name: '⚔️ vs Aggro / Burn',
+        difficulty: arch === 'control' || arch === 'midrange' ? 'Favorable' : arch === 'aggro' ? 'Equilibrado' : 'Desfavorable',
+        difficultyColor: arch === 'control' || arch === 'midrange' ? 'text-green-400 bg-green-500/10 border-green-500/30' : arch === 'aggro' ? 'text-yellow-400 bg-yellow-500/10 border-yellow-500/30' : 'text-red-400 bg-red-500/10 border-red-500/30',
+        tip: 'Prioriza sobrevivir los primeros 3 turnos. Conserva tu total de vidas y no seas codicioso con tus tierras no básicas. Banquea removal de bajo costo y cartas con ganancia de vidas.',
+        inKeywords: ['push', 'brutality', 'path', 'exile', 'recall', 'silence', 'peace', 'swords', 'bolt', 'fateful', 'ending', 'appirition', 'swiftspear', 'ragavan', 'fatal', 'removal'],
+        outKeywords: ['thoughtseize', 'draw', 'pain', 'horizon', 'reanimate', 'teferi', 'wandering', 'slow']
+      },
+      {
+        id: 'control',
+        name: '🔮 vs Azorius / Dimir Control',
+        difficulty: arch === 'aggro' || arch === 'tempo' ? 'Favorable' : arch === 'control' ? 'Equilibrado' : 'Desfavorable',
+        difficultyColor: arch === 'aggro' || arch === 'tempo' ? 'text-green-400 bg-green-500/10 border-green-500/30' : arch === 'control' ? 'text-yellow-400 bg-yellow-500/10 border-yellow-500/30' : 'text-red-400 bg-red-500/10 border-red-500/30',
+        tip: 'Juega en el turno del oponente. No sobre-extiendas tu mesa contra barredores (Supreme Verdict). Usa contrahechizos y descarte para proteger tus amenazas clave.',
+        inKeywords: ['veil', 'summer', 'dispute', 'pierce', 'negation', 'will', 'thoughtseize', 'vortex', 'kozilek', 'spell', 'counterspell', 'thalia', 'sentinel'],
+        outKeywords: ['push', 'downfall', 'bolt', 'fury', 'solitude', 'verdict', 'wipe', 'wrath', 'remoción', 'fatal', 'path']
+      },
+      {
+        id: 'graveyard',
+        name: '💀 vs Reanimator / Combo',
+        difficulty: arch === 'prison' || arch === 'tempo' || arch === 'control' ? 'Favorable' : 'Equilibrado',
+        difficultyColor: arch === 'prison' || arch === 'tempo' || arch === 'control' ? 'text-green-400 bg-green-500/10 border-green-500/30' : 'text-yellow-400 bg-yellow-500/10 border-yellow-500/30',
+        tip: 'Mantén maná abierto para contrahechizos o efectos de exilio en respuesta a sus hechizos de reanimación. Ataca su mano antes de que puedan combar.',
+        inKeywords: ['peace', 'void', 'silence', 'pierce', 'negation', 'dispute', 'thoughtseize', 'trap', 'stony', 'chalice', 'aether', 'vial', 'exile', 'rest'],
+        outKeywords: ['wipe', 'verdict', 'artifact', 'slow', 'adeline', 'heroic', 'scute', 'craterhoof']
+      },
+      {
+        id: 'bigmana',
+        name: '🪐 vs Tron / Amulet Titan',
+        difficulty: arch === 'aggro' || arch === 'tempo' ? 'Favorable' : 'Desfavorable',
+        difficultyColor: arch === 'aggro' || arch === 'tempo' ? 'text-green-400 bg-green-500/10 border-green-500/30' : 'text-red-400 bg-red-500/10 border-red-500/30',
+        tip: 'Destruye o anula sus tierras clave (Urza\'s Tower) de inmediato. Debes establecer un reloj de daño rápido antes de que bajen sus amenazas de coste 6+.',
+        inKeywords: ['moon', 'alpine', 'vigor', 'ouphe', 'stony', 'thoughtseize', 'pierce', 'blood', 'collector'],
+        outKeywords: ['push', 'bolt', 'remoción', 'creature', 'small', 'fatal']
+      }
+    ];
+  }
 
   const safeMainDeck = Array.isArray(mainDeck) ? mainDeck.filter(Boolean) : [];
   const safeSideboard = Array.isArray(sideboard) ? sideboard.filter(Boolean) : [];
@@ -538,6 +658,33 @@ export default function DeckForge() {
   const [mode, setMode] = useState('form');
   const [selectedFormat, setSelectedFormat] = useState(() => localStorage.getItem('mtgtop8_selected_format') || 'MODERN');
 
+  const activeDeck = useAppStore(state => state.activeDeck);
+  const setActiveDeck = useAppStore(state => state.setActiveDeck);
+  const [initialSeedCards, setInitialSeedCards] = useState({});
+  const [initialFormData, setInitialFormData] = useState(null);
+
+  useEffect(() => {
+    if (activeDeck) {
+      console.log("🔮 Importando mazo como semillas en el Forge:", activeDeck);
+      const seeds = {};
+      (activeDeck.cards || []).forEach(c => {
+        if (!isLandCard(c)) {
+          seeds[c.name] = Math.min(4, c.quantity || 1);
+        }
+      });
+      
+      setInitialSeedCards(seeds);
+      
+      setInitialFormData({
+        archetype: activeDeck.archetype?.toLowerCase() || '',
+        colores: activeDeck.colors || [],
+        format: activeDeck.format || 'MODERN',
+      });
+      
+      setActiveDeck(null);
+    }
+  }, [activeDeck, setActiveDeck]);
+
   useEffect(() => {
     localStorage.setItem('mtgtop8_selected_format', selectedFormat);
   }, [selectedFormat]);
@@ -584,6 +731,7 @@ export default function DeckForge() {
      setIsSubmittingFeedback(true);
      
      const deckName = aiMetadata?.deckName || 'Mazo Forjado';
+     const feedbackDeckName = deckName;
      const archetype = aiMetadata?.archetype || lastFormData?.archetype || 'midrange';
      const format = lastFormData?.format || 'MODERN';
      const strategy = lastFormData?.strategy || 'general';
@@ -597,7 +745,7 @@ export default function DeckForge() {
      }));
      
      const feedbackData = {
-       deckName,
+       deckName: feedbackDeckName,
        archetype,
        format,
        strategy,
@@ -688,7 +836,8 @@ export default function DeckForge() {
           if (!active) return;
           let cardData = data;
           if (data && data.data && data.data.length > 0) {
-            cardData = data.data[0];
+            const exactMatch = data.data.find(c => c.name.toLowerCase() === cleanName.toLowerCase());
+            cardData = exactMatch || data.data[0];
           }
           
           let url = null;
@@ -737,6 +886,8 @@ export default function DeckForge() {
   const [oracleActiveTab, setOracleActiveTab] = useState('summary');
   const [lastGenerationLogs, setLastGenerationLogs] = useState(null);
   const [copiedLogs, setCopiedLogs] = useState(false);
+  const [currentBlueprint, setCurrentBlueprint] = useState(null);
+  const [blueprintPreCalculated, setBlueprintPreCalculated] = useState(null);
 
   const handleCopyOracleLog = () => {
     if (!lastGenerationLogs) return;
@@ -815,6 +966,101 @@ export default function DeckForge() {
   const handleCardLeave = () => {
     if (isTouch) return;
     setHoveredCard(null);
+  };
+
+  const calculateDeckRadarData = (deck) => {
+    if (!deck || deck.length === 0) {
+      return { Velocidad: 5, Control: 5, Poder: 5, Complejidad: 5, Resiliencia: 5 };
+    }
+
+    const spells = deck.filter(c => !isLandCard(c));
+    if (spells.length === 0) {
+      return { Velocidad: 5, Control: 1, Poder: 3, Complejidad: 3, Resiliencia: 3 };
+    }
+
+    const deckSize = deck.reduce((sum, c) => sum + (c.quantity || 1), 0);
+    const vmp = calculateVMP(spells);
+
+    // Pillars analysis
+    let rampCount = 0;
+    let drawCount = 0;
+    let removalCount = 0;
+    let protectionCount = 0;
+    
+    spells.forEach(c => {
+      const qty = c.quantity || 1;
+      const oracle = (c.oracle_text || c.text || '').toLowerCase();
+      const type = (c.type_line || '').toLowerCase();
+      
+      // Simple dorks/rocks
+      if (type.includes('creature') && (oracle.includes('add') || oracle.includes('agrega'))) rampCount += qty;
+      if (type.includes('artifact') && (oracle.includes('add') || oracle.includes('agrega'))) rampCount += qty;
+      
+      // Draw
+      if (oracle.includes('draw') || oracle.includes('roba')) drawCount += qty;
+      
+      // Removal
+      if (oracle.includes('destroy') || oracle.includes('exile') || oracle.includes('deal') || oracle.includes('destruye') || oracle.includes('exilia') || oracle.includes('hace')) {
+        if (type.includes('instant') || type.includes('sorcery') || oracle.includes('damage') || oracle.includes('daño')) {
+          removalCount += qty;
+        }
+      }
+      
+      // Protection/Interaction
+      if (oracle.includes('counter') || oracle.includes('protect') || oracle.includes('hexproof') || oracle.includes('indestructible') || oracle.includes('protección') || oracle.includes('antimaleficio') || oracle.includes('contrarresta')) {
+        protectionCount += qty;
+      }
+    });
+
+    // 1. Velocidad (Speed): low curve = fast, ramp helps
+    const speed = Math.max(1, Math.min(10, Math.round(12 - (vmp * 2.5) + (rampCount * 0.15))));
+
+    // 2. Control: interactive spells count relative to format size
+    const control = Math.max(1, Math.min(10, Math.round((removalCount + protectionCount) * (60 / Math.max(40, deckSize)) * 0.6)));
+
+    // 3. Poder (Power): rares/mythics presence + curve optimization
+    let rareCount = 0;
+    let mythicCount = 0;
+    deck.forEach(c => {
+      const qty = Number(c.quantity || 1);
+      if (c.rarity === 'rare') rareCount += qty;
+      if (c.rarity === 'mythic') mythicCount += qty;
+    });
+    const power = Math.max(1, Math.min(10, Math.round(3 + (rareCount * 0.2) + (mythicCount * 0.4))));
+
+    // 4. Complejidad (Complexity): length of text and complex mechanics
+    let complexityPoints = 0;
+    deck.forEach(c => {
+      const oracle = (c.oracle_text || c.text || '').toLowerCase();
+      complexityPoints += Math.min(10, oracle.length / 60);
+      if (oracle.includes('choose') || oracle.includes('elige')) complexityPoints += 0.5;
+      if (oracle.includes('search') || oracle.includes('busca')) complexityPoints += 0.5;
+      if (oracle.includes('planeswalker') || (c.type_line && c.type_line.includes('Planeswalker'))) complexityPoints += 1.5;
+      if (oracle.includes('saga') || (c.type_line && c.type_line.includes('Saga'))) complexityPoints += 1.0;
+    });
+    const avgComplexity = deck.length > 0 ? (complexityPoints / deck.length) * 4.5 : 5;
+    const complexity = Math.max(1, Math.min(10, Math.round(avgComplexity + 2.5)));
+
+    // 5. Resiliencia (Resilience): protection/recursion
+    let resiliencePoints = 0;
+    deck.forEach(c => {
+      const oracle = (c.oracle_text || c.text || '').toLowerCase();
+      if (oracle.includes('return') || oracle.includes('regresa')) resiliencePoints += 0.4;
+      if (oracle.includes('graveyard') || oracle.includes('cementerio')) resiliencePoints += 0.3;
+      if (oracle.includes('hexproof') || oracle.includes('antimaleficio')) resiliencePoints += 0.5;
+      if (oracle.includes('indestructible')) resiliencePoints += 0.6;
+      if (oracle.includes('flashback') || oracle.includes('retrospectiva')) resiliencePoints += 0.5;
+    });
+    const avgResilience = deck.length > 0 ? (resiliencePoints / deck.length) * 5.5 : 5;
+    const resilience = Math.max(1, Math.min(10, Math.round(avgResilience + 3.0)));
+
+    return {
+      Velocidad: speed,
+      Control: control,
+      Poder: power,
+      Complejidad: complexity,
+      Resiliencia: resilience
+    };
   };
 
   const renderSidebarContent = () => {
@@ -896,9 +1142,7 @@ export default function DeckForge() {
           <h4 className="font-cinzel text-magic-gold text-lg mb-6 flex items-center gap-2">
             <Target className="w-5 h-5" /> Potencial Bélico
           </h4>
-          <RadarChart data={{
-            Velocidad: 8, Control: 7, Poder: 8, Complejidad: 7, Resiliencia: 6
-          }} />
+          <RadarChart data={calculateDeckRadarData(renderDeck)} />
         </div>
         <ManaCurve deck={renderDeck} archetype={aiMetadata?.archetype} />
 
@@ -1092,23 +1336,80 @@ export default function DeckForge() {
     
     const mainCount = safeDeck.reduce((sum, c) => sum + (c.quantity || 0), 0);
     const sideCount = safeSideboard.reduce((sum, c) => sum + (c.quantity || 0), 0);
+    
+    const hasYorion = safeDeck.some(s => s.name.toLowerCase().includes("yorion, sky nomad")) || 
+                     (lastFormData?.companero && lastFormData.companero.toLowerCase().includes("yorion"));
+                     
+    const isCommander = selectedFormat === 'COMMANDER';
+    const targetMain = isCommander ? 100 : (hasYorion ? 80 : 60);
+    const targetSide = isCommander ? 0 : 15;
+    const maxCopiesAllowed = isCommander ? 1 : 4;
+    
     const bannedInDeck = [...safeDeck, ...safeSideboard].filter(c => c.name && BATTLEBOX_VETOS.includes(c.name));
-    const overLimit = [...safeDeck, ...safeSideboard].filter(c => c.name && !isBasicLand(c.name) && (c.quantity || 0) > BATTLEBOX_RULES.maxCopies);
+    const overLimit = [...safeDeck, ...safeSideboard].filter(c => c.name && !isBasicLand(c.name) && (c.quantity || 0) > maxCopiesAllowed);
+    
+    const isMainValid = mainCount === targetMain;
+    const isSideValid = sideCount === targetSide;
     
     return {
       mainCount,
       sideCount,
-      isMainValid: mainCount >= BATTLEBOX_RULES.minMain,
-      isSideValid: sideCount === BATTLEBOX_RULES.targetSideboard,
+      targetMain,
+      targetSide,
+      maxCopiesAllowed,
+      isMainValid,
+      isSideValid,
       banned: bannedInDeck,
       overLimit,
-      isValid: mainCount >= BATTLEBOX_RULES.minMain && bannedInDeck.length === 0 && overLimit.length === 0
+      isValid: isMainValid && isSideValid && bannedInDeck.length === 0 && overLimit.length === 0
     };
-  }, [renderDeck, renderSideboard]);
+  }, [renderDeck, renderSideboard, selectedFormat, lastFormData]);
 
   const matchupsList = useMemo(() => {
-    return getMatchupGuide(renderDeck, renderSideboard, lastFormData?.archetype || 'midrange');
-  }, [renderDeck, renderSideboard, lastFormData]);
+    return getMatchupGuide(renderDeck, renderSideboard, lastFormData?.archetype || 'midrange', selectedFormat);
+  }, [renderDeck, renderSideboard, lastFormData, selectedFormat]);
+
+  const deckName = useMemo(() => {
+    if (aiMetadata?.deckName && aiMetadata.deckName !== 'Mazo Forjado' && aiMetadata.deckName !== 'Mazo Sin Nombre') {
+      return aiMetadata.deckName;
+    }
+    
+    const colors = lastFormData?.colores || [];
+    const archetype = lastFormData?.archetype || 'Midrange';
+    const format = selectedFormat || 'Modern';
+    
+    const colorNames = {
+      'W': 'Blanco', 'U': 'Azul', 'B': 'Negro', 'R': 'Rojo', 'G': 'Verde', 'C': 'Incoloro'
+    };
+    
+    let colorString = '';
+    if (colors.length === 0) colorString = 'Incoloro';
+    else if (colors.length === 1) colorString = colorNames[colors[0]];
+    else if (colors.length === 2) {
+      const sorted = [...colors].sort().join('');
+      const guilds = {
+        'UW': 'Azorius', 'BU': 'Dimir', 'BR': 'Rakdos', 'GR': 'Gruul', 'GW': 'Selesnya',
+        'BW': 'Orzhov', 'RU': 'Izzet', 'BG': 'Golgari', 'RW': 'Boros', 'GU': 'Simic'
+      };
+      colorString = guilds[sorted] || colors.map(c => colorNames[c]).join('-');
+    } else if (colors.length === 3) {
+      const sorted = [...colors].sort().join('');
+      const shards = {
+        'BUW': 'Esper', 'BRU': 'Grixis', 'BGR': 'Jund', 'GRW': 'Naya', 'GUW': 'Bant',
+        'BRW': 'Mardu', 'GRU': 'Temur', 'BGW': 'Abzan', 'RUW': 'Jeskai', 'BGU': 'Sultai'
+      };
+      colorString = shards[sorted] || 'Tricolor';
+    } else if (colors.length === 4) {
+      colorString = 'Tetracolor';
+    } else if (colors.length === 5) {
+      colorString = 'Pentacolor';
+    }
+    
+    const formattedArchetype = archetype.charAt(0).toUpperCase() + archetype.slice(1).toLowerCase();
+    const formattedFormat = format.charAt(0).toUpperCase() + format.slice(1).toLowerCase();
+    
+    return `${colorString} ${formattedArchetype} — ${formattedFormat}`;
+  }, [aiMetadata?.deckName, lastFormData?.colores, lastFormData?.archetype, selectedFormat]);
 
   const [activeSwaps, setActiveSwaps] = useState({}); // format: { [matchupId]: { in: { "CardName": qty }, out: { "CardName": qty } } }
 
@@ -1207,7 +1508,7 @@ export default function DeckForge() {
   const handleExportUniversal = (formatType) => {
     if (!renderDeck.length) return;
     
-    const deckName = aiMetadata?.deckName || 'Mazo_Forjado';
+    const exportDeckName = deckName;
     let content = "";
     let fileExtension = "txt";
     let mimeType = "text/plain;charset=utf-8";
@@ -1241,7 +1542,7 @@ export default function DeckForge() {
     else if (formatType === 'cockatrice') {
       content = '<?xml version="1.0" encoding="UTF-8"?>\n';
       content += '<cockatrice_deck version="1">\n';
-      content += `  <deckname>${deckName}</deckname>\n`;
+      content += `  <deckname>${exportDeckName}</deckname>\n`;
       content += '  <comments>Generado por Battlebox Architect (RAG Engine)</comments>\n';
       content += '  <zone name="main">\n';
       renderDeck.forEach(c => {
@@ -1264,7 +1565,7 @@ export default function DeckForge() {
       const colorsStr = lastFormData?.colores ? JSON.stringify(lastFormData.colores) : "[]";
       
       content = "---\n";
-      content += `name: "${deckName}"\n`;
+      content += `name: "${exportDeckName}"\n`;
       content += `archetype: "${aiMetadata?.archetype || lastFormData?.archetype || 'Midrange'}"\n`;
       content += `format: "${selectedFormat.toUpperCase()} Battle Box"\n`;
       content += `colors: ${colorsStr}\n`;
@@ -1272,7 +1573,7 @@ export default function DeckForge() {
       content += "type: decklist\n";
       content += "---\n\n";
       
-      content += `# 🎴 Ficha del Mazo: ${deckName}\n\n`;
+      content += `# 🎴 Ficha del Mazo: ${exportDeckName}\n\n`;
       content += `> **Estrategia General:** *"${pocketGuide?.plan || aiMetadata?.strategy || 'No descifrada'}*"\n\n`;
       
       content += "## ⚔️ Mazo Principal (Mainboard)\n";
@@ -1293,7 +1594,7 @@ export default function DeckForge() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `${deckName.replace(/\s+/g, '_')}.${fileExtension}`;
+    link.download = `${exportDeckName.replace(/\s+/g, '_')}.${fileExtension}`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -1307,7 +1608,7 @@ export default function DeckForge() {
     const formatName = `${selectedFormat.charAt(0) + selectedFormat.slice(1).toLowerCase()} Battle Box`;
     const deckToArchive = {
       id: Date.now().toString(),
-      name: aiMetadata?.deckName || 'Mazo Sin Nombre',
+      name: deckName,
       archetype: aiMetadata?.archetype || lastFormData?.archetype,
       colors: lastFormData?.colores,
       format: formatName,
@@ -1330,7 +1631,7 @@ export default function DeckForge() {
     const formatName = `${selectedFormat.charAt(0) + selectedFormat.slice(1).toLowerCase()} Battle Box`;
     const deckToArchive = {
       id: Date.now().toString(),
-      name: aiMetadata?.deckName || 'Mazo Sin Nombre',
+      name: deckName,
       archetype: aiMetadata?.archetype || lastFormData?.archetype,
       colors: lastFormData?.colores,
       format: formatName,
@@ -1357,8 +1658,9 @@ export default function DeckForge() {
     setShowAuditModal(false);
 
     // Inyectar métricas matemáticas (VMP y recuento de fuentes)
+    const spellsOnly = renderDeck.filter(c => !isLandCard(c));
     const metrics = {
-      vmp: calculateVMP(renderDeck).vmp,
+      vmp: calculateVMP(spellsOnly),
       sources: calculateManaSources(renderDeck)
     };
     const auditData = { ...lastFormData, metrics };
@@ -1411,15 +1713,50 @@ export default function DeckForge() {
     setAuditResult(null);
     setShowAuditModal(false);
     
-    
     try {
-      console.log('🔥 Forjando mazo Modern Battle Box...');
+      console.log('🔥 Generando Blueprint estructural con IA...');
       
       const onProgress = (phase, message) => {
         setForgePhase({ phase, message });
       };
       
-      const aiResult = await forgeMazoPerfecto(combinedFormData, aiConfig, onProgress);
+      const blueprintData = await generateBlueprintFromAI(combinedFormData, aiConfig, onProgress);
+      
+      setCurrentBlueprint(blueprintData.blueprint);
+      setBlueprintPreCalculated(blueprintData);
+      
+      if (blueprintData.logs) {
+        setLastGenerationLogs({
+          logs: blueprintData.logs,
+          systemPrompt: blueprintData.STRICT_INSTRUCTIONS_PROMPT || '',
+          contextPrompt: blueprintData.contextGen_Prompt || '',
+          rawResponse: JSON.stringify(blueprintData.blueprint)
+        });
+      }
+      
+      setMode('blueprint');
+    } catch (err) {
+      console.error('❌ Error generando blueprint:', err);
+      setError(err.message || 'Error al estructurar el mazo');
+    } finally {
+      setLoading(false);
+      setForgePhase(null);
+    }
+  };
+
+  const handleAssembleDeck = async (editedBlueprint) => {
+    if (!lastFormData) return;
+    setLoading(true);
+    setError(null);
+    setWarning(null);
+    setForgePhase({ phase: 'assembler', message: '⚙️ Ensamblando cartas y calculando tierras...' });
+    
+    try {
+      const onProgress = (phase, message) => {
+        setForgePhase({ phase, message });
+      };
+      
+      const aiResult = await assembleDeckFromBlueprint(editedBlueprint, lastFormData, aiConfig, onProgress, blueprintPreCalculated);
       
       setAiMetadata(aiResult);
       if (aiResult.generationLogs) {
@@ -1427,16 +1764,17 @@ export default function DeckForge() {
       }
       
       setForgePhase({ phase: 'hydrate', message: '🎴 Cargando imágenes de las cartas...' });
-      const hydratedDeck = await hydrateDeckCards(aiResult.cards, combinedFormData.rarityMode);
-      const hydratedSideboard = aiResult.sideboard ? await hydrateDeckCards(aiResult.sideboard, combinedFormData.rarityMode) : [];
+      const hydratedDeck = await hydrateDeckCards(aiResult.cards, lastFormData.rarityMode);
+      const hydratedSideboard = aiResult.sideboard ? await hydrateDeckCards(aiResult.sideboard, lastFormData.rarityMode) : [];
       
       // Auto-Corrección Matemática Final
       let finalDeck = [...hydratedDeck];
       let currentCount = finalDeck.reduce((sum, c) => sum + c.quantity, 0);
+      const targetSize = lastFormData.deckSize || 60;
       
-      if (currentCount !== 60) {
-        if (currentCount > 60) {
-          let excess = currentCount - 60;
+      if (currentCount !== targetSize) {
+        if (currentCount > targetSize) {
+          let excess = currentCount - targetSize;
           let landsDesc = finalDeck.map((c, i) => ({...c, originalIndex: i})).filter(isLandCard).sort((a, b) => b.quantity - a.quantity);
           for (let land of landsDesc) {
             if (excess > 0 && land.quantity > 1) {
@@ -1445,8 +1783,8 @@ export default function DeckForge() {
               excess -= toRemove;
             }
           }
-        } else if (currentCount < 60) {
-          const missing = 60 - currentCount;
+        } else if (currentCount < targetSize) {
+          const missing = targetSize - currentCount;
           const lands = finalDeck.filter(isLandCard).sort((a, b) => b.quantity - a.quantity);
           if (lands.length > 0) {
             const index = finalDeck.findIndex(c => c.name === lands[0].name);
@@ -1459,15 +1797,18 @@ export default function DeckForge() {
       setRenderSideboard(hydratedSideboard); 
       setSideboardStrategy(aiResult.sideboard_strategy || '');
       
-      // Mostrar warning si el Juez corrigió cartas de la banlist
       if (aiResult.banlistSwaps && aiResult.banlistSwaps.length > 0) {
         const swapText = aiResult.banlistSwaps.map(s => `${s.original} → ${s.replacement}`).join(', ');
         setWarning(`⚖️ El Juez corrigió ${aiResult.banlistSwaps.length} carta(s) prohibida(s): ${swapText}`);
       }
       
       setMode('deck');
+      setArchived(false);
+      setCloudArchived(false);
+      setPocketGuide(null);
+      setCardSuggestions(null);
     } catch (err) {
-      console.error('❌ Error forjando:', err);
+      console.error('❌ Error ensamblando mazo:', err);
       setError(err.message || 'Error en la conexión con el Oráculo');
       if (err.generationLogs) {
         setLastGenerationLogs(err.generationLogs);
@@ -1498,17 +1839,18 @@ export default function DeckForge() {
 
     let warningToSet = null;
     const setState = target === 'main' ? setRenderDeck : setRenderSideboard;
+    const targetCleanName = cleanCardNameForMatching(cardName);
 
     setState(prev => {
-      const exists = prev.find(c => c.name === cardName);
+      const exists = prev.find(c => cleanCardNameForMatching(c.name) === targetCleanName);
       if (exists) {
         // Bloqueo de Copias (Regla de 4) - Solo para Main si queremos ser estrictos, pero Legacy permite 4 total entre ambos.
         // Aquí lo aplicamos a ambos por simplicidad.
         if (!isBasicLand(cardName) && exists.quantity + qtyToAdd > BATTLEBOX_RULES.maxCopies) {
           warningToSet = `⚠️ Límite de copias alcanzado: Máximo ${BATTLEBOX_RULES.maxCopies} de "${cardName}".`;
-          return prev.map(c => c.name === cardName ? { ...c, quantity: BATTLEBOX_RULES.maxCopies } : c);
+          return prev.map(c => cleanCardNameForMatching(c.name) === targetCleanName ? { ...c, quantity: BATTLEBOX_RULES.maxCopies } : c);
         }
-        return prev.map(c => c.name === cardName ? { ...c, quantity: c.quantity + qtyToAdd } : c);
+        return prev.map(c => cleanCardNameForMatching(c.name) === targetCleanName ? { ...c, quantity: c.quantity + qtyToAdd } : c);
       }
       return [...prev, {
         name: scryfallCard.name,
@@ -1528,12 +1870,16 @@ export default function DeckForge() {
   };
 
   const handleRemoveCard = (cardName, qtyToRemove = 1) => {
+    const targetCleanName = cleanCardNameForMatching(cardName);
     setRenderDeck(prev => {
-      const card = prev.find(c => c.name === cardName);
-      if (card && card.quantity > qtyToRemove) {
-        return prev.map(c => c.name === cardName ? { ...c, quantity: c.quantity - qtyToRemove } : c);
+      const card = prev.find(c => cleanCardNameForMatching(c.name) === targetCleanName);
+      if (card) {
+        if (card.quantity > qtyToRemove) {
+          return prev.map(c => cleanCardNameForMatching(c.name) === targetCleanName ? { ...c, quantity: c.quantity - qtyToRemove } : c);
+        }
+        return prev.filter(c => cleanCardNameForMatching(c.name) !== targetCleanName);
       }
-      return prev.filter(c => c.name !== cardName);
+      return prev;
     });
   };
 
@@ -1601,18 +1947,24 @@ export default function DeckForge() {
   };
 
   const handlePanicButton = () => {
+    const isCommander = selectedFormat === 'COMMANDER';
+    const hasYorion = renderDeck.some(s => s.name.toLowerCase().includes("yorion, sky nomad")) || 
+                     (lastFormData?.companero && lastFormData.companero.toLowerCase().includes("yorion"));
+    const targetSize = isCommander ? 100 : (hasYorion ? 80 : 60);
+    const maxCopies = isCommander ? 1 : 4;
+
     setRenderDeck(prev => {
       let nextDeck = [...prev];
       // 1. Eliminar baneadas
       nextDeck = nextDeck.filter(c => !BATTLEBOX_VETOS.includes(c.name));
-      // 2. Ajustar límite a 4
-      nextDeck = nextDeck.map(c => (!isBasicLand(c.name) && c.quantity > BATTLEBOX_RULES.maxCopies) ? { ...c, quantity: BATTLEBOX_RULES.maxCopies } : c);
+      // 2. Ajustar límite de copias
+      nextDeck = nextDeck.map(c => (!isBasicLand(c.name) && c.quantity > maxCopies) ? { ...c, quantity: maxCopies } : c);
       
       let count = nextDeck.reduce((sum, c) => sum + (c.quantity || 0), 0);
       
-      if (count < 60) {
+      if (count < targetSize) {
         // 3. Rellenar con tierras básicas
-        const missing = 60 - count;
+        const missing = targetSize - count;
         const basic = nextDeck.find(c => isBasicLand(c.name));
         if (basic) {
           basic.quantity += missing;
@@ -1625,9 +1977,9 @@ export default function DeckForge() {
             color_identity: ["W"]
           });
         }
-      } else if (count > 60) {
+      } else if (count > targetSize) {
         // 4. Recortar
-        let excess = count - 60;
+        let excess = count - targetSize;
         const lands = nextDeck.filter(isLandCard).sort((a,b) => b.quantity - a.quantity);
         for (let land of lands) {
           if (excess > 0 && land.quantity > 1) {
@@ -1651,7 +2003,7 @@ export default function DeckForge() {
       
       return nextDeck;
     });
-    setWarning("⚖️ El Juez ha aplicado heurísticas locales de urgencia: Banlist eliminada y forzado a 60 cartas.");
+    setWarning(`⚖️ El Juez ha aplicado heurísticas locales de urgencia: Banlist eliminada y mazo forzado a ${targetSize} cartas.`);
   };
 
   const handleOptimizeDeck = async (auditReport = null) => {
@@ -1714,21 +2066,23 @@ export default function DeckForge() {
         return;
       }
       
-      // 2. Determinar si hay un Yorion para ajustar el total de cartas
-      const hasYorion = spells.some(s => s.name.toLowerCase().includes("yorion, sky nomad")) || 
-                       (lastFormData?.companero && lastFormData.companero.toLowerCase().includes("yorion"));
-      const deckSize = hasYorion ? 80 : 60;
+      // 2. Determinar si hay un Yorion para ajustar el total de cartas o si es Commander
+      const isCommander = selectedFormat === 'COMMANDER';
+      const hasYorion = !isCommander && (spells.some(s => s.name.toLowerCase().includes("yorion, sky nomad")) || 
+                       (lastFormData?.companero && lastFormData.companero.toLowerCase().includes("yorion")));
+      const deckSize = isCommander ? 100 : (hasYorion ? 80 : 60);
       
       // 3. Calcular la cantidad de tierras perfecta
       const targetLandCount = calculatePerfectLandCount(spells, lastFormData, hasYorion);
-      const targetSpellsCount = deckSize - targetLandCount;
       
       // Determinar la cantidad de tierras para cuadrar el mazo exacto de deckSize sin alterar hechizos
       let currentSpellsCount = spells.reduce((acc, c) => acc + (c.quantity || 1), 0);
       let finalLandCount = targetLandCount;
       
       const neededLands = deckSize - currentSpellsCount;
-      if (neededLands >= 12 && neededLands <= 38) {
+      const minLandsForFormat = isCommander ? 25 : 12;
+      const maxLandsForFormat = isCommander ? 50 : 38;
+      if (neededLands >= minLandsForFormat && neededLands <= maxLandsForFormat) {
         finalLandCount = neededLands;
       }
       
@@ -1805,62 +2159,7 @@ export default function DeckForge() {
     <div className="max-w-7xl mx-auto px-4 py-8">
       <AnimatePresence>
         {loading && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-black/95 backdrop-blur-3xl"
-          >
-            <motion.div
-              animate={{ scale: [0.98, 1.02, 0.98] }}
-              transition={{ duration: 3, repeat: Infinity }}
-              className="relative flex flex-col items-center"
-            >
-              <img src="/ASSETS/invocando.webp" alt="Forjando" className="w-80 h-80 object-contain drop-shadow-[0_0_50px_rgba(255,202,88,0.3)]" />
-              <h2 className="text-4xl font-cinzel text-magic-gold tracking-[0.4em] mt-8 animate-pulse">FORJANDO</h2>
-              
-              {/* Temporizador en vivo */}
-              <p className="text-white/40 text-xs font-mono mt-3 tracking-widest">
-                ⏱ {Math.floor(elapsedTime / 60).toString().padStart(2, '0')}:{(elapsedTime % 60).toString().padStart(2, '0')}
-              </p>
-
-              {forgePhase && (
-                <div className="mt-4 flex flex-col items-center gap-3 max-w-md px-4">
-                  <p className="text-magic-gold/80 text-sm tracking-wider animate-pulse font-medium text-center">
-                    {forgePhase.message}
-                  </p>
-                  <div className="flex gap-3 mt-2">
-                    {['strategist', 'assembler', 'judge', 'hydrate'].map((step, i) => {
-                      const phases = ['strategist', 'assembler', 'judge', 'hydrate'];
-                      const currentIdx = phases.indexOf(forgePhase.phase);
-                      const isDone = forgePhase.phase === 'done' || currentIdx > i;
-                      const isActive = forgePhase.phase === step;
-                      return (
-                        <div key={step} className={`w-3 h-3 rounded-full transition-all duration-500 ${
-                          isActive ? 'bg-magic-gold scale-125 shadow-[0_0_12px_rgba(255,202,88,0.6)]' :
-                          isDone ? 'bg-green-500/60' :
-                          'bg-white/20'
-                        }`} />
-                      );
-                    })}
-                  </div>
-                  <div className="flex gap-5 text-[9px] uppercase tracking-[0.12em] text-white/30 font-bold mt-1">
-                    <span className={forgePhase.phase === 'strategist' ? 'text-magic-gold' : ''}>RAG</span>
-                    <span className={forgePhase.phase === 'assembler' ? 'text-magic-gold' : ''}>Gemini</span>
-                    <span className={forgePhase.phase === 'judge' ? 'text-magic-gold' : ''}>Juez</span>
-                    <span className={forgePhase.phase === 'hydrate' ? 'text-magic-gold' : ''}>Imágenes</span>
-                  </div>
-                </div>
-              )}
-
-              {/* Hint de tiempo estimado */}
-              {elapsedTime > 15 && (
-                <p className="text-white/25 text-[10px] mt-4 font-sans">
-                  💡 Gemini Free puede tardar 30-60s por llamada
-                </p>
-              )}
-            </motion.div>
-          </motion.div>
+          <ForgeLoadingScreen forgePhase={forgePhase} />
         )}
       </AnimatePresence>
 
@@ -1902,6 +2201,17 @@ export default function DeckForge() {
               }}
               selectedFormat={selectedFormat}
               onFormatChange={setSelectedFormat}
+              initialSeedCards={initialSeedCards}
+              initialFormData={initialFormData}
+            />
+          </motion.div>
+        ) : mode === 'blueprint' ? (
+          <motion.div key="blueprint" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+            <BlueprintEditor
+              blueprint={currentBlueprint}
+              format={selectedFormat}
+              onAssemble={handleAssembleDeck}
+              onBack={() => setMode('form')}
             />
           </motion.div>
         ) : (
@@ -1937,13 +2247,13 @@ export default function DeckForge() {
                     ) : (
                       <h2 
                         onClick={() => {
-                          setTempDeckName(aiMetadata?.deckName || 'Mazo Forjado');
+                          setTempDeckName(deckName);
                           setIsEditingName(true);
                         }}
                         className="text-3xl sm:text-4xl font-cinzel text-magic-gold tracking-wide leading-tight cursor-pointer hover:opacity-80 flex items-center gap-2 group"
                         title="Haga clic para renombrar"
                       >
-                        {aiMetadata?.deckName || 'Mazo Forjado'}
+                        {deckName}
                         <span className="opacity-0 group-hover:opacity-100 text-xs text-magic-gold/50 transition-opacity">✏️</span>
                       </h2>
                     )}
@@ -1963,12 +2273,15 @@ export default function DeckForge() {
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-3 mt-2">
+                  <span className="px-2.5 py-0.5 rounded bg-magic-gold/10 text-magic-gold border border-magic-gold/25 text-[10px] font-bold uppercase tracking-wider">
+                    {selectedFormat}
+                  </span>
                   <span className="text-magic-gold/60 text-[10px] uppercase tracking-[0.2em] font-bold">
                     {lastFormData?.archetype} • {stats.mainCount} CARTAS
                   </span>
                   {stats.isValid ? (
                     <span className="flex items-center gap-1 text-[10px] bg-green-500/10 text-green-400 px-2 py-0.5 rounded-full border border-green-500/20 uppercase tracking-tighter">
-                      <CheckCircle2 size={12} /> Legal en Modern Casual
+                      <CheckCircle2 size={12} /> Legal en {selectedFormat.charAt(0) + selectedFormat.slice(1).toLowerCase()}
                     </span>
                   ) : (
                     <span className="flex items-center gap-1 text-[10px] bg-red-500/10 text-red-400 px-2 py-0.5 rounded-full border border-red-500/20 uppercase tracking-tighter">
@@ -2104,14 +2417,14 @@ export default function DeckForge() {
                 {stats.isMainValid ? <CheckCircle2 size={20} /> : <AlertTriangle size={20} />}
                 <div>
                   <p className="text-[10px] uppercase font-bold opacity-60">Cartas Main</p>
-                  <p className="text-sm font-bold">{stats.mainCount} / 60 requeridas</p>
+                  <p className="text-sm font-bold">{stats.mainCount} / {stats.targetMain} requeridas</p>
                 </div>
                 {!stats.isMainValid && (
                   <div className="absolute top-full left-0 mt-2 w-72 p-4 bg-[#1a1612] border border-red-500/40 rounded-xl shadow-[0_20px_50px_rgba(0,0,0,0.8)] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-[999] text-[11px] backdrop-blur-2xl pointer-events-none">
                     <p className="text-red-400 font-bold mb-2 flex items-center gap-2">
                       <AlertTriangle size={12} /> Diferencia detectada:
                     </p>
-                    <p className="text-white/80 leading-relaxed">El mazo tiene {stats.mainCount} cartas. Debe tener exactamente 60 para ser legal en Modern Battle Box.</p>
+                    <p className="text-white/80 leading-relaxed">El mazo tiene {stats.mainCount} cartas. Debe tener exactamente {stats.targetMain} para ser legal en {selectedFormat.charAt(0) + selectedFormat.slice(1).toLowerCase()}.</p>
                   </div>
                 )}
               </div>
@@ -2140,12 +2453,12 @@ export default function DeckForge() {
                 {stats.overLimit.length === 0 ? <CheckCircle2 size={20} /> : <Info size={20} />}
                 <div>
                   <p className="text-[10px] uppercase font-bold opacity-60">Límite de Copias</p>
-                  <p className="text-sm font-bold">{stats.overLimit.length === 0 ? 'Correcto (máx 4)' : 'Exceso detectado'}</p>
+                  <p className="text-sm font-bold">{stats.overLimit.length === 0 ? `Correcto (máx ${stats.maxCopiesAllowed})` : 'Exceso detectado'}</p>
                 </div>
                 {stats.overLimit.length > 0 && (
                   <div className="absolute top-full left-0 mt-2 w-72 p-4 bg-[#1a1612] border border-red-500/40 rounded-xl shadow-[0_20px_50px_rgba(0,0,0,0.8)] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-[999] text-[11px] backdrop-blur-2xl pointer-events-none">
                     <p className="text-red-400 font-bold mb-2 flex items-center gap-2">
-                      <Info size={12} /> Exceso de copias (&gt;4):
+                      <Info size={12} /> Exceso de copias (&gt;{stats.maxCopiesAllowed}):
                     </p>
                     <ul className="list-disc pl-5 text-white/80 space-y-1">
                       {stats.overLimit.map(c => <li key={c.name}>{c.name} ({c.quantity} copias)</li>)}
@@ -2254,45 +2567,47 @@ export default function DeckForge() {
                 <TurnoDeOroSim deck={renderDeck} />
                 
                 {/* Sideboard Section */}
-                <div className="mt-12 pt-8 border-t border-white/10">
-                  <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
-                    <div className="flex items-center gap-4">
-                      <h3 className="font-cinzel text-xl text-magic-gold flex items-center gap-3">
-                        <Shield className="text-[#D4AF37]" /> Banquillo (Sideboard)
-                      </h3>
-                      <span className={cn(
-                        "px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider",
-                        stats.isSideValid ? "bg-green-500/20 text-green-400 border border-green-500/30" : "bg-red-500/20 text-red-400 border border-red-500/30"
-                      )}>
-                        {stats.sideCount} / 15 cartas
-                      </span>
+                {selectedFormat !== 'COMMANDER' && (
+                  <div className="mt-12 pt-8 border-t border-white/10">
+                    <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
+                      <div className="flex items-center gap-4">
+                        <h3 className="font-cinzel text-xl text-magic-gold flex items-center gap-3">
+                          <Shield className="text-[#D4AF37]" /> Banquillo (Sideboard)
+                        </h3>
+                        <span className={cn(
+                          "px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider",
+                          stats.isSideValid ? "bg-green-500/20 text-green-400 border border-green-500/30" : "bg-red-500/20 text-red-400 border border-red-500/30"
+                        )}>
+                          {stats.sideCount} / {stats.targetSide} cartas
+                        </span>
+                      </div>
+
+                      <button
+                        onClick={handleAutoGenerateSideboard}
+                        className="px-4 py-2 bg-[#D4AF37]/15 hover:bg-[#D4AF37]/25 border border-[#D4AF37]/40 hover:border-[#D4AF37] text-magic-gold hover:text-white rounded-xl text-xs font-cinzel flex items-center gap-2 transition-all active:scale-95 shadow-md"
+                      >
+                        <Sparkles size={13} className="text-[#D4AF37] animate-pulse" /> 🔮 Sideboard Architect
+                      </button>
                     </div>
 
-                    <button
-                      onClick={handleAutoGenerateSideboard}
-                      className="px-4 py-2 bg-[#D4AF37]/15 hover:bg-[#D4AF37]/25 border border-[#D4AF37]/40 hover:border-[#D4AF37] text-magic-gold hover:text-white rounded-xl text-xs font-cinzel flex items-center gap-2 transition-all active:scale-95 shadow-md"
-                    >
-                      <Sparkles size={13} className="text-[#D4AF37] animate-pulse" /> 🔮 Sideboard Architect
-                    </button>
+                    <VisualGrid 
+                      cards={renderSideboard} 
+                      isEditing={isEditing} 
+                      onRemoveCard={(name) => {
+                        setRenderSideboard(prev => {
+                          const card = prev.find(c => c.name === name);
+                          if (card && card.quantity > 1) return prev.map(c => c.name === name ? { ...c, quantity: c.quantity - 1 } : c);
+                          return prev.filter(c => c.name !== name);
+                        });
+                      }} 
+                      onAddCard={(name) => handleAddCard({ name }, 1, 'side')} 
+                    />
                   </div>
-
-
-                  <VisualGrid 
-                    cards={renderSideboard} 
-                    isEditing={isEditing} 
-                    onRemoveCard={(name) => {
-                      setRenderSideboard(prev => {
-                        const card = prev.find(c => c.name === name);
-                        if (card && card.quantity > 1) return prev.map(c => c.name === name ? { ...c, quantity: c.quantity - 1 } : c);
-                        return prev.filter(c => c.name !== name);
-                      });
-                    }} 
-                    onAddCard={(name) => handleAddCard({ name }, 1, 'side')} 
-                  />
-                </div>
+                )}
 
                 {/* Guía Táctica Interactiva de Banquillo */}
-                <div className="mt-12 pt-8 border-t border-white/10">
+                {selectedFormat !== 'COMMANDER' && (
+                  <div className="mt-12 pt-8 border-t border-white/10">
                   <h3 className="font-cinzel text-xl text-[#D4AF37] flex items-center gap-3 mb-2">
                     <Zap className="text-[#D4AF37] animate-pulse" /> Guía Táctica de Banquillo
                   </h3>
@@ -2541,9 +2856,10 @@ export default function DeckForge() {
                     );
                   })()}
                 </div>
-              </div>
+              )}
+            </div>
 
-              {/* Desktop Sidebar Wrapper */}
+            {/* Desktop Sidebar Wrapper */}
               <div className="hidden lg:block lg:col-span-1 space-y-6 font-sans">
                 {renderSidebarContent()}
               </div>
@@ -2551,7 +2867,7 @@ export default function DeckForge() {
 
             <HandSimulator deck={renderDeck} isOpen={showHandSim} onClose={() => setShowHandSim(false)} aiConfig={aiConfig} />
             <SynergyGraphVisualizer deck={renderDeck} isOpen={showRagGraph} onClose={() => setShowRagGraph(false)} archetype={aiMetadata?.archetype || lastFormData?.archetype} colors={lastFormData?.colores} />
-            <DeckVisualExporter deck={renderDeck} sideboard={renderSideboard} isOpen={showVisualGrid} onClose={() => setShowVisualGrid(false)} deckName={aiMetadata?.deckName || 'Mazo Forjado'} archetype={aiMetadata?.archetype || lastFormData?.archetype} colors={lastFormData?.colores} formData={lastFormData} onOptimize={handleOptimizeDeck} />
+            <DeckVisualExporter deck={renderDeck} sideboard={renderSideboard} isOpen={showVisualGrid} onClose={() => setShowVisualGrid(false)} deckName={deckName} archetype={aiMetadata?.archetype || lastFormData?.archetype} colors={lastFormData?.colores} formData={lastFormData} onOptimize={handleOptimizeDeck} />
 
             {/* Mobile Metrics FAB and BottomSheet */}
             {isMobile && mode === 'deck' && (

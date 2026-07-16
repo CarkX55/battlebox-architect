@@ -1,12 +1,48 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../../utils/cn';
 import { BATTLEBOX_VETOS, BANLIST_SUBSTITUTIONS, COLORS } from '../../constants/legacyBattleBox';
-import { Search, Filter, ShieldAlert, Swords, Zap, Scroll, Book, Box, Gem, Map, X, Plus, Check, RefreshCw, AlertTriangle, HelpCircle } from 'lucide-react';
+import { Search, Filter, ShieldAlert, Swords, Zap, Scroll, Book, Box, Gem, Map, X, Plus, Check, RefreshCw, AlertTriangle, HelpCircle, LayoutGrid } from 'lucide-react';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { vibrateTouch } from '../../utils/haptic';
 import BottomSheet from '../atoms/BottomSheet';
 import MobileCardPreview from '../atoms/MobileCardPreview';
+import MagicCard from '../atoms/MagicCard';
+import { searchCards } from '../../services/dbIngestor';
+
+// Colección de códigos de set correspondientes a Universes Beyond (Crossovers comerciales)
+// y Un-sets (Ediciones humorísticas / bromas) que no representan el "Magic original".
+const NON_ORIGINAL_SETS = new Set([
+  // Lord of the Rings
+  'ltr', 'ltc', 'altr', 'altc', 'tltr', 'tltc', 'mltr',
+  // Doctor Who
+  'who', 'twho',
+  // Fallout
+  'pip', 'tpip',
+  // Warhammer 40k
+  '40k', 't40k',
+  // Assassin's Creed
+  'acr', 'tacr', 'macr', 'aacr',
+  // Transformers
+  'bot', 'tbot', 'tfb',
+  // Jurassic World
+  'rex', 'trex',
+  // Final Fantasy
+  'fin', 'tfin', 'ffdn', 'fic', 'tfic', 'afin', 'afic',
+  // Avatar
+  'tla', 'tle', 'atla', 'atle', 'jtla', 'ftla', 'ttla', 'ttle',
+  // Spider-Man & Marvel
+  'spm', 'spe', 'aspm', 'pspl', 'msc', 'msh', 'tspm',
+  // Teenage Mutant Ninja Turtles
+  'tmt', 'tmc', 'ttmc', 'atmt', 'ttmt', 'ftmc',
+  // Un-sets (Humorísticos)
+  'unh', 'ung', 'ust', 'und', 'unf', 'uast', 'tunf', 'tund',
+  // D&D (crossovers comerciales)
+  'clb', 'hbg', 'afr', 'afc',
+  // Clue crossover
+  'clu'
+]);
 
 export default function CardSearch({ onAddCard, formData = {} }) {
   const [query, setQuery] = useState('');
@@ -18,16 +54,106 @@ export default function CardSearch({ onAddCard, formData = {} }) {
   
   const isMobile = useIsMobile();
   const [selectedMobileCard, setSelectedMobileCard] = useState(null);
+  const [showVisualGallery, setShowVisualGallery] = useState(false);
+  const [onlyOriginalMagic, setOnlyOriginalMagic] = useState(false);
+  const [selectedFormat, setSelectedFormat] = useState(() => (formData?.format || 'MODERN').toUpperCase());
   
   // Filtros Avanzados
-  const activeFormat = (formData?.format || 'MODERN').toUpperCase();
-  const isCustomFormat = activeFormat === 'CUSTOM';
-  const [isFormatOnly, setIsFormatOnly] = useState(() => !isCustomFormat);
+  const [isFormatOnly, setIsFormatOnly] = useState(() => (formData?.format || 'MODERN').toUpperCase() !== 'CUSTOM');
   const [selectedType, setSelectedType] = useState(''); // creature, instant, sorcery, etc.
   const [selectedColors, setSelectedColors] = useState(() => formData?.colores || []); // W, U, B, R, G, C
 
+  const strategyChips = useMemo(() => {
+    const strat = (formData?.strategy || '').toLowerCase();
+    if (!strat) return [];
+    
+    const map = {
+      aristocrats: [
+        { id: 'sacrifice', label: 'Sacrificar' },
+        { id: 'dies', label: 'Muere' },
+        { id: 'graveyard', label: 'Cementerio' },
+        { id: 'drain', label: 'Drenar' }
+      ],
+      reanimator: [
+        { id: 'reanimate', label: 'Reanimar' },
+        { id: 'graveyard', label: 'Cementerio' },
+        { id: 'discard', label: 'Descartar' }
+      ],
+      cascade: [
+        { id: 'cascade', label: 'Cascada' }
+      ],
+      tron: [
+        { id: 'urza', label: 'Urza' },
+        { id: 'colorless', label: 'Incoloro' }
+      ],
+      storm: [
+        { id: 'storm', label: 'Tormenta' },
+        { id: 'copy', label: 'Copiar Hechizo' }
+      ],
+      voltron: [
+        { id: 'equip', label: 'Equipar' },
+        { id: 'aura', label: 'Aura' },
+        { id: 'enchant', label: 'Encantar' }
+      ],
+      enchantress: [
+        { id: 'enchantment', label: 'Encantamiento' },
+        { id: 'aura', label: 'Aura' }
+      ],
+      lifegain: [
+        { id: 'gain life', label: 'Ganar Vidas' },
+        { id: 'lifelink', label: 'Vínculo Vital' }
+      ],
+      spellslinger: [
+        { id: 'prowess', label: 'Destreza' },
+        { id: 'instant', label: 'Instantáneo' },
+        { id: 'sorcery', label: 'Conjuro' }
+      ],
+      blink: [
+        { id: 'exile', label: 'Exiliar' },
+        { id: 'return to hand', label: 'Regresar' },
+        { id: 'enters the battlefield', label: 'Entrar al Campo' }
+      ],
+      tokens: [
+        { id: 'token', label: 'Ficha (Token)' },
+        { id: 'create', label: 'Crear' }
+      ],
+      landfall: [
+        { id: 'landfall', label: 'Aterrizaje' },
+        { id: 'search your library for a land', label: 'Buscar Tierra' }
+      ],
+      graveyard: [
+        { id: 'delirium', label: 'Delirio' },
+        { id: 'graveyard', label: 'Cementerio' },
+        { id: 'dredge', label: 'Dragar' }
+      ],
+      vehicles: [
+        { id: 'crew', label: 'Tripular' },
+        { id: 'vehicle', label: 'Vehículo' }
+      ],
+      toolbox: [
+        { id: 'search your library', label: 'Tutor/Buscar' }
+      ],
+      affinity: [
+        { id: 'affinity', label: 'Afinidad' },
+        { id: 'artifact', label: 'Artefacto' }
+      ],
+      ninjutsu: [
+        { id: 'ninjutsu', label: 'Ninjutsu' },
+        { id: 'unblocked', label: 'Imbloqueable' }
+      ],
+      discard_rack: [
+        { id: 'discard', label: 'Descarte' },
+        { id: 'opponent discards', label: 'Oponente Descarte' }
+      ]
+    };
+    
+    const matchedKey = Object.keys(map).find(k => strat.includes(k));
+    return matchedKey ? map[matchedKey] : [];
+  }, [formData?.strategy]);
+
   useEffect(() => {
     if (formData?.format) {
+      setSelectedFormat(formData.format.toUpperCase());
       setIsFormatOnly(formData.format.toUpperCase() !== 'CUSTOM');
     }
     if (formData?.colores) {
@@ -39,6 +165,7 @@ export default function CardSearch({ onAddCard, formData = {} }) {
   const [selectedRarity, setSelectedRarity] = useState(''); // common, uncommon, rare, mythic
   const [selectedManaValue, setSelectedManaValue] = useState(''); // '', 0-6, 7+
   const [oracleQuery, setOracleQuery] = useState(''); // rules text
+  const [showGalleryHelp, setShowGalleryHelp] = useState(false);
 
   const toggleFilters = () => {
     setShowFilters(!showFilters);
@@ -85,7 +212,9 @@ export default function CardSearch({ onAddCard, formData = {} }) {
 
   useEffect(() => {
     // Si no hay texto de búsqueda largo y tampoco hay ningún filtro activo, limpiamos resultados.
+    // EXCEPCIÓN: Si la galería visual está abierta, queremos mostrar resultados por defecto en vez de la pantalla vacía.
     if (
+      !showVisualGallery &&
       query.length < 3 && 
       !selectedType && 
       selectedColors.length === 0 && 
@@ -102,23 +231,20 @@ export default function CardSearch({ onAddCard, formData = {} }) {
       try {
         const queryParts = [];
 
-        // Soporte de nombres en cualquier idioma (incluyendo español)
         if (query) {
-          queryParts.push(`lang:any ${query}`);
+          queryParts.push(query);
         }
         
         if (isFormatOnly) {
-          if (isCustomFormat) {
-            queryParts.push('f:modern');
-          } else {
-            queryParts.push(`f:${activeFormat.toLowerCase()}`);
+          if (selectedFormat !== 'CUSTOM') {
+            queryParts.push(`f:${selectedFormat.toLowerCase()}`);
           }
         }
         if (selectedType) queryParts.push(`t:${selectedType}`);
         
         if (selectedColors.length > 0) {
           const colorsQuery = selectedColors.join('').toLowerCase();
-          queryParts.push(`c:${colorsQuery}`);
+          queryParts.push(`c<=${colorsQuery}`);
         }
 
         if (selectedRarity) {
@@ -136,19 +262,20 @@ export default function CardSearch({ onAddCard, formData = {} }) {
         if (oracleQuery) {
           queryParts.push(`o:"${oracleQuery}"`);
         }
-        
-        // Excluir universos más allá por defecto para mantener estética MTG pura
-        queryParts.push('-is:universesbeyond');
 
         const scryfallQuery = queryParts.join(' ');
 
-        const res = await fetch(`https://api.scryfall.com/cards/search?q=${encodeURIComponent(scryfallQuery)}`);
-        const data = await res.json();
-        if (data.data) {
-          setResults(data.data.slice(0, 50)); // Limitamos a 50 para rendimiento
-        } else {
-          setResults([]);
+        const hits = await searchCards(scryfallQuery, 50, selectedFormat);
+        
+        let filteredHits = hits;
+        if (onlyOriginalMagic) {
+          filteredHits = hits.filter(card => {
+            const setCode = (card.set || '').toLowerCase();
+            const isNonOriginal = NON_ORIGINAL_SETS.has(setCode) || card.security_stamp === 'triangle';
+            return !isNonOriginal;
+          });
         }
+        setResults(filteredHits);
       } catch (err) {
         console.error('Search error:', err);
         setResults([]);
@@ -158,7 +285,7 @@ export default function CardSearch({ onAddCard, formData = {} }) {
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [query, isFormatOnly, activeFormat, selectedType, selectedColors, selectedRarity, selectedManaValue, oracleQuery]);
+  }, [query, isFormatOnly, selectedFormat, selectedType, selectedColors, selectedRarity, selectedManaValue, oracleQuery, showVisualGallery, onlyOriginalMagic]);
 
   const isVetoed = (cardName) => BATTLEBOX_VETOS.includes(cardName);
   
@@ -415,6 +542,28 @@ export default function CardSearch({ onAddCard, formData = {} }) {
             </button>
           </div>
           <div className="flex flex-wrap gap-1.5 mt-1">
+            {/* Chips de Estrategia Contextual */}
+            {strategyChips.map(kw => (
+              <button
+                key={`strat-${kw.id}`}
+                type="button"
+                onClick={() => {
+                  vibrateTouch();
+                  setOracleQuery(oracleQuery === kw.id ? '' : kw.id);
+                }}
+                className={cn(
+                  "px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-widest border transition-all",
+                  oracleQuery === kw.id
+                    ? "bg-emerald-500/20 border-emerald-500 text-emerald-300 shadow-[0_0_8px_rgba(16,185,129,0.3)]"
+                    : "bg-[#ffca58]/10 text-[#ffca58] border-[#ffca58]/20 hover:border-[#ffca58]/55"
+                )}
+                title={`Sugerido para táctica: ${formData.strategy}`}
+              >
+                ★ {kw.label}
+              </button>
+            ))}
+
+            {/* Chips Genéricos */}
             {[
               { id: 'flying', label: 'Volar' },
               { id: 'haste', label: 'Prisa' },
@@ -467,28 +616,109 @@ export default function CardSearch({ onAddCard, formData = {} }) {
             ))}
           </div>
           
-          <label className="flex items-center gap-2 cursor-pointer group">
+          <div className="flex flex-wrap gap-4 items-center">
+            {/* Selector de Formato (Desplegable) */}
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-bold text-magic-gold/60 uppercase tracking-widest transition-colors select-none">
+                Filtrar por Formato:
+              </span>
+              <select
+                value={isFormatOnly ? selectedFormat : 'CUSTOM'}
+                onChange={(e) => {
+                  vibrateTouch();
+                  const val = e.target.value.toUpperCase();
+                  if (val === 'CUSTOM') {
+                    setIsFormatOnly(false);
+                    setSelectedFormat('CUSTOM');
+                  } else {
+                    setIsFormatOnly(true);
+                    setSelectedFormat(val);
+                  }
+                }}
+                className="bg-black/80 border border-magic-gold/35 rounded-xl px-3 py-1.5 text-[10px] font-bold text-[#ffca58] focus:outline-none focus:border-magic-gold/60 cursor-pointer uppercase tracking-wider transition-all"
+              >
+                <option value="MODERN">Modern</option>
+                <option value="STANDARD">Standard</option>
+                <option value="PIONEER">Pioneer</option>
+                <option value="LEGACY">Legacy</option>
+                <option value="COMMANDER">Commander</option>
+                <option value="PAUPER">Pauper</option>
+                <option value="VINTAGE">Vintage</option>
+                <option value="CUSTOM">Cualquiera (Sin Filtro)</option>
+              </select>
+            </div>
+
+            {/* Switch de Magic Tradicional */}
             <div 
               onClick={() => {
                 vibrateTouch();
-                setIsFormatOnly(!isFormatOnly);
+                setOnlyOriginalMagic(!onlyOriginalMagic);
               }}
-              className={cn(
-                "w-10 h-5 rounded-full relative transition-all duration-300",
-                isFormatOnly ? "bg-green-500/40 border-green-500/50" : "bg-gray-800 border-gray-700"
-              )}
+              className="flex items-center gap-2 cursor-pointer group select-none"
             >
-              <div className={cn(
-                "absolute top-1 w-3 h-3 rounded-full transition-all duration-300",
-                isFormatOnly ? "left-6 bg-green-400" : "left-1 bg-gray-500"
-              )} />
+              <div 
+                className={cn(
+                  "w-10 h-5 rounded-full relative transition-all duration-300 flex-shrink-0",
+                  onlyOriginalMagic ? "bg-amber-500/40 border-amber-500/50" : "bg-gray-800 border-gray-700"
+                )}
+              >
+                <div className={cn(
+                  "absolute top-1 w-3 h-3 rounded-full transition-all duration-300",
+                  onlyOriginalMagic ? "left-6 bg-amber-400" : "left-1 bg-gray-500"
+                )} />
+              </div>
+              <span className="text-[10px] font-bold text-magic-gold/60 uppercase tracking-widest group-hover:text-magic-gold transition-colors">
+                Solo Magic Original
+              </span>
             </div>
-            <span className="text-[10px] font-bold text-magic-gold/60 uppercase tracking-widest group-hover:text-magic-gold transition-colors">
-              {isCustomFormat 
-                ? (isFormatOnly ? "Forzar Modern" : "Sin Filtro de Formato")
-                : `Solo ${activeFormat.charAt(0) + activeFormat.slice(1).toLowerCase()}`}
-            </span>
-          </label>
+          </div>
+        </div>
+
+        {/* Leyenda de Comandos de Búsqueda Scryfall */}
+        <div className="mt-2 border border-magic-gold/25 rounded-xl bg-black/60 overflow-hidden">
+          <button
+            type="button"
+            onClick={() => {
+              vibrateTouch();
+              setShowGalleryHelp(!showGalleryHelp);
+            }}
+            className="w-full px-4 py-2.5 text-[10px] font-bold text-magic-gold uppercase tracking-widest flex items-center justify-between hover:bg-white/5 transition-colors select-none focus:outline-none"
+          >
+            <span className="flex items-center gap-1.5">💡 Guía rápida de comandos (Scryfall)</span>
+            <span className={cn("text-magic-gold text-[8px] transition-transform duration-300", showGalleryHelp && "rotate-180")}>▼</span>
+          </button>
+          {showGalleryHelp && (
+            <div className="p-4 text-[10.5px] text-white/70 space-y-2.5 border-t border-white/5 font-sans leading-relaxed">
+              <p>Puedes escribir comandos avanzados directamente en la barra de búsqueda principal para filtrar como un profesional:</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2 font-mono text-[9.5px]">
+                <div className="bg-black/80 p-2 rounded border border-white/5">
+                  <span className="text-magic-gold">t:demon</span>
+                  <span className="text-white/40 block mt-0.5">// Busca cartas de tipo Demonio</span>
+                </div>
+                <div className="bg-black/80 p-2 rounded border border-white/5">
+                  <span className="text-magic-gold">t:creature t:elf</span>
+                  <span className="text-white/40 block mt-0.5">// Criaturas del tipo Elfo</span>
+                </div>
+                <div className="bg-black/80 p-2 rounded border border-white/5">
+                  <span className="text-magic-gold">o:flying o:draw</span>
+                  <span className="text-white/40 block mt-0.5">// Volar y robar en el texto de reglas</span>
+                </div>
+                <div className="bg-black/80 p-2 rounded border border-white/5">
+                  <span className="text-magic-gold">{"pow>=5 tou>=5"}</span>
+                  <span className="text-white/40 block mt-0.5">{"// Fuerza y Resistencia >= 5"}</span>
+                </div>
+                <div className="bg-black/80 p-2 rounded border border-white/5">
+                  <span className="text-magic-gold">oracle_tags:removal</span>
+                  <span className="text-white/40 block mt-0.5">// Filtra por etiqueta (ej: removal, ramp)</span>
+                </div>
+                <div className="bg-black/80 p-2 rounded border border-white/5">
+                  <span className="text-magic-gold">banned:modern</span>
+                  <span className="text-white/40 block mt-0.5">// Cartas prohibidas en Modern</span>
+                </div>
+              </div>
+              <p className="text-[9px] text-white/40 mt-1 italic">Nota: Si escribes palabras sueltas sin comandos, se buscarán dentro del nombre de la carta.</p>
+            </div>
+          )}
         </div>
       </>
     );
@@ -516,6 +746,16 @@ export default function CardSearch({ onAddCard, formData = {} }) {
               <Zap size={16} />
             </div>
           )}
+          <button
+            onClick={() => {
+              vibrateTouch();
+              setShowVisualGallery(true);
+            }}
+            className="p-2 rounded-lg transition-all text-magic-gold/40 hover:text-magic-gold hover:bg-white/5"
+            title="Buscador Visual por Galería"
+          >
+            <LayoutGrid size={18} />
+          </button>
           <button
             onClick={toggleHelp}
             className={cn(
@@ -884,6 +1124,101 @@ export default function CardSearch({ onAddCard, formData = {} }) {
         )}
       </AnimatePresence>
       {/* Mobile Card Preview Modal */}
+      {/* Modal de Galería Visual en Portal para evitar problemas de Stacking Context */}
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {showVisualGallery && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[9999] bg-black/90 backdrop-blur-md flex flex-col p-4 md:p-8"
+            >
+              <div className="w-full max-w-7xl mx-auto flex flex-col h-full bg-[#0a0a0c]/90 border border-magic-gold/30 rounded-3xl shadow-[0_25px_60px_rgba(0,0,0,0.95)] overflow-hidden">
+                {/* Cabecera del Modal */}
+                <div className="flex items-center justify-between px-6 py-4 border-b border-magic-gold/20 flex-shrink-0">
+                  <div className="flex items-center gap-3">
+                    <LayoutGrid className="text-magic-gold" size={24} />
+                    <div>
+                      <h2 className="font-cinzel text-xl font-bold text-white leading-none">Buscador Visual del Grimorio</h2>
+                      <p className="text-[10px] text-magic-gold/60 uppercase tracking-widest mt-1">Explora cartas localmente por galería</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setShowVisualGallery(false)}
+                    className="p-2 rounded-lg text-white/50 hover:text-white hover:bg-white/5 transition-all"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+
+                {/* Filtros Integrados */}
+                <div className="p-6 bg-black/40 border-b border-white/5 flex flex-col gap-4 overflow-y-auto max-h-[40%] flex-shrink-0 scrollbar-thin scrollbar-thumb-magic-gold/10">
+                  {renderFiltersContent()}
+                </div>
+
+                {/* Zona de Resultados en Cuadrícula (Grid) */}
+                <div className="flex-1 overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-magic-gold/20">
+                  {loading ? (
+                    <div className="w-full h-full flex flex-col items-center justify-center gap-3">
+                      <div className="animate-spin text-magic-gold">
+                        <Zap size={36} />
+                      </div>
+                      <span className="text-magic-gold/60 text-xs font-mono uppercase tracking-widest">Buscando cartas en el Grimorio...</span>
+                    </div>
+                  ) : results.length === 0 ? (
+                    <div className="w-full h-full flex flex-col items-center justify-center text-center p-8">
+                      <span className="text-magic-gold/30 text-4xl mb-2">🎴</span>
+                      <h3 className="text-white/80 font-bold mb-1 text-sm">Sin Resultados</h3>
+                      <p className="text-white/40 text-xs max-w-sm">No se encontraron cartas que coincidan con los filtros en tu base de datos local.</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6 justify-items-center">
+                      {results.map(card => {
+                        const banned = isVetoed(card.name);
+                        return (
+                          <div key={card.id} className="relative group/grid-card">
+                            <MagicCard
+                              card={card}
+                              isInteractive={true}
+                              showQuantity={false}
+                            />
+                            
+                            {/* Botón flotante para añadir */}
+                            {!banned && (
+                              <button
+                                onClick={(e) => handleAddFast(e, card)}
+                                className={cn(
+                                  "absolute top-3 right-3 z-50 p-2.5 rounded-full border shadow-2xl transition-all duration-300 backdrop-blur-md",
+                                  addedAnimation === card.id
+                                    ? "bg-green-500 text-white border-green-400 scale-110"
+                                    : "bg-black/80 border-magic-gold/30 text-magic-gold hover:bg-magic-gold hover:text-black hover:border-magic-gold hover:scale-110"
+                                )}
+                                title="Añadir al mazo"
+                              >
+                                {addedAnimation === card.id ? <Check size={16} /> : <Plus size={16} />}
+                              </button>
+                            )}
+                            
+                            {/* Veto Overlay */}
+                            {banned && (
+                              <div className="absolute inset-0 bg-red-950/40 rounded-xl pointer-events-none flex items-center justify-center border-2 border-red-500/50">
+                                <span className="bg-red-500 text-white font-bold text-[10px] px-2 py-0.5 rounded shadow-lg uppercase tracking-wide">Vetada</span>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
+
       {isMobile && selectedMobileCard && (
         <MobileCardPreview
           card={selectedMobileCard}

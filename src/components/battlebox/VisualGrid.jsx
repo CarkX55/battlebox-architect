@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import MagicCard from '../atoms/MagicCard';
 import { cn } from '../../utils/cn';
-import { Layers, Swords, Zap, Gem, Mountain, Coins, Scroll, Sparkles, User, Flame, Activity, XCircle, AlertTriangle, CheckCircle2, Check } from 'lucide-react';
+import { Layers, Swords, Zap, Gem, Mountain, Coins, Scroll, Sparkles, User, Flame, Activity, XCircle, AlertTriangle, CheckCircle2, Check, ShieldAlert } from 'lucide-react';
 import { checkCardManaRequirement } from '../../services/deckCalculator';
 import { useIsTouchDevice } from '../../hooks/useIsMobile';
 import MobileCardPreview from '../atoms/MobileCardPreview';
@@ -39,7 +39,8 @@ const ScryfallHoverCard = ({ cardName, children }) => {
           if (!active) return;
           let cardData = data;
           if (data && data.data && data.data.length > 0) {
-            cardData = data.data[0];
+            const exactMatch = data.data.find(c => c.name.toLowerCase() === cleanName.toLowerCase());
+            cardData = exactMatch || data.data[0];
           }
           
           if (cardData && cardData.image_uris && cardData.image_uris.normal) {
@@ -428,6 +429,52 @@ export default function VisualGrid({ cards, onRemoveCard, onAddCard, isEditing, 
                   <RichTextWithHover text={`"${auditResult.verdict}"`} deckCards={safeCards} />
                 </div>
 
+                {/* Panel de Pilares Funcionales */}
+                {auditResult._pillarAnalysis && (() => {
+                  const { pillars, pillarStatus } = auditResult._pillarAnalysis;
+                  const pillarConfig = [
+                    { key: 'ramp',       label: 'Ramp',        icon: '⚡', color: { ok: 'text-amber-400', low: 'text-amber-300', critical: 'text-red-400' }, bar: 'bg-amber-500' },
+                    { key: 'draw',       label: 'Draw',        icon: '📖', color: { ok: 'text-blue-400',  low: 'text-blue-300',  critical: 'text-red-400' }, bar: 'bg-blue-500' },
+                    { key: 'removal',    label: 'Remoción',    icon: '🗡️', color: { ok: 'text-red-400',  low: 'text-orange-300', critical: 'text-red-400' }, bar: 'bg-red-500' },
+                    { key: 'threats',    label: 'Amenazas',    icon: '⚔️', color: { ok: 'text-emerald-400', low: 'text-emerald-300', critical: 'text-red-400' }, bar: 'bg-emerald-500' },
+                    { key: 'protection', label: 'Protección',  icon: '🛡️', color: { ok: 'text-cyan-400', low: 'text-cyan-300', critical: 'text-red-400' }, bar: 'bg-cyan-500' },
+                  ];
+                  return (
+                    <div className="bg-black/50 border border-purple-500/20 rounded-2xl p-4">
+                      <h4 className="text-[10px] uppercase font-bold tracking-widest text-purple-400 mb-3 flex items-center gap-2">
+                        <Activity size={12} /> Análisis de Pilares Funcionales
+                      </h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-5 gap-2">
+                        {pillarConfig.map(({ key, label, icon, color, bar }) => {
+                          const status = pillarStatus[key] || 'ok';
+                          const p = pillars[key];
+                          const pct = Math.min(100, Math.round((p.count / Math.max(p.threshold, 1)) * 100));
+                          return (
+                            <div key={key} className="flex flex-col gap-1.5 bg-black/40 p-2.5 rounded-xl border border-white/5">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">{icon} {label}</span>
+                                <span className={`text-[10px] font-black ${color[status]}`}>
+                                  {status === 'ok' ? '✓' : status === 'low' ? '⚠' : '🚨'}
+                                </span>
+                              </div>
+                              <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full transition-all ${status === 'critical' ? 'bg-red-500' : status === 'low' ? 'bg-amber-500' : bar}`}
+                                  style={{ width: `${pct}%` }}
+                                />
+                              </div>
+                              <div className="flex justify-between items-center">
+                                <span className="text-[9px] text-gray-500">{p.count} copias</span>
+                                <span className="text-[9px] text-gray-600">/ {p.threshold} rec.</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* Alertas Críticas */}
                   {auditResult.criticalAlerts && auditResult.criticalAlerts.length > 0 && (
@@ -489,13 +536,34 @@ export default function VisualGrid({ cards, onRemoveCard, onAddCard, isEditing, 
                           className="flex gap-3 text-sm items-start group"
                         >
                           <div 
-                            className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors cursor-pointer ${selectedSuggestions.has(i) ? 'bg-emerald-500 border-emerald-500' : 'border-emerald-500/50 bg-transparent'}`}
-                            onClick={() => toggleSuggestion(i)}
+                            className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${
+                              sug._invalid
+                                ? 'border-red-500/50 bg-red-900/20 cursor-not-allowed opacity-50'
+                                : `cursor-pointer ${selectedSuggestions.has(i) ? 'bg-emerald-500 border-emerald-500' : 'border-emerald-500/50 bg-transparent'}`
+                            }`}
+                            onClick={() => !sug._invalid && toggleSuggestion(i)}
                           >
-                             {selectedSuggestions.has(i) && <Check size={12} className="text-black stroke-[3]" />}
+                             {!sug._invalid && selectedSuggestions.has(i) && <Check size={12} className="text-black stroke-[3]" />}
+                             {sug._invalid && <XCircle size={10} className="text-red-400" />}
                           </div>
                           <div className="flex-1">
-                            <span className={`transition-colors block leading-relaxed ${selectedSuggestions.has(i) ? 'text-emerald-200/90' : 'text-emerald-200/50 line-through'}`}>
+                            {/* Badge de validación fallida */}
+                            {sug._invalid && (
+                              <div className="mb-1.5 flex flex-col gap-1">
+                                <div className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wider text-red-400">
+                                  <ShieldAlert size={10} />
+                                  <span>Sugerencia no aplicable — validación fallida</span>
+                                </div>
+                                {sug._invalidReasons?.map((r, ri) => (
+                                  <p key={ri} className="text-[9px] text-red-300/70 pl-3 leading-tight">{r}</p>
+                                ))}
+                              </div>
+                            )}
+                            <span className={`transition-colors block leading-relaxed ${
+                              sug._invalid
+                                ? 'text-red-200/40 line-through'
+                                : selectedSuggestions.has(i) ? 'text-emerald-200/90' : 'text-emerald-200/50 line-through'
+                            }`}>
                               <RichTextWithHover text={sug.text || sug} deckCards={safeCards} />
                             </span>
                             

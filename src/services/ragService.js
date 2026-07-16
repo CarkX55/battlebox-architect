@@ -4,6 +4,7 @@ import { MTG_TRIBES, MTG_STRATEGIES, PARASITIC_RULES, inferStrategyFromArchetype
 import { getAllCards } from './dbIngestor.js';
 import { loadMetaFromDB } from './mtgtop8Service.js';
 import { getSignalBoosts } from './synergyActivationEngine.js';
+import { matchesScryfallQuery } from '../utils/scryfallParser.js';
 
 let cachedObsidianGraph = null;
 
@@ -198,55 +199,7 @@ const FORMAT_STAPLES = {
  */
 // Helper para matchear queries de Scryfall semánticas (Fase 3)
 function matchesSearchQuery(card, query) {
-  if (!query) return false;
-  const terms = query.toLowerCase().split(/\s+/);
-  const typeLine = (card.type_line || '').toLowerCase();
-  const oracleText = (card.oracle_text || '').toLowerCase();
-  const cardName = (card.name || '').toLowerCase();
-  
-  for (const term of terms) {
-    if (!term) continue;
-    if (term.startsWith('t:')) {
-      const type = term.slice(2).trim();
-      if (!typeLine.includes(type)) return false;
-    } else if (term.startsWith('o:')) {
-      const text = term.slice(2).replace(/['"]/g, '').trim();
-      if (!oracleText.includes(text)) return false;
-    } else if (term.startsWith('function:') || term.startsWith('oracletag:')) {
-      const tag = term.split(':')[1].trim();
-      
-      // Primero: buscar en el índice oficial de Oracle Tags
-      const officialTags = cachedOracleTags?.[cardName] || [];
-      if (officialTags.includes(tag)) {
-        continue; // Coincidencia oficial encontrada, pasamos al siguiente término
-      }
-      
-      // Fallback: evaluación manual basada en texto oracle
-      if (tag === 'removal') {
-        const isRemoval = oracleText.includes('destroy') || oracleText.includes('exile') || oracleText.includes('damage') || typeLine.includes('removal');
-        if (!isRemoval) return false;
-      } else if (tag === 'board-wipe') {
-        const isWipe = oracleText.includes('destroy all') || oracleText.includes('exile all') || oracleText.includes('board wipe');
-        if (!isWipe) return false;
-      } else if (tag === 'draw') {
-        const isDraw = oracleText.includes('draw a card') || oracleText.includes('draw two cards') || oracleText.includes('look at the top') || oracleText.includes('scry');
-        if (!isDraw) return false;
-      } else if (tag === 'ramp') {
-        const isRamp = oracleText.includes('add ') || oracleText.includes('search your library for a land');
-        if (!isRamp) return false;
-      } else if (tag === 'counterspell') {
-        const isCounter = oracleText.includes('counter target');
-        if (!isCounter) return false;
-      } else {
-        return false; // Si no es un tag conocido ni oficial, fallamos
-      }
-    } else {
-      if (!cardName.includes(term) && !typeLine.includes(term) && !oracleText.includes(term)) {
-        return false;
-      }
-    }
-  }
-  return true;
+  return matchesScryfallQuery(card, query, cachedOracleTags);
 }
 
 const EXTRACT_SCHEMA = {
@@ -2060,7 +2013,7 @@ export const buildCardPool = async (formData) => {
   }
 
   return {
-    blueprint: getBlueprint(formData.archetype),
+    blueprint: getBlueprint(formData.archetype, !!(formData.tribe && formData.tribe !== 'none' && formData.tribe !== 'ninguna')),
     pool: finalPool
   };
 };

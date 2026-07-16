@@ -54,7 +54,24 @@ const FUNCTIONAL_CMC_MAP = {
   "street wraith": 0,
   "scion of draco": 2,
   "dismember": 1,
-  "thoughtcast": 1
+  "thoughtcast": 1,
+  "treasure cruise": 1,
+  "dig through time": 2,
+  "phyrexian fleshgorger": 3,
+  "flare of denial": 0,
+  "flare of cultivation": 0,
+  "flare of malice": 0,
+  "flare of fortitude": 0,
+  "flare of duplication": 0,
+  "lorien revealed": 1,
+  "lórien revealed": 1,
+  "lòrien revealed": 1,
+  "lÃ³rien revealed": 1,
+  "troll of khazad-dum": 1,
+  "troll of khazad-dûm": 1,
+  "oliphaunt": 1,
+  "generous ent": 1,
+  "eagles of the north": 1
 };
 
 export function getManaValue(card) {
@@ -95,8 +112,21 @@ export function isRampOrDraw(card) {
 }
 
 export function isMDFC(card) {
-  return card.card_faces?.length === 2 && 
-         card.layout === 'transform';
+  if (!card) return false;
+  const layout = (card.layout || '').toLowerCase();
+  return layout === 'modal_dfc' || (card.card_faces?.length === 2 && layout === 'transform');
+}
+
+export function isLandCycler(card) {
+  if (!card) return false;
+  const oracle = (card.oracle_text || '').toLowerCase();
+  return oracle.includes('cycling') && 
+         (oracle.includes('plainscycling') || 
+          oracle.includes('islandcycling') || 
+          oracle.includes('swampcycling') || 
+          oracle.includes('mountaincycling') || 
+          oracle.includes('forestcycling') || 
+          oracle.includes('landcycling'));
 }
 
 export function getMDFCAdjustment(card) {
@@ -409,14 +439,39 @@ export function calculatePerfectLandCount(nonLandCards, formData, isYorion = fal
   // 1 Cantrip = -0.25 Tierras (Previene inundaciones de tierras en curvas bajas)
   let lands = 16 + (3.00 * vmp) - (0.50 * aceleradores) - (0.25 * cantrips);
   
-  // Deducción de tierras virtuales por MDFC/Cicladoras de tierras (ej: Lorien Revealed, Bala Ged Recovery)
-  const mdfcAndCyclers = ["malakir rebirth", "bala ged recovery", "shatterskull smashing", "agadeem's awakening", "sejiri shelter", "lorien revealed"];
-  const mdfcCount = nonLandCards.filter(c => mdfcAndCyclers.some(mac => c.name.toLowerCase().includes(mac))).reduce((sum, c) => sum + (c.quantity || 1), 0);
-  const mdfcLandReduction = Math.floor(mdfcCount / 2);
+  // Deducción de tierras virtuales por MDFC/Cicladoras de tierras
+  const mdfcAndCyclersCount = nonLandCards.filter(c => {
+    const nameLower = (c.name || '').toLowerCase();
+    const isManualMatch = [
+      "malakir rebirth", "bala ged recovery", "shatterskull smashing", "agadeem's awakening", 
+      "sejiri shelter", "lorien revealed", "lÃ³rien revealed", "lÃ³rien", "lórien", "oliphaunt", 
+      "generous ent", "troll of khazad-dum", "eagles of the north", "fell the profane", 
+      "witch enchanter", "bridgeworks battle", "sink into stupor", "stump stump"
+    ].some(m => nameLower.includes(m));
+    if (isManualMatch) return true;
+    
+    const isDynamicMdfc = isMDFC(c) && c.card_faces?.some(face => face.type_line?.toLowerCase().includes('land'));
+    return isDynamicMdfc || isLandCycler(c);
+  }).reduce((sum, c) => sum + (c.quantity || 1), 0);
+  
+  const mdfcLandReduction = Math.floor(mdfcAndCyclersCount / 2);
   lands -= mdfcLandReduction;
   
-  const strategy = (formData?.strategy || '').toLowerCase();
-  const archetype = (formData?.archetype || '').toLowerCase();
+  const strategy = (formData?.strategy || '').toLowerCase().trim();
+  const archetype = (formData?.archetype || '').toLowerCase().trim();
+  
+  // Detección de mazo sin tierras tradicionales (Oops! All Spells, Belcher, etc.)
+  const isZeroLandsDeck = 
+    strategy === 'oops_all_spells' || 
+    strategy === 'belcher' || 
+    strategy === 'zero_lands' || 
+    strategy === 'no_lands' ||
+    (formData?.maxLands === 0) ||
+    (archetype === 'combo' && mdfcAndCyclersCount >= 10);
+    
+  if (isZeroLandsDeck) {
+    return 0;
+  }
   
   if (strategy === 'spellslinger' || strategy === 'voltron') {
     lands -= 1.5;
@@ -443,12 +498,27 @@ export function calculatePerfectLandCount(nonLandCards, formData, isYorion = fal
   } else if (vmp <= 1.9) {
     lands = lands - 2.0;
   }
+
+  const manaGreed = (formData?.manaGreed || 'balanced').toLowerCase();
+  if (manaGreed === 'greedy') {
+    lands -= 2.0;
+  } else if (manaGreed === 'safe') {
+    lands += 2.0;
+  }
   
   if (isYorion) {
       lands = lands * (80 / 60);
   }
   
-  return Math.round(Math.max(isYorion ? 24 : 18, Math.min(isYorion ? 35 : 26, lands)));
+  let minLands = isYorion ? 24 : 18;
+  let maxLands = isYorion ? 35 : 26;
+  if (manaGreed === 'greedy') {
+    minLands = isYorion ? 21 : 15;
+  } else if (manaGreed === 'safe') {
+    maxLands = isYorion ? 38 : 28;
+  }
+  
+  return Math.round(Math.max(minLands, Math.min(maxLands, lands)));
 }
 
 export async function generateManaBase(pipBalance, totalLands, colorIdentity, formData, nonLandSpells = [], aiUtilityLands = []) {

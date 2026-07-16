@@ -7,6 +7,7 @@ export default {
   theme: {
     extend: {
       colors: {
+        'magic-gold': '#ffca58',
         grimorio: {
           dark: '#1a1612',
           gold: '#c19b45',

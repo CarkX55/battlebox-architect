@@ -32,6 +32,28 @@
   box-shadow: 0 0 10px rgba(255, 223, 145, 0.2);
 }
 
+/* Custom Slim Scrollbar for inputs/textareas */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 202, 88, 0.25);
+  border-radius: 4px;
+  border: none;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 202, 88, 0.5);
+  box-shadow: 0 0 6px rgba(255, 202, 88, 0.3);
+}
+
 html, body {
   background-color: #0a0a0a !important;
   background-image: url('/ASSETS/Obsidiana.webp') !important;

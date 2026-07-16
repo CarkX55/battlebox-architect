@@ -57,7 +57,8 @@ const MagicCard = memo(function MagicCard({
         }
         return res.json().then(json => {
           if (!json.data || json.data.length === 0) throw new Error('Not found');
-          return json.data[0];
+          const exactMatch = json.data.find(c => c.name.toLowerCase() === cleanName.toLowerCase());
+          return exactMatch || json.data[0];
         });
       })
       .then(data => {

@@ -253,10 +253,43 @@ export const BLUEPRINTS = {
       boost: ['dredge', 'put', 'graveyard', 'from your library', 'prized amalgam', 'creature card from your graveyard', 'discard'],
       penalty: ['counter target', 'destroy target planeswalker']
     }
+  },
+
+  tribal_aggro: {
+    id: 'tribal_aggro',
+    deckSize: 60,
+    lands: { total: 20 },
+    spells: {
+      total: 40,
+      distribution: {
+        lords_and_anthems: { min: 8, max: 12 },
+        tribal_core: { min: 16, max: 22 },
+        interaction: { min: 4, max: 8 },
+        card_advantage: { min: 2, max: 4 }
+      },
+      curve: {
+        mv1: { min: 8, max: 14 },
+        mv2: { min: 14, max: 18 },
+        mv3: { min: 8, max: 12 },
+        mv4_plus: { min: 0, max: 4 }
+      }
+    },
+    ragModifiers: {
+      boost: ['lord', 'each other', 'other', 'whenever', 'all', '+1/+1', 'islandwalk', 'merfolk', 'goblin', 'elf', 'sliver', 'knight', 'zombie', 'vampire', 'wizard'],
+      penalty: ['defender', 'enters the battlefield tapped', 'sacrifice']
+    }
   }
 };
 
-export const getBlueprint = (archetypeId) => {
+export const getBlueprint = (archetypeId, hasTribe = false) => {
+  if (hasTribe) {
+    const idLower = (archetypeId || '').toLowerCase();
+    const isSpecialArchetype = ['control', 'combo', 'prison', 'storm', 'cascade', 'reanimator'].includes(idLower);
+    if (!isSpecialArchetype) {
+      return BLUEPRINTS['tribal_aggro'];
+    }
+  }
+
   if (!archetypeId) return BLUEPRINTS['midrange'];
   const idLower = archetypeId.toLowerCase();
   
@@ -329,8 +362,8 @@ export const FORMAT_CURVE_MODIFIERS = {
   }
 };
 
-export const getFormatAdjustedBlueprint = (archetypeId, format = 'MODERN') => {
-  const baseBlueprint = getBlueprint(archetypeId);
+export const getFormatAdjustedBlueprint = (archetypeId, format = 'MODERN', hasTribe = false) => {
+  const baseBlueprint = getBlueprint(archetypeId, hasTribe);
   const formatKey = (format || 'MODERN').toUpperCase();
   const modifier = FORMAT_CURVE_MODIFIERS[formatKey] || FORMAT_CURVE_MODIFIERS.MODERN;
   

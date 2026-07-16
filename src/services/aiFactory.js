@@ -766,8 +766,18 @@ export function buildUnifiedDeckArchitectPrompt(params) {
 }
 
 export async function callAI(messages, config, options = {}) {
-  const { provider, apiKey, selectedModel, baseUrl } = config;
-  const { forceJSON = false, maxTokens = 8000, onRetry = null } = options;
+  let { provider, apiKey, selectedModel, baseUrl } = config;
+  const { forceJSON = false, maxTokens = 8000, onRetry = null, temperature } = options;
+
+  // Dynamic model override based on options.selectedModel
+  if (options.selectedModel) {
+    if (provider === 'gemini') {
+      selectedModel = options.selectedModel === 'pro' ? 'gemini-1.5-pro' : 'gemini-1.5-flash';
+    } else if (provider === 'openrouter') {
+      selectedModel = options.selectedModel === 'pro' ? 'google/gemini-2.5-pro' : 'google/gemini-2.5-flash';
+    }
+  }
+
   const systemMessage = messages.find(m => m.role === 'system');
   const userMessage = messages.find(m => m.role === 'user');
 
@@ -794,7 +804,7 @@ export async function callAI(messages, config, options = {}) {
       ],
       generationConfig: {
         maxOutputTokens: maxTokens,
-        temperature: 0.1,
+        temperature: temperature !== undefined ? temperature : 0.1,
         ...(forceJSON || options.schema ? { responseMimeType: 'application/json' } : {}),
         ...(options.schema ? { responseSchema: options.schema } : {})
       }
@@ -804,7 +814,7 @@ export async function callAI(messages, config, options = {}) {
     body = {
       model: selectedModel,
       messages,
-      temperature: 0.7,
+      temperature: temperature !== undefined ? temperature : 0.7,
       max_tokens: maxTokens,
       ...(forceJSON ? { response_format: { type: 'json_object' } } : {})
     };
@@ -1042,11 +1052,25 @@ REGLAS:
   ]
 }`;
 
+  const focus = lastFormData?.sideboardFocus || [];
+  let focusText = "";
+  if (focus.length > 0) {
+    focusText = `\n\nEl usuario ha solicitado priorizar el odio contra las siguientes estrategias:\n` +
+      focus.map(f => {
+        if (f === 'graveyard') return '- Cementerio (Dredge, Reanimator)';
+        if (f === 'control') return '- Control y Tempo (Counters, interrupción)';
+        if (f === 'aggro') return '- Aggro y Burn (Sweepers, ganancia de vida)';
+        if (f === 'combo') return '- Combo, Stax y Artefactos/Encantamientos';
+        return '';
+      }).filter(Boolean).join('\n') + 
+      `\nPor favor, selecciona cartas de banquillo que ataquen fuertemente estas áreas priorizadas.`;
+  }
+
   const userMessage = `Por favor genera un banquillo (15 cartas en total) altamente competitivo para este mazo en formato ${format}.
 Colores del mazo: ${(lastFormData?.colores || []).join('-')}
 Arquetipo: ${lastFormData?.archetype}
 Lista del Main Deck:
-${deckList}`;
+${deckList}${focusText}`;
 
   const messages = [
     { role: 'system', content: systemPrompt },

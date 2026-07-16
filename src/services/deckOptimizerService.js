@@ -5,6 +5,19 @@ import { hydrateDeckCards } from './cardHydrator.js';
 import { isLand, calculatePerfectLandCount, generateManaBase, isBasicLand, deckNeedsSnowLands, isLandFormatLegal } from './deckCalculator.js';
 import { callAI, DECK_SCHEMA } from './aiFactory.js';
 import { getAllCards } from './dbIngestor.js';
+import { analyzeFunctionalPillars, buildPillarSummaryText } from './deckAuditorService.js';
+
+const cleanCardNameForMatching = (name) => {
+  if (!name) return "";
+  let n = name.toLowerCase().trim();
+  if (n.includes('//')) {
+    n = n.split('//')[0].trim();
+  }
+  if (n.includes('/')) {
+    n = n.split('/')[0].trim();
+  }
+  return n;
+};
 
 /**
  * Helper robusto para identificar si una carta es una tierra.
@@ -89,7 +102,7 @@ async function corregirTamañoYBaseDeMana(cards, targetDeckSize, formData, ragPo
       if (type.includes('land')) return false;
       const cardColors = c.colors || [];
       const matchesColor = cardColors.length === 0 || cardColors.some(col => colorsSet.has(col));
-      const alreadyInDeck = spells.some(s => s.name.toLowerCase() === c.name.toLowerCase());
+      const alreadyInDeck = spells.some(s => cleanCardNameForMatching(s.name) === cleanCardNameForMatching(c.name));
       return matchesColor && !alreadyInDeck;
     });
 
@@ -322,6 +335,11 @@ async function optimizarConIA(deckList, formData, aiConfig, ragPool, auditReport
   const currentDeckText = deckList.map(c => `- ${c.quantity}x ${c.name} (${c.category || 'Spell'}, CMC ${c.cmc || 0}, Rol: ${c.role || 'n/a'})`).join('\n');
   const ragPoolText = (ragPool || []).slice(0, 80).map(c => `- ${c.name} (CMC: ${c.mana_value || c.cmc || 0}, Sinergia: ${c.score || 0}, Meta: ${c.metaPercent || 0}%)`).join('\n');
 
+  // Calcular pilares funcionales para que el optimizador sepa qué necesita reforzar
+  const spellsForPillars = deckList.filter(c => !isLandCard(c));
+  const pillarAnalysis = analyzeFunctionalPillars(spellsForPillars, formData?.format || 'MODERN', formData);
+  const pillarText = buildPillarSummaryText(pillarAnalysis);
+
   const systemPrompt = `Eres el OPTIMIZADOR SUPREMO DE MAZOS DE MAGIC: THE GATHERING (Pro Tour Coach).
 Tu misiÃ³n es coger el mazo actual del usuario y optimizarlo de forma quirÃºrgica (mÃ­nimas modificaciones necesarias) para hacerlo lo mÃ¡s competitivo, sinÃ©rgico y equilibrado posible.
 
@@ -356,15 +374,17 @@ ${allFixes.map(w => `- ${w}`).join('\n')}
 MAZO ACTUAL A OPTIMIZAR:
 ${currentDeckText}
 
-CONFIGURACIÃ“N DE LA BARAJA:
+CONFIGURACIÓN DE LA BARAJA:
 - Arquetipo: ${formData?.archetype || 'Midrange'}
 - Estrategia: ${formData?.strategy || 'Ninguna'}
 - Tribu / Raza: ${formData?.tribe || 'Ninguna'}
 - Colores permitidos: ${formData?.colores?.join(', ') || 'Cualquiera'}
 
+${pillarText}
+
 ${auditContext}
 
-RAG CARD POOL (Cartas de alta sinergia pre-seleccionadas):
+RAG CARD POOL (Cartas de alta sinergia pre-seleccionadas, úsalas preferentemente para cubrir pilares deficientes):
 ${ragPoolText}
 
 Optimiza la baraja principal y devuelve el resultado en JSON que cumpla con el esquema.
@@ -511,7 +531,7 @@ export async function applyAuditChangesProgrammatically(deckList, suggestions, a
   suggestions.forEach(sug => {
     if (sug.removes && Array.isArray(sug.removes)) {
       sug.removes.forEach(remove => {
-        const index = newDeck.findIndex(c => c.name.toLowerCase() === remove.name.toLowerCase());
+        const index = newDeck.findIndex(c => cleanCardNameForMatching(c.name) === cleanCardNameForMatching(remove.name));
         if (index !== -1) {
           newDeck[index] = { ...newDeck[index], quantity: newDeck[index].quantity - remove.quantity };
           if (newDeck[index].quantity <= 0) {
@@ -523,28 +543,29 @@ export async function applyAuditChangesProgrammatically(deckList, suggestions, a
 
     if (sug.adds && Array.isArray(sug.adds)) {
       sug.adds.forEach(add => {
-        const existingIndex = newDeck.findIndex(c => c.name.toLowerCase() === add.name.toLowerCase());
+        // Saltar adds de cartas que no existen en la BD local
+        const normalizedAddName = cleanCardNameForMatching(add.name);
+        const dbCard = allCards.find(c => cleanCardNameForMatching(c.name) === normalizedAddName);
+        if (!dbCard) {
+          console.warn(`[ApplyAudit] Ignorando add de carta no encontrada en BD: "${add.name}"`);
+          return;
+        }
+
+        const existingIndex = newDeck.findIndex(c => cleanCardNameForMatching(c.name) === normalizedAddName);
         if (existingIndex !== -1) {
           newDeck[existingIndex] = { ...newDeck[existingIndex], quantity: newDeck[existingIndex].quantity + add.quantity };
         } else {
-          const dbCard = allCards.find(c => c.name.toLowerCase() === add.name.toLowerCase());
-          if (dbCard) {
-            newDeck.push({
-              name: dbCard.name,
-              quantity: add.quantity,
-              category: dbCard.type_line?.toLowerCase().includes('creature') ? 'Creature' : 'Spell',
-              cmc: dbCard.mana_value || 0,
-              type_line: dbCard.type_line,
-              mana_cost: dbCard.mana_cost || ''
-            });
-          } else {
-            newDeck.push({
-              name: add.name,
-              quantity: add.quantity,
-              category: 'Spell',
-              cmc: 2
-            });
-          }
+          newDeck.push({
+            name: dbCard.name,
+            quantity: add.quantity,
+            category: dbCard.type_line?.toLowerCase().includes('creature') ? 'Creature' : 'Spell',
+            cmc: dbCard.mana_value || 0,
+            type_line: dbCard.type_line,
+            mana_cost: dbCard.mana_cost || '',
+            oracle_text: dbCard.oracle_text || '',
+            colors: dbCard.colors || [],
+            color_identity: dbCard.color_identity || [],
+          });
         }
       });
     }
