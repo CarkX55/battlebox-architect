@@ -4733,7 +4733,7 @@ La suma de los roles debe ser exactamente totalSpells. NUNCA incluyas tierras.
              { role: 'user', content: blueprintPrompt }
          ], aiConfig, { 
              forceJSON: true, 
-             maxTokens: 800, 
+             maxTokens: 1800, 
              schema: GEMINI_BLUEPRINT_SCHEMA,
              selectedModel: formData.selectedModel,
              temperature: formData.creativity !== undefined ? (formData.creativity / 100) : undefined
