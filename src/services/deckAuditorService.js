@@ -512,33 +512,72 @@ export function densifyDeckPlaysets(deckCards) {
   };
 
   const newDeck = deckCards.map(c => ({ ...c }));
+  const lands = newDeck.filter(c => isLandCard(c));
   const spells = newDeck.filter(c => !isLandCard(c));
 
-  // Cartas sueltas de 1 copia no legendarias de coste <= 3
-  const singletons = spells.filter(c => 
-    (c.quantity || 1) === 1 && 
-    (c.cmc ?? c.mana_value ?? 0) <= 3 && 
-    !(c.type_line || '').toLowerCase().includes('legendary')
-  );
+  if (spells.length === 0) return deckCards;
 
-  // Cartas con 2 o 3 copias de coste <= 3 promovibles a playset de 4 copias
-  const coreSpells = spells.filter(c => 
+  // 1. Identificar cartas con 2 o 3 copias no legendarias
+  let coreSpells = spells.filter(c => 
     ((c.quantity || 1) === 2 || (c.quantity || 1) === 3) && 
     (c.cmc ?? c.mana_value ?? 0) <= 3 && 
     !(c.type_line || '').toLowerCase().includes('legendary')
   );
 
-  if (singletons.length >= 2 && coreSpells.length > 0) {
+  // 2. Cartas de 1 copia no legendarias de coste <= 3
+  let singletons = spells.filter(c => 
+    (c.quantity || 1) === 1 && 
+    (c.cmc ?? c.mana_value ?? 0) <= 3 && 
+    !(c.type_line || '').toLowerCase().includes('legendary')
+  );
+
+  // CASO A: Si la gran mayoría son singletons (ej. mazo 1-of generado por fallback o IA dispersa)
+  if (singletons.length > 6 && coreSpells.length < 3) {
+    // Clasificar singletons: Priorizar cantrips, interacción barata (CMC <= 2) y motores sobre utilidades secundarias
+    const scoreSingleton = (c) => {
+      const nameL = (c.name || '').toLowerCase();
+      const typeL = (c.type_line || '').toLowerCase();
+      let score = 0;
+      if (nameL.includes('opt') || nameL.includes('preordain') || nameL.includes('ponder') || nameL.includes('brainstorm') || nameL.includes('lightning bolt') || nameL.includes('thoughtseize') || nameL.includes('counterspell') || nameL.includes('path to exile')) score += 50;
+      if (typeL.includes('instant') || typeL.includes('sorcery')) score += 20;
+      if ((c.cmc ?? c.mana_value ?? 0) <= 2) score += 15;
+      if (c.isMustInclude) score += 100;
+      return score;
+    };
+
+    const sortedSingletons = [...singletons].sort((a, b) => scoreSingleton(b) - scoreSingleton(a));
+    const toPromote = sortedSingletons.slice(0, Math.min(6, Math.floor(singletons.length / 2)));
+    const toPrune = sortedSingletons.slice(toPromote.length);
+
+    // Promover los seleccionados a 3x o 4x copias eliminando los prescindibles
     let slotsFreed = 0;
-    // Liberar hasta 2 slots de singletons prescindibles
-    for (let s of singletons.slice(0, 2)) {
+    for (let p of toPrune) {
+      const idx = newDeck.findIndex(c => c.name === p.name);
+      if (idx !== -1 && (newDeck[idx].quantity || 1) === 1) {
+        newDeck.splice(idx, 1);
+        slotsFreed += 1;
+      }
+    }
+
+    for (let target of toPromote) {
+      if (slotsFreed <= 0) break;
+      const idx = newDeck.findIndex(c => c.name === target.name);
+      if (idx !== -1) {
+        const add = Math.min(4 - (newDeck[idx].quantity || 1), slotsFreed);
+        newDeck[idx].quantity = (newDeck[idx].quantity || 1) + add;
+        slotsFreed -= add;
+      }
+    }
+  } else if (singletons.length >= 2 && coreSpells.length > 0) {
+    // CASO B: Mezcla estándar de nucleos 2x/3x con singletons sobrantes
+    let slotsFreed = 0;
+    for (let s of singletons.slice(0, 4)) {
       const idx = newDeck.findIndex(c => c.name === s.name);
       if (idx !== -1 && (newDeck[idx].quantity || 1) === 1) {
         newDeck.splice(idx, 1);
         slotsFreed += 1;
       }
     }
-    // Repartir slots freed para completar playsets a 4 copias
     for (let core of coreSpells) {
       if (slotsFreed <= 0) break;
       const idx = newDeck.findIndex(c => c.name === core.name);
