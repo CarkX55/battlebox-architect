@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { cn } from '../../utils/cn';
 import { 
   PlusCircle, 
@@ -18,7 +18,9 @@ import {
   Eye,
   EyeOff,
   AlertTriangle,
-  HelpCircle
+  HelpCircle,
+  Activity,
+  ShieldCheck
 } from 'lucide-react';
 
 export default function BlueprintEditor({ blueprint, format, onAssemble, onBack }) {
@@ -33,38 +35,127 @@ export default function BlueprintEditor({ blueprint, format, onAssemble, onBack 
     }
   }, [format, editedBlueprint.suggestedCommanders]);
 
+  // --- CÁLCULOS MATEMÁTICOS DE SALUD EN TIEMPO REAL (FRANK KARSTEN & VMP) ---
+  const currentTotal = editedBlueprint.roles.reduce((sum, r) => sum + r.quantity, 0);
+  const targetTotal = blueprint.totalSpells || 40;
+  const isCountMatch = currentTotal === targetTotal;
+
+  const estimatedVmp = useMemo(() => {
+    const total = currentTotal || 1;
+    const weightedCmc = editedBlueprint.roles.reduce((sum, r) => sum + (r.target_cmc || 2) * r.quantity, 0);
+    return (weightedCmc / total).toFixed(2);
+  }, [editedBlueprint.roles, currentTotal]);
+
+  const recommendedLands = useMemo(() => {
+    const vmpNum = parseFloat(estimatedVmp) || 2.5;
+    const isCommander = format?.toUpperCase() === 'COMMANDER';
+    if (isCommander) {
+      return Math.round(36 + (vmpNum - 2.5) * 3);
+    }
+    return Math.round(24 + (vmpNum - 2.5) * 2.5);
+  }, [estimatedVmp, format]);
+
+  const liveHealthScore = useMemo(() => {
+    let score = 98;
+    if (!isCountMatch) score -= 15;
+    const vmpNum = parseFloat(estimatedVmp) || 2.5;
+    if (vmpNum > 3.2 && recommendedLands < 25) score -= 10;
+    
+    const removalQty = editedBlueprint.roles
+      .filter(r => (r.name || '').toLowerCase().includes('removal') || (r.purposeDescription || '').toLowerCase().includes('removal'))
+      .reduce((sum, r) => sum + r.quantity, 0);
+    if (removalQty < 2) score -= 10;
+    
+    return Math.max(40, Math.min(100, score));
+  }, [isCountMatch, estimatedVmp, recommendedLands, editedBlueprint.roles]);
+
+  const handleApplyTop8Preset = () => {
+    setEditedBlueprint(prev => {
+      const isCommander = format?.toUpperCase() === 'COMMANDER';
+      const targetSpells = isCommander ? 63 : 36;
+      
+      const updatedRoles = prev.roles.map(r => {
+        const nameLower = (r.name || '').toLowerCase();
+        let newQty = r.quantity;
+        
+        if (nameLower.includes('land') || nameLower.includes('tierra')) {
+          newQty = isCommander ? 37 : 24;
+        } else if (nameLower.includes('removal') || nameLower.includes('interaction')) {
+          newQty = isCommander ? 10 : 6;
+        } else if (nameLower.includes('draw') || nameLower.includes('cantrip')) {
+          newQty = isCommander ? 10 : 4;
+        }
+        return { ...r, quantity: newQty };
+      });
+
+      const newSum = updatedRoles.reduce((sum, r) => sum + r.quantity, 0);
+      return {
+        ...prev,
+        roles: updatedRoles,
+        totalSpells: newSum
+      };
+    });
+  };
+
   const handleQuantityChange = (index, delta) => {
     setEditedBlueprint(prev => {
-      const next = { ...prev };
-      const role = next.roles[index];
-      const newQty = Math.max(0, role.quantity + delta);
-      role.quantity = newQty;
-      next.totalSpells = next.roles.reduce((sum, r) => sum + r.quantity, 0);
-      return next;
+      const newRoles = prev.roles.map((r, i) => {
+        if (i === index) {
+          return { ...r, quantity: Math.max(0, r.quantity + delta) };
+        }
+        return r;
+      });
+      const newTotal = newRoles.reduce((sum, r) => sum + r.quantity, 0);
+      return {
+        ...prev,
+        roles: newRoles,
+        totalSpells: newTotal
+      };
     });
   };
 
   const handleQueryChange = (index, val) => {
     setEditedBlueprint(prev => {
-      const next = { ...prev };
-      next.roles[index].search_query = val;
-      return next;
+      const newRoles = prev.roles.map((r, i) => {
+        if (i === index) {
+          return { ...r, search_query: val };
+        }
+        return r;
+      });
+      return {
+        ...prev,
+        roles: newRoles
+      };
     });
   };
 
   const handleRoleNameChange = (index, val) => {
     setEditedBlueprint(prev => {
-      const next = { ...prev };
-      next.roles[index].name = val;
-      return next;
+      const newRoles = prev.roles.map((r, i) => {
+        if (i === index) {
+          return { ...r, name: val };
+        }
+        return r;
+      });
+      return {
+        ...prev,
+        roles: newRoles
+      };
     });
   };
 
   const handleRolePurposeChange = (index, val) => {
     setEditedBlueprint(prev => {
-      const next = { ...prev };
-      next.roles[index].purposeDescription = val;
-      return next;
+      const newRoles = prev.roles.map((r, i) => {
+        if (i === index) {
+          return { ...r, purposeDescription: val };
+        }
+        return r;
+      });
+      return {
+        ...prev,
+        roles: newRoles
+      };
     });
   };
 
@@ -74,10 +165,6 @@ export default function BlueprintEditor({ blueprint, format, onAssemble, onBack 
       [field]: val
     }));
   };
-
-  const currentTotal = editedBlueprint.roles.reduce((sum, r) => sum + r.quantity, 0);
-  const targetTotal = blueprint.totalSpells || 40;
-  const isCountMatch = currentTotal === targetTotal;
 
   const handleSubmit = () => {
     const finalBlueprint = {
@@ -189,6 +276,40 @@ export default function BlueprintEditor({ blueprint, format, onAssemble, onBack 
             <span>Ensamblar Mazo Físico</span>
           </button>
         </div>
+      </div>
+
+      {/* Live Blueprint Health Gauge Widget */}
+      <div className="bg-black/60 border border-magic-gold/30 rounded-2xl p-5 backdrop-blur-md relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-4 shadow-xl">
+        <div className="flex items-center gap-4">
+          <div className={cn(
+            "w-14 h-14 rounded-2xl border flex flex-col items-center justify-center shrink-0 shadow-lg",
+            liveHealthScore >= 85 
+              ? "bg-emerald-500/10 border-emerald-500/40 text-emerald-400" 
+              : "bg-amber-500/10 border-amber-500/40 text-amber-400"
+          )}>
+            <span className="text-xs uppercase font-bold text-white/50 tracking-widest text-[9px]">Salud</span>
+            <span className="text-xl font-black font-cinzel">{liveHealthScore}</span>
+          </div>
+
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <Activity size={14} className="text-magic-gold" />
+              <h4 className="font-cinzel text-sm text-white font-bold uppercase tracking-wider">Asistente Karsten en Tiempo Real</h4>
+            </div>
+            <p className="text-xs text-white/60 font-serif leading-relaxed">
+              Curva proyectada: <strong className="text-magic-gold">{estimatedVmp} CMC</strong> • Tierras recomendadas: <strong className="text-emerald-400">{recommendedLands} tierras</strong>
+            </p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={handleApplyTop8Preset}
+          className="px-4 py-2.5 bg-magic-gold/10 hover:bg-magic-gold/20 border border-magic-gold/40 hover:border-magic-gold text-magic-gold rounded-xl font-cinzel text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 shrink-0 shadow-md"
+        >
+          <Zap size={14} className="animate-pulse" />
+          <span>Cargar ADN Top 8 (70/30)</span>
+        </button>
       </div>
 
       {/* Warnings when count does not match */}

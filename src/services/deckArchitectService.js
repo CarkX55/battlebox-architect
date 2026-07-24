@@ -1,5 +1,5 @@
 import { generateManaBase, calculatePerfectLandCount, calculateVMP, getLandColors, isBasicLand, isColoredBasicLand, deckNeedsSnowLands, isLandFormatLegal, BASIC_LANDS_BY_COLOR } from './deckCalculator.js'; 
-import { CURVE_BOUNDS, calculateRealTimeVMPWarning } from './deckAuditorService.js';
+import { CURVE_BOUNDS, calculateRealTimeVMPWarning, evaluateDeckHealthFast } from './deckAuditorService.js';
 import { internalSynergyAudit } from './auditService.js';
 import { callAI, buildAgenticPhasePrompt, GEMINI_PHASE_SCHEMA, DECK_BUILDER_TOOLS } from './aiFactory.js';
 import { API_ENDPOINTS } from '../config/apiEndpoints.js';
@@ -45,6 +45,9 @@ export function cleanAndParseJSON(str) {
             clean = clean.substring(0, endBrace + 1);
         }
     }
+
+    // Eliminar comas flotantes / comas terminales (trailing commas) para evitar errores del oráculo
+    clean = clean.replace(/,\s*([\}\]])/g, '$1');
     
     return JSON.parse(clean);
 }
@@ -195,7 +198,10 @@ const GEMINI_BLUEPRINT_SCHEMA = {
             description: "Required quality level. Use 'finisher' for high-impact game-ending threats (which should be Legendary or Mythic if possible), or 'standard' for regular utility and support cards." 
           },
           purposeDescription: { type: "string", description: "Clear explanation of what these cards do and how they fit the archetype curve." },
-          search_query: { type: "string", description: "The ideal Scryfall query or semantic tag (e.g. 'o:flying', 'oracletag:board-wipe', 't:goblin') to find cards for this role. BE CREATIVE." }
+          search_query: { 
+            type: "string", 
+            description: "The ideal Scryfall query to find cards for this role. Always use parentheses when mixing AND and OR logic (e.g. 'o:landfall (o:token or o:draw)'). Do not combine incompatible terms directly (use '(o:damage or o:destroy)' instead of 'o:damage o:destroy' for removal). Focus purely on mechanics and mechanics-based keywords. Do not include format filters like 'f:modern' or 'f:standard' as the app appends them automatically." 
+          }
         },
         required: ["name", "quantity", "cmcCategory", "finisherQuality", "purposeDescription", "search_query"]
       }
@@ -452,6 +458,9 @@ function getDeckBlueprint(archetype, strategyId, formData) {
       roles = { cascade_enablers_cmc3: 8, zero_cost_payoffs: 8, interaction_cmc3plus: 10, heavy_finishers_cmc4plus: 4, stabilizers_cmc3plus: 8 };
     } else if (strategyId === 'tron' || strategyId === 'eldrazi_tron') {
       roles = { artifact_mana_accelerators: 10, colorless_eldrazi_threats: 10, heavy_finishers_planeswalkers: 6, colorless_interaction_and_removal: 10 };
+    } else if (strategyId === 'ramp') {
+      const rampRoleName = hasGreen ? "mana_dorks_and_growth" : "artifact_mana_rocks";
+      roles = { [rampRoleName]: 12, massive_finishers_cmc5plus: 8, card_advantage_draw: 7, protection_and_interaction: 8 };
     } else if (strategyId === 'reanimator') {
       roles = { reanimation_targets_cmc7plus: 8, reanimation_spells: 10, discard_enablers: 10, interaction_and_protection: 8 };
     } else if (strategyId === 'aristocrats') {
@@ -727,6 +736,99 @@ export function generateThematicFallbackLore(deckName, formData) {
   return `Una baraja de estilo ${archetype} que canaliza las fuerzas de ${colorStr} para establecer un control y ventaja incuestionable en el campo de batalla.`;
 }
 
+/**
+ * Genera una search_query de Scryfall específica según el nombre del rol, arquetipo, estrategia y colores.
+ * Reemplaza la query genérica 't:creature or t:instant or t:sorcery' del fallback.
+ */
+function getFallbackSearchQuery(roleName, archetype, strategyId, colors = []) {
+  const arch = (archetype || '').toLowerCase();
+  const strat = (strategyId || '').toLowerCase();
+  const role = (roleName || '').toLowerCase();
+  const hasG = colors.includes('G');
+  const hasB = colors.includes('B');
+  const hasR = colors.includes('R');
+  const hasU = colors.includes('U');
+  const hasW = colors.includes('W');
+
+  // --- REGLAS POR ROL (prioridad más alta) ---
+  if (role.includes('finisher') || role.includes('payoff') || role.includes('win_cond') || role.includes('threat') || role.includes('amenaza')) {
+    if (strat.includes('landfall') || arch.includes('landfall'))
+      return 'o:landfall type:creature mv>=4';
+    if (strat.includes('reanimator') || strat.includes('reanimate'))
+      return 'type:creature mv>=6 (o:haste or o:trample or o:flying)';
+    if (strat.includes('ramp') || arch.includes('ramp'))
+      return 'type:creature mv>=5 (o:trample or o:haste or o:flying)';
+    if (arch.includes('control'))
+      return 'type:creature mv>=4 (o:flying or o:indestructible or o:ward)';
+    if (arch.includes('aggro'))
+      return 'type:creature mv<=3 (o:haste or o:trample or pow>=3)';
+    return 'type:creature mv>=4 (o:trample or o:haste or o:flying or o:enters)';
+  }
+
+  if (role.includes('removal') || role.includes('interaction') || role.includes('remocion') || role.includes('remoción')) {
+    if (hasB && hasR) return '(type:instant or type:sorcery) (o:destroy or o:exile or o:damage) mv<=3';
+    if (hasB)  return 'type:instant (o:destroy or o:exile) mv<=3';
+    if (hasR)  return 'type:instant o:damage mv<=4';
+    if (hasW)  return 'type:instant (o:exile or o:destroy) mv<=3';
+    return '(type:instant or type:sorcery) (o:destroy or o:exile or o:damage) mv<=3';
+  }
+
+  if (role.includes('ramp') || role.includes('acceleration') || role.includes('mana') || role.includes('rampa')) {
+    if (hasG) return '(type:creature or type:sorcery) (o:search o:library o:land or o:add) mv<=3';
+    return '(type:artifact or type:sorcery) (o:add or o:search o:library o:land) mv<=3';
+  }
+
+  if (role.includes('draw') || role.includes('value') || role.includes('engine') || role.includes('motor') || role.includes('robo')) {
+    if (hasU) return '(type:creature or type:instant or type:sorcery) (o:draw or o:scry) mv<=4';
+    return '(type:creature or type:sorcery) (o:draw or o:look at the top) mv<=4';
+  }
+
+  if (role.includes('disrupt') || role.includes('discard') || role.includes('hand') || role.includes('mano') || role.includes('descarte')) {
+    if (hasB) return '(type:sorcery or type:instant) (o:discard or o:reveals) mv<=2';
+    if (hasU) return 'type:instant o:counter mv<=3';
+    return '(type:sorcery or type:instant) (o:discard or o:counter) mv<=3';
+  }
+
+  if (role.includes('counter') || role.includes('counterspell') || role.includes('contrahechizo')) {
+    return 'type:instant o:counter o:spell mv<=3';
+  }
+
+  if (role.includes('sweeper') || role.includes('boardwipe') || role.includes('limpiamesas')) {
+    if (hasW) return '(type:sorcery or type:instant) o:destroy o:all mv<=5';
+    if (hasB) return '(type:sorcery or type:instant) (o:destroy or o:exile) o:each mv<=5';
+    return '(type:sorcery or type:instant) (o:destroy or o:deal) o:each mv<=5';
+  }
+
+  if (role.includes('early') || role.includes('one_drop') || role.includes('two_drop') || role.includes('temprana') || role.includes('criatura') && role.includes('1')) {
+    if (arch.includes('aggro') || strat.includes('aggro'))
+      return 'type:creature mv<=2 (o:haste or o:first or pow>=2)';
+    return 'type:creature mv<=2 (o:draw or o:enters or pow>=2)';
+  }
+
+  if (role.includes('token') || role.includes('token')) {
+    return '(type:creature or type:sorcery or type:instant) o:create o:token mv<=4';
+  }
+
+  if (role.includes('protection') || role.includes('proteccion') || role.includes('protección')) {
+    if (hasW) return '(type:instant) (o:protection or o:indestructible or o:return) mv<=2';
+    if (hasU) return 'type:instant (o:counter or o:hexproof) mv<=3';
+    return 'type:instant (o:protection or o:indestructible) mv<=3';
+  }
+
+  // --- FALLBACK FINAL POR ARQUETIPO ---
+  const archetypeDefaultQuery = {
+    aggro:    'type:creature mv<=3 (o:haste or o:first or o:trample or pow>=2)',
+    tempo:    'type:creature mv<=3 (o:flying or o:hexproof or o:ward)',
+    midrange: 'type:creature mv<=4 (o:enters or o:draw or o:destroy or o:lifelink)',
+    control:  'type:instant (o:counter or o:destroy or o:draw)',
+    ramp:     '(type:creature or type:sorcery) (o:search o:land or o:add)',
+    combo:    'type:creature (o:enters or o:dies or o:sacrifice or o:whenever)',
+    prison:   'type:creature (o:cost or o:can\'t or o:enter)',
+  };
+
+  return archetypeDefaultQuery[arch] || 'type:creature (o:enters or o:draw or o:destroy or pow>=2)';
+}
+
 export function getStrategyFallbackBlueprint(archetype, strategyId, formData) {
   const rawBlueprint = getDeckBlueprint(archetype, strategyId, formData);
   const dnaKey = strategyId || archetype || 'midrange';
@@ -758,7 +860,7 @@ export function getStrategyFallbackBlueprint(archetype, strategyId, formData) {
       cmcCategory: cmcCategory,
       finisherQuality: finisherQuality,
       purposeDescription: `Fallback role for ${roleName} in ${strategyId || archetype}`,
-      search_query: `t:creature or t:instant or t:sorcery`
+      search_query: getFallbackSearchQuery(roleName, archetype, strategyId, formData?.colores || [])
     };
   });
   
@@ -1055,11 +1157,79 @@ export function getProCopiesForCard(card, role, ragPool = [], formData = null) {
   return Math.min(proCopies, getMaxAllowedCopies(card.name, typeLine, cmc, ragPool));
 }
 
-export function obtenerMejorCartaDeRemplazo(category, targetCmc, allowedColors, format = 'MODERN', ragPool = [], excludeNames = [], allCards = []) {
+export function getFunctionalScore(card, originalRole, originalName) {
+    let score = 0;
+    const oText = (card.oracle_text || card.text || '').toLowerCase();
+    const typeLower = (card.type_line || card.type || '').toLowerCase();
+    const nameLower = (card.name || '').toLowerCase();
+    const isCreature = typeLower.includes('creature');
+    
+    const roleLower = (originalRole || '').toLowerCase();
+    const origNameLower = (originalName || '').toLowerCase();
+    
+    // Determinar si buscamos Rampa / Tutor de Tierras
+    const isLookingForRamp = roleLower.includes('tutor_tierras') || 
+                             roleLower.includes('ramp') || 
+                             roleLower.includes('growth') || 
+                             roleLower.includes('dork') || 
+                             roleLower.includes('rocks') || 
+                             origNameLower.includes('cultivate') || 
+                             origNameLower.includes('birds of paradise') || 
+                             origNameLower.includes('llanowar elves') ||
+                             origNameLower.includes('elves');
+                             
+    // Determinar si buscamos Robo / Ventaja de cartas
+    const isLookingForDraw = roleLower.includes('draw') || 
+                             roleLower.includes('advantage') || 
+                             roleLower.includes('cantrip') || 
+                             origNameLower.includes('harmonize') || 
+                             origNameLower.includes('whisper');
+                             
+    // Determinar si buscamos Remoción / Board Wipe / Interacción / Counter
+    const isLookingForRemoval = roleLower.includes('removal') || 
+                                 roleLower.includes('wipe') || 
+                                 roleLower.includes('sweeper') || 
+                                 roleLower.includes('counter') || 
+                                 roleLower.includes('interaction') || 
+                                 origNameLower.includes('push') || 
+                                 origNameLower.includes('counterspell');
+                                 
+    // Determinar si buscamos Finisher / Amenaza
+    const isLookingForFinisher = roleLower.includes('finisher') || 
+                                 roleLower.includes('threat') || 
+                                 roleLower.includes('win_cond') ||
+                                 (isCreature && (card.mana_value || card.cmc || 0) >= 5);
+
+    if (isLookingForRamp) {
+        if (oText.includes('search your library for') && oText.includes('land')) score += 500;
+        if (oText.includes('add ') && oText.includes('mana')) score += 400;
+        if (oText.includes('{t}: add')) score += 400;
+        if (typeLower.includes('creature') && (oText.includes('add') || oText.includes('mana'))) score += 300;
+    }
+    if (isLookingForDraw) {
+        if (oText.includes('draw') && oText.includes('card')) score += 500;
+        if (oText.includes('look at the top')) score += 300;
+    }
+    if (isLookingForRemoval) {
+        if (oText.includes('destroy') || oText.includes('exile') || oText.includes('counter target') || oText.includes('damage to target creature')) score += 500;
+        if (oText.includes('deals ') && oText.includes('damage')) score += 200;
+    }
+    if (isLookingForFinisher) {
+        if (isCreature && (card.mana_value || card.cmc || card.mana_cost || 0) >= 5) score += 400;
+        if (typeLower.includes('planeswalker')) score += 300;
+        if (oText.includes('trample') || oText.includes('flying') || oText.includes('haste') || oText.includes('indestructible')) score += 100;
+    }
+    return score;
+}
+
+export function obtenerMejorCartaDeRemplazo(category, targetCmc, allowedColors, format = 'MODERN', ragPool = [], excludeNames = [], allCards = [], originalCardName = '', role = '') {
     const formatUpper = (format || 'MODERN').toUpperCase();
     const formatKey = formatUpper.toLowerCase();
     const colorsSet = new Set(allowedColors && allowedColors.length > 0 ? allowedColors : ['W', 'U', 'B', 'R', 'G']);
     const excludeSet = new Set((excludeNames || []).filter(n => typeof n === 'string').map(n => n.toLowerCase().trim()));
+    
+    // Fall back to module-cached cards if allCards is empty or omitted
+    const dbCards = (allCards && allCards.length > 0) ? allCards : cachedAllCards;
     
     // 1. Intentar buscar en el RAG pool de la baraja (verificando legalidad real y descartando custom cards si no se permiten)
     if (ragPool && ragPool.length > 0) {
@@ -1081,31 +1251,26 @@ export function obtenerMejorCartaDeRemplazo(category, targetCmc, allowedColors, 
             const cardColors = c.colors || [];
             if (cardColors.length > 0 && !cardColors.every(col => colorsSet.has(col))) return false;
             
-            // Verificar legalidad del formato si allCards está disponible
-            if (allCards && allCards.length > 0) {
-                const dbCard = allCards.find(ac => ac && ac.name && ac.name.toLowerCase() === nameClean);
-                if (!dbCard) return false;
-                const isLegal = dbCard.legalities && dbCard.legalities[formatKey] === 'legal';
-                const customSets = [
-                    'tla', 'atla', 'ttla', 'tle', 'jtla', 'atle', 'ftla', 'ttle',
-                    'fin', 'afic', 'afin', 'fic', 'tfin', 'tfic',
-                    'tmt', 'atmt', 'tmc', 'ftmc', 'ttmc', 'ttmt',
-                    'spm', 'aspm', 'spe', 'tspm',
-                    'psdg', 'pspl'
-                ];
-                const isCustom = dbCard.set && (customSets.includes(dbCard.set.toLowerCase()) || dbCard.set.toLowerCase().includes('custom'));
-                if (!isLegal || isCustom) return false;
+            // Verificar legalidad del formato si dbCards está disponible
+            if (dbCards && dbCards.length > 0) {
+                const isLegal = checkCardFormatLegality(c.name, formatUpper, false);
+                if (!isLegal) return false;
             }
             
             return true;
         });
         
         if (candidates.length > 0) {
-            // Ordenar por cercanía de CMC y score (calidad del RAG pool)
+            // Ordenar por funcionalidad, cercanía de CMC y score
             candidates.sort((a, b) => {
+                const scoreA = getFunctionalScore(a, role, originalCardName);
+                const scoreB = getFunctionalScore(b, role, originalCardName);
+                if (scoreA !== scoreB) return scoreB - scoreA;
+
                 const diffA = Math.abs((a.mana_value || 0) - targetCmc);
                 const diffB = Math.abs((b.mana_value || 0) - targetCmc);
                 if (diffA !== diffB) return diffA - diffB;
+                
                 return (b.score || 0) - (a.score || 0);
             });
             
@@ -1126,9 +1291,9 @@ export function obtenerMejorCartaDeRemplazo(category, targetCmc, allowedColors, 
         }
     }
 
-    // 2. Si no hay candidatos válidos en el pool, y tenemos allCards, buscar en toda la base de datos
-    if (allCards && allCards.length > 0) {
-        const dbCandidates = allCards.filter(c => {
+    // 2. Si no hay candidatos válidos en el pool, y tenemos dbCards, buscar en toda la base de datos
+    if (dbCards && dbCards.length > 0) {
+        const dbCandidates = dbCards.filter(c => {
             if (!c || typeof c.name !== 'string') return false;
             const nameClean = c.name.toLowerCase().trim();
             if (excludeSet.has(nameClean)) return false;
@@ -1145,26 +1310,21 @@ export function obtenerMejorCartaDeRemplazo(category, targetCmc, allowedColors, 
             const cardColors = c.colors || [];
             if (cardColors.length > 0 && !cardColors.every(col => colorsSet.has(col))) return false;
             
-            // Verificar formato y custom
-            const isLegal = c.legalities && c.legalities[formatKey] === 'legal';
-            const customSets = [
-                'tla', 'atla', 'ttla', 'tle', 'jtla', 'atle', 'ftla', 'ttle',
-                'fin', 'afic', 'afin', 'fic', 'tfin', 'tfic',
-                'tmt', 'atmt', 'tmc', 'ftmc', 'ttmc', 'ttmt',
-                'spm', 'aspm', 'spe', 'tspm',
-                'psdg', 'pspl'
-            ];
-            const isCustom = c.set && (customSets.includes(c.set.toLowerCase()) || c.set.toLowerCase().includes('custom'));
-            
-            return isLegal && !isCustom;
+            // Verificar formato y custom usando nuestro helper central
+            return checkCardFormatLegality(c.name, formatUpper, false);
         });
         
         if (dbCandidates.length > 0) {
-            // Ordenar por CMC más cercano
+            // Ordenar por funcionalidad, cercanía de CMC, etc.
             dbCandidates.sort((a, b) => {
-                const diffA = Math.abs((a.mana_value || 0) - targetCmc);
-                const diffB = Math.abs((b.mana_value || 0) - targetCmc);
+                const scoreA = getFunctionalScore(a, role, originalCardName);
+                const scoreB = getFunctionalScore(b, role, originalCardName);
+                if (scoreA !== scoreB) return scoreB - scoreA;
+                
+                const diffA = Math.abs((a.mana_value || a.cmc || 0) - targetCmc);
+                const diffB = Math.abs((b.mana_value || b.cmc || 0) - targetCmc);
                 if (diffA !== diffB) return diffA - diffB;
+                
                 return a.name.localeCompare(b.name);
             });
             
@@ -1671,6 +1831,38 @@ function recortarHechizosExcedentesInteligente(spells, targetSpellsCount, addLog
     return spells;
 }
 
+export function checkCardFormatLegality(cardName, format = 'MODERN', allowCustomCards = false) {
+    if (!cardName) return false;
+    const nameLower = cardName.toLowerCase().trim();
+    
+    // Prioritize non-token, non-art, non-emblem layouts to prevent matching tokens first (like Tarmogoyf token)
+    let dbCard = cachedAllCards.find(ac => {
+        if (!ac || !ac.name) return false;
+        if (ac.name.toLowerCase().trim() !== nameLower) return false;
+        return ac.layout !== 'token' && ac.layout !== 'art_series' && ac.layout !== 'emblem';
+    });
+    
+    if (!dbCard) {
+        dbCard = cachedAllCards.find(ac => ac && ac.name && ac.name.toLowerCase().trim() === nameLower);
+    }
+    
+    if (!dbCard) return false;
+    
+    const selectedFormat = format.toLowerCase();
+    const isLegal = dbCard.legalities && dbCard.legalities[selectedFormat] === 'legal';
+    
+    const customSets = [
+        'tla', 'atla', 'ttla', 'tle', 'jtla', 'atle', 'ftla', 'ttle',
+        'fin', 'afic', 'afin', 'fic', 'tfin', 'tfic',
+        'tmt', 'atmt', 'tmc', 'ftmc', 'ttmc', 'ttmt',
+        'spm', 'aspm', 'spe', 'tspm',
+        'psdg', 'pspl'
+    ];
+    const isCustom = dbCard.set && (customSets.includes(dbCard.set.toLowerCase()) || dbCard.set.toLowerCase().includes('custom'));
+    
+    return isLegal && (allowCustomCards || !isCustom);
+}
+
 /**
  * PASO 4: Juez de Estado Final
  * Esta función asegura que antes de mostrar el mazo al usuario,
@@ -1684,7 +1876,7 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
     }
     const strategyObj = MTG_STRATEGIES.find(s => s.id === formData?.strategy || s.label === formData?.strategy) || null;
     let strategyId = strategyObj ? strategyObj.id : (formData?.strategy || '');
-    strategyId = inferStrategyFromArchetype(formData?.archetype, strategyId);
+    strategyId = inferStrategyFromArchetype(formData?.archetype, strategyId, formData?.prompt);
     const tribeObj = MTG_TRIBES.find(t => t.id === formData?.tribe || t.label === formData?.tribe) || null;
     const tribeId = tribeObj ? tribeObj.id : (formData?.tribe || '');
     const colors = new Set(formData?.colores || []);
@@ -1721,18 +1913,7 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
     };
 
     const isCardFormatLegal = (cardName) => {
-        if (!cardName) return false;
-        const nameLower = cardName.toLowerCase().trim();
-        const dbCard = cachedAllCards.find(ac => ac && ac.name && ac.name.toLowerCase().trim() === nameLower);
-        if (!dbCard) return false;
-        
-        const selectedFormat = (formData?.format || 'MODERN').toLowerCase();
-        const isLegal = dbCard.legalities && dbCard.legalities[selectedFormat] === 'legal';
-        
-        const allowCustomCards = !!formData?.allowCustomCards;
-        const isCustom = dbCard.set && (customSets.includes(dbCard.set.toLowerCase()) || dbCard.set.toLowerCase().includes('custom'));
-        
-        return isLegal && (allowCustomCards || !isCustom);
+        return checkCardFormatLegality(cardName, formData?.format || 'MODERN', !!formData?.allowCustomCards);
     };
 
     const inyectarCartaDirecta = (list, newCard) => {
@@ -2407,11 +2588,28 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
                            tribalMatchValid;
                 });
                 
-                // Ordenar por cercanía de CMC y score RAG
-                replacementPool.sort((a, b) => {
+                // Filtrar el replacementPool para asegurar que sea compatible de color y legal en el formato
+                const validReplacements = replacementPool.filter(poolCard => {
+                    const cardColors = poolCard.colors || [];
+                    const isColorCompatible = cardColors.length === 0 || cardColors.every(col => colors.has(col));
+                    if (!isColorCompatible) return false;
+                    
+                    const isLegal = checkCardFormatLegality(poolCard.name, formData?.format || 'MODERN', !!formData?.allowCustomCards);
+                    if (!isLegal) return false;
+                    
+                    return true;
+                });
+                
+                // Ordenar por funcionalidad, cercanía de CMC y score RAG
+                validReplacements.sort((a, b) => {
+                    const scoreA = getFunctionalScore(a, c.role, c.name);
+                    const scoreB = getFunctionalScore(b, c.role, c.name);
+                    if (scoreA !== scoreB) return scoreB - scoreA;
+                    
                     const diffA = Math.abs((a.mana_value || 0) - c.cmc);
                     const diffB = Math.abs((b.mana_value || 0) - c.cmc);
                     if (diffA !== diffB) return diffA - diffB;
+                    
                     return (b.score || 0) - (a.score || 0);
                 });
                 
@@ -2419,14 +2617,14 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
                 let repCmc = c.cmc;
                 let repCat = c.category;
                 
-                if (replacementPool.length > 0) {
-                    const repCard = replacementPool[0];
+                if (validReplacements.length > 0) {
+                    const repCard = validReplacements[0];
                     replacementName = repCard.name;
                     repCmc = repCard.mana_value || c.cmc;
                     repCat = repCard.type_line ? repCard.type_line.split('—')[0].trim() : c.category;
                 } else {
                     // Fallbacks directos si el pool RAG está vacío o no coincide
-                    const rep = obtenerMejorCartaDeRemplazo(isCreature ? "Creature" : "Instant", c.cmc, Array.from(colors), formData?.format, [], [c.name]);
+                    const rep = obtenerMejorCartaDeRemplazo(isCreature ? "Creature" : "Instant", c.cmc, Array.from(colors), formData?.format, [], [c.name], cachedAllCards, c.name, c.role);
                     replacementName = rep.name;
                     repCmc = rep.cmc;
                     repCat = rep.category;
@@ -4478,6 +4676,7 @@ export async function generateBlueprintFromAI(formData, aiConfig, onProgress = (
      addLog(`Iniciando invocación de blueprint de mazo con arquetipo TAXONÓMICO: ${formData.archetype || 'midrange'} y estrategia ${strategyId}`);
      
      const curveProfile = formData.curveProfile || 'balanced';
+     
      const formatMod = FORMAT_CURVE_MODIFIERS[(formData.format || 'MODERN').toUpperCase()] || FORMAT_CURVE_MODIFIERS.MODERN;
 
      onProgress('strategist', '🏗️ Arquitecto de Plantillas (IA) diseñando Blueprint a medida...');
@@ -4504,7 +4703,19 @@ Define las cantidades exactas de cartas para cada rol ESTRATÉGICO clave:
 - cmcCategory: "1", "2", "3", "4", "4+", "5+", "any".
 - finisherQuality: "finisher" o "standard".
 - purposeDescription: Propósito del rol sin mencionar nombres de cartas.
-- search_query: Consulta Scryfall/etiqueta semántica.
+- search_query: Consulta Scryfall de alta precisión para este rol.
+  Sigue estas REGLAS INVIOLABLES DE EXPERTO EN SCRYFALL:
+  1. PRECEDENCIA DE OPERADORES: El AND es implícito. El OR se evalúa después del AND. Si mezclas AND y OR, DEBES usar paréntesis. 
+     * INCORRECTO: "o:landfall o:token OR o:draw" (Scryfall lo entiende como (landfall AND token) OR draw, atrapando cartas que roban sin landfall).
+     * CORRECTO: "o:landfall (o:token or o:draw)"
+  2. EVITA SOBRE-FILTRAR: No pongas múltiples condiciones restrictivas juntas si buscas un rol amplio.
+     * INCORRECTO para Removal: "o:damage o:destroy type:instant" (exige que un instantáneo tenga ambas palabras a la vez; no encontrará Lightning Bolt ni Doom Blade).
+     * CORRECTO para Removal: "type:instant (o:damage or o:destroy)"
+  3. AMENAZAS/FINISHERS DE LANDFALL Y OTROS ARQUETIPOS: No uses "o:power o:toughness" para buscar bombas, ya que cartas icónicas como Rampaging Baloths o Avenger of Zendikar no contienen esas palabras en su texto oracle.
+     * CORRECTO para Finishers de Landfall: "o:landfall type:creature mv>=5" o "o:landfall (o:token or o:counter) mv>=5"
+  4. SINTAXIS LIMPIA: Usa siempre minúsculas para los operadores lógicos inside parents, ej: "o:landfall (o:token or o:draw)".
+  5. NO INCLUYAS FILTROS DE FORMATO: No incluyas filtros de formato como "f:modern" o "f:standard" ni "is:legal" en tus consultas, ya que la aplicación se encarga de inyectar los filtros de legalidad dinámicamente.
+  6. PROHIBICIÓN TRIBAL: La tribu seleccionada es "${tribeLabel}". Si la tribu es "Ninguna", "none" o está vacía, tus search_query NUNCA deben contener tipos de criatura específicos como t:insect, t:spider, t:goblin, t:elf, t:zombie, etc., NI referencias a sinergias tribales explícitas como "o:other goblins", "o:among insects", "o:for each elf". Las cartas seleccionadas deben funcionar INDEPENDIENTEMENTE sin requerir otras criaturas de una tribu concreta. Usa únicamente mecánicas independientes como o:etb, o:draw, o:deathtouch, o:lifelink, pow>=2, o:enters, o:dies.
 
 Adicionalmente:
 - deckName: Nombre creativo.
@@ -4565,7 +4776,7 @@ export async function assembleDeckFromBlueprint(blueprint, formData, aiConfig, o
    try {
      const strategyObj = preCalculatedData.strategyObj || MTG_STRATEGIES.find(s => s.label === formData.strategy || s.id === formData.strategy) || {};
      let strategyId = preCalculatedData.strategyId || strategyObj.id || formData.strategy || "";
-     strategyId = inferStrategyFromArchetype(formData.archetype, strategyId);
+     strategyId = inferStrategyFromArchetype(formData.archetype, strategyId, formData.prompt);
      const dnaData = preCalculatedData.dnaData || ARCHETYPE_DNA[strategyId] || ARCHETYPE_DNA[formData.archetype] || {
        prioridad: "Eficiencia, consistencia en la curva, sinergias de juego justo y ventaja de cartas.",
        estilo: "General / Tradicional",
@@ -4573,7 +4784,12 @@ export async function assembleDeckFromBlueprint(blueprint, formData, aiConfig, o
      };
      const curveProfile = formData.curveProfile || 'balanced';
 
-     let commanderCard = null;
+      const tribeObj = MTG_TRIBES.find(t => t.id === formData.tribe || t.label === formData.tribe) || null;
+      const tribeLabel = tribeObj ? tribeObj.label : formData.tribe || 'Ninguna';
+      const tribeSubtypes = tribeObj && tribeObj.subtypes ? tribeObj.subtypes.join(', ') : formData.tribe || 'Cualquiera';
+      let baseIdent_ColorStr = (formData.colores && formData.colores.length > 0) ? formData.colores.join(",") : "B,R";
+
+      let commanderCard = null;
      if ((formData.format || '').toUpperCase() === 'COMMANDER') {
        if (formData.selectedCommander) {
          commanderCard = formData.selectedCommander;
@@ -5001,7 +5217,7 @@ Genera los campos de metadatos del mazo en JSON puro en español:
       blueprintRoles: blueprint.roles,
       dnaSkeleton: dnaSkeleton
     });
-    const poolText = ragResult.pool.map(c => `- ${c.name} (CMC: ${c.mana_value}, Tipo: ${c.type_line}, Meta: ${c.metaPercent}%, Sinergia: ${c.score})`).join('\n');
+    const poolText = ragResult.pool.map(c => `- ${c.name} (Coste: ${c.mana_cost || '?'}, Tipo: ${c.type_line}, Oracle: "${(c.oracle_text || '').replace(/\n/g, ' ').replace(/"/g, "'")}", Meta: ${c.metaPercent}%, Sinergia: ${c.score})`).join('\n');
     addLog(`RAG pool seleccionado con ${ragResult.pool.length} cartas.`);
 
     // GUARDIA: Pool mínimo viable
@@ -5728,6 +5944,36 @@ Genera la lista de hechizos completamente corregida y optimizada en JSON.`;
       contextPrompt: contextGen_Prompt,
       rawResponse: typeof genResponseRawJson_Object === 'string' ? genResponseRawJson_Object : JSON.stringify(genResponseRawJson_Object)
     };
+
+    // -----------------------------------------------------------------------------
+    // BUCLE DE AUTO-CORRECCIÓN AGÉNTICA PRE-FLIGHT (DISPARADO ANTES DE PRESENTAR EL MAZO)
+    // -----------------------------------------------------------------------------
+    addLog(`[PRE-FLIGHT LOOP] Iniciando evaluación determinista de calidad agéntica...`);
+    try {
+      const allDeckCards = [...(validResultsStruct.cards || [])];
+      const healthEval = evaluateDeckHealthFast(allDeckCards, formData);
+      addLog(`[PRE-FLIGHT LOOP] Score de Salud Inicial: ${healthEval.score}/100`);
+
+      if (healthEval.score < 85) {
+        addLog(`[PRE-FLIGHT LOOP] ⚠️ Score < 85 detectado (${healthEval.score}/100). Activando 1 micro-ciclo de optimización silenciosa...`);
+        const { applyAuditChangesProgrammatically } = await import('./deckOptimizerService.js');
+        const simulatedAuditResult = {
+          criticalAlerts: healthEval.criticalViolations,
+          warnings: healthEval.warnings,
+          suggestions: healthEval.recommendedSwaps.map(s => `${s.cardName}: ${s.reason}`)
+        };
+        const correctedCards = applyAuditChangesProgrammatically(allDeckCards, simulatedAuditResult);
+        if (correctedCards && correctedCards.length > 0) {
+          validResultsStruct.cards = correctedCards;
+          const reEval = evaluateDeckHealthFast(correctedCards, formData);
+          addLog(`[PRE-FLIGHT LOOP] ✅ Micro-corrección completada. Nuevo Score de Salud: ${reEval.score}/100`);
+        }
+      } else {
+        addLog(`[PRE-FLIGHT LOOP] ✅ Aprobación directa. Score ${healthEval.score}/100 en primer intento.`);
+      }
+    } catch (preFlightErr) {
+      addLog(`[PRE-FLIGHT LOOP] ⚠️ Aviso: No se pudo completar el ciclo pre-flight: ${preFlightErr.message}`);
+    }
 
     onProgress('done', '🎉 Forja Kitchen Table Generada Exitosamente.');
     addLog("Proceso de forjado completado con éxito.");

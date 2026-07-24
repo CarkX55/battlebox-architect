@@ -358,6 +358,13 @@ const RARITY_MODES = [
   { value: 'pauper', label: 'Pauper', icon: '🍃', desc: 'Únicamente cartas Comunes.', detail: 'El Oráculo y el Juez de Estado forzarán exclusivamente cartas Comunes. Cualquier carta de rareza superior será transmutada.' }
 ];
 
+const GENERATION_PRIORITIES = [
+  { value: 'hybrid', label: 'Balanceado', icon: '⚖️', desc: 'Equilibrio de sinergia y metagame.', detail: 'Equilibrio balanceado óptimo entre la sinergia interna del mazo y el nivel de poder individual de las cartas.' },
+  { value: 'synergy', label: 'Sinergia Pura', icon: '🔗', desc: 'Enfoque en combos y motores de juego.', detail: 'Prioridad máxima a la sinergia mecánica y la interconectividad de cartas. Favorece motores y combos, incluso si usan cartas menos comunes en torneos.' },
+  { value: 'competitive', label: 'Competitivo', icon: '🏆', desc: 'Prioriza staples y poder de metagame.', detail: 'Prioriza el nivel de poder individual de las cartas basándose en la base de datos de torneos competitivos de Modern y coocurrencias.' },
+  { value: 'thematic', label: 'Temático / Casual', icon: '🎨', desc: 'Fidelidad extrema a tus instrucciones.', detail: 'Prioriza la interpretación del prompt y sabor de tus instrucciones. Potencia la originalidad del mazo.' }
+];
+
 const detectFunctionalRole = (card) => {
   if (!card) return "🔮 Payoff";
   const name = (card.name || "").toLowerCase();
@@ -451,12 +458,14 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
   const [formData, setFormData] = useState(() => {
     let savedRarity = 'high-power';
     let savedAllowCustom = false;
+    let savedPriority = 'hybrid';
     try {
       const savedConfig = localStorage.getItem('mtg_ai_config_forge') || localStorage.getItem('mtg_forge_ai_config');
       if (savedConfig) {
         const parsed = JSON.parse(savedConfig);
         if (parsed.rarityMode) savedRarity = parsed.rarityMode;
         if (parsed.allowCustomCards !== undefined) savedAllowCustom = !!parsed.allowCustomCards;
+        if (parsed.generationPriority) savedPriority = parsed.generationPriority;
       }
     } catch (e) {}
 
@@ -475,6 +484,7 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
       customBanlist: '',
       rarityMode: savedRarity,
       allowCustomCards: savedAllowCustom,
+      generationPriority: savedPriority,
       vetoedKeywords: [],
       vetoedCards: [],
       playstyle: 'balanced',
@@ -491,6 +501,7 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
       selectedCorePackages: [],
       predefinedBanned: [],
       manaGreed: 'balanced',
+      manaBaseStyle: 'competitive',
       sideboardFocus: [],
     };
   });
@@ -737,9 +748,9 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
 
   const selectedStrategyInfo = useMemo(() => {
     if (!formData.strategy || isCustomStrategy) return null;
-    const realId = inferStrategyFromArchetype(formData.archetype, formData.strategy);
+    const realId = inferStrategyFromArchetype(formData.archetype, formData.strategy, formData.prompt);
     return MTG_STRATEGIES.find(s => s.id === realId || s.label === formData.strategy);
-  }, [formData.archetype, formData.strategy, isCustomStrategy]);
+  }, [formData.archetype, formData.strategy, formData.prompt, isCustomStrategy]);
 
   const allowedColorsInfo = useMemo(() => {
     let allowed = [];
@@ -1198,6 +1209,7 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
           customPrompt: formData.customPrompt,
           prompt: formData.prompt,
           rarityMode: formData.rarityMode,
+          generationPriority: formData.generationPriority,
           deckSize: formData.deckSize,
           sideboardSize: formData.sideboardSize,
           singleton: formData.singleton,
@@ -2282,6 +2294,46 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                       })}
                     </div>
                   </div>
+
+                  {/* Estilo y Preferencia de Tierras */}
+                  <div className="space-y-4 bg-black/45 p-5 rounded-2xl border border-white/5 relative overflow-hidden mt-6">
+                    <div className="absolute inset-0 bg-[url('/ASSETS/FrostedGlass.webp')] bg-cover opacity-5 pointer-events-none" />
+                    <label className="block text-[#ffca58] text-xs font-bold uppercase tracking-[0.15em] flex items-center gap-1.5 relative z-10">
+                      🌍 Estilo y Preferencia de Tierras
+                    </label>
+                    <p className="text-[10px] text-[#f4ece0]/60 tracking-wide leading-relaxed font-sans relative z-10">
+                      Selecciona la prioridad y presupuesto para la base de tierras de doble color.
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 relative z-10">
+                      {[
+                        { id: 'competitive', label: 'Ultra-Competitivo', desc: 'Shocklands, Fetchlands y Tierras Rápidas' },
+                        { id: 'no-pain', label: 'Sin Auto-Daño', desc: 'Prioriza Tierras Lentas/Rápidas, de Espionaje y Básicas' },
+                        { id: 'utility', label: 'Utilidad y Man-Lands', desc: 'Prioriza Tierras que se convierten en criaturas y de canal' },
+                        { id: 'budget', label: 'Económico / Casual', desc: 'Tierras Básicas, Temples y Painlands básicas' }
+                      ].map(opt => {
+                        const isSel = (formData.manaBaseStyle || 'competitive') === opt.id;
+                        return (
+                          <div
+                            key={opt.id}
+                            onClick={() => setFormData(prev => ({ ...prev, manaBaseStyle: opt.id }))}
+                            className={cn(
+                              "p-3 rounded-xl border cursor-pointer transition-all duration-300 flex flex-col justify-between items-start min-h-[75px] backdrop-blur-md relative overflow-hidden group text-left",
+                              isSel
+                                ? "border-[#ffca58] bg-[#ffca58]/15 shadow-md scale-[1.02] shadow-[0_0_10px_rgba(255,202,88,0.15)]"
+                                : "bg-black/40 border-white/10 hover:bg-black/60 hover:border-white/30"
+                            )}
+                          >
+                            <span className={cn("text-[9.5px] font-black uppercase tracking-wider", isSel ? "text-magic-gold" : "text-white/80")}>
+                              {opt.label}
+                            </span>
+                            <span className="text-[8.5px] text-white/40 leading-tight mt-1 font-sans">
+                              {opt.desc}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
 
                 {/* Lado Derecho: Vistazo Rápido */}
@@ -3158,6 +3210,62 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                           </span>
                         </p>
                       </div>
+                      </div>
+
+                      {/* Prioridad de Selección (RAG) */}
+                      <div className="space-y-3 bg-black/45 p-5 rounded-2xl border border-white/5 relative overflow-hidden">
+                        <div className="absolute inset-0 bg-[url('/ASSETS/FrostedGlass.webp')] bg-cover opacity-5 pointer-events-none" />
+                        <label className="block text-[#ffca58] text-xs font-bold uppercase tracking-[0.15em] drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)] flex items-center gap-1.5 relative z-10">
+                          🎯 Prioridad de Selección
+                        </label>
+                        <p className="text-[10px] text-[#f4ece0]/60 tracking-wide leading-relaxed relative z-10 font-sans">
+                          Ajusta el equilibrio algorítmico del RAG. Puedes priorizar cartas que generen combos/sinergias internas, cartas competitivas probadas en torneos, o ceñirte al prompt.
+                        </p>
+                        
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-1 relative z-10">
+                          {GENERATION_PRIORITIES.map(priority => {
+                            const isSelected = formData.generationPriority === priority.value;
+                            return (
+                              <div
+                                key={priority.value}
+                                onClick={() => setFormData(prev => ({ ...prev, generationPriority: priority.value }))}
+                                className={cn(
+                                  "p-3 rounded-xl border cursor-pointer transition-all duration-300 flex flex-col justify-between items-start min-h-[90px] backdrop-blur-md relative overflow-hidden group",
+                                  isSelected
+                                    ? "border-[#ffca58] bg-gradient-to-b from-[#ffca58]/15 via-black/80 to-black shadow-[0_0_12px_rgba(255,202,88,0.25)] scale-[1.02]"
+                                    : "bg-black/60 border-white/10 hover:border-white/25 hover:bg-black/80 hover:scale-[1.01]"
+                                )}
+                              >
+                                <div className="flex justify-between items-center w-full mb-1">
+                                  <span className="text-lg">{priority.icon}</span>
+                                  {isSelected && (
+                                    <span className="text-[9px] font-black uppercase text-magic-gold px-1.5 py-0.5 rounded bg-magic-gold/10 border border-magic-gold/30 tracking-widest animate-pulse">
+                                      Activo
+                                    </span>
+                                  )}
+                                </div>
+                                <div>
+                                  <h4 className={cn("font-cinzel text-[10px] font-black tracking-wider transition-colors", isSelected ? "text-magic-gold" : "text-white/80")}>
+                                    {priority.label}
+                                  </h4>
+                                  <p className="text-[8.5px] text-white/40 leading-tight mt-0.5 group-hover:text-white/60 transition-colors font-sans font-medium">
+                                    {priority.desc}
+                                  </p>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* Explicación Detallada de la Prioridad Activa */}
+                        <div className="p-3 rounded-lg bg-black/60 border border-white/5 relative z-10 transition-all duration-300">
+                          <p className="text-[10px] text-[#f4ece0]/70 font-serif leading-relaxed flex items-start gap-2">
+                            <span className="text-magic-gold font-bold">↳</span>
+                            <span>
+                              {GENERATION_PRIORITIES.find(p => p.value === formData.generationPriority)?.detail || GENERATION_PRIORITIES[0].detail}
+                            </span>
+                          </p>
+                        </div>
                       </div>
                     </div>
 

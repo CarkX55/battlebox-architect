@@ -1014,6 +1014,7 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
   console.log(`[MANABASE GENERATOR] Generando base de maná profesional para formato: ${format}`);
 
   // Base de datos de dual lands por formato
+  // Base de datos de dual lands por formato
   const shockLands = [
     { name: 'Watery Grave', colors: ['U', 'B'] },
     { name: 'Steam Vents', colors: ['U', 'R'] },
@@ -1105,13 +1106,127 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
     { name: 'Yavimaya Coast', colors: ['G', 'U'] }
   ].filter(land => !BATTLEBOX_VETOS.includes(land.name));
 
+  const surveilLands = [
+    { name: 'Undercity Sewers', colors: ['U', 'B'] },
+    { name: 'Thundering Falls', colors: ['U', 'R'] },
+    { name: 'Underground Mortuary', colors: ['B', 'G'] },
+    { name: 'Lush Portico', colors: ['G', 'W'] },
+    { name: 'Meticulous Archive', colors: ['W', 'U'] },
+    { name: 'Raucous Theater', colors: ['B', 'R'] },
+    { name: 'Commercial District', colors: ['R', 'G'] },
+    { name: 'Elegant Parlor', colors: ['R', 'W'] },
+    { name: 'Shadowy Backstreet', colors: ['W', 'B'] },
+    { name: 'Hedge Maze', colors: ['G', 'U'] }
+  ].filter(land => !BATTLEBOX_VETOS.includes(land.name));
+
+  const restlessLands = [
+    { name: 'Restless Cottage', colors: ['B', 'G'] },
+    { name: 'Restless Vents', colors: ['B', 'R'] },
+    { name: 'Restless Reef', colors: ['U', 'B'] },
+    { name: 'Restless Spire', colors: ['U', 'R'] },
+    { name: 'Restless Ridge', colors: ['R', 'G'] },
+    { name: 'Restless Prairie', colors: ['G', 'W'] },
+    { name: 'Restless Anchorage', colors: ['W', 'U'] },
+    { name: 'Restless Bivouac', colors: ['R', 'W'] },
+    { name: 'Restless Fortress', colors: ['W', 'B'] },
+    { name: 'Restless Vinestalk', colors: ['G', 'U'] }
+  ].filter(land => !BATTLEBOX_VETOS.includes(land.name));
+
+  const pathways = [
+    { name: 'Barkchannel Pathway // Tidechannel Pathway', colors: ['G', 'U'] },
+    { name: 'Blightstep Pathway // Searstep Pathway', colors: ['B', 'R'] },
+    { name: 'Branchloft Pathway // Boulderloft Pathway', colors: ['G', 'W'] },
+    { name: 'Clearwater Pathway // Murkwater Pathway', colors: ['U', 'B'] },
+    { name: 'Darkbore Pathway // Slitherbore Pathway', colors: ['B', 'G'] },
+    { name: 'Hengegate Pathway // Mistgate Pathway', colors: ['W', 'U'] },
+    { name: 'Needleverge Pathway // Pillarverge Pathway', colors: ['R', 'W'] },
+    { name: 'Riverglide Pathway // Lavaglide Pathway', colors: ['U', 'R'] },
+    { name: 'Brightclimb Pathway // Grimclimb Pathway', colors: ['W', 'B'] },
+    { name: 'Cragcrown Pathway // Timbercrown Pathway', colors: ['R', 'G'] }
+  ].filter(land => !BATTLEBOX_VETOS.includes(land.name));
+
+  const temples = [
+    { name: 'Temple of Deceit', colors: ['U', 'B'] },
+    { name: 'Temple of Epiphany', colors: ['U', 'R'] },
+    { name: 'Temple of Malady', colors: ['B', 'G'] },
+    { name: 'Temple of Plenty', colors: ['G', 'W'] },
+    { name: 'Temple of Enlightenment', colors: ['W', 'U'] },
+    { name: 'Temple of Malice', colors: ['B', 'R'] },
+    { name: 'Temple of Abandon', colors: ['R', 'G'] },
+    { name: 'Temple of Triumph', colors: ['R', 'W'] },
+    { name: 'Temple of Silence', colors: ['W', 'B'] },
+    { name: 'Temple of Mystery', colors: ['G', 'U'] }
+  ].filter(land => !BATTLEBOX_VETOS.includes(land.name));
+
+  const crowdLands = [
+    { name: 'Morphic Pool', colors: ['U', 'B'] },
+    { name: 'Luxury Suite', colors: ['B', 'R'] },
+    { name: 'Sea of Clouds', colors: ['W', 'U'] },
+    { name: 'Spire Garden', colors: ['R', 'G'] },
+    { name: 'Bountiful Promenade', colors: ['G', 'W'] },
+    { name: 'Vault of Champions', colors: ['W', 'B'] },
+    { name: 'Training Center', colors: ['U', 'R'] },
+    { name: 'Undergrowth Stadium', colors: ['B', 'G'] },
+    { name: 'Spectator Seating', colors: ['R', 'W'] },
+    { name: 'Rejuvenating Springs', colors: ['G', 'U'] }
+  ].filter(land => !BATTLEBOX_VETOS.includes(land.name));
+
+  // Función de prioridad de tierras duales según formato y preferencia del usuario
+  function getDualLandsPriority(format, style) {
+    const isBudget = style === 'budget';
+    const isNoPain = style === 'no-pain';
+    const isUtility = style === 'utility';
+
+    if (format === 'COMMANDER') {
+      if (isBudget) return ['temples', 'pains', 'slow', 'fast'];
+      if (isNoPain) return ['crowd', 'slow', 'surveil', 'restless', 'fast'];
+      if (isUtility) return ['restless', 'crowd', 'fetches', 'shocks', 'slow'];
+      return ['crowd', 'fetches', 'shocks', 'slow', 'fast', 'triomes', 'surveil'];
+    }
+
+    if (format === 'LEGACY') {
+      if (isBudget) return ['pains', 'temples'];
+      if (isNoPain) return ['duals', 'slow', 'fast', 'surveil'];
+      if (isUtility) return ['duals', 'fetches', 'slow', 'restless'];
+      return ['duals', 'fetches', 'shocks'];
+    }
+
+    if (format === 'MODERN') {
+      if (isBudget) return ['pains', 'temples', 'slow', 'fast'];
+      if (isNoPain) return ['fast', 'slow', 'surveil', 'pathways', 'restless'];
+      if (isUtility) return ['restless', 'fetches', 'shocks', 'slow', 'fast'];
+      return ['fetches', 'shocks', 'fast', 'slow', 'triomes', 'surveil'];
+    }
+
+    if (format === 'PIONEER') {
+      if (isBudget) return ['pains', 'temples', 'slow', 'fast'];
+      if (isNoPain) return ['fast', 'slow', 'surveil', 'pathways', 'restless'];
+      if (isUtility) return ['restless', 'shocks', 'slow', 'fast', 'pathways'];
+      return ['shocks', 'fast', 'slow', 'pathways', 'surveil', 'pains'];
+    }
+
+    // STANDARD
+    if (format === 'STANDARD') {
+      if (isBudget) return ['pains', 'slow', 'fast'];
+      if (isNoPain) return ['fast', 'slow', 'surveil', 'restless'];
+      if (isUtility) return ['restless', 'fast', 'slow', 'surveil'];
+      return ['fast', 'slow', 'surveil', 'restless', 'pains'];
+    }
+
+    return ['fetches', 'shocks', 'fast', 'slow'];
+  }
+
   // --- MINIMUM BASIC LANDS GUARANTEE ---
   const currentMinBasics = Math.max(1, Math.min(minBasics, remainingLands - 2));
 
   if (isMulticolor) {
+    const style = (formData?.manaBaseStyle || 'competitive').toLowerCase();
+    
     // Determine limits based on color count and non-creature spell density
     let maxCopiesPerUnique;
-    if (actualColors.length >= 4) {
+    if (format === 'COMMANDER') {
+      maxCopiesPerUnique = 1; // Commander is strictly singleton
+    } else if (actualColors.length >= 4) {
       maxCopiesPerUnique = nonCreatureCount >= 8 ? 2 : 1;
     } else if (actualColors.length === 3) {
       maxCopiesPerUnique = nonCreatureCount >= 8 ? 3 : 2;
@@ -1120,277 +1235,152 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
     }
 
     let maxTotalDuals = 6;
-    if (format === 'STANDARD' || format === 'PIONEER' || nonCreatureCount >= 8) {
-      maxTotalDuals = 10; // Allow more dual lands to support high non-creature/spellslinger requirements or formats without fetches
+    if (format === 'COMMANDER') {
+      maxTotalDuals = 20;
+    } else if (format === 'STANDARD' || format === 'PIONEER' || nonCreatureCount >= 8) {
+      maxTotalDuals = 12; // Allow more dual lands for Standard/Pioneer or spell-heavy decks
     }
     let totalDualsInjected = 0;
 
-    // A. & B. FETCH & DUAL LANDS INJECTION (Heurística Pro Tour para Legacy y Modern vs Pioneer/Standard)
-    if ((format === 'LEGACY' || format === 'MODERN') && isMulticolor) {
-      let targetFetchCount = 4;
-      let targetShockCount = 3;
-      if (actualColors.length === 2) {
-        targetFetchCount = 4;
-        targetShockCount = 2;
-      } else if (actualColors.length === 3) {
-        targetFetchCount = 4;
-        targetShockCount = 3;
-      } else if (actualColors.length >= 4) {
-        targetFetchCount = 5;
-        targetShockCount = 3;
+    // 2. DETECCIÓN DE FORMATO Y GENERACIÓN DE DUAL LANDS PROFESIONALES
+    console.log(`[MANABASE GENERATOR] Generando base de maná profesional para formato: ${format} (Estilo: ${style})`);
+
+    // Inyección especial de Command Tower para Commander
+    if (format === 'COMMANDER') {
+      if (isLandFormatLegal("Command Tower")) {
+        injectLand({
+          name: "Command Tower",
+          category: 'Land',
+          type_line: 'Land — Tower',
+          color_identity: actualColors
+        }, 1);
       }
-
-      // 1. Fetch Lands
-      const validFetches = fetchLands.filter(f => f.colors.every(c => actualColors.includes(c)));
-      validFetches.forEach(f => {
-        f.score = (pipBalance[f.colors[0]] || 0) + (pipBalance[f.colors[1]] || 0);
-        f.allocated = 0;
-      });
-      validFetches.sort((a, b) => b.score - a.score);
-
-      let fetchesAllocated = 0;
-      validFetches.forEach(f => {
-        if (fetchesAllocated < targetFetchCount && f.score > 0 && remainingLands > currentMinBasics) {
-          f.allocated = 1;
-          fetchesAllocated++;
-        }
-      });
-      for (let i = 0; i < validFetches.length; i++) {
-        const f = validFetches[i];
-        while (fetchesAllocated < targetFetchCount && f.allocated < 4 && f.score > 0 && remainingLands > currentMinBasics) {
-          f.allocated++;
-          fetchesAllocated++;
-        }
+      if (actualColors.length >= 3 && isLandFormatLegal("Exotic Orchard")) {
+        injectLand({
+          name: "Exotic Orchard",
+          category: 'Land',
+          type_line: 'Land — Orchard',
+          color_identity: actualColors
+        }, 1);
       }
-
-      validFetches.forEach(f => {
-        if (f.allocated > 0) {
-          manaBase.push({
-            name: f.name,
-            quantity: f.allocated,
-            category: 'Land',
-            type_line: 'Land — Fetch',
-            color_identity: f.colors
-          });
-          remainingLands -= f.allocated;
-          console.log(`[MANABASE GENERATOR] Inyectada fetch land Pro: ${f.allocated}x ${f.name}`);
-        }
-      });
-
-      // 2. Shock Lands / Original Duals
-      const targetDuals = (format === 'LEGACY') ? legacyDuals : shockLands;
-      const validDuals = targetDuals.filter(d => d.colors.every(c => actualColors.includes(c)));
-      validDuals.forEach(d => {
-        d.score = (pipBalance[d.colors[0]] || 0) + (pipBalance[d.colors[1]] || 0);
-        d.allocated = 0;
-      });
-      validDuals.sort((a, b) => b.score - a.score);
-
-      let shocksAllocated = 0;
-      validDuals.forEach(d => {
-        if (shocksAllocated < targetShockCount && d.score > 0 && remainingLands > currentMinBasics) {
-          d.allocated = 1;
-          shocksAllocated++;
-        }
-      });
-      for (let i = 0; i < validDuals.length; i++) {
-        const d = validDuals[i];
-        while (shocksAllocated < targetShockCount && d.allocated < 4 && d.score > 0 && remainingLands > currentMinBasics) {
-          d.allocated++;
-          shocksAllocated++;
-        }
-      }
-
-      validDuals.forEach(d => {
-        if (d.allocated > 0) {
-          manaBase.push({
-            name: d.name,
-            quantity: d.allocated,
-            category: 'Land',
-            type_line: (format === 'LEGACY') ? 'Land — Original Dual' : 'Land — Shock',
-            color_identity: d.colors
-          });
-          remainingLands -= d.allocated;
-          console.log(`[MANABASE GENERATOR] Inyectada tierra dual Pro: ${d.allocated}x ${d.name}`);
-        }
-      });
-    } else if (isMulticolor) {
-      // Fallback para Pioneer o Standard sin fetches, o si no hay fetches en general
-      const targetDuals = (format === 'LEGACY') ? legacyDuals : (format === 'STANDARD' ? painLands : shockLands);
-      const validDuals = targetDuals.filter(d => d.colors.every(c => actualColors.includes(c)));
-
-      validDuals.sort((a, b) => {
-        const sumA = a.colors.reduce((sum, c) => sum + (pipBalance[c] || 0), 0);
-        const sumB = b.colors.reduce((sum, c) => sum + (pipBalance[c] || 0), 0);
-        return sumB - sumA;
-      });
-
-      const dualsToInject = validDuals.map(d => ({ ...d, quantityToInject: 0 }));
-      const coveredColors = new Set();
-      
-      dualsToInject.forEach(dual => {
-        if (totalDualsInjected >= maxTotalDuals || remainingLands <= currentMinBasics) return;
-        const hasUncoveredColor = dual.colors.some(c => actualColors.includes(c) && !coveredColors.has(c));
-        if (hasUncoveredColor) {
-          dual.quantityToInject = 1;
-          dual.colors.forEach(c => {
-            if (actualColors.includes(c)) coveredColors.add(c);
-          });
-          totalDualsInjected += 1;
-          remainingLands -= 1;
-        }
-      });
-
-      dualsToInject.forEach(dual => {
-        if (totalDualsInjected >= maxTotalDuals || remainingLands <= currentMinBasics) return;
-        if (dual.quantityToInject === 0) {
-          dual.quantityToInject = 1;
-          dual.colors.forEach(c => {
-            if (actualColors.includes(c)) coveredColors.add(c);
-          });
-          totalDualsInjected += 1;
-          remainingLands -= 1;
-        }
-      });
-
-      dualsToInject.forEach(dual => {
-        if (totalDualsInjected >= maxTotalDuals || remainingLands <= currentMinBasics) return;
-        const hasReq = dual.colors.some(c => karstenRequirements[c]);
-        const maxAllowed = (actualColors.length === 2 || hasReq) ? maxCopiesPerUnique : Math.min(2, maxCopiesPerUnique);
-        const remainingAllowed = maxAllowed - dual.quantityToInject;
-        
-        const qty = Math.min(remainingAllowed, remainingLands - currentMinBasics);
-        const qtyCapped = Math.min(qty, maxTotalDuals - totalDualsInjected);
-
-        if (qtyCapped > 0) {
-          dual.quantityToInject += qtyCapped;
-          totalDualsInjected += qtyCapped;
-          remainingLands -= qtyCapped;
-        }
-      });
-
-      dualsToInject.forEach(dual => {
-        if (dual.quantityToInject > 0) {
-          manaBase.push({
-            name: dual.name,
-            quantity: dual.quantityToInject,
-            category: 'Land',
-            type_line: (format === 'LEGACY') ? 'Land — Original Dual' : (format === 'STANDARD' ? 'Land — Pain' : 'Land — Shock'),
-            color_identity: dual.colors
-          });
-          console.log(`[MANABASE GENERATOR] Inyectada tierra dual: ${dual.quantityToInject}x ${dual.name}`);
-        }
-      });
     }
 
-    // C. TRIOMES INJECTION (Only Modern/Pioneer and 3+ Colors)
+    // A. Triomes (Modern/Pioneer/Commander and 3+ Colors)
     const curve = (formData?.curveProfile || '').toLowerCase();
     const isAggressive = curve === 'aggressive' || curve === 'blitz' || archetype === 'aggro';
     
-    if (actualColors.length >= 3 && (format === 'MODERN' || format === 'PIONEER') && remainingLands > currentMinBasics && !isAggressive) {
-      const maxTriomes = (actualColors.length >= 4) ? 2 : 1;
+    if (actualColors.length >= 3 && (format === 'MODERN' || format === 'PIONEER' || format === 'COMMANDER') && remainingLands > currentMinBasics && !isAggressive) {
+      const maxTriomes = (format === 'COMMANDER') ? 3 : ((actualColors.length >= 4) ? 2 : 1);
       let triomesInjected = 0;
       const validTriomes = triomes.filter(t => t.colors.every(c => actualColors.includes(c)));
 
       validTriomes.forEach(t => {
         if (triomesInjected >= maxTriomes || remainingLands <= currentMinBasics) return;
-        manaBase.push({
+        const injected = injectLand({
           name: t.name,
-          quantity: 1,
           category: 'Land',
           type_line: 'Land — Triome',
           color_identity: t.colors
-        });
-        remainingLands--;
-        triomesInjected++;
-        console.log(`[MANABASE GENERATOR] Inyectado Trioma: 1x ${t.name}`);
+        }, 1);
+        if (injected > 0) {
+          triomesInjected++;
+          console.log(`[MANABASE GENERATOR] Inyectado Trioma: 1x ${t.name}`);
+        }
       });
     }
 
-    // D. AUXILIARY LANDS (Fastlands & Slowlands: Optimización de Turno Crítico de Pips)
-    if (format === 'PIONEER' || format === 'STANDARD' || remainingLands > currentMinBasics) {
-      // 1. Deducir qué colores tienen pips de coste bajo (CMC <= 2)
-      const lowCmcColors = new Set();
-      nonLandSpells.forEach(s => {
-        const mv = getManaValue(s);
-        if (mv <= 2) {
-          const costStr = getCardManaCostString(s);
-          if (costStr.includes('W')) lowCmcColors.add('W');
-          if (costStr.includes('U')) lowCmcColors.add('U');
-          if (costStr.includes('B')) lowCmcColors.add('B');
-          if (costStr.includes('R')) lowCmcColors.add('R');
-          if (costStr.includes('G')) lowCmcColors.add('G');
-        }
-      });
+    // B. Inyectar tierras duales prioritarias según el formato y el estilo seleccionado
+    const priorities = getDualLandsPriority(format, style);
+    
+    const categoryPools = {
+      fetches: fetchLands,
+      shocks: shockLands,
+      duals: legacyDuals,
+      fast: fastLands,
+      slow: slowLands,
+      surveil: surveilLands,
+      restless: restlessLands,
+      pathways: pathways,
+      pains: painLands,
+      temples: temples,
+      crowd: crowdLands
+    };
 
-      // 2. Filtrar tierras auxiliares válidas y ordenarlas por pips
-      const validFast = fastLands.filter(f => f.colors.every(c => actualColors.includes(c)));
-      validFast.sort((a, b) => {
+    // Deducir qué colores tienen pips de coste bajo (CMC <= 2)
+    const lowCmcColors = new Set();
+    nonLandSpells.forEach(s => {
+      const mv = getManaValue(s);
+      if (mv <= 2) {
+        const costStr = getCardManaCostString(s);
+        if (costStr.includes('W')) lowCmcColors.add('W');
+        if (costStr.includes('U')) lowCmcColors.add('U');
+        if (costStr.includes('B')) lowCmcColors.add('B');
+        if (costStr.includes('R')) lowCmcColors.add('R');
+        if (costStr.includes('G')) lowCmcColors.add('G');
+      }
+    });
+
+    priorities.forEach(category => {
+      const pool = categoryPools[category];
+      if (!pool) return;
+
+      // Filtrar tierras del pool válidas para los colores
+      const validLands = pool.filter(l => l.colors.every(c => actualColors.includes(c)));
+
+      // Ordenar por pips necesitados
+      validLands.sort((a, b) => {
         const sumA = a.colors.reduce((sum, c) => sum + (pipBalance[c] || 0), 0);
         const sumB = b.colors.reduce((sum, c) => sum + (pipBalance[c] || 0), 0);
         return sumB - sumA;
       });
 
-      const validSlow = slowLands.filter(s => s.colors.every(c => actualColors.includes(c)));
-      validSlow.sort((a, b) => {
-        const sumA = a.colors.reduce((sum, c) => sum + (pipBalance[c] || 0), 0);
-        const sumB = b.colors.reduce((sum, c) => sum + (pipBalance[c] || 0), 0);
-        return sumB - sumA;
-      });
+      validLands.forEach(land => {
+        if (totalDualsInjected >= maxTotalDuals || remainingLands <= currentMinBasics) return;
+        if (!isLandFormatLegal(land.name)) return;
 
-      // 3. Inyectar Fastlands primero si el par de colores tiene pips tempranos de CMC <= 2
-      validFast.forEach(fast => {
-        if (remainingLands <= currentMinBasics) return;
-        
-        // ¿Tiene pips tempranos?
-        const hasEarlyPip = fast.colors.some(c => lowCmcColors.has(c));
-        
-        if (hasEarlyPip || archetype === 'aggro') {
-          let quantity = (archetype === 'aggro' || format === 'STANDARD') ? 4 : 2;
-          quantity = Math.min(quantity, remainingLands - currentMinBasics);
+        // Determinar cantidad a inyectar
+        let maxQty = maxCopiesPerUnique;
+        if (format !== 'COMMANDER') {
+          if (category === 'fetches') {
+            maxQty = 4;
+          } else if (category === 'shocks') {
+            maxQty = (actualColors.length === 2 ? 4 : 2);
+          } else if (category === 'duals') {
+            maxQty = (actualColors.length === 2 ? 4 : 2);
+          } else if (category === 'fast') {
+            const hasEarlyPip = land.colors.some(c => lowCmcColors.has(c));
+            maxQty = (hasEarlyPip || archetype === 'aggro' || format === 'STANDARD') ? 4 : 2;
+          } else if (category === 'slow') {
+            maxQty = (archetype === 'control' || archetype === 'midrange') ? 4 : 2;
+          } else if (category === 'restless') {
+            maxQty = 2; // Las man-lands son lentas, máximo 2
+          } else if (category === 'surveil') {
+            maxQty = 2; // Surveil lands entran giradas, máximo 2
+          } else if (category === 'pains') {
+            maxQty = (actualColors.length === 2 ? 4 : 2);
+          } else if (category === 'temples') {
+            maxQty = 2; // Temples entran giradas, máximo 2
+          }
+        }
 
-          if (quantity > 0) {
-            manaBase.push({
-              name: fast.name,
-              quantity: quantity,
-              category: 'Land',
-              type_line: 'Land — Fast',
-              color_identity: fast.colors
-            });
-            remainingLands -= quantity;
-            console.log(`[MANABASE GENERATOR] [CRITICAL PIP] Inyectada Fastland para tempo temprano: ${quantity}x ${fast.name}`);
+        let qty = Math.min(maxQty, remainingLands - currentMinBasics);
+        qty = Math.min(qty, maxTotalDuals - totalDualsInjected);
+
+        if (qty > 0) {
+          const typeLabel = category.charAt(0).toUpperCase() + category.slice(1);
+          const added = injectLand({
+            name: land.name,
+            category: 'Land',
+            type_line: `Land — ${typeLabel}`,
+            color_identity: land.colors
+          }, qty);
+          if (added > 0) {
+            totalDualsInjected += added;
+            console.log(`[MANABASE GENERATOR] [${style.toUpperCase()}] Inyectada dual (${category}): ${added}x ${land.name}`);
           }
         }
       });
-
-      // 4. Inyectar Slowlands si no se requería tempo temprano o si queda espacio
-      validSlow.forEach(slow => {
-        if (remainingLands <= currentMinBasics) return;
-        
-        // Evitar slowlands en barajas ultra-agresivas/blitz para que no entren giradas en turnos críticos
-        if (isAggressive) return;
-
-        const hasEarlyPip = slow.colors.some(c => lowCmcColors.has(c));
-        
-        // Priorizar slowlands si no se requiere velocidad inmediata (Control/Midrange o costes >= 3)
-        if (!hasEarlyPip || archetype === 'control' || archetype === 'midrange') {
-          let quantity = (archetype === 'control' || archetype === 'midrange') ? 4 : 2;
-          quantity = Math.min(quantity, remainingLands - currentMinBasics);
-
-          if (quantity > 0) {
-            manaBase.push({
-              name: slow.name,
-              quantity: quantity,
-              category: 'Land',
-              type_line: 'Land — Slow',
-              color_identity: slow.colors
-            });
-            remainingLands -= quantity;
-            console.log(`[MANABASE GENERATOR] [CRITICAL PIP] Inyectada Slowland para late-game de valor: ${quantity}x ${slow.name}`);
-          }
-        }
-      });
-    }
+    });
 
     // E. WASTELAND (Legacy only, Aggro/Midrange/Taxes/Tempo strategies)
     if (format === 'LEGACY' && remainingLands > currentMinBasics) {

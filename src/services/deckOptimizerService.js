@@ -529,6 +529,8 @@ export async function applyAuditChangesProgrammatically(deckList, suggestions, a
   let newDeck = [...deckList];
 
   suggestions.forEach(sug => {
+    if (sug && sug._invalid) return; // Guard clause to ignore invalid suggestions
+    
     if (sug.removes && Array.isArray(sug.removes)) {
       sug.removes.forEach(remove => {
         const index = newDeck.findIndex(c => cleanCardNameForMatching(c.name) === cleanCardNameForMatching(remove.name));

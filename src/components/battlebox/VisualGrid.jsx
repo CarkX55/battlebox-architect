@@ -272,10 +272,15 @@ function CategorySection({ title, icon: Icon, cards, onRemove, onAdd, isEditing,
 export default function VisualGrid({ cards, onRemoveCard, onAddCard, isEditing, isMainDeck, onAudit, isAuditing, auditResult, onCloseAudit, onOptimize, manaSources, deckSize }) {
   const [selectedSuggestions, setSelectedSuggestions] = useState(new Set());
   const [selectedDropdownOptions, setSelectedDropdownOptions] = useState({});
+  const [showKarstenDrawer, setShowKarstenDrawer] = useState(false);
 
   useEffect(() => {
     if (auditResult && auditResult.suggestions) {
-      setSelectedSuggestions(new Set(auditResult.suggestions.map((_, i) => i)));
+      setSelectedSuggestions(new Set(
+        auditResult.suggestions
+          .map((sug, i) => (sug && sug._invalid) ? -1 : i)
+          .filter(idx => idx !== -1)
+      ));
     }
   }, [auditResult]);
 
@@ -475,6 +480,39 @@ export default function VisualGrid({ cards, onRemoveCard, onAddCard, isEditing, 
                   );
                 })()}
 
+                {/* Desplegable Karsten Mana Analysis */}
+                {auditResult._karstenAnalysis && auditResult._karstenAnalysis.devotions && auditResult._karstenAnalysis.devotions.length > 0 && (
+                  <div className="bg-black/50 border border-purple-500/20 rounded-2xl p-4">
+                    <button
+                      onClick={() => setShowKarstenDrawer(!showKarstenDrawer)}
+                      className="w-full flex items-center justify-between text-left text-[10px] uppercase font-bold tracking-widest text-purple-400 hover:text-purple-300 transition-colors"
+                    >
+                      <span className="flex items-center gap-2">
+                        📊 Análisis de Fuentes de Maná (Fórmula Karsten)
+                      </span>
+                      <span className="text-xs">{showKarstenDrawer ? '▲ Ocultar' : '▼ Mostrar Desglose'}</span>
+                    </button>
+                    {showKarstenDrawer && (
+                      <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 border-t border-white/5 pt-3">
+                        {auditResult._karstenAnalysis.devotions.map((dev, idx) => (
+                          <div key={idx} className="bg-black/40 border border-white/10 rounded-xl p-2.5 flex flex-col gap-1">
+                            <div className="flex items-center justify-between text-xs font-bold">
+                              <span className="text-purple-300">Color {dev.color} (Devoción máx: {dev.maxDevotion})</span>
+                              <span className={dev.status === 'ok' ? 'text-emerald-400' : dev.status === 'warning' ? 'text-amber-400' : 'text-red-400'}>
+                                {dev.status === 'ok' ? '✓ OK' : dev.status === 'warning' ? '⚠️ Ajustado' : '🚨 Escaso'}
+                              </span>
+                            </div>
+                            <div className="text-[10px] text-gray-400 flex justify-between">
+                              <span>Fuentes reales: {dev.availableSources}</span>
+                              <span>Karsten rec: {dev.requiredSources}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* Alertas Críticas */}
                   {auditResult.criticalAlerts && auditResult.criticalAlerts.length > 0 && (
@@ -547,6 +585,19 @@ export default function VisualGrid({ cards, onRemoveCard, onAddCard, isEditing, 
                              {sug._invalid && <XCircle size={10} className="text-red-400" />}
                           </div>
                           <div className="flex-1">
+                            {/* Badge de Categoría de Cambio */}
+                            {sug.changeType && !sug._invalid && (
+                              <div className="mb-1">
+                                <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-purple-900/40 border border-purple-500/30 text-purple-300 inline-block">
+                                  {sug.changeType === 'Strict Upgrade' ? '⚡ Strict Upgrade'
+                                    : sug.changeType === 'Synergy Upgrade' ? '🔗 Synergy Upgrade'
+                                    : sug.changeType === 'Curve Fix' ? '📉 Curve Fix'
+                                    : sug.changeType === 'Protection Fix' ? '🛡️ Protection Fix'
+                                    : sug.changeType}
+                                </span>
+                              </div>
+                            )}
+
                             {/* Badge de validación fallida */}
                             {sug._invalid && (
                               <div className="mb-1.5 flex flex-col gap-1">

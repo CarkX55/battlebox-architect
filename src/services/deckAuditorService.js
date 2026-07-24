@@ -135,7 +135,9 @@ const RAMP_FALSE_POSITIVES = ['put a +1/+1 counter'];
 function classifyCardPillar(card, tribe = null) {
   const oracle = (card.oracle_text || '').toLowerCase();
   const typeLine = (card.type_line || '').toLowerCase();
-  const power = parseInt(card.power || '0', 10);
+  const powerStr = (card.power || '').trim();
+  const isVariablePower = powerStr.includes('*');
+  const power = isVariablePower ? 3 : parseInt(powerStr || '0', 10);
   const pillars = new Set();
 
   // THREATS: planeswalkers
@@ -255,6 +257,123 @@ export function analyzeFunctionalPillars(spells, format = 'MODERN', archetypeOrF
 }
 
 /**
+ * Analiza la devoción de maná doble o triple en los costes de hechizos y la compara
+ * con las fuentes coloreadas disponibles (Fórmula Karsten).
+ * @param {Array} spells - Hechizos del mazo
+ * @param {Object} sources - Fuentes coloreadas { W, U, B, R, G }
+ * @returns {Object} { hasDevotionWarnings, devotions, doubleDevotionCards }
+ */
+export function analyzeKarstenManaDevotion(spells, sources = {}) {
+  const maxDevotion = { W: 0, U: 0, B: 0, R: 0, G: 0 };
+  const doubleDevotionCards = [];
+
+  spells.forEach(card => {
+    const cost = card.mana_cost || '';
+    ['W', 'U', 'B', 'R', 'G'].forEach(color => {
+      const regex = new RegExp(`\\{${color}\\}`, 'g');
+      const matches = cost.match(regex);
+      const dev = matches ? matches.length : 0;
+      if (dev > maxDevotion[color]) {
+        maxDevotion[color] = dev;
+      }
+      if (dev >= 2 && !doubleDevotionCards.some(c => c.name === card.name)) {
+        doubleDevotionCards.push({ name: card.name, color, devotion: dev, mana_cost: cost });
+      }
+    });
+  });
+
+  const results = [];
+  let totalWarnings = 0;
+
+  ['W', 'U', 'B', 'R', 'G'].forEach(color => {
+    const dev = maxDevotion[color];
+    if (dev === 0) return;
+    const required = dev === 1 ? 13 : dev === 2 ? 19 : 22;
+    const available = sources[color] || sources[color.toLowerCase()] || 0;
+    
+    let status = 'ok';
+    if (available > 0 && available < required) {
+      status = available < required - 4 ? 'critical' : 'warning';
+      totalWarnings++;
+    }
+
+    results.push({
+      color,
+      maxDevotion: dev,
+      requiredSources: required,
+      availableSources: available,
+      status,
+      exampleCards: doubleDevotionCards.filter(c => c.color === color).map(c => c.name)
+    });
+  });
+
+  return {
+    hasDevotionWarnings: totalWarnings > 0,
+    devotions: results,
+    doubleDevotionCards
+  };
+}
+
+/**
+ * Analiza ratios de motor (Enablers vs Payoffs) para arquetipos sinérgicos específicos.
+ * @param {Array} spells 
+ * @param {string} strategy 
+ * @returns {Object|null}
+ */
+export function analyzeEngineRatios(spells = [], strategy = '') {
+  const stratLower = (strategy || '').toLowerCase();
+  let result = null;
+
+  if (stratLower.includes('reanimat') || stratLower.includes('graveyard') || stratLower.includes('dredge')) {
+    let enablers = 0;
+    let reanimators = 0;
+    let payoffs = 0;
+    spells.forEach(c => {
+      const text = (c.oracle_text || '').toLowerCase();
+      const cmc = c.mana_value || c.cmc || 0;
+      const isCreature = (c.type_line || '').toLowerCase().includes('creature');
+      if (text.includes('discard') || text.includes('mill') || text.includes('surveil') || text.includes('put into your graveyard')) enablers += (c.quantity || 1);
+      if ((text.includes('return') && text.includes('graveyard')) || text.includes('reanimate') || text.includes('unearth') || text.includes('flashback')) reanimators += (c.quantity || 1);
+      if (isCreature && (cmc >= 5 || text.includes('enters the battlefield'))) payoffs += (c.quantity || 1);
+    });
+    result = {
+      strategy: 'Cementerio / Reanimación',
+      enablers,
+      reanimators,
+      payoffs,
+      enablerCount: enablers,
+      engineCount: reanimators,
+      payoffCount: payoffs,
+      idealRatio: 'Ratio 1:1 Habilitadores vs Reanimadores (Recomendado ~6-8 de cada uno)',
+      status: (enablers > 0 && reanimators > 0) ? 'ok' : 'unbalanced'
+    };
+  } else if (stratLower.includes('aristocrat') || stratLower.includes('sacrifice')) {
+    let outlets = 0;
+    let fodder = 0;
+    let drainers = 0;
+    spells.forEach(c => {
+      const text = (c.oracle_text || '').toLowerCase();
+      if (text.includes('sacrifice a')) outlets += (c.quantity || 1);
+      if (text.includes('create a token') || text.includes('when this creature dies, create') || text.includes('persist')) fodder += (c.quantity || 1);
+      if (text.includes('whenever another creature dies') || text.includes('loses 1 life and you gain')) drainers += (c.quantity || 1);
+    });
+    result = {
+      strategy: 'Aristócratas',
+      outlets,
+      fodder,
+      drainers,
+      enablerCount: fodder,
+      engineCount: outlets,
+      payoffCount: drainers,
+      idealRatio: 'Ratio ~8 Outlets : 12 Fodder : 4-6 Drainers',
+      status: (outlets >= 4 && fodder >= 6 && drainers >= 2) ? 'ok' : 'unbalanced'
+    };
+  }
+
+  return result;
+}
+
+/**
  * Genera un texto-resumen de los pilares funcionales para inyectar en el prompt de IA.
  * @param {Object} pillarAnalysis - Resultado de analyzeFunctionalPillars
  * @returns {string}
@@ -329,6 +448,109 @@ export function analyzeCardQuality(deckCards) {
   }
 
   return { eliteCount, competitiveCount, casualCount, unknownCount, averageRank, qualityLabel };
+}
+
+/**
+ * Calcula una nota determinista y matemática de viabilidad (1-10) basada en
+ * los 5 pilares funcionales, la devoción de Karsten y el VMP de la curva.
+ */
+export function calculateDeterministicDeckScore(pillarAnalysis, karstenAnalysis, vmp, stance = 'balanced') {
+  let score = 0;
+
+  // 1. Pilares Funcionales (hasta 5.0 puntos)
+  if (pillarAnalysis && pillarAnalysis.pillarStatus) {
+    const statuses = Object.values(pillarAnalysis.pillarStatus);
+    statuses.forEach(st => {
+      if (st === 'ok') score += 1.0;
+      else if (st === 'low') score += 0.6;
+      else if (st === 'critical') score += 0.2;
+    });
+  } else {
+    score += 3.0;
+  }
+
+  // 2. Base de Maná y Karsten (hasta 3.0 puntos)
+  if (karstenAnalysis && karstenAnalysis.unsatisfied) {
+    const unsatisfiedCount = karstenAnalysis.unsatisfied.length;
+    if (unsatisfiedCount === 0) score += 3.0;
+    else if (unsatisfiedCount === 1) score += 2.2;
+    else if (unsatisfiedCount === 2) score += 1.5;
+    else if (unsatisfiedCount === 3) score += 1.0;
+    else score += 0.5;
+  } else {
+    score += 2.0;
+  }
+
+  // 3. Valor de Maná Promedio (VMP) y Curva (hasta 2.0 puntos)
+  if (vmp != null) {
+    const numVmp = parseFloat(vmp);
+    if (!isNaN(numVmp)) {
+      if (numVmp >= 1.5 && numVmp <= 3.2) score += 2.0;
+      else if (numVmp > 3.2 && numVmp <= 3.8) score += 1.2;
+      else if (numVmp < 1.5) score += 1.5;
+      else score += 0.5;
+    } else {
+      score += 1.5;
+    }
+  } else {
+    score += 1.5;
+  }
+
+  return Math.min(10, Math.max(1, Math.round(score)));
+}
+
+/**
+ * Consolida cartas de coste ≤ 3 en playsets de 4 copias (Regla de Consistencia Pro-Tour),
+ * eliminando "1-ofs" innecesarios y aumentando la cohesión de robo.
+ */
+export function densifyDeckPlaysets(deckCards) {
+  if (!deckCards || deckCards.length === 0) return deckCards;
+  
+  const isLandCard = (c) => {
+    const type = (c.type_line || c.category || '').toLowerCase();
+    return type.includes('land') || type.includes('tierra');
+  };
+
+  const newDeck = deckCards.map(c => ({ ...c }));
+  const spells = newDeck.filter(c => !isLandCard(c));
+
+  // Cartas sueltas de 1 copia no legendarias de coste <= 3
+  const singletons = spells.filter(c => 
+    (c.quantity || 1) === 1 && 
+    (c.cmc ?? c.mana_value ?? 0) <= 3 && 
+    !(c.type_line || '').toLowerCase().includes('legendary')
+  );
+
+  // Cartas con 2 o 3 copias de coste <= 3 promovibles a playset de 4 copias
+  const coreSpells = spells.filter(c => 
+    ((c.quantity || 1) === 2 || (c.quantity || 1) === 3) && 
+    (c.cmc ?? c.mana_value ?? 0) <= 3 && 
+    !(c.type_line || '').toLowerCase().includes('legendary')
+  );
+
+  if (singletons.length >= 2 && coreSpells.length > 0) {
+    let slotsFreed = 0;
+    // Liberar hasta 2 slots de singletons prescindibles
+    for (let s of singletons.slice(0, 2)) {
+      const idx = newDeck.findIndex(c => c.name === s.name);
+      if (idx !== -1 && (newDeck[idx].quantity || 1) === 1) {
+        newDeck.splice(idx, 1);
+        slotsFreed += 1;
+      }
+    }
+    // Repartir slots freed para completar playsets a 4 copias
+    for (let core of coreSpells) {
+      if (slotsFreed <= 0) break;
+      const idx = newDeck.findIndex(c => c.name === core.name);
+      if (idx !== -1 && newDeck[idx].quantity < 4) {
+        const add = Math.min(4 - newDeck[idx].quantity, slotsFreed);
+        newDeck[idx].quantity += add;
+        slotsFreed -= add;
+      }
+    }
+  }
+
+  return newDeck;
 }
 
 /**
@@ -619,3 +841,101 @@ export function auditarMazo(deckList, sideboardList, formData) {
     strengths
   };
 }
+
+/**
+ * Evaluación determinista ultra-rápida en memoria (<5ms).
+ * Utilizada por el bucle agéntico Pre-Flight y el Asistente en vivo del Blueprint.
+ * 
+ * @param {Array} deck - Mazo completo con criaturas, hechizos y tierras.
+ * @param {Object} formData - Parámetros del mazo (arquetipo, estrategia, colores, formato).
+ * @returns {Object} { score: number, criticalViolations: Array, warnings: Array, recommendedSwaps: Array }
+ */
+export function evaluateDeckHealthFast(deck = [], formData = {}) {
+  const spellsOnly = deck.filter(c => !isLand(c));
+  const landsOnly = deck.filter(c => isLand(c));
+  const deckSize = deck.reduce((sum, c) => sum + (c.quantity || 1), 0);
+  const totalLands = landsOnly.reduce((sum, c) => sum + (c.quantity || 1), 0);
+  
+  let score = 100;
+  const criticalViolations = [];
+  const warnings = [];
+  const recommendedSwaps = [];
+
+  // 1. CHEQUEO DE TAMAÑO Y TIERRAS
+  const isCommander = (formData.format || '').toUpperCase() === 'COMMANDER';
+  const targetSize = isCommander ? 100 : 60;
+  const targetLandRatio = isCommander ? 0.37 : 0.38; // ~23-24 tierras en 60
+  
+  if (deckSize !== targetSize) {
+    score -= 15;
+    criticalViolations.push(`Tamaño de mazo no estándar (${deckSize}/${targetSize} cartas).`);
+  }
+
+  const minLands = isCommander ? 34 : 20;
+  const maxLands = isCommander ? 42 : 27;
+  if (totalLands < minLands) {
+    score -= 12;
+    criticalViolations.push(`Tierras insuficientes (${totalLands} tierras). Riesgo severo de mana screw.`);
+  } else if (totalLands > maxLands) {
+    score -= 8;
+    warnings.push(`Exceso de tierras (${totalLands} tierras). Riesgo de mana flood.`);
+  }
+
+  // 2. CURVA Y VMP
+  const vmp = calculateVMP(spellsOnly);
+  const arch = (formData.archetype || 'midrange').toLowerCase();
+  
+  if (arch.includes('aggro') && vmp > 2.6) {
+    score -= 10;
+    warnings.push(`Curva demasiado alta para Aggro (VMP ${vmp.toFixed(2)}). Se recomiendan costes 1-2.`);
+  } else if (arch.includes('control') && vmp < 2.0) {
+    score -= 8;
+    warnings.push(`Curva demasiado baja para Control (VMP ${vmp.toFixed(2)}). Falta valor de late-game.`);
+  }
+
+  // 3. REQUISITOS DE COLOR (KARSTEN MATH CHECK)
+  const colors = formData.colores || [];
+  if (colors.length > 1) {
+    spellsOnly.forEach(card => {
+      const cost = card.mana_cost || '';
+      const cmc = card.cmc || card.mana_value || 0;
+      
+      // Detectar pips dobles/triples en turnos 1-3
+      colors.forEach(col => {
+        const regex = new RegExp(col, 'g');
+        const matches = cost.match(regex);
+        const pipCount = matches ? matches.length : 0;
+        
+        if (pipCount >= 2 && cmc <= 3) {
+          // Hechizo muy intensivo en color
+          recommendedSwaps.push({
+            cardName: card.name,
+            reason: `Elevada intensidad de color (${pipCount}x ${col} en Turno ${cmc}). Considerar sustituto menos intensivo.`
+          });
+        }
+      });
+    });
+  }
+
+  // 4. ANTI-SINERGIAS COMPETITIVAS
+  const activeStrategy = (formData.strategy || '').toLowerCase();
+  COMPETITIVE_ANTI_SYNERGIES.forEach(rule => {
+    if (rule.strategy.toLowerCase() === activeStrategy) {
+      const antiCard = deck.find(c => c.name?.toLowerCase() === rule.card.toLowerCase());
+      if (antiCard) {
+        score -= 15;
+        criticalViolations.push(`Anti-sinergia detectada: "${rule.card}" arruina el motor "${activeStrategy}". ${rule.reason}`);
+      }
+    }
+  });
+
+  return {
+    score: Math.max(0, score),
+    criticalViolations,
+    warnings,
+    recommendedSwaps
+  };
+}
+
+
+

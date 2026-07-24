@@ -37,8 +37,12 @@ function isColorCompatible(dbCard, allowedColors) {
  * @param {Array} allowedColors - Colores permitidos del formData
  * @returns {Array} suggestions anotadas
  */
-function validateSuggestionsAgainstDB(suggestions, allCards, currentDeck, allowedColors) {
+function validateSuggestionsAgainstDB(suggestions, allCards, currentDeck, allowedColors, formatKey = 'modern', rarityMode = 'high-power') {
   if (!suggestions || !Array.isArray(suggestions)) return [];
+
+  const allowedRarities = rarityMode === 'pauper' ? ['common'] 
+    : rarityMode === 'artisan' ? ['common', 'uncommon']
+    : ['common', 'uncommon', 'rare', 'mythic'];
 
   return suggestions.map(sug => {
     const invalidReasons = [];
@@ -63,6 +67,18 @@ function validateSuggestionsAgainstDB(suggestions, allCards, currentDeck, allowe
           return { ...addItem, _colorInvalid: true };
         }
 
+        // Verificar legalidad de formato
+        if (dbCard.legalities && dbCard.legalities[formatKey] === 'banned') {
+          invalidReasons.push(`"${addItem.name}" está baneada en el formato ${formatKey.toUpperCase()}.`);
+          return { ...addItem, _banned: true };
+        }
+
+        // Verificar restricción de rareza
+        if (!allowedRarities.includes((dbCard.rarity || 'common').toLowerCase())) {
+          invalidReasons.push(`"${addItem.name}" (${dbCard.rarity}) excede la rareza permitida (${rarityMode}).`);
+          return { ...addItem, _rarityInvalid: true };
+        }
+
         // Verificar límite de 4 copias (excepto tierras básicas)
         const inDeck = currentDeck.find(c => normalizeCardName(c.name) === normalizedName);
         const currentQty = inDeck ? (inDeck.quantity || 1) : 0;
@@ -84,6 +100,23 @@ function validateSuggestionsAgainstDB(suggestions, allCards, currentDeck, allowe
       ? sug.addOptions.map(optGroup => validateAddList(optGroup))
       : sug.addOptions;
 
+    // Verificar si el cambio encarece la curva de maná (diferencia de CMC ≥ 1.0 sin ser Curve Fix)
+    if (sug.changeType !== 'Curve Fix' && sug.removes && sug.removes.length > 0 && sug.adds && sug.adds.length > 0) {
+      const removeCards = sug.removes.map(r => allCards.find(c => normalizeCardName(c.name) === normalizeCardName(r.name))).filter(Boolean);
+      const addCards = sug.adds.map(a => allCards.find(c => normalizeCardName(c.name) === normalizeCardName(a.name))).filter(Boolean);
+
+      if (removeCards.length > 0 && addCards.length > 0) {
+        const avgRemoveCMC = removeCards.reduce((acc, c) => acc + (c.cmc ?? c.mana_value ?? 0), 0) / removeCards.length;
+        const avgAddCMC = addCards.reduce((acc, c) => acc + (c.cmc ?? c.mana_value ?? 0), 0) / addCards.length;
+
+        if (avgAddCMC - avgRemoveCMC >= 1.0) {
+          invalidReasons.push(
+            `El cambio empeora la curva de maná: elimina cartas de coste medio ${avgRemoveCMC.toFixed(1)} y añade cartas de coste medio ${avgAddCMC.toFixed(1)}.`
+          );
+        }
+      }
+    }
+
     const hasAnyInvalid = invalidReasons.length > 0;
 
     return {
@@ -98,47 +131,54 @@ function validateSuggestionsAgainstDB(suggestions, allCards, currentDeck, allowe
   });
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // SYSTEM PROMPT DEL JUEZ SUPREMO
 // ─────────────────────────────────────────────────────────────────────────────
 const AUDIT_SYSTEM_PROMPT = `Eres un JUEZ SUPREMO Y CONSTRUCTOR EXPERTO DE MAZOS DE MAGIC: THE GATHERING.
-Tu objetivo es dar una calificación justa, constructiva y precisa sobre la competitividad del mazo.
+Tu objetivo es dar una calificación justa, constructiva y precisa sobre la competitividad del mazo, respetando al 100% la intención, temática y mecánica elegidas por el usuario.
 
 === DIRECTRICES DE EVALUACIÓN EXPERTA ===
 1. CALIFICACIÓN (score): Califica del 1 al 10.
    - Si el mazo tiene playsets consistentes, una base de maná matemáticamente perfecta, y sinergias claras, califícalo con un 9 o 10.
    - Penaliza por fallos objetivos: base de tierras inservible, criaturas gigantes incasteables, falta de interacción o falta total de motor.
 2. ANÁLISIS FUNCIONAL Y VERDICTO (verdict): Escribe un resumen de 2-3 frases donde menciones explícitamente:
-   - El desglose de roles (Amenazas vs Respuestas vs Motores) usando los datos de PILARES que recibes.
+   - El desglose de roles (Amenazas vs Respuestas vs Motores de la Estrategia) usando los datos de PILARES que recibes.
    - El Valor de Maná Promedio (VMP) numérico real que recibes en el prompt, indicando si es adecuado para la agresividad del mazo.
-3. CONSTRUCTIVO: Enfócate en la competitividad. Reporta en "warnings" la falta de "Answers" (respuestas/removal) u optimizaciones de curva.
+3. CONSTRUCTIVO & PRIORIDAD:
+   - Si la prioridad activa es 'synergy' (Sinergia Pura), evalúa la densidad de motores y la cohesión entre cartas; no penalices por no llevar staples de netdeck si el motor funciona.
+   - Si la prioridad es 'thematic' (Temático/Casual), valora el sabor narrativo y el concepto del usuario.
+   - Si la prioridad es 'competitive' (Competitivo Tier 1), exige máxima eficiencia y staples de metagame.
 4. MAINBOARD ONLY: Evalúa únicamente el mazo principal. Ignora el sideboard.
-5. PROTECCIÓN DE NÚCLEO (CRÍTICO): Si el usuario ha definido un "Lore / Idea Personal", DEBES respetar estrictamente las cartas clave que representan esa idea. Tu labor es optimizar la base de maná y las cartas de soporte, NUNCA sugerir eliminar la condición de victoria o el capricho temático del usuario.
-6. EXPLICITUD EN REEMPLAZOS: En "suggestions", DEBES especificar qué cartas se eliminan para hacer hueco a las nuevas. Justifica por qué en "text". EXCEPCIÓN: Si se te informa de que al mazo le faltan cartas para llegar al mínimo legal (60 u 80), tu prioridad es AÑADIR cartas para rellenar esos huecos SIN usar "removes" (déjalo vacío).
-7. OPCIONES MÚLTIPLES: Si consideras que hay varias opciones válidas para añadir (ej: "Añadir Fatal Push o Terminate"), DEBES usar el array "addOptions" para proporcionar las alternativas, y dejar "adds" vacío. Si solo hay una opción clara, usa "adds".
-8. MEJORA INTEGRAL: Propón cambios estructurales severos si es necesario para alcanzar nivel Tier 1 competitivo (salvo el núcleo).
-9. COHERENCIA DE COLOR (ESTRICTO): NUNCA, bajo ningún concepto, sugieras en el texto ni incluyas en los arrays (adds/addOptions) cartas que no pertenezcan a los "Colores" especificados por el usuario. Si el mazo es Jund (BRG), no puedes sugerir cartas Azules ni Blancas.
-10. COHERENCIA TRIBAL: Prioriza enormemente sugerir cartas de la Tribu elegida.
+5. PROTECCIÓN DE NÚCLEO, MECÁNICA Y PRESERVACIÓN DE ROLES/BLUEPRINT (INVIOLABLE):
+   - SI EL MAZO TIENE UNA ESTRATEGIA O MECÁNICA DEFINIDA POR EL USUARIO (ej: Cementerio / Reanimación, Aristócratas, Prowess, Contadores +1/+1), TIENES PROHIBIDO DILUIR ESTA MECÁNICA CON STAPLES GENÉRICOS DE NETDECK.
+   - NO elimines cartas de habilitadores (mill/descarte), reanimadores u objetivos para reemplazarlas con removal genérico sin sentido temático.
+   - Si recomiendas un cambio, DEBE SER PARA REFORZAR O REPARAR LA MECÁNICA ELEGIDA (ej: sustituir un reanimador ineficiente por [[Persist]] o [[Unmarked Grave]], o un habilitador débil por [[Stitcher's Supplier]] o [[Faithful Mending]]).
+   - Si el usuario ha definido un "Lore / Idea Personal" o cartas obligatorias ("mustInclude"), DEBES respetar strictly esas cartas. Queda TOTALMENTE PROHIBIDO sugerir eliminar cartas pertenecientes a 'mustInclude' o la condición de victoria del usuario.
+6. EXPLICITUD Y REGLAS DE TEXTO LIMPIO (INVIOLABLE):
+   - En cada sugerencia, la propiedad "text" DEBE ser una explicación limpia, directa y formal en español.
+   - Queda ESTRICTAMENTE PROHIBIDO incluir tu monólogo interno, pensamientos de descarte o mencionar cartas de otros colores que hayas pensado y descartado durante tu evaluación (ej. NUNCA escribas '(si fuera verde, pero al ser BR...)' ni menciones hechizos fuera de la identidad de color del mazo).
+   - Solamente menciona las cartas finales recomendadas envueltas en dobles corchetes. Ejemplo: "Eliminar 2x [[Carta A]] para añadir 2x [[Carta B]] porque mejora la curva temprana."
+7. CATEGORIZACIÓN DE CAMBIO: En cada sugerencia, DEBES incluir la propiedad "changeType" con exactamente uno de estos valores:
+   - "Strict Upgrade" (Sustituir por una versión estrictamente superior)
+   - "Synergy Upgrade" (Mejores disparadores de tribu o motor)
+   - "Curve Fix" (Desgestionar un punto de curva sobrecargado)
+   - "Protection Fix" (Inyección de defensa o interacción ausente)
+8. CANDIDATAS PRE-FILTRADAS: Se te proporcionará un bloque de "CANDIDATAS DE REEMPLAZO PRE-FILTRADAS DE TU BD LOCAL". DEBES elegir tus cartas recomendadas prioritariamente de esta lista, ya que están 100% garantizadas como legales, del color correcto y alineadas con la mecánica.
+9. VETOS ESTRICTOS: NUNCA sugieras cartas o palabras clave que coincidan con las palabras vetadas ("vetoedKeywords") o cartas vetadas ("vetoedCards").
+10. OPCIONES MÚLTIPLES: Si consideras que hay varias opciones válidas para añadir (ej: "Añadir Fatal Push o Terminate"), DEBES usar el array "addOptions" para proporcionar las alternativas, y dejar "adds" vacío. Si solo hay una opción clara, usa "adds".
 11. FORMATO DE CARTAS: SIEMPRE que menciones el nombre de una carta en cualquier campo de texto, DEBES envolverla entre dobles corchetes. Ejemplo: "Necesitas más [[Lightning Bolt]]".
-12. REDUNDANCIA FUNCIONAL Y STRICT UPGRADES:
-   - Distingue claramente entre efectos acumulativos (modificadores numéricos +X/+Y como Lords, dorks/aceleradores de maná, hechizos de daño directo, robo de cartas, disparadores/triggers, reductores de coste y efectos de impuestos/stax). Está PERMITIDO y recomendado llevar múltiples cartas diferentes con estos efectos acumulativos para mejorar la consistencia del mazo. NUNCA penalices o consideres redundante esta acumulación de efectos.
-   - En cambio, detecta redundancia negativa únicamente en habilidades de palabras clave estáticas no acumulativas en mesa (Volar, Prisa, Vigilancia, etc.) si se saturan en mazos genéricos.
-   - NUNCA sugieras "añadir" una versión funcionalmente inferior o redundante si el mazo ya cuenta con copias de la versión superior.
-13. LÍMITE LEGAL (REGLA DE 4X) Y REGLA DE LEYENDAS:
-   - NUNCA sugieras añadir copias de una carta si la suma total en el mazo supera las 4 copias permitidas. (Excepción: Tierras básicas).
-   - LÍMITE DE LEYENDAS PRO TOUR: Permite llevar hasta 4 copias en cartas legendarias de bajo coste (CMC <= 3) que sirvan de motores o amenazas baratas. Sin embargo, penaliza llevar 4 copias de leyendas pesadas de coste alto (CMC >= 4) a menos que el mazo cuente con formas muy claras de descartarlas, sugiriendo reducir a 2 o 3 copias para evitar el atasco.
-14. ANÁLISIS MATEMÁTICO REAL: Tienes estrictamente prohibido decir que la base de maná es "frágil" o "inestable" basándote solo en los nombres de las tierras. MIRA LAS "FUENTES DE MANÁ DISPONIBLES" EN LAS MÉTRICAS. Si los números de las fuentes de color proporcionados son aceptables (ej >14), elogia la base de maná en lugar de criticarla falsamente.
-15. ARQUETIPOS Y VELOCIDAD (VMP): Si el arquetipo es "Midrange" o "Control", un Valor de Maná Promedio (VMP) de hasta 3.0 es perfectamente aceptable y competitivo para su estrategia. Tienes ESTRICTAMENTE PROHIBIDO quejarte de que el mazo es "demasiado lento" si el VMP es menor o igual a 3.0 para estos arquetipos. Solo los mazos Aggro exigen VMP muy bajos (< 2.2).
-16. DIRECTIVA DE INTERACTIVIDAD Y DIVERSIÓN (BATTLE BOX EQUITY):
-    - Califica negativamente (score penalizado) si el mazo carece por completo de formas de interactuar con el oponente, o si consiste en combos degenerados que ganan de golpe de forma solitaria en los primeros turnos sin dar oportunidad de responder.
-    - Debes sugerir cambiar piezas de combos instantáneos no interactivos o locks de bloqueo absoluto por motores de valor dinámicos, trucos de combate e interacción reactiva de pila.
-17. DATOS DE PILARES FUNCIONALES (OBLIGATORIO LEER Y RESPETAR):
-    - Recibirás un análisis pre-calculado matemáticamente exacto de los PILARES FUNCIONALES (ramp, draw, removal, threats, protection) basado en el oracle_text real de las cartas.
-    - DEBES basar tu análisis y sugerencias en estos datos duros.
-    - Si un pilar está marcado como 🚨 CRÍTICO, es OBLIGATORIO incluir sugerencias para mejorar ese pilar.
-    - Si un pilar está marcado como ⚠️ BAJO, menciónalo en warnings.
-    - No contradigas ni ignores estos datos pre-calculados.
-
+12. PRESERVACIÓN ESTRICTA DE LA CURVA DE MANÁ (INVIOLABLE):
+   - Queda TOTALMENTE PROHIBIDO reemplazar cartas tempranas de coste bajo (CMC 1 o 2) por cartas lentas de alto coste (CMC 3, 4 o 5) en sugerencias de "Strict Upgrade" o "Synergy Upgrade".
+   - La diferencia de coste entre las cartas eliminadas ("removes") y las cartas añadidas ("adds") DEBE ser como máximo de 1 punto de maná (|CMC_remove - CMC_add| <= 1), salvo que la sugerencia sea explícitamente de tipo "Curve Fix" para solucionar un atasco de curva demostrado.
+   - NUNCA sugieras un removal de coste 3 o más para reemplazar una interacción o jugada de coste 1.
+13. DEFINICIÓN ESTRICTA DE "PROTECTION FIX":
+   - Las cartas de "Protection Fix" DEBEN ser hechizos de defensa activa o respuesta (contrahechizos/counterspells, dar hexproof, indestructible, protección o ward).
+   - NUNCA clasifiques un hechizo de daño o removal de criaturas (como Heated Argument) bajo la etiqueta "Protection Fix". NUNCA sugieras eliminar un artefacto de alta calidad como Lost Jitte para meter un removal de coste elevado.n las palabras vetadas ("vetoedKeywords") o cartas vetadas ("vetoedCards").
+10. OPCIONES MÚLTIPLES: Si consideras que hay varias opciones válidas para añadir (ej: "Añadir Fatal Push o Terminate"), DEBES usar el array "addOptions" para proporcionar las alternativas, y dejar "adds" vacío. Si solo hay una opción clara, usa "adds".
+11. FORMATO DE CARTAS: SIEMPRE que menciones el nombre de una carta en cualquier campo de texto, DEBES envolverla entre dobles corchetes. Ejemplo: "Necesitas más [[Lightning Bolt]]".
+12. PRESERVACIÓN ESTRICTA DE LA CURVA DE MANÁ (INVIOLABLE):
+   - Queda TOTALMENTE PROHIBIDO reemplazar cartas tempranas de coste bajo (CMC 1 o 2) por cartas lentas de alto coste (CMC 3, 4 o 5) en sugerencias de "Strict Upgrade" o "Synergy Upgrade".
+   - La diferencia de coste entre las cartas eliminadas ("removes") y las cartas añadidas ("adds") DEBE ser como máximo de 1 punto de maná (|CMC_remove - CMC_add| <= 1), salvo que la sugerencia sea explícitamente de tipo "Curve Fix" para solucionar un atasco de curva demostrado.
+   - NUNCA sugieras un removal de coste 3 o más para reemplazar una interacción o jugada de coste 1.
 
 Debes responder ÚNICAMENTE con un JSON válido usando este esquema exacto:
 {
@@ -148,7 +188,8 @@ Debes responder ÚNICAMENTE con un JSON válido usando este esquema exacto:
   "warnings": [],
   "suggestions": [
     {
-       "text": "Eliminar 2x [[Carta A]] para añadir 2x [[Carta B]] porque mejora la curva temprana.",
+       "text": "Eliminar 2x [[Carta A]] para añadir 2x [[Carta B]] porque mejora la respuesta temprana.",
+       "changeType": "Strict Upgrade",
        "removes": [{"name": "Carta A", "quantity": 2}],
        "adds": [{"name": "Carta B", "quantity": 2}],
        "addOptions": [
@@ -159,6 +200,64 @@ Debes responder ÚNICAMENTE con un JSON válido usando este esquema exacto:
   ]
 }`;
 
+// Helper: Extrae candidatas RAG de la BD local para pilares necesitados y estrategia activa
+export function getPillarCandidatesFromDB(pillarName, allCards, allowedColors, formatKey, rarityMode, vetoedKeywords = [], vetoedCards = [], activeStrategy = '') {
+  const allowedRarities = rarityMode === 'pauper' ? ['common'] 
+    : rarityMode === 'artisan' ? ['common', 'uncommon']
+    : ['common', 'uncommon', 'rare', 'mythic'];
+
+  const normalizedVetoedCards = (vetoedCards || []).map(v => typeof v === 'string' ? v.toLowerCase().trim() : '');
+  const normalizedVetoedKws = (vetoedKeywords || []).map(k => typeof k === 'string' ? k.toLowerCase().trim() : '');
+
+  const stratLower = (activeStrategy || '').toLowerCase();
+
+  const candidates = allCards
+    .filter(c => c && c.name)
+    .filter(c => !normalizedVetoedCards.includes(c.name.toLowerCase()))
+    .filter(c => allowedRarities.includes((c.rarity || 'common').toLowerCase()))
+    .filter(c => c.legalities && c.legalities[formatKey] === 'legal')
+    .filter(c => isColorCompatible(c, allowedColors))
+    .filter(c => {
+      const oracle = (c.oracle_text || '').toLowerCase();
+      const typeLine = (c.type_line || '').toLowerCase();
+      const cmc = c.cmc ?? c.mana_value ?? 0;
+      if (normalizedVetoedKws.some(kw => kw && (oracle.includes(kw) || typeLine.includes(kw)))) return false;
+      
+      // Exigir máxima eficiencia de maná para interacción, protección y robo (CMC ≤ 3)
+      if (pillarName === 'protection' || pillarName === 'removal' || pillarName === 'draw') {
+        if (cmc > 3) return false;
+      }
+
+      if (pillarName === 'strategy_engine' || pillarName === 'graveyard' || stratLower.includes('graveyard') || stratLower.includes('reanimate')) {
+        const isGraveyardCard = oracle.includes('graveyard') || oracle.includes('return from your graveyard') || oracle.includes('mill') || oracle.includes('surveil') || oracle.includes('discard') || oracle.includes('unearth') || oracle.includes('flashback') || oracle.includes('reanimate');
+        if (isGraveyardCard) return true;
+      }
+      
+      if (pillarName === 'protection') {
+        return oracle.includes('hexproof') || oracle.includes('indestructible') || oracle.includes('protection from') || oracle.includes('ward') || oracle.includes('counter target spell') || oracle.includes('target creature gains');
+      } else if (pillarName === 'removal') {
+        return oracle.includes('destroy target') || oracle.includes('exile target') || oracle.includes('deals') || oracle.includes('return target') || oracle.includes('-x/-x');
+      } else if (pillarName === 'ramp') {
+        return oracle.includes('add {') || oracle.includes('search your library for a land') || oracle.includes('treasure');
+      } else if (pillarName === 'draw') {
+        return oracle.includes('draw') || oracle.includes('investigate') || oracle.includes('scry');
+      } else if (pillarName === 'threats') {
+        const power = parseInt(c.power || '0', 10);
+        return typeLine.includes('planeswalker') || (typeLine.includes('creature') && (power >= 3 || c.rarity === 'rare' || c.rarity === 'mythic'));
+      }
+      return false;
+    })
+    .sort((a, b) => {
+      // Ordenar por CMC ascendente (priorizar 1-drops y 2-drops eficientes)
+      const cmcA = a.cmc ?? a.mana_value ?? 99;
+      const cmcB = b.cmc ?? b.mana_value ?? 99;
+      return cmcA - cmcB;
+    })
+    .slice(0, 10);
+
+  return candidates.map(c => c.name);
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // FUNCIÓN PRINCIPAL DE AUDITORÍA CON IA
 // ─────────────────────────────────────────────────────────────────────────────
@@ -166,59 +265,150 @@ export async function auditDeckWithAI(deckCards, _sideboardCards, formData, aiCo
   onProgress('audit', '🕵️‍♂️ El Juez está analizando pilares funcionales y base matemática...');
   
   const allCards = await getAllCards();
-  const selectedFormat = (formData.format || 'modern').toLowerCase();
+  
+  // Hot-hydrate any cards missing critical attributes
+  const hydratedDeckCards = [];
+  for (let card of deckCards) {
+    if (!card) continue;
+    const isCreature = (card.type_line || card.category || '').toLowerCase().includes('creature');
+    const needsHydration = !card.oracle_text || (isCreature && (card.power === undefined || card.power === ''));
+    if (needsHydration) {
+      const dbMatch = allCards.find(ac => ac && ac.name && ac.name.toLowerCase() === card.name.toLowerCase());
+      if (dbMatch && dbMatch.oracle_text && (!isCreature || (dbMatch.power !== undefined && dbMatch.power !== ''))) {
+        hydratedDeckCards.push({ ...card, ...dbMatch });
+      } else {
+        const { hydrateCard } = await import('./cardHydrator.js');
+        const hydrated = await hydrateCard(card, formData?.rarityMode || 'high-power');
+        hydratedDeckCards.push(hydrated);
+      }
+    } else {
+      hydratedDeckCards.push(card);
+    }
+  }
+
+  const selectedFormat = (formData?.format || 'modern').toLowerCase();
   const bannedCards = allCards
     .filter(c => c.legalities && c.legalities[selectedFormat] === 'banned')
     .map(c => c.name);
   const bannedText = bannedCards.length > 0 
-    ? `\n\nCARTAS BANEADAS EN ESTE FORMATO (${selectedFormat}): ${bannedCards.join(', ')}. No las sugieras.`
-    : "";
+    ? '\n\nCARTAS BANEADAS EN ESTE FORMATO: ' + bannedCards.slice(0, 35).join(', ') + '. No las sugieras.'
+    : '';
 
-  // ── 1. Enriquecer decklist con oracle_text real (truncado a 140 chars para no saturar tokens)
-  const deckListText = deckCards.map(c => {
-    const oracleTrunc = c.oracle_text
-      ? ` | Efecto: "${c.oracle_text.replace(/\n/g, ' ').substring(0, 140)}${c.oracle_text.length > 140 ? '…' : ''}"`
-      : '';
-    return `${c.quantity}x ${c.name} (CMC: ${c.mana_value ?? c.cmc ?? '?'}, Tipo: ${c.type_line || '?'}${oracleTrunc})`;
+  // ── 1. Enriquecer decklist con oracle_text real
+  const deckListText = hydratedDeckCards.map(c => {
+    let oracleTrunc = '';
+    if (c.oracle_text) {
+      const text = c.oracle_text.replace(/\n/g, ' ');
+      oracleTrunc = ' | Efecto: "' + text.substring(0, 140) + '"';
+    }
+    const cmcVal = c.mana_value ?? c.cmc ?? 0;
+    return c.quantity + 'x "' + c.name + '" (Coste de Maná / CMC: ' + cmcVal + ', Tipo: ' + (c.type_line || '?') + oracleTrunc + ')';
   }).join('\n');
 
-  // ── 2. Calcular pilares funcionales pre-auditoría (datos matemáticamente duros)
-  onProgress('audit', '🔬 Calculando pilares funcionales del mazo...');
-  const spells = deckCards.filter(c => !isLand(c));
+  // ── 2. Calcular pilares funcionales pre-auditoría y Karsten Devotion
+  onProgress('audit', '🔬 Calculando pilares funcionales y devoción de maná...');
+  const spells = hydratedDeckCards.filter(c => !isLand(c));
   const pillarAnalysis = analyzeFunctionalPillars(spells, formData?.format || 'MODERN', formData);
   const pillarText = buildPillarSummaryText(pillarAnalysis);
 
-  // ── 3. Construir string de métricas matemáticas si existen
-  const metricsText = formData?.metrics ? `
-=== MÉTRICAS MATEMÁTICAS ESTRICTAS ===
-- Valor de Maná Promedio (VMP): ${formData.metrics.vmp}
-- Fuentes de Maná Disponibles: ${JSON.stringify(formData.metrics.sources)}
-  (Analiza estas métricas para comprobar si la curva es muy alta o si faltan fuentes de color, indícalo en el veredicto o warnings).
-` : '';
+  const allowedColors = formData?.colores || [];
+  
+  // ── 2.5 Pre-filtrar candidatas RAG para pilares necesitados y la estrategia activa del usuario
+  const candidateSummaryLines = [];
+  const activeStrategy = formData?.strategy || formData?.aiMetadata?.strategy || '';
 
-  const userLoreText = formData?.prompt
-    ? `\nLore / Idea Personal del Usuario (¡DEBES PROTEGER ESTAS CARTAS!): "${formData.prompt}"`
+  if (activeStrategy) {
+    const strategyCandidates = getPillarCandidatesFromDB(
+      'strategy_engine',
+      allCards,
+      allowedColors,
+      selectedFormat,
+      formData?.rarityMode || 'high-power',
+      formData?.vetoedKeywords || [],
+      formData?.vetoedCards || [],
+      activeStrategy
+    );
+    if (strategyCandidates.length > 0) {
+      const candNames = strategyCandidates.map(n => '[[' + n + ']]').join(', ');
+      candidateSummaryLines.push('- Candidatas de MOTOR ESTRATÉGICO (' + activeStrategy.toUpperCase() + ') en [' + allowedColors.join(',') + ']: ' + candNames);
+    }
+  }
+
+  ['protection', 'removal', 'ramp', 'draw', 'threats'].forEach(pillarKey => {
+    if (pillarAnalysis.pillarStatus[pillarKey] === 'critical' || pillarAnalysis.pillarStatus[pillarKey] === 'low') {
+      const candidates = getPillarCandidatesFromDB(
+        pillarKey,
+        allCards,
+        allowedColors,
+        selectedFormat,
+        formData?.rarityMode || 'high-power',
+        formData?.vetoedKeywords || [],
+        formData?.vetoedCards || [],
+        activeStrategy
+      );
+      if (candidates.length > 0) {
+        const candNames = candidates.map(n => '[[' + n + ']]').join(', ');
+        candidateSummaryLines.push('- Candidatas de ' + pillarKey.toUpperCase() + ' legales en [' + allowedColors.join(',') + ']: ' + candNames);
+      }
+    }
+  });
+
+  const candidatesPromptBlock = candidateSummaryLines.length > 0
+    ? '\n=== CANDIDATAS DE REEMPLAZO PRE-FILTRADAS DE TU BD LOCAL (100% LEGALES Y ALINEADAS CON LA MECÁNICA) ===\n' + candidateSummaryLines.join('\n') + '\n(DEBES elegir tus sugerencias prioritariamente de entre estas candidatas para NO DILUIR la temática del usuario).'
+    : '';
+
+  // ── 3. Construir string de métricas matemáticas completas
+  let metricsText = '';
+  if (formData?.metrics) {
+    metricsText = '\n=== MÉTRICAS MATEMÁTICAS ESTRICTAS ===\n- Valor de Maná Promedio (VMP): ' + formData.metrics.vmp + '\n- Fuentes de Maná Disponibles: ' + JSON.stringify(formData.metrics.sources);
+  }
+
+  const concept = formData?.prompt || formData?.lore || formData?.aiMetadata?.lore;
+  const userConceptText = concept ? ('\nIdea / Lore Temático del Usuario: "' + concept + '"') : '';
+
+  const mustInc = formData?.mustInclude && formData.mustInclude.length > 0 ? formData.mustInclude.join(', ') : '';
+  const mustIncludeText = mustInc ? ('\nCartas Obligatorias Definidas por el Usuario: ' + mustInc) : '';
+
+  const vetoKws = formData?.vetoedKeywords?.join(', ') || 'Ninguna';
+  const vetoCards = formData?.vetoedCards?.join(', ') || 'Ninguna';
+  const vetoText = (formData?.vetoedKeywords?.length > 0 || formData?.vetoedCards?.length > 0)
+    ? ('\nVetos del Usuario: Palabras: ' + vetoKws + ' | Cartas: ' + vetoCards)
     : '';
 
   // ── 4. Calcular si faltan cartas en el mazo
-  const totalCards = deckCards.reduce((sum, c) => sum + (c.quantity || 1), 0);
+  const totalCards = hydratedDeckCards.reduce((sum, c) => sum + (c.quantity || 1), 0);
   const targetCards = (formData?.companero?.toLowerCase().includes("yorion")) ? 80 : 60;
-  const deckSizeWarning = totalCards < targetCards
-    ? `\n\n[¡ALERTA CRÍTICA MATEMÁTICA!]: Al mazo le faltan cartas (Tiene ${totalCards} y necesita ${targetCards}). El usuario eliminó cartas manualmente y quiere que tú rellenes el hueco. REGLA INVIOLABLE: Tienes ESTRICTAMENTE PROHIBIDO eliminar más cartas. El array "removes" DEBE ESTAR OBLIGATORIAMENTE VACÍO []. Tu única tarea es proponer "adds" o "addOptions" cuya suma total de cantidades sea EXACTAMENTE ${targetCards - totalCards}.`
-    : `\n\n[INFORMACIÓN MATEMÁTICA ESTRICTA]: He sumado la cantidad de copias de todas las cartas por ti. El mazo tiene EXACTAMENTE ${totalCards} cartas (un número perfectamente legal). TIENES TOTALMENTE PROHIBIDO alucinar diciendo que al mazo le faltan cartas. Si en tus 'suggestions' sugieres cambios, DEBES asegurar que la cantidad de cartas que eliminas ("removes") sea EXACTAMENTE IGUAL a la cantidad de cartas que añades ("adds"), de modo que el mazo se mantenga exactamente en ${totalCards} cartas.`;
+  let deckSizeWarning = '';
+  if (totalCards < targetCards) {
+    deckSizeWarning = '\n\n[¡ALERTA CRÍTICA MATEMÁTICA!]: Al mazo le faltan cartas (Tiene ' + totalCards + ' y necesita ' + targetCards + '). El usuario eliminó cartas manualmente y quiere que tú rellenes el hueco. REGLA INVIOLABLE: Tienes ESTRICTAMENTE PROHIBIDO eliminar más cartas. El array "removes" DEBE ESTAR OBLIGATORIAMENTE VACÍO []. Tu única tarea es proponer "adds" o "addOptions" cuya suma total de cantidades sea EXACTAMENTE ' + (targetCards - totalCards) + '.';
+  } else {
+    deckSizeWarning = '\n\n[INFORMACIÓN MATEMÁTICA ESTRICTA]: He sumado la cantidad de copias de todas las cartas por ti. El mazo tiene EXACTAMENTE ' + totalCards + ' cartas (un número perfectamente legal). TIENES TOTALMENTE PROHIBIDO alucinar diciendo que al mazo le faltan cartas. Si en tus "suggestions" sugieres cambios, DEBES asegurar que la cantidad de cartas que eliminas ("removes") sea EXACTAMENTE IGUAL a la cantidad de cartas que añades ("adds").';
+  }
 
-  const userPrompt = `Analiza este mazo matemáticamente:
-Arquetipo Objetivo: ${formData?.archetype || 'Desconocido'}
-Estrategia: ${formData?.strategy || 'Desconocida'}
-Tribu: ${formData?.tribe || 'Ninguna / Desconocida'}
-Colores: ${formData?.colores?.join(', ') || 'No especificados'}${userLoreText}${bannedText}
-${metricsText}
-${pillarText}
-${deckSizeWarning}
-=== DECKLIST (con textos de carta reales para que puedas evaluar qué hace cada carta) ===
-${deckListText}
-
-Genera el reporte de auditoría estricto en JSON.`;
+  const promptParts = [
+    'Analiza este mazo matemáticamente y temáticamente:',
+    'Formato Activo: ' + selectedFormat.toUpperCase(),
+    'Arquetipo Objetivo: ' + (formData?.archetype || 'Desconocido'),
+    'Estrategia / Mecánica del Usuario: ' + (formData?.strategy || formData?.aiMetadata?.strategy || 'Desconocida'),
+    'Tribu: ' + (formData?.tribe || 'Ninguna / Desconocida'),
+    'Colores Permitidos: ' + (allowedColors.join(', ') || 'No especificados'),
+    'Enfoque Táctico: ' + (formData?.stance || 'balanced'),
+    'Prioridad de Selección: ' + (formData?.generationPriority || 'hybrid'),
+    'Restricción de Rareza: ' + (formData?.rarityMode || 'high-power'),
+    userConceptText,
+    mustIncludeText,
+    vetoText,
+    bannedText,
+    metricsText,
+    pillarText,
+    candidatesPromptBlock,
+    deckSizeWarning,
+    '=== DECKLIST ===',
+    deckListText,
+    '',
+    'Genera el reporte de auditoría estricto en JSON.'
+  ];
+  const userPrompt = promptParts.filter(Boolean).join('\n');
 
   onProgress('audit', '⚖️ El Juez Supremo está redactando el veredicto...');
 
@@ -229,38 +419,54 @@ Genera el reporte de auditoría estricto en JSON.`;
     ], aiConfig, { forceJSON: true, maxTokens: 2500 });
 
     let jsonResult;
-    try {
-      jsonResult = JSON.parse(response);
-    } catch(e) {
-      const match = response.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/);
-      if (match) {
-        jsonResult = JSON.parse(match[1]);
-      } else {
-        const first = response.indexOf('{');
-        const last = response.lastIndexOf('}');
-        if (first !== -1 && last > first) {
-          jsonResult = JSON.parse(response.substring(first, last + 1));
-        } else {
-          throw new Error("No se pudo parsear el JSON.");
-        }
+    const cleanResponse = (raw) => {
+      let clean = raw.trim();
+      const match = clean.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/);
+      if (match) clean = match[1].trim();
+      const first = clean.indexOf('{');
+      const last = clean.lastIndexOf('}');
+      if (first !== -1 && last > first) {
+        clean = clean.substring(first, last + 1);
       }
+      clean = clean.replace(/,\s*([\}\]])/g, '$1');
+      return clean;
+    };
+    try {
+      jsonResult = JSON.parse(cleanResponse(response));
+    } catch(e) {
+      console.error("Error parseando JSON de auditoría de baraja:", e);
+      throw e;
     }
 
     // ── 5. VALIDACIÓN POST-IA: Verificar sugerencias contra la BD local
     onProgress('audit', '✅ Validando sugerencias contra la base de datos local...');
-    const allowedColors = formData?.colores || [];
     const validatedSuggestions = validateSuggestionsAgainstDB(
       jsonResult.suggestions || [],
       allCards,
       deckCards,
-      allowedColors
+      allowedColors,
+      selectedFormat,
+      formData?.rarityMode || 'high-power'
     );
 
-    // Adjuntar el análisis de pilares al resultado para que la UI pueda mostrarlo
+    const { analyzeKarstenManaDevotion, calculateDeterministicDeckScore } = await import('./deckAuditorService.js');
+    const karstenAnalysis = analyzeKarstenManaDevotion(spells, formData?.metrics?.sources || {});
+
+    // Calcular nota matemática objetiva y determinista basada en datos duros
+    const mathScore = calculateDeterministicDeckScore(
+      pillarAnalysis,
+      karstenAnalysis,
+      formData?.metrics?.vmp,
+      formData?.stance
+    );
+
+    // Adjuntar el análisis de pilares y karsten al resultado para la UI
     return {
       ...jsonResult,
+      score: mathScore,
       suggestions: validatedSuggestions,
       _pillarAnalysis: pillarAnalysis,
+      _karstenAnalysis: karstenAnalysis,
     };
   } catch (error) {
     console.error("Error en la auditoría con IA:", error);
@@ -296,7 +502,10 @@ Tu json de salida debe seguir esta estructura exacta:
 `;
 
 export async function internalSynergyAudit(deckSpells, formData, aiConfig) {
-  const deckListText = deckSpells.map(c => `${c.quantity}x ${c.name} (Cat: ${c.category}, Cost: ${c.mana_cost || c.cmc || '?'})`).join('\n');
+  const deckListText = deckSpells.map(c => {
+    const text = (c.oracle_text || '').replace(/\n/g, ' ').replace(/"/g, '');
+    return `${c.quantity}x ${c.name} (Cost: ${c.mana_cost || c.cmc || '?'}, Oracle: ${text.substring(0, 100)})`;
+  }).join('\n');
   const userPrompt = `Revisa el siguiente esqueleto de hechizos:
 Arquetipo Objetivo: ${formData?.archetype || 'Desconocido'}
 Estrategia: ${formData?.strategy || 'Desconocida'}
@@ -312,21 +521,24 @@ ${deckListText}
     ], aiConfig, { forceJSON: true, maxTokens: 1000 });
     
     let jsonResult;
-    try {
-      jsonResult = JSON.parse(response);
-    } catch(e) {
-      const match = response.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/);
-      if (match) {
-        jsonResult = JSON.parse(match[1]);
-      } else {
-        const first = response.indexOf('{');
-        const last = response.lastIndexOf('}');
-        if (first !== -1 && last > first) {
-          jsonResult = JSON.parse(response.substring(first, last + 1));
-        } else {
-          return { suggestions: [] };
-        }
+    const cleanResponse = (raw) => {
+      let clean = raw.trim();
+      const match = clean.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/);
+      if (match) clean = match[1].trim();
+      const first = clean.indexOf('{');
+      const last = clean.lastIndexOf('}');
+      if (first !== -1 && last > first) {
+        clean = clean.substring(first, last + 1);
       }
+      // Eliminar comas flotantes / comas terminales (trailing commas)
+      clean = clean.replace(/,\s*([\}\]])/g, '$1');
+      return clean;
+    };
+    try {
+      jsonResult = JSON.parse(cleanResponse(response));
+    } catch(e) {
+      console.warn("Error parseando JSON de auditoría interna de sinergias:", e);
+      return { suggestions: [] };
     }
     return jsonResult;
   } catch (error) {

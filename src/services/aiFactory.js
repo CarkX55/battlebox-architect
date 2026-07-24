@@ -769,12 +769,14 @@ export async function callAI(messages, config, options = {}) {
   let { provider, apiKey, selectedModel, baseUrl } = config;
   const { forceJSON = false, maxTokens = 8000, onRetry = null, temperature } = options;
 
-  // Dynamic model override based on options.selectedModel
-  if (options.selectedModel) {
+  // Respetar el modelo activo configurado por el usuario en la app (config.selectedModel)
+  if (!selectedModel) {
     if (provider === 'gemini') {
-      selectedModel = options.selectedModel === 'pro' ? 'gemini-1.5-pro' : 'gemini-1.5-flash';
+      selectedModel = 'gemini-1.5-flash';
     } else if (provider === 'openrouter') {
-      selectedModel = options.selectedModel === 'pro' ? 'google/gemini-2.5-pro' : 'google/gemini-2.5-flash';
+      selectedModel = 'google/gemini-2.5-flash';
+    } else {
+      selectedModel = 'gpt-3.5-turbo';
     }
   }
 

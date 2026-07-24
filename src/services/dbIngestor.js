@@ -46,6 +46,8 @@ function extractCardData(card) {
     layout: card.layout || '',
     oracle_tags: card.oracle_tags || [],
     promo_types: card.promo_types || [],
+    power: card.power ?? '',
+    toughness: card.toughness ?? '',
   };
 }
 
@@ -220,6 +222,8 @@ export async function getAllCards() {
       layout: card.layout || '',
       oracle_tags: card.oracle_tags || [],
       promo_types: card.promo_types || [],
+      power: card.power ?? '',
+      toughness: card.toughness ?? '',
     }));
   }
 

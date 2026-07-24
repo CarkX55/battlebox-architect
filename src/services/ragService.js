@@ -351,6 +351,27 @@ export const buildCardPool = async (formData) => {
   const blueprintRoles = formData.blueprintRoles || blueprint?.roles || [];
   const allowCustomCards = !!formData.allowCustomCards;
   
+  const priority = formData.generationPriority || 'hybrid';
+  
+  // Multiplicadores según la prioridad de generación
+  let synergyMultiplier = 1.0;
+  let competitiveMultiplier = 1.0;
+  let thematicMultiplier = 1.0;
+
+  if (priority === 'synergy') {
+    synergyMultiplier = 2.0;
+    competitiveMultiplier = 0.5;
+    thematicMultiplier = 1.0;
+  } else if (priority === 'competitive') {
+    synergyMultiplier = 0.7;
+    competitiveMultiplier = 2.5;
+    thematicMultiplier = 0.5;
+  } else if (priority === 'thematic') {
+    synergyMultiplier = 1.0;
+    competitiveMultiplier = 0.4;
+    thematicMultiplier = 2.5;
+  }
+  
   // Cargar Grafo Semántico pre-compilado de Obsidian, Índice de Oracle Tags e Índice de Feedback Boosts
   const [obsidianGraph, oracleTagsIndex, feedbackBoosts] = await Promise.all([
     loadObsidianGraph(),
@@ -361,6 +382,7 @@ export const buildCardPool = async (formData) => {
   // Obtener el formato seleccionado para legalidad dinámica
   const selectedFormat = (formData.format || 'MODERN').toUpperCase();
   const formatKey = selectedFormat.toLowerCase();
+  const archLower = (formData.archetype || '').toLowerCase();
   
   const excludedNames = (formData.excludedNames || []).filter(n => typeof n === 'string').map(n => n.toLowerCase());
   const injectedCoreNames = (formData.injectedCoreNames || []).filter(n => typeof n === 'string');
@@ -388,7 +410,6 @@ export const buildCardPool = async (formData) => {
   // Normalizar e inferir Tribu
   let normalizedTribe = (formData.tribe || '').toLowerCase();
   if (!normalizedTribe && formData.archetype) {
-    const archLower = formData.archetype.toLowerCase();
     const knownTribes = ['elf', 'sliver', 'goblin', 'merfolk', 'zombie', 'vampire', 'human', 'faerie', 'eldrazi', 'spirit', 'soldier', 'knight', 'wizard', 'cleric', 'rogue', 'shaman', 'druid', 'ninja', 'angel', 'demon', 'dragon', 'dinosaur', 'elemental'];
     const matchedTribe = knownTribes.find(t => archLower.includes(t) || (t === 'elf' && archLower.includes('elves')) || (t === 'faerie' && archLower.includes('faeries')) || (t === 'goblin' && archLower.includes('goblins')));
     if (matchedTribe) {
@@ -404,8 +425,22 @@ export const buildCardPool = async (formData) => {
   ) || null;
   
   let strategyId = formData.strategy || '';
-  strategyId = inferStrategyFromArchetype(formData.archetype, strategyId);
+  strategyId = inferStrategyFromArchetype(formData.archetype, strategyId, formData.prompt);
   const strategyData = MTG_STRATEGIES.find(s => s.id === strategyId || s.label === strategyId) || null;
+
+  // === GUILD DETECTION: identify color-pair / color-trio for guild-level precision ===
+  function detectGuildId(colors) {
+    const sorted = [...(colors || [])].sort().join('');
+    const guildMap = {
+      'BG': 'golgari', 'BU': 'dimir', 'RU': 'izzet', 'GW': 'selesnya',
+      'BR': 'rakdos', 'GR': 'gruul', 'UW': 'azorius', 'BW': 'orzhov',
+      'GU': 'simic', 'RW': 'boros',
+      'BGR': 'jund', 'BGW': 'abzan', 'BRW': 'mardu', 'GRW': 'naya',
+      'BGU': 'sultai', 'BRU': 'grixis', 'GRU': 'temur', 'BUW': 'esper',
+      'RUW': 'jeskai', 'GUW': 'bant'
+    };
+    return guildMap[sorted] || null;
+  }
 
   // Buscar sabor (flavor) de la tribu si aplica
   let activeFlavor = null;
@@ -702,12 +737,47 @@ export const buildCardPool = async (formData) => {
     // 2. SISTEMA DE PUNTUACIÓN (SCORING)
     let score = 0;
 
+    // --- INTEGRIDAD DE ESCALADO DE COLOR Y DOMINIO (GRILL-ME) ---
+    if (allowedColors.length <= 2) {
+      const hasDomainText = oracleText.includes("basic land type") || oracleText.includes("domain");
+      const hasMulticolorScaleText = oracleText.includes("each color among permanents") || 
+                                    oracleText.includes("number of colors of mana spent") ||
+                                    oracleText.includes("converge") ||
+                                    oracleText.includes("sunburst") ||
+                                    cardNameLower === "bloom tender" || 
+                                    cardNameLower === "faeburrow elder";
+      
+      if (hasDomainText || hasMulticolorScaleText) {
+        score -= 800; // Penalización severa para mazos monocolor/bicolor
+      }
+    }
+
+    // --- INTEGRIDAD DE RESTRICCIONES TRIBALES AJENAS (GRILL-ME) ---
+    const hasTribeRestriction = oracleText.includes("spend this mana only to cast") || 
+                                 oracleText.includes("spend this mana only for") ||
+                                 oracleText.includes("only to cast") ||
+                                 oracleText.includes("whenever a dragon") || 
+                                 oracleText.includes("whenever a dinosaur");
+    
+    if (hasTribeRestriction) {
+      const activeTribeLower = (formData.tribe || '').toLowerCase();
+      const restrictionMentionsActiveTribe = activeTribeLower && activeTribeLower !== 'none' && activeTribeLower !== 'ninguna' && (
+        oracleText.includes(activeTribeLower) || 
+        (activeTribeLower === 'elf' && oracleText.includes('elf')) ||
+        (activeTribeLower === 'dinosaur' && oracleText.includes('dinosaur'))
+      );
+      
+      if (!restrictionMentionsActiveTribe) {
+        score -= 800; // Penalización severa por restricción a otra tribu
+      }
+    }
+
     // A.0.1) Puntuación por Phase Memory (Señales de Activación) (Mejora 4)
     if (formData.activationSignals && formData.activationSignals.length > 0) {
       const signalBoosts = getSignalBoosts(formData.activationSignals);
       Object.entries(signalBoosts).forEach(([term, points]) => {
         if (oracleText.includes(term) || typeLine.includes(term) || cardNameLower.includes(term)) {
-          score += points;
+          score += Math.round(points * synergyMultiplier);
         }
       });
     }
@@ -721,7 +791,7 @@ export const buildCardPool = async (formData) => {
           oracleText.includes(kw)
         );
         if (matchesKeyword) {
-          score += rule.boostScore;
+          score += Math.round(rule.boostScore * synergyMultiplier);
         }
       }
     });
@@ -739,7 +809,7 @@ export const buildCardPool = async (formData) => {
         );
         
         if (tagMatches.length > 0) {
-          score += tagMatches.length * 75;
+          score += Math.round(tagMatches.length * 75 * synergyMultiplier);
         }
       });
     }
@@ -749,7 +819,7 @@ export const buildCardPool = async (formData) => {
       const archetypeKey = `${selectedFormat.toLowerCase()}_${(formData.archetype || '').toLowerCase()}`;
       const cardFeedbackBoost = feedbackBoosts?.[archetypeKey]?.[cardNameLower]?.feedbackBoost || 0;
       if (cardFeedbackBoost > 0) {
-        score += cardFeedbackBoost;
+        score += cardFeedbackBoost; // Se mantiene neutra la intervención manual directa del usuario
       }
     }
 
@@ -761,10 +831,10 @@ export const buildCardPool = async (formData) => {
     if (inVivoPercentage > 0) {
       // Escalado dinámico: Si se juega mucho, se le da un gran empuje
       const dynamicStapleBoost = Math.min(100, Math.round(inVivoPercentage * 1.5));
-      score += dynamicStapleBoost;
+      score += Math.round(dynamicStapleBoost * competitiveMultiplier);
     } else {
       if (stapleWeight > 0) {
-        score += stapleWeight;
+        score += Math.round(stapleWeight * competitiveMultiplier);
       }
     }
 
@@ -772,7 +842,7 @@ export const buildCardPool = async (formData) => {
     if (activeStaples.has(cardNameLower)) {
       const isTribal = tribeData || (formData.tribe && formData.tribe !== 'none' && formData.tribe !== 'ninguna');
       const extraStapleBoost = isTribal ? 50 : 100;
-      score += extraStapleBoost;
+      score += Math.round(extraStapleBoost * competitiveMultiplier);
     }
 
     // A.1) Grafo Semántico de Obsidian: Coocurrencias y Etiquetas Mecánicas
@@ -808,7 +878,7 @@ export const buildCardPool = async (formData) => {
 
             if (hasGraphMatch) {
               const graphSynergyBonus = Math.round(coeff * 80);
-              score += graphSynergyBonus;
+              score += Math.round(graphSynergyBonus * synergyMultiplier);
             }
           });
         }
@@ -848,7 +918,7 @@ export const buildCardPool = async (formData) => {
             }
 
             if (isAlignedTag) {
-              score += 180; // Sinergia mecánica abstracta (subido de 90)
+              score += Math.round(180 * synergyMultiplier); // Sinergia mecánica abstracta (subido de 90)
             }
           });
         }
@@ -861,7 +931,7 @@ export const buildCardPool = async (formData) => {
           const archInfo = obsidianGraph.archetypes[archKey];
           const recCard = archInfo.cards.find(c => c.name.toLowerCase() === cardNameLower);
           if (recCard) {
-            score += 250 + (recCard.avgQuantity * 20); // Impulso masivo
+            score += Math.round((250 + (recCard.avgQuantity * 20)) * synergyMultiplier); // Impulso masivo
           }
         }
       }
@@ -875,7 +945,7 @@ export const buildCardPool = async (formData) => {
             const isMatchingTag = (strategyId && strategyId.toLowerCase().includes(cleanTag)) || 
                                   (formData.archetype && formData.archetype.toLowerCase().includes(cleanTag));
             if (isMatchingTag) {
-              score += 150; // Sinergia mecánica directa
+              score += Math.round(150 * synergyMultiplier); // Sinergia mecánica directa
             }
           });
         }
@@ -912,7 +982,7 @@ export const buildCardPool = async (formData) => {
         });
         
         if (termMatches > 0) {
-          score += termMatches * 30; // Impulso semántico instantáneo
+          score += Math.round(termMatches * 30 * thematicMultiplier); // Impulso semántico instantáneo
         }
       }
 
@@ -946,17 +1016,91 @@ export const buildCardPool = async (formData) => {
           });
         }
         
-        score += semanticBoost;
+        score += Math.round(semanticBoost * thematicMultiplier);
       }
 
-      // Veto de Linealidad Generalizado (Protección contra Intrusos en Estrategias Lineales y Tribal en Todo Magic)
-      const archLower = formData.archetype.toLowerCase();
+      // === SISTEMA DE VETO UNIVERSAL (Protección contra Intrusos en TODOS los Arquetipos) ===
       const strategyLower = (strategyId || '').toLowerCase();
       const tribeLower = (formData.tribe || '').toLowerCase();
 
-      // Determinar si es una estrategia lineal/restringida en todo Magic
+      // --- CAPA A: VETO TRIBAL UNIVERSAL (aplica a TODOS los arquetipos) ---
+      // Si el usuario no pidió tribu, penalizar duramente cartas que dependen de una tribu para funcionar
+      const noTribeRequested = !tribeLower || tribeLower === 'none' || tribeLower === 'ninguna' || tribeLower === '';
+
+      if (noTribeRequested && isCreature) {
+        // Detectar dependencia tribal explícita en el texto oracle
+        const TRIBAL_DEPENDENCY_PATTERNS = [
+          /\bamong insects\b/i,
+          /\bamong spiders\b/i,
+          /\bamong goblins\b/i,
+          /\bamong elves\b/i,
+          /\bamong zombies\b/i,
+          /\bamong vampires\b/i,
+          /\bamong merfolk\b/i,
+          /\bamong warriors\b/i,
+          /\bamong knights\b/i,
+          /\bamong dinosaurs\b/i,
+          /\bamong dragons\b/i,
+          /\bamong angels\b/i,
+          /\bfor each (goblin|elf|zombie|vampire|merfolk|insect|spider|warrior|knight|dinosaur|dragon|angel|beast|rat|cat|bird|fish|squirrel|sliver) you control\b/i,
+          /\bother (goblins|elves|zombies|vampires|merfolk|insects|spiders|warriors|knights|dinosaurs|dragons|angels|beasts|rats|cats|birds|slivers)\b/i,
+          /\banother (goblin|elf|zombie|vampire|merfolk|insect|spider|warrior|knight|dinosaur|dragon|angel|beast|rat|cat|sliver)\b/i,
+          /\bas long as you control (a|an|another) (goblin|elf|zombie|vampire|merfolk|insect|spider|warrior|knight|dinosaur|dragon|angel|beast|rat|cat|sliver)\b/i,
+          /\b(goblin|elf|zombie|vampire|merfolk|insect|spider|warrior|knight|dinosaur|dragon|angel|beast) you control gets\b/i,
+          /\beach (goblin|elf|zombie|vampire|merfolk|insect|spider|warrior|knight|dinosaur|dragon|angel|beast) you control\b/i,
+          /\bwhenever (a|another) (goblin|elf|zombie|vampire|merfolk|insect|spider|warrior|knight|dinosaur|dragon|angel|beast) (you control |enters|dies)\b/i,
+        ];
+
+        const hasForcedTribalDep = TRIBAL_DEPENDENCY_PATTERNS.some(p => p.test(oracleText));
+        if (hasForcedTribalDep) {
+          score -= 300;
+          if (score < -50) console.log(`[RAG VETO TRIBAL] ${card.name} penalizada -300: dependencia tribal no pedida en "${formData.archetype}"`);
+        }
+      }
+
+      // --- CAPA B: VETO POR MECÁNICA INCOMPATIBLE CON ARQUETIPO (aplica a todos) ---
+      const ARCHETYPE_INCOMPATIBLE_MECHANICS = {
+        aggro: [
+          { pattern: /\bdredge \d/i, msg: 'dredge en aggro' },
+          { pattern: /\bcumulative upkeep\b/i, msg: 'cumulative upkeep en aggro' },
+          { pattern: /\bsuspend \d/i, cmcMin: 3, msg: 'suspend en aggro (lento)' },
+          { pattern: /\becho\b/i, msg: 'echo en aggro' },
+        ],
+        tempo: [
+          { pattern: /\bat the beginning of your upkeep, sacrifice\b/i, msg: 'sacrifice en upkeep en tempo' },
+          { pattern: /\bcumulative upkeep\b/i, msg: 'cumulative upkeep en tempo' },
+        ],
+        control: [
+          // Criaturas baratas con sólo haste (sin valor adicional) no encajan en control
+          // (Exentos si CMC >= 4 o si tienen flying/indestructible/ward)
+        ],
+        ramp: [
+          { pattern: /\bprowess\b/i, msg: 'prowess en ramp (no spellslinger)' },
+          { pattern: /\bstorm\b/i, msg: 'storm en ramp' },
+        ],
+        prison: [
+          { pattern: /\bcascade\b/i, msg: 'cascade en prison' },
+          { pattern: /\bstorm\b/i, msg: 'storm en prison' },
+        ],
+      };
+
+      const archVetos = ARCHETYPE_INCOMPATIBLE_MECHANICS[archLower] || [];
+      if (archVetos.length > 0 && isCreature) {
+        const isMustIncludeCard = (formData.mustInclude || '').toLowerCase().includes(cardNameLower);
+        if (!isMustIncludeCard) {
+          archVetos.forEach(veto => {
+            const cmcOk = veto.cmcMin ? card.mana_value >= veto.cmcMin : true;
+            if (cmcOk && veto.pattern.test(oracleText)) {
+              score -= 150;
+              console.log(`[RAG VETO MECH] ${card.name} penalizada -150: ${veto.msg}`);
+            }
+          });
+        }
+      }
+
+      // --- CAPA C: VETO LINEAL (estrategias específicas, se mantiene del sistema anterior) ---
       const isLinearStrategy = 
-        tribeLower || 
+        tribeLower && tribeLower !== 'none' && tribeLower !== 'ninguna' ||
         ['affinity', 'elves', 'slivers', 'enchantress', 'scales', 'dredge', 'reanimator', 'madness', 'constellation', 'superfriends', 'landfall', 'devotion', 'goblins', 'merfolk', 'zombies', 'vampires', 'humans', 'faeries', 'eldrazi', 'spirits', 'prison', 'stax', 'taxes'].some(t => 
           archLower.includes(t) || strategyLower.includes(t)
         );
@@ -994,100 +1138,59 @@ export const buildCardPool = async (formData) => {
                                   (oracleText.includes('add ') || oracleText.includes('search your library for a land')) && 
                                   allowedColors.includes('G');
 
-        // Excepción 5: Soporte o coincidencia de Tribu (por tipo o mención en texto oracle, ej. Wirewood Symbiote en Elfos)
+        // Excepción 5: Soporte o coincidencia de Tribu (por tipo o mención en texto oracle)
         let isTribalMatch = false;
-        
-        // 1. Priorizar subtypes de tribeData (que tiene las formas singulares correctas)
         if (tribeData && tribeData.subtypes) {
           isTribalMatch = tribeData.subtypes.some(st => {
             const stLower = st.toLowerCase();
             return typeLine.includes(stLower) || oracleText.includes(stLower);
           });
         }
-        
-        // 2. Fallback a la inferencia de activeTribe si no se pudo determinar con tribeData
-        if (!isTribalMatch) {
-          const activeTribe = tribeLower || (archLower.includes('elves') ? 'elf' : archLower.includes('slivers') ? 'sliver' : archLower.includes('goblins') ? 'goblin' : archLower.includes('merfolk') ? 'merfolk' : archLower.includes('zombies') ? 'zombie' : archLower.includes('vampires') ? 'vampire' : archLower.includes('humans') ? 'human' : archLower.includes('faeries') ? 'faerie' : archLower.includes('eldrazi') ? 'eldrazi' : archLower.includes('spirits') ? 'spirit' : '');
-          if (activeTribe) {
-            const cleanTribe = activeTribe.toLowerCase().trim();
-            let singularTribe = cleanTribe;
-            if (cleanTribe.endsWith('s')) {
-              if (cleanTribe === 'elves') singularTribe = 'elf';
-              else if (cleanTribe === 'faeries') singularTribe = 'faerie';
-              else if (cleanTribe === 'merfolk') singularTribe = 'merfolk';
-              else singularTribe = cleanTribe.slice(0, -1);
-            }
-            isTribalMatch = typeLine.includes(singularTribe) || oracleText.includes(singularTribe);
+        if (!isTribalMatch && tribeLower && tribeLower !== 'none') {
+          const cleanTribe = tribeLower.trim();
+          let singularTribe = cleanTribe;
+          if (cleanTribe.endsWith('s')) {
+            if (cleanTribe === 'elves') singularTribe = 'elf';
+            else if (cleanTribe === 'faeries') singularTribe = 'faerie';
+            else if (cleanTribe === 'merfolk') singularTribe = 'merfolk';
+            else singularTribe = cleanTribe.slice(0, -1);
           }
+          isTribalMatch = typeLine.includes(singularTribe) || oracleText.includes(singularTribe);
         }
 
-        // Excepción 6: Coincidencia mecánica directa con la estrategia activa en Todo Magic
+        // Excepción 6: Coincidencia mecánica directa con la estrategia activa
         let isMechanicalMatch = false;
-        
-        // Affinity / Artefactos
         if (archLower.includes('affinity') || strategyLower.includes('artifact') || strategyLower.includes('metalcraft') || strategyLower.includes('affinity')) {
           isMechanicalMatch = typeLine.includes('artifact') || oracleText.includes('artifact') || oracleText.includes('affinity') || oracleText.includes('metalcraft') || oracleText.includes('historic');
         }
-
-        // Encantamientos / Enchantress
         if (archLower.includes('enchantress') || strategyLower.includes('enchantment') || strategyLower.includes('constellation')) {
           isMechanicalMatch = typeLine.includes('enchantment') || oracleText.includes('enchantment') || oracleText.includes('constellation');
         }
-
-        // Contadores +1/+1 / Hardened Scales
         if (archLower.includes('scales') || strategyLower.includes('counter') || strategyLower.includes('hardened') || strategyLower.includes('scales')) {
           isMechanicalMatch = oracleText.includes('+1/+1') || oracleText.includes('counter') || typeLine.includes('artifact') || oracleText.includes('modular') || oracleText.includes('proliferate');
         }
-
-        // Dragado / Cementerio / Reanimación (Dredge, Reanimator)
         if (archLower.includes('dredge') || archLower.includes('reanimator') || strategyLower.includes('graveyard') || strategyLower.includes('dredge') || strategyLower.includes('reanimator')) {
-          isMechanicalMatch = oracleText.includes('dredge') || 
-                              oracleText.includes('graveyard') || 
-                              oracleText.includes('discard') || 
-                              oracleText.includes('mill') ||
-                              oracleText.includes('escape') ||
-                              oracleText.includes('underworld') ||
-                              oracleText.includes('reanimate') ||
-                              oracleText.includes('return') ||
-                              typeLine.includes('zombie') || 
-                              typeLine.includes('skeleton') || 
-                              typeLine.includes('spirit') ||
-                              card.mana_value >= 6;
+          isMechanicalMatch = oracleText.includes('dredge') || oracleText.includes('graveyard') || oracleText.includes('discard') || oracleText.includes('mill') || oracleText.includes('escape') || oracleText.includes('reanimate') || oracleText.includes('return') || typeLine.includes('zombie') || typeLine.includes('skeleton') || typeLine.includes('spirit') || card.mana_value >= 6;
         }
-
-        // Si no coincide con ninguno, comprobar si encaja con las palabras clave positivas del blueprint
         if (!isMechanicalMatch && blueprint.ragModifiers && blueprint.ragModifiers.boost) {
           const boostLower = blueprint.ragModifiers.boost.map(k => k.toLowerCase());
           isMechanicalMatch = boostLower.some(kw => oracleText.includes(kw) || typeLine.includes(kw) || cardNameLower.includes(kw));
         }
-
-        // Excepción de sabor (flavor/custom strategy)
         if (!isMechanicalMatch && flavorKeywordsLower.length > 0) {
           isMechanicalMatch = flavorKeywordsLower.some(kw => oracleText.includes(kw) || typeLine.includes(kw) || cardNameLower.includes(kw));
         }
 
-        // Excepción 7: Staple interactivo / de utilidad general competitivo (CMC <= 3 con interacción/robo clásica)
+        // Excepción 7: Staple interactivo / de utilidad general competitivo (CMC <= 3)
         const isInteractiveUtility = card.mana_value <= 3 && (
-          oracleText.includes('destroy') ||
-          oracleText.includes('exile') ||
-          oracleText.includes('counter target') ||
-          oracleText.includes('draw a card') ||
-          oracleText.includes('search your library') ||
+          oracleText.includes('destroy') || oracleText.includes('exile') || oracleText.includes('counter target') ||
+          oracleText.includes('draw a card') || oracleText.includes('search your library') ||
           oracleText.includes('cannot be blocked') ||
           (FORMAT_STAPLES[selectedFormat] && FORMAT_STAPLES[selectedFormat].has(cardNameLower))
         );
 
-        const passesVeto = 
-          isArchetypeMember ||
-          isMustInclude ||
-          isHighEndPayoff ||
-          isManaDorkSupport ||
-          isTribalMatch ||
-          isMechanicalMatch ||
-          isInteractiveUtility;
-
+        const passesVeto = isArchetypeMember || isMustInclude || isHighEndPayoff || isManaDorkSupport || isTribalMatch || isMechanicalMatch || isInteractiveUtility;
         if (!passesVeto) {
-          score -= 200; // Penalización severa por intruso en estrategia lineal
+          score -= 200;
         }
       }
     }
@@ -1112,20 +1215,75 @@ export const buildCardPool = async (formData) => {
     }
     
     // Coocurrencia con pilares clave de cada estrategia/arquetipo
+    const guildId = detectGuildId(allowedColors);
     const archetypePillars = {
-      reanimator: ["grief", "reanimate", "troll of khazad-dum", "entomb"],
-      aristocrats: ["yawgmoth, thran physician", "young wolf", "blood artist"],
-      spellslinger: ["murktide regent", "arclight phoenix", "lightning bolt", "consider"],
-      blink: ["solitude", "ephemerate", "teferi, time raveler"],
-      prison: ["chalice of the void", "blood moon", "trinisphere"],
-      control: ["teferi, hero of dominaria", "the wandering emperor", "supreme verdict"]
+      // === EXISTENTES AMPLIADOS ===
+      reanimator:  ["grief", "reanimate", "troll of khazad-dum", "entomb", "archon of cruelty", "atraxa, grand unifier"],
+      aristocrats: ["yawgmoth, thran physician", "young wolf", "blood artist", "carrion feeder", "viscera seer"],
+      spellslinger: ["murktide regent", "arclight phoenix", "lightning bolt", "consider", "ledger shredder"],
+      blink:    ["solitude", "ephemerate", "teferi, time raveler", "aether channeler", "soulherder"],
+      prison:   ["chalice of the void", "blood moon", "trinisphere", "thalia, guardian of thraben", "esper sentinel"],
+      control:  ["teferi, hero of dominaria", "the wandering emperor", "supreme verdict", "orcish bowmasters", "solitude"],
+      // === NUEVAS ENTRADAS — ARQUETIPOS PRINCIPALES ===
+      midrange: ["tarmogoyf", "thoughtseize", "orcish bowmasters", "ragavan, nimble pilferer", "esper sentinel", "fatal push"],
+      aggro:    ["goblin guide", "monastery swiftspear", "ragavan, nimble pilferer", "lightning bolt", "eidolon of the great revel"],
+      tempo:    ["murktide regent", "snapcaster mage", "force of will", "brainstorm", "daze", "dragon's rage channeler"],
+      ramp:     ["primeval titan", "cultivate", "kodama's reach", "birds of paradise", "farseek", "elder gargaroth"],
+      combo:    ["yawgmoth, thran physician", "living end", "crashing footfalls", "underworld breach", "thassa's oracle"],
+      // === NUEVAS ENTRADAS — ESTRATEGIAS ===
+      tokens:    ["esika's chariot", "intangible virtue", "raise the alarm", "young pyromancer", "rabble-rousing"],
+      landfall:  ["valakut exploration", "dryad of the ilysian grove", "scute swarm", "lotus cobra", "omnath, locus of creation"],
+      graveyard: ["tarmogoyf", "dragon's rage channeler", "mishra's bauble", "unholy heat", "consider"],
+      lifegain:  ["soul warden", "ajani's pridemate", "heliod, sun-crowned", "serra ascendant", "speaker of the heavens"],
+      toolbox:   ["chord of calling", "birthing pod", "eldritch evolution", "fauna shaman", "yisan, the wanderer bard"],
+      cascade:   ["shardless agent", "ardent plea", "violent outburst", "crashing footfalls", "bloodbraid elf"],
+      storm:     ["ral, monsoon mage", "grapeshot", "manamorphose", "baral, chief of compliance", "goblin electromancer"],
+      affinity:  ["steel overseer", "cranial plating", "thought monitor", "springleaf drum", "memnite"],
+      vehicles:  ["smuggler's copter", "heart of kiran", "esika's chariot", "depala, pilot exemplar"],
+      voltron:   ["colossus hammer", "sigarda's aid", "puresteel paladin", "slippery bogle", "ethereal armor"],
+      ninjutsu:  ["changeling outcast", "ornithopter", "mist-cloaked herald", "bitterblossom", "ninja of the new moon"],
+      slivers:   ["sliver hivelord", "sliver legion", "aether vial", "collected company", "cloudshredder sliver"],
+      sea_monsters: ["quest for ula's temple", "whelming wave", "aesi, tyrant of gyre strait", "kiora, the crashing wave"],
+      // === GUILD-LEVEL PRECISION ===
+      golgari:  ["grist, the hunger tide", "tarmogoyf", "thoughtseize", "fatal push", "scavenging ooze", "orcish bowmasters"],
+      dimir:    ["snapcaster mage", "thoughtseize", "inquisition of kozilek", "orcish bowmasters", "ledger shredder"],
+      izzet:    ["murktide regent", "arclight phoenix", "lightning bolt", "consider", "ledger shredder", "expressive iteration"],
+      selesnya: ["knight of the reliquary", "collected company", "voice of resurgence", "qasali pridemage", "esper sentinel"],
+      rakdos:   ["ragavan, nimble pilferer", "thoughtseize", "lightning bolt", "grief", "orcish bowmasters", "bloodtithe harvester"],
+      gruul:    ["tarmogoyf", "bloodbraid elf", "bonecrusher giant", "territorial kavu", "questing beast"],
+      azorius:  ["teferi, hero of dominaria", "supreme verdict", "the wandering emperor", "solitude", "esper sentinel"],
+      orzhov:   ["lingering souls", "thoughtseize", "fatal push", "esper sentinel", "kaya's guile", "grief"],
+      simic:    ["coiling oracle", "collected company", "omnath, locus of creation", "aesi, tyrant of gyre strait", "tatyova, benthic druid"],
+      boros:    ["ragavan, nimble pilferer", "monastery swiftspear", "lightning bolt", "boros charm", "pia and kiran nalaar"],
+      jund:     ["tarmogoyf", "thoughtseize", "bloodbraid elf", "ragavan, nimble pilferer", "orcish bowmasters", "fatal push"],
+      abzan:    ["siege rhino", "thoughtseize", "fatal push", "lingering souls", "voice of resurgence"],
+      mardu:    ["ragavan, nimble pilferer", "thoughtseize", "lightning bolt", "lingering souls", "fatal push"],
+      naya:     ["bloodbraid elf", "collected company", "questing beast", "knight of the reliquary", "bonecrusher giant"],
+      sultai:   ["tarmogoyf", "thoughtseize", "snapcaster mage", "uro, titan of nature's wrath", "fatal push"],
+      grixis:   ["ragavan, nimble pilferer", "murktide regent", "thoughtseize", "orcish bowmasters", "lightning bolt"],
+      temur:    ["bloodbraid elf", "omnath, locus of creation", "questing beast", "bonecrusher giant", "brainstorm"],
+      esper:    ["teferi, hero of dominaria", "thoughtseize", "supreme verdict", "lingering souls", "solitude"],
+      jeskai:   ["murktide regent", "solitude", "teferi, time raveler", "lightning bolt", "supreme verdict"],
+      bant:     ["knight of the reliquary", "solitude", "ephemerate", "coiling oracle", "aether channeler"],
     };
+    // Añadir también pilares del guild detectado si existe
+    const guildPillars = guildId ? (archetypePillars[guildId] || []) : [];
     
-    const pillars = archetypePillars[strategyId] || [];
+    // Combinar pilares: estrategia + arquetipo + guild para máxima precisión
+    const pillarsByStrategy = archetypePillars[strategyId] || [];
+    const pillarsByArchetype = archetypePillars[archLower] || [];
+    const allActivePillarNames = [...new Set([...pillarsByStrategy, ...pillarsByArchetype, ...guildPillars])];
+
+    // D) Boost directo para pilares competitivos activos (excepto en Commander)
+    if (selectedFormat !== 'COMMANDER' && allActivePillarNames.includes(cardNameLower)) {
+      score += 180;
+    }
+
     let pillarSynergyBonus = 0;
-    pillars.forEach(pillarName => {
+    allActivePillarNames.forEach(pillarName => {
       const pairPercent = metaSynergies[cardNameLower]?.[pillarName] || metaSynergies[pillarName]?.[cardNameLower] || 0;
       if (pairPercent > 0) {
+
         pillarSynergyBonus += Math.min(50, Math.round(pairPercent * 1.2));
       }
     });
@@ -1201,7 +1359,6 @@ export const buildCardPool = async (formData) => {
       score += countKeywords(oracleText, rgKeywords) * 8;
     }
     // === ARCHETYPE ESSENCE BOOST ===
-    const archLower = (formData.archetype || '').toLowerCase();
     if (archLower.includes('prison') || archLower.includes('taxes')) {
       const matches = countKeywords(oracleText, taxKeywords) + countKeywords(cardNameLower, taxKeywords);
       if (matches > 0) {
@@ -1375,6 +1532,11 @@ export const buildCardPool = async (formData) => {
         if (isTronCore) {
           score += 180; // Impulso máximo para asegurar Tron
         }
+      } else if (strategyId === 'ramp') {
+        const isRampCore = ["cultivate", "kodama's reach", "farseek", "rampant growth", "birds of paradise", "utopia sprawl", "wild growth", "sakura-tribe elder", "explore", "three visits", "nature's lore", "wood elves", "delighted halfling", "llanowar elves", "elvish mystic", "fyndhorn elves", "analyze the pollen"].includes(cardNameLower);
+        if (isRampCore) {
+          score += 180; // Boost to ensure they appear in green/colored ramp
+        }
       } else if (strategyId === 'enchantress' || strategyId === 'voltron') {
         const isBoglesCore = ['slippery bogle', 'gladecover scout', 'ethereal armor', 'all that glitters', 'sythis, harvest\'s hand', 'rancor', 'spider umbra', 'hyena umbra', 'sigarda\'s aid', 'puresteel paladin', 'colossus hammer'].includes(cardNameLower);
         if (isBoglesCore) {
@@ -1429,7 +1591,7 @@ export const buildCardPool = async (formData) => {
         }
       }
     } else if (strategyData) {
-      score += countKeywords(oracleText, strategyIdKeywordsLower) * 5;
+      score += Math.round(countKeywords(oracleText, strategyIdKeywordsLower) * 5 * synergyMultiplier);
     }
 
     // === CALIBRACIÓN ESTRATÉGICA DE SABOR / FLAVOR (TRIBE-SPECIFIC STRATEGY BOOST) ===
@@ -1438,9 +1600,9 @@ export const buildCardPool = async (formData) => {
       const textMatches = countKeywords(oracleText, flavorKeywordsLower) + countKeywords(typeLine, flavorKeywordsLower);
       
       if (isKeyFlavorCard) {
-        score += 350; // Super-impulso para asegurar que entre en el RAG pool de cabeza
+        score += Math.round(350 * synergyMultiplier); // Super-impulso para asegurar que entre en el RAG pool de cabeza
       } else if (textMatches > 0) {
-        score += 120 + (textMatches * 25);
+        score += Math.round((120 + (textMatches * 25)) * synergyMultiplier);
       }
     }
 
@@ -1457,7 +1619,7 @@ export const buildCardPool = async (formData) => {
         dnaBoost += 250; // Garantizar staples del meta en el RAG pool
       }
     }
-    score += dnaBoost;
+    score += Math.round(dnaBoost * competitiveMultiplier);
 
     // --- NUEVO FASE 3: IMPULSO POR BLUEPRINT JIT QUERY (Problema 7) ---
     let blueprintMatchBoost = 0;
@@ -1468,14 +1630,14 @@ export const buildCardPool = async (formData) => {
         }
       }
     }
-    score += blueprintMatchBoost;
+    score += Math.round(blueprintMatchBoost * synergyMultiplier);
 
     // Sinergia/Impulso extra de rareza si se selecciona alta potencia sin límites
     if (activeRarityMode === 'high-power') {
       if (card.rarity === 'mythic') {
-        score += 85;
+        score += Math.round(85 * competitiveMultiplier);
       } else if (card.rarity === 'rare') {
-        score += 45;
+        score += Math.round(45 * competitiveMultiplier);
       }
     }
 
@@ -1502,7 +1664,6 @@ export const buildCardPool = async (formData) => {
   }
 
   // --- INICIO RAG 2.0: RED DE SINERGIA RELACIONAL (Double-Pass Synergy Graph) ---
-  // 2.5. Primera ordenación provisional para sacar un Top de pre-candidatos (Mejora radical de rendimiento y cohesión)
   const maxPreCandidates = 600; // Analizamos las mejores 600 cartas para crear la red de densidad
   let allCandidates = [...creaturesPool, ...spellsPool].sort((a, b) => b.score - a.score).slice(0, maxPreCandidates);
 
@@ -1536,7 +1697,7 @@ export const buildCardPool = async (formData) => {
 
   // Aplicar multiplicadores de red (Segunda Pasada)
   allCandidates.forEach(card => {
-    let relationalBoost = 0;
+    let relationalSynergyBoost = 0;
     const typeLine = card.type_line ? card.type_line.toLowerCase() : '';
     const oracleText = card.oracle_text ? card.oracle_text.toLowerCase() : '';
     const cardNameLower = card.name.toLowerCase();
@@ -1546,20 +1707,20 @@ export const buildCardPool = async (formData) => {
       const isTribalMatch = activeTribalSubtypes.some(sub => typeLine.includes(sub));
       if (isTribalMatch) {
         // Enorme bonificación multiplicativa por cada otra carta de la tribu en el pool
-        relationalBoost += densityMetrics.tribal * 12; 
+        relationalSynergyBoost += densityMetrics.tribal * 12; 
         
         // BOOST INTELIGENTE: Si es un Lord o Finisher tribal (Coste alto),
         // darle un mega-boost para asegurar que entre en los buckets top-end.
         if (card.mana_value >= 4) {
-          relationalBoost += 100;
+          relationalSynergyBoost += 100;
         }
       }
       // Si la carta apoya a la tribu en su texto, también se beneficia del cluster
       const supportsTribe = activeTribalSubtypes.some(sub => oracleText.includes(sub));
       if (supportsTribe) {
-        relationalBoost += densityMetrics.tribal * 8;
+        relationalSynergyBoost += densityMetrics.tribal * 8;
         if (card.mana_value >= 4) {
-          relationalBoost += 80; // Boost para encantamientos/conjuros de tribu caros
+          relationalSynergyBoost += 80; // Boost para encantamientos/conjuros de tribu caros
         }
       }
     }
@@ -1567,37 +1728,37 @@ export const buildCardPool = async (formData) => {
     // B) Auto-Alineación de Estrategias y Tipos (Gatillos Cruzados)
     if (strategyId === 'spellslinger' || strategyId === 'storm') {
       if (oracleText.includes('instant') || oracleText.includes('sorcery') || oracleText.includes('cast a spell') || oracleText.includes('storm')) {
-        relationalBoost += densityMetrics.instantSorcery * 2.5;
+        relationalSynergyBoost += densityMetrics.instantSorcery * 2.5;
       }
       if (typeLine.includes('instant') || typeLine.includes('sorcery')) {
-        relationalBoost += 20; 
+        relationalSynergyBoost += 20; 
       }
       if (strategyId === 'storm' && (oracleText.includes('storm') || oracleText.includes('add ') || oracleText.includes('ritual') || oracleText.includes('unturn') || oracleText.includes('untap'))) {
-        relationalBoost += 50; // Sinergia directa para enablers y rituales de Tormenta
+        relationalSynergyBoost += 50; // Sinergia directa para enablers y rituales de Tormenta
       }
     } else if (strategyId === 'enchantress') {
       if (oracleText.includes('enchantment') || oracleText.includes('constellation')) {
-        relationalBoost += densityMetrics.enchantment * 3.5;
+        relationalSynergyBoost += densityMetrics.enchantment * 3.5;
       }
-      if (typeLine.includes('enchantment')) relationalBoost += 15;
+      if (typeLine.includes('enchantment')) relationalSynergyBoost += 15;
     } else if (strategyId === 'vehicles') {
       if (typeLine.includes('vehicle') || oracleText.includes('crew')) {
-        relationalBoost += densityMetrics.artifact * 3.0;
+        relationalSynergyBoost += densityMetrics.artifact * 3.0;
       }
     } else if (strategyId === 'reanimator' || strategyId === 'graveyard') {
       if (oracleText.includes('graveyard') || oracleText.includes('discard') || oracleText.includes('return target')) {
-        relationalBoost += densityMetrics.graveyard * 2.5;
+        relationalSynergyBoost += densityMetrics.graveyard * 2.5;
       }
     } else if (strategyId === 'aristocrats') {
       if (oracleText.includes('sacrifice') || oracleText.includes('dies')) {
-        relationalBoost += 40;
+        relationalSynergyBoost += 40;
       }
     } else if (strategyId === 'affinity') {
       if (typeLine.includes('artifact') || oracleText.includes('artifact') || oracleText.includes('affinity') || oracleText.includes('metalcraft')) {
-        relationalBoost += densityMetrics.artifact * 1.5; // Fuerte empuje por sinergia metálica
+        relationalSynergyBoost += densityMetrics.artifact * 1.5; // Fuerte empuje por sinergia metálica
       }
       if (typeLine.includes('artifact') && typeLine.includes('creature')) {
-        relationalBoost += 40; // Impulso extra a criaturas artefacto
+        relationalSynergyBoost += 40; // Impulso extra a criaturas artefacto
       }
     }
 
@@ -1609,13 +1770,13 @@ export const buildCardPool = async (formData) => {
       if (cardNameLower !== otherCardName) {
          const pairFreq = metaSynergies[cardNameLower]?.[otherCardName] || metaSynergies[otherCardName]?.[cardNameLower] || 0;
          if (pairFreq > 0) {
-           metaNetScore += (pairFreq * 0.5); 
+            metaNetScore += (pairFreq * 0.5); 
          }
       }
     }
     
     // Limitamos el bono de metajuego cruzado para que no domine por completo a las sinergias de texto
-    relationalBoost += Math.min(150, metaNetScore);
+    const limitedMetaNet = Math.min(150, metaNetScore);
 
     // D) Boost de Sinergia por Anclaje (Core Packages)
     let coreAnchorBoost = 0;
@@ -1623,16 +1784,19 @@ export const buildCardPool = async (formData) => {
       for (const coreName of injectedCoreNames) {
         if (typeof coreName !== 'string') continue;
         const coreNameLower = coreName.toLowerCase();
-        const pairFreq = metaSynergies[cardNameLower]?.[coreNameLower] || metaSynergies[coreNameLower]?.[cardNameLower] || 0;
+        const pairFreq = metaSynergies[cardNameLower]?.[coreNameLower] || metaSynergies[coreNameLower]?.[coreNameLower] || 0;
         if (pairFreq > 0) {
           coreAnchorBoost += (pairFreq * 1.5);
         }
       }
-      relationalBoost += Math.min(200, coreAnchorBoost);
+      relationalSynergyBoost += Math.min(200, coreAnchorBoost); // Sigue siendo un boost sinérgico a raíz de anclajes
     }
 
-    // Sumar el boost relacional al score original
-    card.score += Math.round(relationalBoost);
+    // Sumar el boost relacional al score original aplicando multiplicadores
+    card.score += Math.round(
+      (relationalSynergyBoost * synergyMultiplier) + 
+      (limitedMetaNet * competitiveMultiplier)
+    );
   });
 
   // === SEA MONSTERS DEDICATED RAG SCORING ===
@@ -1792,7 +1956,9 @@ export const buildCardPool = async (formData) => {
     voltron:      { cmc1: 0.45, cmc2: 0.40, cmc3: 0.10, cmc4: 0.05, cmc5Plus: 0.00 },
     vehicles:     { cmc1: 0.30, cmc2: 0.40, cmc3: 0.20, cmc4: 0.10, cmc5Plus: 0.00 },
     sea_monsters: { cmc1: 0.25, cmc2: 0.30, cmc3: 0.15, cmc4: 0.10, cmc5Plus: 0.20 },
-    storm:        { cmc1: 0.40, cmc2: 0.40, cmc3: 0.15, cmc4: 0.05, cmc5Plus: 0.00 }
+    storm:        { cmc1: 0.40, cmc2: 0.40, cmc3: 0.15, cmc4: 0.05, cmc5Plus: 0.00 },
+    tron:         { cmc1: 0.15, cmc2: 0.25, cmc3: 0.20, cmc4: 0.15, cmc5Plus: 0.25 },
+    ramp:         { cmc1: 0.20, cmc2: 0.30, cmc3: 0.25, cmc4: 0.10, cmc5Plus: 0.15 }
   };
 
   const archetypeCurveMap = {

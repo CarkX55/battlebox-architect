@@ -37,6 +37,42 @@ const INFERENCE_RULES = [
     match: (oracle, typeLine) => oracle.includes("+1/+1 counter") && (oracle.includes("double") || oracle.includes("additional") || oracle.includes("proliferate")),
     boost: ["+1/+1 counter", "counter", "modular", "proliferate"],
     penalty: []
+  },
+  {
+    signal: "ramp_heavy_engine",
+    match: (oracle, typeLine) => oracle.includes("search your library for a land") || (oracle.includes("add ") && oracle.includes("mana") && (oracle.includes("lands you control") || oracle.includes("land card"))),
+    boost: ["trample", "hexproof", "haste", "draw", "mana value 5 or greater", "x spells"],
+    penalty: ["aggro", "small"]
+  },
+  {
+    signal: "flash_tempo_engine",
+    match: (oracle, typeLine) => typeLine.includes("instant") || oracle.includes("flash"),
+    boost: ["counter target", "draw a card", "flash", "cannot be blocked", "flying", "whenever you cast your first spell during each opponent's turn"],
+    penalty: ["sorcery"]
+  },
+  {
+    signal: "graveyard_recursion_engine",
+    match: (oracle, typeLine) => oracle.includes("return from your graveyard") || oracle.includes("put target card from a graveyard") || oracle.includes("dredge") || oracle.includes("under your control from a graveyard"),
+    boost: ["graveyard", "mill", "discard", "reanimate", "put into your graveyard"],
+    penalty: ["exile"]
+  },
+  {
+    signal: "tokens_sacrifice_engine",
+    match: (oracle, typeLine) => oracle.includes("create") && oracle.includes("token"),
+    boost: ["token", "populate", "sacrifice", "enters the battlefield", "whenever a creature dies"],
+    penalty: []
+  },
+  {
+    signal: "spellslinger_engine",
+    match: (oracle, typeLine) => oracle.includes("whenever you cast an instant or sorcery") || oracle.includes("whenever you cast a noncreature spell"),
+    boost: ["instant", "sorcery", "cantrip", "draw", "copy target", "prowess", "magecraft"],
+    penalty: ["enchantment", "artifact"]
+  },
+  {
+    signal: "artifact_synergy_engine",
+    match: (oracle, typeLine) => typeLine.includes("artifact") || oracle.includes("affinity for artifacts") || oracle.includes("metalcraft"),
+    boost: ["artifact", "affinity", "metalcraft", "construct", "treasure", "clue", "food"],
+    penalty: []
   }
 ];
 

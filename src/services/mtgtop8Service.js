@@ -236,6 +236,88 @@ export const MOCK_METAGAME_DECKS = {
         { name: "Cultivate", quantity: 4 },
         { name: "Explore", quantity: 4 }
       ]
+    },
+    {
+      name: "Golgari Midrange (The Rock)",
+      main: [
+        { name: "Tarmogoyf", quantity: 4 },
+        { name: "Thoughtseize", quantity: 4 },
+        { name: "Orcish Bowmasters", quantity: 4 },
+        { name: "Fatal Push", quantity: 4 },
+        { name: "Inquisition of Kozilek", quantity: 2 },
+        { name: "Grist, the Hunger Tide", quantity: 3 },
+        { name: "Sheoldred, the Apocalypse", quantity: 2 },
+        { name: "Dauthi Voidwalker", quantity: 4 },
+        { name: "Abrupt Decay", quantity: 2 },
+        { name: "Assassin's Trophy", quantity: 2 },
+        { name: "Mosswood Dreadknight", quantity: 4 },
+        { name: "Tear Asunder", quantity: 2 },
+        { name: "Scavenging Ooze", quantity: 2 }
+      ]
+    },
+    {
+      name: "Jund Midrange",
+      main: [
+        { name: "Tarmogoyf", quantity: 4 },
+        { name: "Thoughtseize", quantity: 4 },
+        { name: "Orcish Bowmasters", quantity: 4 },
+        { name: "Fatal Push", quantity: 4 },
+        { name: "Wrenn and Six", quantity: 4 },
+        { name: "Fable of the Mirror-Breaker", quantity: 4 },
+        { name: "Ragavan, Nimble Pilferer", quantity: 4 },
+        { name: "Lightning Bolt", quantity: 4 },
+        { name: "Bloodbraid Elf", quantity: 2 },
+        { name: "Kroxa, Titan of Death's Hunger", quantity: 2 },
+        { name: "Inquisition of Kozilek", quantity: 2 }
+      ]
+    },
+    {
+      name: "Rakdos Scam",
+      main: [
+        { name: "Grief", quantity: 4 },
+        { name: "Orcish Bowmasters", quantity: 4 },
+        { name: "Ragavan, Nimble Pilferer", quantity: 4 },
+        { name: "Dauthi Voidwalker", quantity: 4 },
+        { name: "Fable of the Mirror-Breaker", quantity: 4 },
+        { name: "Lightning Bolt", quantity: 4 },
+        { name: "Fatal Push", quantity: 4 },
+        { name: "Thoughtseize", quantity: 4 },
+        { name: "Not Dead After All", quantity: 4 },
+        { name: "Feign Death", quantity: 2 },
+        { name: "Kroxa, Titan of Death's Hunger", quantity: 1 }
+      ]
+    },
+    {
+      name: "Azorius Control",
+      main: [
+        { name: "Teferi, Time Raveler", quantity: 3 },
+        { name: "Teferi, Hero of Dominaria", quantity: 2 },
+        { name: "The Wandering Emperor", quantity: 2 },
+        { name: "Solitude", quantity: 4 },
+        { name: "Counterspell", quantity: 4 },
+        { name: "Memory Deluge", quantity: 3 },
+        { name: "Supreme Verdict", quantity: 3 },
+        { name: "Prismatic Ending", quantity: 3 },
+        { name: "Leyline Binding", quantity: 4 },
+        { name: "Archmage's Charm", quantity: 2 },
+        { name: "Spell Pierce", quantity: 2 }
+      ]
+    },
+    {
+      name: "Mono-Green Tron",
+      main: [
+        { name: "Karn, the Great Creator", quantity: 4 },
+        { name: "Wurmcoil Engine", quantity: 2 },
+        { name: "Karn Liberated", quantity: 3 },
+        { name: "Ulamog, the Ceaseless Hunger", quantity: 2 },
+        { name: "Sundering Titan", quantity: 1 },
+        { name: "Expedition Map", quantity: 4 },
+        { name: "Sylvan Scrying", quantity: 4 },
+        { name: "Ancient Stirrings", quantity: 4 },
+        { name: "Chromatic Star", quantity: 4 },
+        { name: "Chromatic Sphere", quantity: 4 },
+        { name: "Relic of Progenitus", quantity: 2 }
+      ]
     }
   ],
   LEGACY: [

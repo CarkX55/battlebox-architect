@@ -1663,7 +1663,11 @@ export default function DeckForge() {
       vmp: calculateVMP(spellsOnly),
       sources: calculateManaSources(renderDeck)
     };
-    const auditData = { ...lastFormData, metrics };
+    const auditData = { 
+      ...lastFormData, 
+      aiMetadata,
+      metrics 
+    };
 
     try {
       const result = await auditDeckWithAI(renderDeck, renderSideboard, auditData, aiConfig, (p, m) => {
@@ -1690,13 +1694,14 @@ export default function DeckForge() {
       format: selectedFormat
     };
 
-    // Sincronizar el rarityMode y allowCustomCards seleccionados en el localStorage para que futuros accesos lo reconozcan
+    // Sincronizar el rarityMode, allowCustomCards y generationPriority seleccionados en el localStorage para que futuros accesos lo reconozcan
     try {
       const saved = localStorage.getItem(FORGE_STORAGE_KEY);
       if (saved) {
         const configObj = JSON.parse(saved);
         configObj.rarityMode = formData.rarityMode;
         configObj.allowCustomCards = !!formData.allowCustomCards;
+        configObj.generationPriority = formData.generationPriority || 'hybrid';
         localStorage.setItem(FORGE_STORAGE_KEY, JSON.stringify(configObj));
         setAiConfig(configObj);
       }
@@ -1793,6 +1798,33 @@ export default function DeckForge() {
         }
       }
       
+      // ── AUTO-REFINAMIENTO DE NIVEL GRAN MAESTRO (Self-Healing Loop & Playsets 4x)
+      setForgePhase({ phase: 'auto_audit', message: '🔬 Densificando playsets (4x) y evaluando viabilidad...' });
+      try {
+        const { densifyDeckPlaysets } = await import('../services/deckAuditorService.js');
+        finalDeck = densifyDeckPlaysets(finalDeck);
+
+        const spellsOnly = finalDeck.filter(c => !isLandCard(c));
+        const metrics = {
+          vmp: calculateVMP(spellsOnly),
+          sources: calculateManaSources(finalDeck)
+        };
+        const auditData = { ...lastFormData, aiMetadata, metrics };
+
+        const autoAudit = await auditDeckWithAI(finalDeck, hydratedSideboard, auditData, aiConfig, () => {});
+        if (autoAudit && autoAudit.score < 8.5 && autoAudit.suggestions && autoAudit.suggestions.length > 0) {
+          setForgePhase({ phase: 'auto_refine', message: '✨ Auto-refinando mazo para alcanzar puntuación de élite (>8.5/10)...' });
+          const allCards = await getAllCards();
+          const validSuggs = autoAudit.suggestions.filter(s => !s._invalid);
+          if (validSuggs.length > 0) {
+            const refinedDeck = await applyAuditChangesProgrammatically(finalDeck, validSuggs, allCards, lastFormData);
+            finalDeck = refinedDeck;
+          }
+        }
+      } catch (autoErr) {
+        console.warn("Auto-refinamiento inicial omitido:", autoErr);
+      }
+      
       setRenderDeck(finalDeck);
       setRenderSideboard(hydratedSideboard); 
       setSideboardStrategy(aiResult.sideboard_strategy || '');
@@ -1862,7 +1894,10 @@ export default function DeckForge() {
         mana_cost: scryfallCard.mana_cost || scryfallCard.card_faces?.[0]?.mana_cost || '',
         mana_value: scryfallCard.cmc || 0,
         color_identity: scryfallCard.color_identity || [],
-        produced_mana: scryfallCard.produced_mana || []
+        produced_mana: scryfallCard.produced_mana || [],
+        power: scryfallCard.power ?? '',
+        toughness: scryfallCard.toughness ?? '',
+        oracle_text: scryfallCard.oracle_text || scryfallCard.card_faces?.[0]?.oracle_text || ''
       }];
     });
     

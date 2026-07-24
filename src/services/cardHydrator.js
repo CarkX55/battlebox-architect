@@ -229,7 +229,9 @@ async function fetchCardFromScryfall(cardName) {
         normal: data.card_faces[0].image_uris.normal,
         large: data.card_faces[0].image_uris.large,
         small: data.card_faces[0].image_uris.small
-      } : null
+      } : null,
+      power: data.power ?? data.card_faces?.[0]?.power ?? '',
+      toughness: data.toughness ?? data.card_faces?.[0]?.toughness ?? ''
     };
     
     await saveCardToDB(card);
@@ -285,20 +287,27 @@ export async function hydrateCard(card, rarityMode = 'high-power') {
   
   let hydrated = await getCardFromDB(name);
   
-  if (!hydrated) {
-    // Intentar buscar coincidencia difusa en IndexedDB
-    const fuzzyName = await findFuzzyMatchInDB(name);
-    if (fuzzyName && fuzzyName !== name) {
-      hydrated = await getCardFromDB(fuzzyName);
-      if (hydrated) {
-        console.log(`🎯 Coincidencia difusa encontrada en IndexedDB: "${name}" -> "${fuzzyName}"`);
+  const isCreature = hydrated && (hydrated.type_line || '').toLowerCase().includes('creature');
+  const isMissingAttributes = isCreature && (hydrated.power === undefined || hydrated.power === '');
+  
+  if (!hydrated || isMissingAttributes) {
+    if (!hydrated) {
+      // Intentar buscar coincidencia difusa en IndexedDB
+      const fuzzyName = await findFuzzyMatchInDB(name);
+      if (fuzzyName && fuzzyName !== name) {
+        hydrated = await getCardFromDB(fuzzyName);
+        if (hydrated) {
+          console.log(`🎯 Coincidencia difusa encontrada en IndexedDB: "${name}" -> "${fuzzyName}"`);
+        }
       }
     }
-  }
-  
-  if (!hydrated) {
-    console.log(`🔍 No cache: ${name}, buscando en Scryfall...`);
-    hydrated = await fetchCardFromScryfall(name);
+    
+    // Check again if still missing attributes
+    const stillMissing = !hydrated || (hydrated && (hydrated.type_line || '').toLowerCase().includes('creature') && (hydrated.power === undefined || hydrated.power === ''));
+    if (stillMissing) {
+      console.log(`🔍 No cache o incompleta: ${name}, buscando/actualizando en Scryfall...`);
+      hydrated = await fetchCardFromScryfall(name);
+    }
   } else {
     console.log(`✅ Cache hit: ${name}`);
   }

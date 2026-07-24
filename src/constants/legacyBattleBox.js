@@ -712,7 +712,25 @@ export const MTG_TRIBES = [
       }
     ]
   },
-  { id: 'demon', label: 'Demonios', category: 'monstruo', colors: ['B'], primaryColor: 'B', strategies: ['aristocrats', 'reanimator'], archetypes: ['midrange', 'combo'], subtypes: ['demon'] },
+  { 
+    id: 'demon', 
+    label: 'Demonios', 
+    category: 'monstruo', 
+    colors: ['B'], 
+    primaryColor: 'B', 
+    strategies: ['aristocrats', 'reanimator'], 
+    archetypes: ['midrange', 'combo'], 
+    subtypes: ['demon'],
+    flavors: [
+      {
+        id: 'demon_pact',
+        label: 'Pacto Infernal (Big Mana & Sacrifice)',
+        description: 'Demonios colosales que exigen sacrificios y aplastan con poder puro.',
+        vetoedKeywords: [],
+        boostKeywords: ['demon', 'flying', 'sacrifice', 'demonic', 'archfiend of the dross', 'shadowborn apostle', 'razaketh']
+      }
+    ]
+  },
   { 
     id: 'dragon', 
     label: 'Dragones', 
@@ -729,6 +747,14 @@ export const MTG_TRIBES = [
         description: 'Lanza dragones voladores devastadores con prisa y daño directo.',
         vetoedKeywords: [],
         boostKeywords: ['dragon', 'flying', 'haste', 'dragons you control', 'sarkhan', 'thunderbreak regent', 'dragonlord']
+      },
+      {
+        id: 'dragon_reanimator',
+        label: 'Despertar de los Dragones (Reanimator)',
+        description: 'Manda dragones legendarios al cementerio y revívelos velozmente.',
+        vetoedKeywords: [],
+        boostKeywords: ['dragon', 'reanimate', 'goryo\'s', 'archon', 'atarka', 'scion of the ur-dragon'],
+        corePackageId: 'reanimator'
       }
     ]
   },
@@ -747,14 +773,52 @@ export const MTG_TRIBES = [
         label: 'Furia Jurásica (Enrage/Stomp)',
         description: 'Aprovecha habilidades de enfurecer al recibir daño y arrolla al rival.',
         vetoedKeywords: [],
-        boostKeywords: ['dinosaur', 'enrage', 'trample', 'gishath', 'marauding raptor', 'carnage tyrant']
+        boostKeywords: ['dinosaur', 'enrage', 'trample', 'gishath', 'marauding raptor', 'carnage tyrant', 'ripjaw raptor']
+      }
+    ]
+  },
+  { 
+    id: 'beast', 
+    label: 'Bestias (Beasts)', 
+    category: 'monstruo', 
+    colors: ['G', 'R', 'W'], 
+    primaryColor: 'G', 
+    strategies: ['landfall', 'tokens'], 
+    archetypes: ['aggro', 'midrange', 'ramp'], 
+    subtypes: ['beast'],
+    flavors: [
+      {
+        id: 'beast_stomp',
+        label: 'Manada Salvafe (Beast Stompy)',
+        description: 'Bestias salvajes de gran fuerza bruta y resistencia en combate.',
+        vetoedKeywords: [],
+        boostKeywords: ['beast', 'trample', 'garruk', 'ravenous baloth', 'leatherback baloth', 'questing beast']
       }
     ]
   },
   { id: 'elemental', label: 'Elementales', category: 'monstruo', colors: ['R', 'G', 'U', 'W', 'B'], primaryColor: ['R', 'G'], strategies: ['landfall', 'blink', 'reanimator'], archetypes: ['aggro', 'midrange', 'combo', 'ramp'], subtypes: ['elemental'] },
 
   // EXÓTICAS
-  { id: 'eldrazi', label: 'Eldrazi (Eldrazi Tron / Aggro)', category: 'exotica', colors: ['W', 'U', 'B', 'R', 'G', 'C'], primaryColor: 'C', strategies: ['tokens', 'blink'], archetypes: ['aggro', 'midrange', 'prison', 'ramp'], subtypes: ['eldrazi'], formats: ['MODERN'] },
+  { 
+    id: 'eldrazi', 
+    label: 'Eldrazi (Eldrazi Tron / Aggro)', 
+    category: 'exotica', 
+    colors: ['W', 'U', 'B', 'R', 'G', 'C'], 
+    primaryColor: 'C', 
+    strategies: ['tokens', 'blink'], 
+    archetypes: ['aggro', 'midrange', 'prison', 'ramp'], 
+    subtypes: ['eldrazi'], 
+    formats: ['MODERN'],
+    flavors: [
+      {
+        id: 'eldrazi_tron',
+        label: 'Eldrazi Tron (Incoloro / Big Mana)',
+        description: 'Invoca titanes incoloros devastadores con tierras Tron y Eldrazi Temple.',
+        vetoedKeywords: [],
+        boostKeywords: ['eldrazi', 'thought-knot seer', 'reality smasher', 'matter reshaper', 'ulamog', 'karn', 'expedition map']
+      }
+    ]
+  },
   { 
     id: 'faerie', 
     label: 'Hadas (Faeries)', 
@@ -774,11 +838,79 @@ export const MTG_TRIBES = [
       }
     ]
   },
+  { 
+    id: 'rat', 
+    label: 'Ratas (Rats)', 
+    category: 'exotica', 
+    colors: ['B'], 
+    primaryColor: 'B', 
+    strategies: ['tokens', 'aristocrats'], 
+    archetypes: ['aggro', 'midrange'], 
+    subtypes: ['rat'],
+    flavors: [
+      {
+        id: 'rat_plague',
+        label: 'Plaga de Ratas (Rat Colony/Tokens)',
+        description: 'Enjambre inagotable de ratas que crecen en grupo y drenan al rival.',
+        vetoedKeywords: [],
+        boostKeywords: ['rat', 'rats', 'pack rat', 'marrow-gnawer', 'lord skitter', 'rat colony', 'relentless rats']
+      }
+    ]
+  },
+  { 
+    id: 'squirrel', 
+    label: 'Ardillas (Squirrels)', 
+    category: 'exotica', 
+    colors: ['G', 'B'], 
+    primaryColor: 'G', 
+    strategies: ['tokens', 'aristocrats'], 
+    archetypes: ['aggro', 'combo'], 
+    subtypes: ['squirrel'],
+    flavors: [
+      {
+        id: 'squirrel_swarm',
+        label: 'Enjambre del Bosque (Squirrel Swarm)',
+        description: 'Genera fichas de ardilla masivas impulsadas por Chatterfang.',
+        vetoedKeywords: [],
+        boostKeywords: ['squirrel', 'squirrels', 'chatterfang', 'squirrel sovereign', 'deep forest hermit', 'chatterstorm']
+      }
+    ]
+  },
+  { 
+    id: 'cat', 
+    label: 'Felinos (Cats)', 
+    category: 'exotica', 
+    colors: ['W', 'G'], 
+    primaryColor: 'W', 
+    strategies: ['voltron', 'tokens'], 
+    archetypes: ['aggro', 'midrange'], 
+    subtypes: ['cat', 'leonin'],
+    flavors: [
+      {
+        id: 'cat_equipment',
+        label: 'Orgullo de Felinos & Equipos',
+        description: 'Gatos y Leonines ágiles equipados para el combate.',
+        vetoedKeywords: [],
+        boostKeywords: ['cat', 'leonin', 'equipment', 'kemba', 'king darien', 'feline sovereign', 'fleecemane lion']
+      }
+    ]
+  },
   { id: 'constructs', label: 'Constructos & Myr (Affinity)', category: 'exotica', colors: ['C', 'U', 'R', 'W'], primaryColor: 'C', strategies: ['tokens', 'vehicles'], archetypes: ['aggro', 'midrange', 'combo', 'prison'], subtypes: ['construct', 'myr', 'golem', 'thopter'], formats: ['MODERN'] },
   { id: 'sliver-5c', label: 'Slivers (Pentacolor 5C)', category: 'exotica', colors: ['W', 'U', 'B', 'R', 'G'], primaryColor: ['W', 'U', 'B', 'R', 'G'], strategies: ['tokens', 'slivers'], archetypes: ['aggro', 'midrange', 'combo', 'tempo'], subtypes: ['sliver'], formats: ['MODERN'] },
   { id: 'sliver-bant', label: 'Slivers (Bant/Naya Base)', category: 'exotica', colors: ['W', 'U', 'G', 'R'], primaryColor: ['G', 'W'], strategies: ['tokens', 'slivers'], archetypes: ['aggro', 'midrange', 'combo', 'tempo'], subtypes: ['sliver'], formats: ['MODERN'] },
 
   // ALIANZAS Y MEZCLAS TEMÁTICAS
+  { id: 'boros_guild', label: '⚔️ Gremio Boros (Prowess & Sunforger)', category: 'alianza', colors: ['W', 'R'], primaryColor: 'R', strategies: ['spellslinger', 'voltron'], archetypes: ['aggro', 'tempo'], subtypes: ['human', 'soldier', 'knight'] },
+  { id: 'golgari_guild', label: '💀 Gremio Golgari (Dredge & Undergrowth)', category: 'alianza', colors: ['B', 'G'], primaryColor: 'B', strategies: ['reanimator', 'aristocrats'], archetypes: ['midrange', 'combo'], subtypes: ['zombie', 'elf', 'plant', 'fungus'] },
+  { id: 'dimir_guild', label: '👁️ Gremio Dimir (Infiltración & Tempo)', category: 'alianza', colors: ['U', 'B'], primaryColor: 'U', strategies: ['ninjutsu', 'spellslinger'], archetypes: ['tempo', 'control'], subtypes: ['rogue', 'ninja', 'faerie'] },
+  { id: 'izzet_guild', label: '⚡ Gremio Izzet (Spellslinger & Prowess)', category: 'alianza', colors: ['U', 'R'], primaryColor: 'R', strategies: ['spellslinger'], archetypes: ['tempo', 'aggro'], subtypes: ['wizard', 'dragon'] },
+  { id: 'orzhov_guild', label: '⚖️ Gremio Orzhov (Drenaje & Aristócratas)', category: 'alianza', colors: ['W', 'B'], primaryColor: 'B', strategies: ['aristocrats', 'lifegain'], archetypes: ['midrange', 'control'], subtypes: ['cleric', 'vampire', 'human'] },
+  { id: 'simic_guild', label: '🌀 Gremio Simic (Evolución & Contadores +1/+1)', category: 'alianza', colors: ['G', 'U'], primaryColor: 'G', strategies: ['tokens', 'blink'], archetypes: ['midrange', 'ramp'], subtypes: ['merfolk', 'mutant', 'elf'] },
+  { id: 'esper_shard', label: '🏛️ Alianza Esper (Artefactos & Destello)', category: 'alianza', colors: ['W', 'U', 'B'], primaryColor: 'U', strategies: ['spellslinger', 'blink'], archetypes: ['control', 'midrange'], subtypes: ['human', 'faerie', 'construct'] },
+  { id: 'jund_shard', label: '🔥 Alianza Jund (Desgaste & Sacrificio)', category: 'alianza', colors: ['B', 'R', 'G'], primaryColor: 'B', strategies: ['aristocrats'], archetypes: ['midrange'], subtypes: ['goblin', 'dragon', 'shaman'] },
+  { id: 'naya_shard', label: '🌿 Alianza Naya (Bestias & Enjambre)', category: 'alianza', colors: ['R', 'G', 'W'], primaryColor: 'G', strategies: ['tokens', 'landfall'], archetypes: ['aggro', 'ramp'], subtypes: ['dinosaur', 'beast', 'cat'] },
+  { id: 'jeskai_shard', label: '✨ Alianza Jeskai (Prowess & Tempo Burn)', category: 'alianza', colors: ['U', 'R', 'W'], primaryColor: 'R', strategies: ['spellslinger'], archetypes: ['tempo', 'aggro'], subtypes: ['monk', 'wizard', 'human'] },
+  { id: 'sultai_shard', label: '🐊 Alianza Sultai (Reanimación & Cementerio)', category: 'alianza', colors: ['B', 'G', 'U'], primaryColor: 'B', strategies: ['reanimator', 'aristocrats'], archetypes: ['midrange', 'combo'], subtypes: ['naga', 'zombie', 'elf'] },
   { id: 'outlaws', label: '⚖️ Forajidos (Asesinos, Mercenarios, Piratas, Pícaros)', category: 'alianza', colors: ['B', 'R', 'U'], primaryColor: 'B', strategies: ['aristocrats', 'ninjutsu', 'tokens'], archetypes: ['aggro', 'tempo', 'midrange'], subtypes: ['assassin', 'mercenary', 'pirate', 'rogue', 'warlock'] },
   { id: 'party', label: '🎲 Grupo de Aventura (Clérigo, Pícaro, Guerrero, Mago)', category: 'alianza', colors: ['W', 'U', 'B', 'R', 'G'], primaryColor: ['W', 'U', 'B', 'R'], strategies: ['blink', 'toolbox'], archetypes: ['midrange'], subtypes: ['cleric', 'rogue', 'warrior', 'wizard'] },
   { id: 'human_army', label: '⚔️ Ejército (Humanos, Soldados, Caballeros)', category: 'alianza', colors: ['W', 'R'], primaryColor: 'W', strategies: ['tokens', 'voltron'], archetypes: ['aggro', 'midrange', 'prison'], subtypes: ['human', 'soldier', 'knight'] },
@@ -909,6 +1041,16 @@ export const MTG_STRATEGIES = [
     mechanics: 'Ensambla el trío de tierras de Urza o acelera masivamente en los primeros turnos para encadenar Eldrazis legendarios o Titanes devastadores.',
     keywords: ["urza's", 'power plant', 'mine', 'tower', 'expedition map', 'sylvan scrying', 'ancient stirrings', 'chromatic star', 'chromatic sphere', 'karn', 'wurmcoil', 'ulamog', 'titan'],
     formats: ['MODERN']
+  },
+  { 
+    id: 'ramp', 
+    label: 'Ramp / Big Mana (Colored)', 
+    colors: ['G', 'C', 'U', 'R', 'B', 'W'], 
+    primaryColor: 'G',
+    archetypes: ['ramp', 'midrange', 'combo'],
+    mechanics: 'Acelera tu maná usando criaturas (Mana Dorks) o conjuros de búsqueda de tierras para lanzar finishers de alto coste de tus propios colores.',
+    keywords: ['ramp', 'search your library for a land', 'mana dork', 'cultivate', 'farseek', 'rampant growth', 'birds of paradise', 'llanowar elves', 'titan', 'craterhoof'],
+    formats: ['MODERN', 'STANDARD', 'PIONEER']
   },
   { 
     id: 'vehicles', 
@@ -1170,55 +1312,58 @@ export const COMPETITIVE_ANTI_SYNERGIES = [
   }
 ];
 
-export function inferStrategyFromArchetype(archetypeId, currentStrategyId) {
-  if (!currentStrategyId) return '';
-  const s = currentStrategyId.toLowerCase();
+export function inferStrategyFromArchetype(archetypeId, currentStrategyId, promptText = '') {
+  const s = (currentStrategyId || '').toLowerCase();
   let cleanStrategyId = s.replace('_generic', '').trim();
 
-  if (s.includes('aristocrat') || s.includes('sacrificio') || s.includes('sacrifice')) cleanStrategyId = 'aristocrats';
-  else if (s.includes('reanimador') || s.includes('reanimate') || s.includes('reanimator')) cleanStrategyId = 'reanimator';
-  else if (s.includes('spellslinger') || s.includes('prowess')) cleanStrategyId = 'spellslinger';
-  else if (s.includes('blink') || s.includes('flicker')) cleanStrategyId = 'blink';
-  else if (s.includes('landfall') || s.includes('tierras')) cleanStrategyId = 'landfall';
-  else if (s.includes('graveyard') || s.includes('delirium') || s.includes('cementerio')) cleanStrategyId = 'graveyard';
-  else if (s.includes('lifegain') || s.includes('vidas')) cleanStrategyId = 'lifegain';
-  else if (s.includes('prison') || s.includes('impuestos') || s.includes('taxes') || s.includes('fiscal')) cleanStrategyId = 'prison';
-  else if (s.includes('voltron') || s.includes('equipos') || s.includes('auras')) cleanStrategyId = 'voltron';
-  else if (s.includes('vehicle') || s.includes('vehículo') || s.includes('tripulación')) cleanStrategyId = 'vehicles';
-  else if (s.includes('cascade') || s.includes('cascada')) cleanStrategyId = 'cascade';
-  else if (s.includes('storm') || s.includes('tormenta')) cleanStrategyId = 'storm';
-  else if (s.includes('affinity') || s.includes('metálica')) cleanStrategyId = 'affinity';
-  else if (s.includes('sea monsters') || s.includes('sea_monsters') || s.includes('terrores marinos') || s.includes('krakens')) cleanStrategyId = 'sea_monsters';
-  else if (s.includes('tokens') || s.includes('fichas') || s.includes('enjambre')) cleanStrategyId = 'tokens';
-  else if (s.includes('toolbox') || s.includes('tutores')) cleanStrategyId = 'toolbox';
-  
-  const knownIds = ['aristocrats', 'reanimator', 'tokens', 'spellslinger', 'blink', 'enchantress', 'landfall', 'graveyard', 'lifegain', 'prison', 'voltron', 'tron', 'vehicles', 'cascade', 'storm', 'toolbox', 'affinity', 'sea_monsters'];
-  
-  if (knownIds.includes(cleanStrategyId)) {
-    return cleanStrategyId;
+  if (cleanStrategyId && cleanStrategyId !== 'general') {
+    if (s.includes('aristocrat') || s.includes('sacrificio') || s.includes('sacrifice')) cleanStrategyId = 'aristocrats';
+    else if (s.includes('reanimador') || s.includes('reanimate') || s.includes('reanimator')) cleanStrategyId = 'reanimator';
+    else if (s.includes('spellslinger') || s.includes('prowess')) cleanStrategyId = 'spellslinger';
+    else if (s.includes('blink') || s.includes('flicker')) cleanStrategyId = 'blink';
+    else if (s.includes('landfall') || s.includes('tierras')) cleanStrategyId = 'landfall';
+    else if (s.includes('ramp') || s.includes('rampa')) cleanStrategyId = 'ramp';
+    else if (s.includes('graveyard') || s.includes('delirium') || s.includes('cementerio')) cleanStrategyId = 'graveyard';
+    else if (s.includes('lifegain') || s.includes('vidas')) cleanStrategyId = 'lifegain';
+    else if (s.includes('prison') || s.includes('impuestos') || s.includes('taxes') || s.includes('fiscal')) cleanStrategyId = 'prison';
+    else if (s.includes('voltron') || s.includes('equipos') || s.includes('auras')) cleanStrategyId = 'voltron';
+    else if (s.includes('vehicle') || s.includes('vehículo') || s.includes('tripulación')) cleanStrategyId = 'vehicles';
+    else if (s.includes('cascade') || s.includes('cascada')) cleanStrategyId = 'cascade';
+    else if (s.includes('storm') || s.includes('tormenta')) cleanStrategyId = 'storm';
+    else if (s.includes('affinity') || s.includes('metálica')) cleanStrategyId = 'affinity';
+    else if (s.includes('sea monsters') || s.includes('sea_monsters') || s.includes('terrores marinos') || s.includes('krakens')) cleanStrategyId = 'sea_monsters';
+    else if (s.includes('tokens') || s.includes('fichas') || s.includes('enjambre')) cleanStrategyId = 'tokens';
+    else if (s.includes('toolbox') || s.includes('tutores')) cleanStrategyId = 'toolbox';
+    
+    const knownIds = ['aristocrats', 'reanimator', 'tokens', 'spellslinger', 'blink', 'enchantress', 'landfall', 'ramp', 'graveyard', 'lifegain', 'prison', 'voltron', 'tron', 'vehicles', 'cascade', 'storm', 'toolbox', 'affinity', 'sea_monsters'];
+    
+    if (knownIds.includes(cleanStrategyId)) {
+      return cleanStrategyId;
+    }
   }
 
-  const stringToAnalyze = `${currentStrategyId || ''} ${archetypeId || ''}`.toLowerCase().trim();
+  const stringToAnalyze = `${currentStrategyId || ''} ${archetypeId || ''} ${promptText || ''}`.toLowerCase().trim();
   if (!stringToAnalyze) return '';
 
   if (stringToAnalyze.includes('storm') || stringToAnalyze.includes('grapeshot') || stringToAnalyze.includes('past in flames') || stringToAnalyze.includes('ruby storm')) return 'storm';
   if (stringToAnalyze.includes('prowess') || stringToAnalyze.includes('spellslinger') || stringToAnalyze.includes('phoenix') || stringToAnalyze.includes('murktide') || stringToAnalyze.includes('delver') || stringToAnalyze.includes('lesson')) return 'spellslinger';
   if (stringToAnalyze.includes('reanimator') || stringToAnalyze.includes('reanim') || stringToAnalyze.includes('superior reanimator')) return 'reanimator';
-  if (stringToAnalyze.includes('aristocrats') || stringToAnalyze.includes('sacrifice') || stringToAnalyze.includes('yawgmoth') || stringToAnalyze.includes('broodscale') || stringToAnalyze.includes('bloodchief')) return 'aristocrats';
+  if (stringToAnalyze.includes('aristocrats') || stringToAnalyze.includes('sacrifice') || stringToAnalyze.includes('sacrificio') || stringToAnalyze.includes('yawgmoth') || stringToAnalyze.includes('broodscale') || stringToAnalyze.includes('bloodchief')) return 'aristocrats';
   if (stringToAnalyze.includes('blink') || stringToAnalyze.includes('flicker') || stringToAnalyze.includes('ephemerate')) return 'blink';
-  if (stringToAnalyze.includes('hammer') || stringToAnalyze.includes('voltron') || stringToAnalyze.includes('sigarda') || stringToAnalyze.includes('momo') || stringToAnalyze.includes('flier')) return 'voltron';
-  if (stringToAnalyze.includes('tron') || stringToAnalyze.includes('amulet') || stringToAnalyze.includes('titan') || stringToAnalyze.includes('valakut') || stringToAnalyze.includes('urza')) return 'tron';
+  if (stringToAnalyze.includes('hammer') || stringToAnalyze.includes('voltron') || stringToAnalyze.includes('sigarda') || stringToAnalyze.includes('momo') || stringToAnalyze.includes('flier') || stringToAnalyze.includes('equipos') || stringToAnalyze.includes('auras')) return 'voltron';
+  if (stringToAnalyze.includes('tron') || stringToAnalyze.includes('urza')) return 'tron';
+  if (stringToAnalyze.includes('landfall') || stringToAnalyze.includes('tierras') || stringToAnalyze.includes('rhythm') || stringToAnalyze.includes('harmonizer') || stringToAnalyze.includes('nature') || stringToAnalyze.includes('domain') || stringToAnalyze.includes('amulet') || stringToAnalyze.includes('titan') || stringToAnalyze.includes('valakut')) return 'landfall';
+  if (stringToAnalyze.includes('ramp') || stringToAnalyze.includes('rampa')) return 'ramp';
   if (stringToAnalyze.includes('cascade') || stringToAnalyze.includes('living end') || stringToAnalyze.includes('footfalls') || stringToAnalyze.includes('rhinos')) return 'cascade';
-  if (stringToAnalyze.includes('landfall') || stringToAnalyze.includes('rhythm') || stringToAnalyze.includes('harmonizer') || stringToAnalyze.includes('nature') || stringToAnalyze.includes('domain')) return 'landfall';
-  if (stringToAnalyze.includes('dredge') || stringToAnalyze.includes('delirium') || stringToAnalyze.includes('graveyard') || stringToAnalyze.includes('underworld') || stringToAnalyze.includes('scam')) return 'graveyard';
-  if (stringToAnalyze.includes('lifegain') || stringToAnalyze.includes('sisters') || stringToAnalyze.includes('soul sisters')) return 'lifegain';
-  if (stringToAnalyze.includes('prison') || stringToAnalyze.includes('taxes') || stringToAnalyze.includes('stax') || stringToAnalyze.includes('death and taxes')) return 'prison';
+  if (stringToAnalyze.includes('dredge') || stringToAnalyze.includes('delirium') || stringToAnalyze.includes('graveyard') || stringToAnalyze.includes('underworld') || stringToAnalyze.includes('scam') || stringToAnalyze.includes('cementerio')) return 'graveyard';
+  if (stringToAnalyze.includes('lifegain') || stringToAnalyze.includes('sisters') || stringToAnalyze.includes('soul sisters') || stringToAnalyze.includes('vidas')) return 'lifegain';
+  if (stringToAnalyze.includes('prison') || stringToAnalyze.includes('taxes') || stringToAnalyze.includes('stax') || stringToAnalyze.includes('death and taxes') || stringToAnalyze.includes('impuestos') || stringToAnalyze.includes('fiscal')) return 'prison';
   if (stringToAnalyze.includes('enchantress') || stringToAnalyze.includes('bogles') || stringToAnalyze.includes('auras')) return 'enchantress';
-  if (stringToAnalyze.includes('affinity') || stringToAnalyze.includes('ciampolini') || stringToAnalyze.includes('pinnacle') || stringToAnalyze.includes('artefactos')) return 'affinity';
-  if (stringToAnalyze.includes('vehicles') || stringToAnalyze.includes('vehiculos') || stringToAnalyze.includes('crew') || stringToAnalyze.includes('copter')) return 'vehicles';
-  if (stringToAnalyze.includes('sea monsters') || stringToAnalyze.includes('sea_monsters') || stringToAnalyze.includes('krakens') || stringToAnalyze.includes('leviatanes')) return 'sea_monsters';
-  if (stringToAnalyze.includes('tokens') || stringToAnalyze.includes('token') || stringToAnalyze.includes('enjambre') || stringToAnalyze.includes('convoke')) return 'tokens';
-  if (stringToAnalyze.includes('allosaurus') || stringToAnalyze.includes('neoform') || stringToAnalyze.includes('evolution') || stringToAnalyze.includes('toolbox') || stringToAnalyze.includes('pod') || stringToAnalyze.includes('chord') || stringToAnalyze.includes('creativity') || stringToAnalyze.includes('polymorph') || stringToAnalyze.includes('combo')) return 'toolbox';
+  if (stringToAnalyze.includes('affinity') || stringToAnalyze.includes('ciampolini') || stringToAnalyze.includes('pinnacle') || stringToAnalyze.includes('artefactos') || stringToAnalyze.includes('metálica')) return 'affinity';
+  if (stringToAnalyze.includes('vehicles') || stringToAnalyze.includes('vehículos') || stringToAnalyze.includes('vehiculo') || stringToAnalyze.includes('crew') || stringToAnalyze.includes('copter') || stringToAnalyze.includes('tripulación')) return 'vehicles';
+  if (stringToAnalyze.includes('sea monsters') || stringToAnalyze.includes('sea_monsters') || stringToAnalyze.includes('krakens') || stringToAnalyze.includes('leviatanes') || stringToAnalyze.includes('terrores marinos')) return 'sea_monsters';
+  if (stringToAnalyze.includes('tokens') || stringToAnalyze.includes('token') || stringToAnalyze.includes('fichas') || stringToAnalyze.includes('enjambre') || stringToAnalyze.includes('convoke')) return 'tokens';
+  if (stringToAnalyze.includes('allosaurus') || stringToAnalyze.includes('neoform') || stringToAnalyze.includes('evolution') || stringToAnalyze.includes('toolbox') || stringToAnalyze.includes('pod') || stringToAnalyze.includes('chord') || stringToAnalyze.includes('creativity') || stringToAnalyze.includes('polymorph') || stringToAnalyze.includes('combo') || stringToAnalyze.includes('tutores')) return 'toolbox';
   if (stringToAnalyze.includes('superior') || stringToAnalyze.includes('doomsday')) return 'prison';
   
   return currentStrategyId || '';
