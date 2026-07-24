@@ -4304,10 +4304,11 @@ export function assemblerLoop(rankedCards, blueprint, mergedCoreAndMustInclude, 
       const alreadyUsed = poolCard.name ? (usedNames.get(poolCard.name.toLowerCase()) || 0) : 0;
       if (alreadyUsed >= maxLimit) continue;
 
-      // Preservar la cantidad sugerida por la IA si existe (Problema 2)
-      const suggestedLimit = (candidate.quantity !== undefined && candidate.quantity !== null) 
-        ? candidate.quantity 
-        : getProCopiesForCard(poolCard, role.name, ragPool, formData);
+      // Determinar el límite Pro-Tour de copias (4x para hechizos clave/baratos/cantrips, 1-2x para legendarias/finishers)
+      const proCopies = getProCopiesForCard(poolCard, role.name, ragPool, formData);
+      const suggestedLimit = candidate.isMustInclude 
+        ? (candidate.quantity || proCopies)
+        : Math.max(candidate.quantity && candidate.quantity > 1 ? candidate.quantity : 1, proCopies);
       
       const allowedToPlace = Math.min(suggestedLimit - alreadyUsed, maxLimit - alreadyUsed);
       if (allowedToPlace <= 0) continue;
