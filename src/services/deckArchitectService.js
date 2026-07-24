@@ -46,10 +46,48 @@ export function cleanAndParseJSON(str) {
         }
     }
 
-    // Eliminar comas flotantes / comas terminales (trailing commas) para evitar errores del oráculo
+    // Eliminar comas flotantes / comas terminales (trailing commas)
     clean = clean.replace(/,\s*([\}\]])/g, '$1');
     
-    return JSON.parse(clean);
+    try {
+        return JSON.parse(clean);
+    } catch (e) {
+        // AUTO-REPARACIÓN DE JSON LLM TRUNCADO / MAL FORMATEADO
+        try {
+            let repaired = clean.replace(/[\u0000-\u001F]+/g, ' ');
+            
+            // Si quedó truncado en comillas impares, cerrarla
+            let openQuotes = 0;
+            for (let i = 0; i < repaired.length; i++) {
+                if (repaired[i] === '"' && (i === 0 || repaired[i-1] !== '\\')) openQuotes++;
+            }
+            if (openQuotes % 2 !== 0) repaired += '"';
+            
+            // Quitar comas terminales
+            repaired = repaired.replace(/,\s*$/g, '').replace(/,\s*([\}\]])/g, '$1');
+
+            // Balancear llaves y corchetes abiertos
+            const stack = [];
+            let inString = false;
+            for (let i = 0; i < repaired.length; i++) {
+                const ch = repaired[i];
+                if (ch === '"' && (i === 0 || repaired[i-1] !== '\\')) {
+                    inString = !inString;
+                } else if (!inString) {
+                    if (ch === '{' || ch === '[') stack.push(ch === '{' ? '}' : ']');
+                    else if (ch === '}' || ch === ']') {
+                        if (stack.length > 0 && stack[stack.length - 1] === ch) stack.pop();
+                    }
+                }
+            }
+            while (stack.length > 0) repaired += stack.pop();
+
+            return JSON.parse(repaired);
+        } catch (e2) {
+            console.warn('[cleanAndParseJSON] Fallo al auto-reparar JSON de la IA:', e2.message);
+            throw e;
+        }
+    }
 }
 
 export function parseUserRulesString(inputStr) {
@@ -5345,11 +5383,11 @@ Genera los campos de metadatos del mazo en JSON puro en español:
           }
         });
         
-        const parsed = typeof responseJson === 'string' ? JSON.parse(responseJson.replace(/```json/g, '').replace(/```/g, '').trim()) : responseJson;
-        return parsed.cards || [];
+        const parsed = typeof responseJson === 'string' ? cleanAndParseJSON(responseJson) : responseJson;
+        return (parsed && Array.isArray(parsed.cards)) ? parsed.cards : [];
       } catch (error) {
         addLog(`[Error ${phaseName}]: ${error.message}`);
-        throw error;
+        return [];
       }
     };
 
