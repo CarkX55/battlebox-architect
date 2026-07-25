@@ -481,15 +481,28 @@ export function calculatePerfectLandCount(nonLandCards, formData, isYorion = fal
   }
   
   // Limites estrictos por arquetipo competitivo
+  const isRampArchetype = (archetype === 'ramp' || strategy === 'ramp');
   if (archetype === 'aggro') {
     lands = Math.min(lands, 20);
   } else if (archetype === 'control') {
     lands = Math.min(Math.max(lands, 24), 26);
+  } else if (isRampArchetype) {
+    if (vmp > 3.5) {
+      lands = Math.max(lands, 24);
+    } else if (vmp > 3.0) {
+      lands = Math.max(lands, 23);
+    }
   } else if (archetype === 'combo' || archetype === 'midrange') {
     lands = Math.min(lands, 24);
   } else {
     // Por defecto si no detectamos arquetipo claro, limitamos a 24 para evitar mazos injugables
     lands = Math.min(lands, 24);
+  }
+
+  // Si es Ramp con curva alta, forzar el mínimo contextual
+  if (isRampArchetype && vmp > 3.0) {
+    const minRampLands = vmp > 3.5 ? 24 : 23;
+    lands = Math.max(lands, minRampLands);
   }
 
   // Ajuste de curva bidireccional (sobreescribe límites superiores si la curva real es extrema)
@@ -511,6 +524,9 @@ export function calculatePerfectLandCount(nonLandCards, formData, isYorion = fal
   }
   
   let minLands = isYorion ? 24 : 18;
+  if (isRampArchetype && vmp > 3.0) {
+    minLands = vmp > 3.5 ? 24 : 23;
+  }
   let maxLands = isYorion ? 35 : 26;
   if (manaGreed === 'greedy') {
     minLands = isYorion ? 21 : 15;
@@ -520,6 +536,7 @@ export function calculatePerfectLandCount(nonLandCards, formData, isYorion = fal
   
   return Math.round(Math.max(minLands, Math.min(maxLands, lands)));
 }
+
 
 export async function generateManaBase(pipBalance, totalLands, colorIdentity, formData, nonLandSpells = [], aiUtilityLands = []) {
   if (!pipBalance) {

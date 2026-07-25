@@ -29,8 +29,14 @@ import {
   validateBlueprintCompliance, 
   validateRoleCompatibility, 
   getCardRoleMetadata, 
-  calculateMultiDimensionalStrategyScore 
+  calculateMultiDimensionalStrategyScore,
+  esValidaParaRol,
+  purgaDeInvalidos,
+  hardEnforceInteraction,
+  BLACK_LISTED_CARD_NAMES,
+  obtenerCartaSegura
 } from './deckContractEngine.js';
+
 
 
 
@@ -5831,7 +5837,24 @@ Genera la lista de hechizos completamente corregida y optimizada en JSON.`;
   // Asegurar que la categoría no sea Land para los hechizos finales
   consolidatedSpells = consolidatedSpells.filter(c => c.category !== 'Land');
 
+  // =========================================================================
+  // ⚔️ PASO 4: PURGA DE INVÁLIDOS & PASO 5: HARD ENFORCEMENT DE INTERACCIÓN
+  // =========================================================================
+  const deckColors = formData?.colores || ['G'];
+
+  addLog("[JUEZ CONTRATO] 🛡️ Ejecutando PURGA DE INVÁLIDOS y filtrado por Lista Negra...");
+  consolidatedSpells = purgaDeInvalidos(consolidatedSpells, blueprint, deckColors, addLog);
+
+  addLog("[JUEZ CONTRATO] ⚔️ Ejecutando HARD ENFORCEMENT DE INTERACCIÓN (Mínimo 6 copias)...");
+  consolidatedSpells = hardEnforceInteraction(consolidatedSpells, blueprint, deckColors, addLog);
+
+  // Recalcular el CMC promedio real tras la inyección de interacción
+  const updatedVmp = calculateVMP(consolidatedSpells);
+  metricalTargetLnd = calculatePerfectLandCount(consolidatedSpells, updatedVmp, formData);
+  addLog(`[CÁLCULO CONTEXTUAL TIERRAS] VMP final de hechizos: ${updatedVmp.toFixed(2)}. Tierras meta fijadas en: ${metricalTargetLnd}.`);
+
   // Recalcular pips reales con la lista final de hechizos
+
   let recalculatedPips = { W: 0, U: 0, B: 0, R: 0, G: 0 };
   consolidatedSpells.forEach(card => {
       const poolCard = (ragResult?.pool || []).find(c => c && typeof c.name === 'string' && card && typeof card.name === 'string' && c.name.trim().toLowerCase() === card.name.trim().toLowerCase()) || {};
