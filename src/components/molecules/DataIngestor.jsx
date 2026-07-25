@@ -36,10 +36,29 @@ export default function DataIngestor({ onComplete }) {
       await new Promise(resolve => setTimeout(resolve, 100));
       
       const text = await file.text();
-      const data = JSON.parse(text);
+      let data;
+      
+      try {
+        data = JSON.parse(text);
+      } catch (jsonErr) {
+        // Fallback: Si falla por formato JSONL (1 JSON por línea)
+        console.log(`ℹ️ Formato JSONL detectado. Parseando línea por línea...`);
+        const lines = text.split('\n');
+        data = [];
+        for (const line of lines) {
+          const trimmedLine = line.trim();
+          if (trimmedLine) {
+            try {
+              data.push(JSON.parse(trimmedLine));
+            } catch (lErr) {
+              // ignora líneas vacías o malformadas
+            }
+          }
+        }
+      }
       
       if (!Array.isArray(data) && typeof data !== 'object') {
-        throw new Error('El archivo JSON no es válido.');
+        throw new Error('El archivo JSON / JSONL no es válido.');
       }
 
       setStatus('loading');
@@ -47,6 +66,7 @@ export default function DataIngestor({ onComplete }) {
         setProgress(p.percentage);
         setLoadingProgress(p.percentage);
       });
+
 
       const total = await getCardCount();
       setCardCount(total);
