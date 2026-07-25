@@ -12,6 +12,11 @@ import { isCardLegalForBattleBox } from '../utils/legalityCheck.js';
 import { injectCorePackage } from '../constants/corePackages.js';
 import { getAllCards } from './dbIngestor.js';
 import { FORMAT_CURVE_MODIFIERS } from '../constants/blueprintTemplates.js';
+import { createDeckDNA60 } from '../constants/deckDNA.js';
+import { buildDeckSkeletonAndSlots } from './slotFillingEngine.js';
+import { scoreAndRankCandidatePool } from './cardScoringEngine.js';
+import { executeIterativeOptimizationLoop } from './deckOptimizerService.js';
+
 
 let cachedAllCards = [];
 
@@ -4778,7 +4783,38 @@ La suma de los roles debe ser exactamente totalSpells. NUNCA incluyas tierras.
              temperature: formData.creativity !== undefined ? (formData.creativity / 100) : undefined
          });
          blueprint = typeof bpResponse === 'string' ? cleanAndParseJSON(bpResponse) : bpResponse;
-         addLog(`[BLUEPRINT AI] Dinámico Generado: Total ${blueprint.totalSpells} hechizos.`);
+         
+         if (!blueprint || typeof blueprint !== 'object') {
+           blueprint = getStrategyFallbackBlueprint(formData.archetype, strategyId, formData);
+         }
+         if (!Array.isArray(blueprint.roles)) {
+           const fallback = getStrategyFallbackBlueprint(formData.archetype, strategyId, formData);
+           blueprint.roles = fallback.roles || [];
+         }
+
+         // Generar contrato de estado DeckDNA60 e Inyectar Core Packages
+         const deckDNA60 = createDeckDNA60(formData, archetypeObj);
+         const skeletonData = buildDeckSkeletonAndSlots(deckDNA60);
+         deckDNA60.corePackages = skeletonData.injectedCoreCards;
+
+         return {
+           blueprint: {
+             ...blueprint,
+             deckDNA60,
+             gamePlan: deckDNA60.gamePlan,
+             corePackages: skeletonData.injectedCoreCards,
+             emptySlots: skeletonData.emptySlots
+           },
+           strategyId,
+           dnaData,
+           logs,
+           archetypeObj,
+           strategyObj,
+           curveProfile,
+           STRICT_INSTRUCTIONS_PROMPT,
+           contextGen_Prompt,
+           genResponseRawJson_Object
+         };
      } catch(err) {
          addLog(`[BLUEPRINT AI] Error generando Blueprint Dinámico, usando Fallback: ${err.message}`);
      }
@@ -5163,7 +5199,10 @@ Genera los campos de metadatos del mazo en JSON puro en español:
         addLog(`[SENDA 2 BYPASS WARNING] Fallo al generar metadatos por IA, usando fallback estático: ${errMeta.message}`);
       }
       
-      addLog(`[SENDA 2 BYPASS] Mazo generado exitosamente de forma determinista y fiel.`);
+      const deckDNA60 = blueprint?.deckDNA60 || createDeckDNA60(formData, archetypeObj);
+      const radarEvaluation = evaluateConsistencyRadar(finalMainDeck, deckDNA60);
+
+      addLog(`[SENDA 2 BYPASS] Mazo generado exitosamente de forma determinista y fiel. Salud Radar: ${radarEvaluation.overallHealth}%`);
       onProgress('done', '✨ Mazo predefinido forjado con éxito.');
       
       return {
@@ -5176,6 +5215,8 @@ Genera los campos de metadatos del mazo en JSON puro en español:
         mulligan: mulliganText,
         archetype: archetypeObj.label,
         banlistSwaps: banlistSwaps,
+        deckDNA60,
+        radarEvaluation,
         generationLogs: {
           logs: logs,
           systemPrompt: 'Bypass determinista Senda 2',
@@ -5184,6 +5225,7 @@ Genera los campos de metadatos del mazo en JSON puro en español:
           error: null
         }
       };
+
     }
     // --- FIN DE BYPASS DETERMINISTA SENDA 2 ---
 

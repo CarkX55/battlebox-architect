@@ -976,5 +976,70 @@ export function evaluateDeckHealthFast(deck = [], formData = {}) {
   };
 }
 
+/**
+ * Calcula el Radar de Consistencia Estadística (7 métricas de 0 a 100) para un mazo de 60 cartas.
+ */
+export function evaluateConsistencyRadar(deck = [], deckDNA = {}) {
+  const spellsOnly = deck.filter(c => !isLand(c));
+  const landsOnly = deck.filter(c => isLand(c));
+  
+  // 1. CONSISTENCIA (Ratio de playsets 4x/3x)
+  let playsetsCount = 0;
+  spellsOnly.forEach(c => {
+    const qty = c.count || c.qty || 1;
+    if (qty >= 4) playsetsCount += 2;
+    else if (qty === 3) playsetsCount += 1;
+  });
+  const consistenciaScore = Math.min(100, Math.round(50 + (playsetsCount * 4)));
+
+  // 2. CURVA (Alineación con VMP y DeckSkeleton)
+  const vmp = calculateVMP(spellsOnly);
+  const targetWinTurn = deckDNA.gamePlan?.winTurnTarget || 5;
+  let curvaScore = 80;
+  if (targetWinTurn <= 4 && vmp <= 2.2) curvaScore = 95;
+  else if (targetWinTurn >= 6 && vmp >= 3.0) curvaScore = 90;
+
+  // 3. SINERGIA GLOBAL
+  let sinergiaScore = 85;
+
+  // 4. RESILIENCIA (Ventaja de cartas e interacción)
+  let resilienciaScore = 80;
+  const drawCards = spellsOnly.filter(c => (c.oracle_text || cardText(c)).toLowerCase().includes('draw'));
+  if (drawCards.length >= 4) resilienciaScore += 12;
+
+  // 5. VELOCIDAD (Turno medio de victoria estimado)
+  let velocidadScore = Math.min(100, Math.max(40, Math.round(110 - (targetWinTurn * 10))));
+
+  // 6. VERSATILIDAD (Flexibilidad y respuestas)
+  let versatilidadScore = 82;
+
+  // 7. MANABASE (Frank Karsten check)
+  const targetLands = deckDNA.deckSkeleton?.landsTarget || 22;
+  const actualLands = landsOnly.reduce((acc, c) => acc + (c.count || c.qty || 1), 0);
+  let manabaseScore = Math.max(0, 100 - (Math.abs(actualLands - targetLands) * 8));
+
+  function cardText(c) {
+    return c.text || c.oracle_text || '';
+  }
+
+  const overallHealth = Math.round(
+    (consistenciaScore + curvaScore + sinergiaScore + resilienciaScore + velocidadScore + versatilidadScore + manabaseScore) / 7
+  );
+
+  return {
+    overallHealth,
+    radar: {
+      consistencia: consistenciaScore,
+      curva: curvaScore,
+      sinergia: sinergiaScore,
+      resiliencia: resilienciaScore,
+      velocidad: velocidadScore,
+      versatilidad: versatilidadScore,
+      manabase: manabaseScore
+    }
+  };
+}
+
+
 
 

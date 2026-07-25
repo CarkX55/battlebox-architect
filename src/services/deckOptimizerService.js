@@ -5,7 +5,9 @@ import { hydrateDeckCards } from './cardHydrator.js';
 import { isLand, calculatePerfectLandCount, generateManaBase, isBasicLand, deckNeedsSnowLands, isLandFormatLegal } from './deckCalculator.js';
 import { callAI, DECK_SCHEMA } from './aiFactory.js';
 import { getAllCards } from './dbIngestor.js';
-import { analyzeFunctionalPillars, buildPillarSummaryText } from './deckAuditorService.js';
+import { evaluateConsistencyRadar, analyzeFunctionalPillars, buildPillarSummaryText } from './deckAuditorService.js';
+import { scoreCardForDeckDNA } from './cardScoringEngine.js';
+
 
 const cleanCardNameForMatching = (name) => {
   if (!name) return "";
@@ -595,4 +597,72 @@ export async function applyAuditChangesProgrammatically(deckList, suggestions, a
 
   return newDeck;
 }
+
+/**
+ * Ejecuta el Bucle de Optimización Iterativa del Juez (Máximo 3 pases).
+ * 
+ * Pase 1: Sustituye las 5-8 cartas peor puntuadas o redundantes.
+ * Pase 2: Sustituye 2-3 cartas si la puntuación sigue por debajo del 85%.
+ * Pase 3: 1 retoque fino final.
+ */
+export async function executeIterativeOptimizationLoop(deck = [], deckDNA = {}, candidatePool = []) {
+  let currentDeck = [...deck];
+  let iterations = 0;
+  const maxIterations = 3;
+
+  while (iterations < maxIterations) {
+    const audit = evaluateConsistencyRadar(currentDeck, deckDNA);
+    
+    // Si la salud global supera el 85%, el Juez aprueba el mazo inmediatamente
+    if (audit.overallHealth >= 85) {
+      console.log(`[Juez Optimizer] Mazo APROBADO en pase ${iterations + 1} con Salud: ${audit.overallHealth}%`);
+      return { finalDeck: currentDeck, audit, passesExecuted: iterations + 1 };
+    }
+
+    iterations++;
+    console.log(`[Juez Optimizer] Ejecutando pase de optimización ${iterations}/${maxIterations} (Salud actual: ${audit.overallHealth}%)...`);
+
+    // Determinar cantidad de cartas a sustituir en este pase
+    const swapTargetCount = iterations === 1 ? 6 : iterations === 2 ? 3 : 1;
+
+    // Identificar cartas no-tierra peor puntuadas que no pertenezcan al CorePackage locked
+    const nonLandSpells = currentDeck.filter(c => !isLand(c) && !c.isCoreLocked);
+    
+    // Calcular puntación de cada carta del mazo actual
+    const evaluatedSpells = nonLandSpells.map(card => ({
+      ...card,
+      currentScore: scoreCardForDeckDNA(card, deckDNA, currentDeck.filter(c => c.isCoreLocked))
+    }));
+
+    evaluatedSpells.sort((a, b) => a.currentScore - b.currentScore);
+    const cardsToReplace = evaluatedSpells.slice(0, swapTargetCount);
+
+    if (cardsToReplace.length === 0) break;
+
+    // Buscar sustitutos en candidatePool con mayor puntuación
+    cardsToReplace.forEach(badCard => {
+      const bestCandidate = candidatePool.find(cand => 
+        !currentDeck.some(dc => dc.name.toLowerCase() === cand.name.toLowerCase()) &&
+        (cand.score || 0) > (badCard.currentScore || 0)
+      );
+
+      if (bestCandidate) {
+        const index = currentDeck.findIndex(dc => dc.name.toLowerCase() === badCard.name.toLowerCase());
+        if (index !== -1) {
+          const originalQty = currentDeck[index].count || currentDeck[index].qty || 4;
+          currentDeck[index] = {
+            ...bestCandidate,
+            count: originalQty,
+            qty: originalQty,
+            isOptimizedSwap: true
+          };
+        }
+      }
+    });
+  }
+
+  const finalAudit = evaluateConsistencyRadar(currentDeck, deckDNA);
+  return { finalDeck: currentDeck, audit: finalAudit, passesExecuted: iterations };
+}
+
 

@@ -35,16 +35,18 @@ export default function BlueprintEditor({ blueprint, format, onAssemble, onBack 
     }
   }, [format, editedBlueprint.suggestedCommanders]);
 
+  const rolesList = Array.isArray(editedBlueprint?.roles) ? editedBlueprint.roles : [];
+
   // --- CÁLCULOS MATEMÁTICOS DE SALUD EN TIEMPO REAL (FRANK KARSTEN & VMP) ---
-  const currentTotal = editedBlueprint.roles.reduce((sum, r) => sum + r.quantity, 0);
+  const currentTotal = rolesList.reduce((sum, r) => sum + (r.quantity || 0), 0);
   const targetTotal = blueprint.totalSpells || 40;
   const isCountMatch = currentTotal === targetTotal;
 
   const estimatedVmp = useMemo(() => {
     const total = currentTotal || 1;
-    const weightedCmc = editedBlueprint.roles.reduce((sum, r) => sum + (r.target_cmc || 2) * r.quantity, 0);
+    const weightedCmc = rolesList.reduce((sum, r) => sum + (r.target_cmc || 2) * (r.quantity || 0), 0);
     return (weightedCmc / total).toFixed(2);
-  }, [editedBlueprint.roles, currentTotal]);
+  }, [rolesList, currentTotal]);
 
   const recommendedLands = useMemo(() => {
     const vmpNum = parseFloat(estimatedVmp) || 2.5;
@@ -61,22 +63,24 @@ export default function BlueprintEditor({ blueprint, format, onAssemble, onBack 
     const vmpNum = parseFloat(estimatedVmp) || 2.5;
     if (vmpNum > 3.2 && recommendedLands < 25) score -= 10;
     
-    const removalQty = editedBlueprint.roles
+    const removalQty = rolesList
       .filter(r => (r.name || '').toLowerCase().includes('removal') || (r.purposeDescription || '').toLowerCase().includes('removal'))
-      .reduce((sum, r) => sum + r.quantity, 0);
+      .reduce((sum, r) => sum + (r.quantity || 0), 0);
     if (removalQty < 2) score -= 10;
     
     return Math.max(40, Math.min(100, score));
-  }, [isCountMatch, estimatedVmp, recommendedLands, editedBlueprint.roles]);
+  }, [isCountMatch, estimatedVmp, recommendedLands, rolesList]);
+
 
   const handleApplyTop8Preset = () => {
     setEditedBlueprint(prev => {
       const isCommander = format?.toUpperCase() === 'COMMANDER';
       const targetSpells = isCommander ? 63 : 36;
       
-      const updatedRoles = prev.roles.map(r => {
+      const currentRoles = Array.isArray(prev?.roles) ? prev.roles : [];
+      const updatedRoles = currentRoles.map(r => {
         const nameLower = (r.name || '').toLowerCase();
-        let newQty = r.quantity;
+        let newQty = r.quantity || 1;
         
         if (nameLower.includes('land') || nameLower.includes('tierra')) {
           newQty = isCommander ? 37 : 24;
@@ -88,7 +92,8 @@ export default function BlueprintEditor({ blueprint, format, onAssemble, onBack 
         return { ...r, quantity: newQty };
       });
 
-      const newSum = updatedRoles.reduce((sum, r) => sum + r.quantity, 0);
+      const newSum = updatedRoles.reduce((sum, r) => sum + (r.quantity || 0), 0);
+
       return {
         ...prev,
         roles: updatedRoles,
@@ -99,13 +104,14 @@ export default function BlueprintEditor({ blueprint, format, onAssemble, onBack 
 
   const handleQuantityChange = (index, delta) => {
     setEditedBlueprint(prev => {
-      const newRoles = prev.roles.map((r, i) => {
+      const currentRoles = Array.isArray(prev?.roles) ? prev.roles : [];
+      const newRoles = currentRoles.map((r, i) => {
         if (i === index) {
-          return { ...r, quantity: Math.max(0, r.quantity + delta) };
+          return { ...r, quantity: Math.max(0, (r.quantity || 0) + delta) };
         }
         return r;
       });
-      const newTotal = newRoles.reduce((sum, r) => sum + r.quantity, 0);
+      const newTotal = newRoles.reduce((sum, r) => sum + (r.quantity || 0), 0);
       return {
         ...prev,
         roles: newRoles,
@@ -116,7 +122,8 @@ export default function BlueprintEditor({ blueprint, format, onAssemble, onBack 
 
   const handleQueryChange = (index, val) => {
     setEditedBlueprint(prev => {
-      const newRoles = prev.roles.map((r, i) => {
+      const currentRoles = Array.isArray(prev?.roles) ? prev.roles : [];
+      const newRoles = currentRoles.map((r, i) => {
         if (i === index) {
           return { ...r, search_query: val };
         }
@@ -131,7 +138,8 @@ export default function BlueprintEditor({ blueprint, format, onAssemble, onBack 
 
   const handleRoleNameChange = (index, val) => {
     setEditedBlueprint(prev => {
-      const newRoles = prev.roles.map((r, i) => {
+      const currentRoles = Array.isArray(prev?.roles) ? prev.roles : [];
+      const newRoles = currentRoles.map((r, i) => {
         if (i === index) {
           return { ...r, name: val };
         }
@@ -146,7 +154,8 @@ export default function BlueprintEditor({ blueprint, format, onAssemble, onBack 
 
   const handleRolePurposeChange = (index, val) => {
     setEditedBlueprint(prev => {
-      const newRoles = prev.roles.map((r, i) => {
+      const currentRoles = Array.isArray(prev?.roles) ? prev.roles : [];
+      const newRoles = currentRoles.map((r, i) => {
         if (i === index) {
           return { ...r, purposeDescription: val };
         }
@@ -158,6 +167,7 @@ export default function BlueprintEditor({ blueprint, format, onAssemble, onBack 
       };
     });
   };
+
 
   const handleMetaChange = (field, val) => {
     setEditedBlueprint(prev => ({
@@ -467,9 +477,10 @@ export default function BlueprintEditor({ blueprint, format, onAssemble, onBack 
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                {editedBlueprint.roles.map((role, idx) => {
+                {rolesList.map((role, idx) => {
                   const isFinisher = role.finisherQuality === 'finisher';
-                  const isLastOdd = idx === editedBlueprint.roles.length - 1 && editedBlueprint.roles.length % 2 !== 0;
+                  const isLastOdd = idx === rolesList.length - 1 && rolesList.length % 2 !== 0;
+
 
                   return (
                     <div
