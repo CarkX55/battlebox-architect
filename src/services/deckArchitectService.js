@@ -1,4 +1,5 @@
-import { generateManaBase, calculatePerfectLandCount, calculateVMP, getLandColors, isBasicLand, isColoredBasicLand, deckNeedsSnowLands, isLandFormatLegal, BASIC_LANDS_BY_COLOR } from './deckCalculator.js'; 
+import { isLand, generateManaBase, calculatePerfectLandCount, calculateVMP, getLandColors, isBasicLand, isColoredBasicLand, deckNeedsSnowLands, isLandFormatLegal, BASIC_LANDS_BY_COLOR } from './deckCalculator.js';
+ 
 import { CURVE_BOUNDS, calculateRealTimeVMPWarning, evaluateDeckHealthFast } from './deckAuditorService.js';
 import { internalSynergyAudit } from './auditService.js';
 import { callAI, buildAgenticPhasePrompt, GEMINI_PHASE_SCHEMA, DECK_BUILDER_TOOLS } from './aiFactory.js';
