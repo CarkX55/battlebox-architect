@@ -6059,6 +6059,30 @@ Genera la lista de hechizos completamente corregida y optimizada en JSON.`;
 
   // 5. Re-consolidar y filtrar nulos/ceros por última vez
   validResultsStruct.cards = [...finalSpells, ...finalLands].filter(c => c && c.quantity > 0);
+
+  // 5.5 GARANTÍA ESTRICTA INVIOLABLE DE EXACTAMENTE 60 CARTAS (ARREGLO DE BUG DE 61+ CARTAS)
+  let exactTotal = validResultsStruct.cards.reduce((sum, c) => sum + (c.quantity || 0), 0);
+  const targetDeckTotal = deckSize || 60;
+  if (exactTotal > targetDeckTotal) {
+    let excess = exactTotal - targetDeckTotal;
+    addLog(`[CONSOLIDACIÓN SUPREMA] ✂️ EXCESO DETECTADO: El mazo tiene ${exactTotal} cartas (Objetivo: ${targetDeckTotal}). Aplicando recorte estricto de ${excess} copias...`);
+
+    const sobranteFinisher = validResultsStruct.cards.find(c => (c.role || '').includes('finisher') && c.quantity > 2 && !isLand(c));
+    if (sobranteFinisher) {
+      sobranteFinisher.quantity -= excess;
+      addLog(`[RECORTE ESTRICTO 60] -${excess}x "${sobranteFinisher.name}" (Finisher).`);
+    } else {
+      const spellToTrim = validResultsStruct.cards.slice().reverse().find(c => !isLand(c) && c.quantity > 1);
+      if (spellToTrim) {
+        spellToTrim.quantity -= excess;
+        addLog(`[RECORTE ESTRICTO 60] -${excess}x "${spellToTrim.name}".`);
+      } else {
+        validResultsStruct.cards[validResultsStruct.cards.length - 1].quantity -= excess;
+      }
+    }
+    validResultsStruct.cards = validResultsStruct.cards.filter(c => c.quantity > 0);
+  }
+
   const finalTotal = validResultsStruct.cards.reduce((sum, c) => sum + c.quantity, 0);
   addLog(`[CONSOLIDACIÓN SUPREMA] Mazo verificado con éxito. Total absoluto de cartas: ${finalTotal}/${deckSize}.`);
     
@@ -6069,6 +6093,7 @@ Genera la lista de hechizos completamente corregida y optimizada en JSON.`;
 
   // Filtrar cartas que hayan quedado con cantidad 0
   validResultsStruct.cards = validResultsStruct.cards.filter(c => c.quantity > 0);
+
 
     
     // === DETERMINISTIC HYPERGEOMETRIC VALIDATION API (POST /api/alg) ===
