@@ -26,7 +26,8 @@ const ScryfallHoverCard = ({ cardName, children }) => {
         cleanName = cleanName.split('/')[0].trim();
       }
       
-      const searchQuery = `!"${cleanName}"`;
+      const searchQuery = `!"${cleanName}" -is:universes_beyond -is:ub -is:digital`;
+
       fetch(`https://api.scryfall.com/cards/search?q=${encodeURIComponent(searchQuery)}`)
         .then(res => {
           if (!res.ok) {

@@ -5,6 +5,8 @@ import { getAllCards } from './dbIngestor.js';
 import { loadMetaFromDB } from './mtgtop8Service.js';
 import { getSignalBoosts } from './synergyActivationEngine.js';
 import { matchesScryfallQuery } from '../utils/scryfallParser.js';
+import { isUniversesBeyondOrCustom } from '../utils/legalityCheck.js';
+
 
 let cachedObsidianGraph = null;
 
@@ -554,22 +556,11 @@ export const buildCardPool = async (formData) => {
     const oracleText = (card.oracle_text && typeof card.oracle_text === 'string') ? card.oracle_text.toLowerCase() : '';
     const isCreature = typeLine.includes('creature');
     
-    // Excluir custom cards si allowCustomCards es false y estamos en formatos construidos estándar
-    if (!allowCustomCards && ['modern', 'pioneer', 'standard', 'legacy'].includes(formatKey)) {
-      const customSets = [
-        'tla', 'atla', 'ttla', 'tle', 'jtla', 'atle', 'ftla', 'ttle',
-        'fin', 'afic', 'afin', 'fic', 'tfin', 'tfic',
-        'tmt', 'atmt', 'tmc', 'ftmc', 'ttmc', 'ttmt',
-        'spm', 'aspm', 'spe', 'tspm',
-        'psdg', 'pspl'
-      ];
-      if (card.set && customSets.includes(card.set.toLowerCase())) continue;
-      if (card.set && card.set.toLowerCase().includes('custom')) continue;
-      if (card.id && (card.id.startsWith('custom-') || card.id.includes('custom'))) continue;
-      if (cardNameLower.includes("hamato") || cardNameLower.includes("shredder") || cardNameLower.includes("yoshi") || cardNameLower.includes("oroku saki") || cardNameLower.includes("splinter, ")) {
-        continue;
-      }
+    // Excluir Universes Beyond y custom cards si allowCustomCards es false
+    if (!allowCustomCards && isUniversesBeyondOrCustom(card)) {
+      continue;
     }
+
     // --- VETOS SEMÁNTICOS Y EXCLUSIONES DEL USUARIO (Oracle Tuner) ---
     // 1. Vetar palabras clave
     if (formData.vetoedKeywords) {

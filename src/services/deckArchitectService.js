@@ -8,7 +8,8 @@ import { buildCardPool, getDynamicArchetypes } from './ragService.js';
 import { extractActivationSignals } from './synergyActivationEngine.js';
 import { findFuzzyMatchInDB, getCardFromDB, hydrateCard } from './cardHydrator.js';
 import { generateSideboardGuide } from './sideboardService.js';
-import { isCardLegalForBattleBox } from '../utils/legalityCheck.js';
+import { isCardLegalForBattleBox, isUniversesBeyondOrCustom } from '../utils/legalityCheck.js';
+
 import { injectCorePackage } from '../constants/corePackages.js';
 import { getAllCards } from './dbIngestor.js';
 import { FORMAT_CURVE_MODIFIERS } from '../constants/blueprintTemplates.js';
@@ -1926,11 +1927,13 @@ export function checkCardFormatLegality(cardName, format = 'MODERN', allowCustom
     if (!cardName) return false;
     const nameLower = cardName.toLowerCase().trim();
     
-    // Prioritize non-token, non-art, non-emblem layouts to prevent matching tokens first (like Tarmogoyf token)
+    // Preferir impresiones oficiales del Universo MTG Principal si allowCustomCards es false
     let dbCard = cachedAllCards.find(ac => {
         if (!ac || !ac.name) return false;
         if (ac.name.toLowerCase().trim() !== nameLower) return false;
-        return ac.layout !== 'token' && ac.layout !== 'art_series' && ac.layout !== 'emblem';
+        if (ac.layout === 'token' || ac.layout === 'art_series' || ac.layout === 'emblem') return false;
+        if (!allowCustomCards && isUniversesBeyondOrCustom(ac)) return false;
+        return true;
     });
     
     if (!dbCard) {
@@ -1941,18 +1944,11 @@ export function checkCardFormatLegality(cardName, format = 'MODERN', allowCustom
     
     const selectedFormat = format.toLowerCase();
     const isLegal = dbCard.legalities && dbCard.legalities[selectedFormat] === 'legal';
-    
-    const customSets = [
-        'tla', 'atla', 'ttla', 'tle', 'jtla', 'atle', 'ftla', 'ttle',
-        'fin', 'afic', 'afin', 'fic', 'tfin', 'tfic',
-        'tmt', 'atmt', 'tmc', 'ftmc', 'ttmc', 'ttmt',
-        'spm', 'aspm', 'spe', 'tspm',
-        'psdg', 'pspl'
-    ];
-    const isCustom = dbCard.set && (customSets.includes(dbCard.set.toLowerCase()) || dbCard.set.toLowerCase().includes('custom'));
+    const isCustom = isUniversesBeyondOrCustom(dbCard);
     
     return isLegal && (allowCustomCards || !isCustom);
 }
+
 
 /**
  * PASO 4: Juez de Estado Final
