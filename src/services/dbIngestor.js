@@ -7,6 +7,8 @@ const STORE_TAGS = 'oracle_tags';
 const INDEX_NAME = 'cardIndex';
 
 let db = null;
+let cachedOracleTags = null;
+
 
 function openDB() {
   return new Promise((resolve, reject) => {
