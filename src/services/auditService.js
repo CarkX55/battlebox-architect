@@ -2,6 +2,9 @@ import { callAI } from './aiFactory.js';
 import { getAllCards } from './dbIngestor.js';
 import { analyzeFunctionalPillars, buildPillarSummaryText } from './deckAuditorService.js';
 import { isLand } from './deckCalculator.js';
+import { runMonteCarloSimulation } from './monteCarloEngine.js';
+import { auditCardRequirementsAndOrphans } from './cardRequirementEngine.js';
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helper: normaliza nombres de cartas para matching (doble cara, slashes)
@@ -375,6 +378,32 @@ export async function auditDeckWithAI(deckCards, _sideboardCards, formData, aiCo
     ? ('\nVetos del Usuario: Palabras: ' + vetoKws + ' | Cartas: ' + vetoCards)
     : '';
 
+  // ── 3.5 Simulación Monte Carlo y Auditoría de Cartas Huérfanas
+  const monteCarlo = runMonteCarloSimulation(hydratedDeckCards, 1000);
+  const cardReqs = auditCardRequirementsAndOrphans(hydratedDeckCards);
+
+  let monteCarloText = '';
+  if (monteCarlo && !monteCarlo.error) {
+    monteCarloText = `
+=== RESULTADOS EMPÍRICOS DE SIMULACIÓN MONTE CARLO (1,000 MANOS INICIALES EN JS) ===
+- Probabilidad de Disponibilidad de Maná: Turno 1: ${monteCarlo.manaAvailablePct.turn1}% | Turno 2: ${monteCarlo.manaAvailablePct.turn2}% | Turno 3: ${monteCarlo.manaAvailablePct.turn3}% | Turno 4: ${monteCarlo.manaAvailablePct.turn4}%
+- Riesgo de Mulligan: Manos con 0-1 tierras: ${monteCarlo.mulliganRisk.zeroOrOneLandPct}% | Manos perfectas (2-4 tierras): ${monteCarlo.mulliganRisk.perfectHandPct}% | Manos de inundación (5+ tierras): ${monteCarlo.mulliganRisk.floodHandPct}%
+- Probabilidad de Jugada en Turno 1: ${monteCarlo.turn1PlayPct}%
+- Probabilidad de Aceleración en Turno 2: ${monteCarlo.turn2RampPct}%
+`;
+  }
+
+  let cardReqText = '';
+  if (cardReqs.hasIssues) {
+    const failures = cardReqs.requirementFailures.map(f => `- ${f.card}: ${f.issueDescription}`).join('\n');
+    const orphans = cardReqs.orphanCards.map(o => `- ${o.cardName}: ${o.reason}`).join('\n');
+    cardReqText = `
+=== ALERTAS DE REQUISITOS DE CARTAS Y CARTAS HUÉRFANAS DETECTADAS ===
+${failures ? 'INCUMPLIMIENTOS DE REQUISITO:\n' + failures : ''}
+${orphans ? 'CARTAS HUÉRFANAS DETECTADAS:\n' + orphans : ''}
+`;
+  }
+
   // ── 4. Calcular si faltan cartas en el mazo
   const totalCards = hydratedDeckCards.reduce((sum, c) => sum + (c.quantity || 1), 0);
   const targetCards = (formData?.companero?.toLowerCase().includes("yorion")) ? 80 : 60;
@@ -400,6 +429,8 @@ export async function auditDeckWithAI(deckCards, _sideboardCards, formData, aiCo
     vetoText,
     bannedText,
     metricsText,
+    monteCarloText,
+    cardReqText,
     pillarText,
     candidatesPromptBlock,
     deckSizeWarning,
@@ -467,7 +498,10 @@ export async function auditDeckWithAI(deckCards, _sideboardCards, formData, aiCo
       suggestions: validatedSuggestions,
       _pillarAnalysis: pillarAnalysis,
       _karstenAnalysis: karstenAnalysis,
+      _monteCarlo: monteCarlo,
+      _cardRequirements: cardReqs
     };
+
   } catch (error) {
     console.error("Error en la auditoría con IA:", error);
     throw new Error("Fallo al auditar el mazo. El Juez no está disponible.");
