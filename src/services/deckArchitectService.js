@@ -1632,10 +1632,6 @@ const distribuirOInyectarHechizosFaltantes = (spellList, targetCount, colors, ad
         }
     }
 
-    return adjustedList;
-};
-
-
     if (gap <= 0) return adjustedList;
 
     // 3. Si todavía falta, inyectar nuevos staples estáticos clásicos como fallback de seguridad
@@ -1707,7 +1703,8 @@ const distribuirOInyectarHechizosFaltantes = (spellList, targetCount, colors, ad
     }
 
     return adjustedList;
-};;
+};
+
 
 /**
  * Retorna true si el rol de la carta es ESTRATÉGICO/sagrado y no debe ser recortado a la ligera.
@@ -2008,9 +2005,6 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
         return false;
     };
 
-        if (r.includes("finisher") || r.includes("win_cond") || r.includes("combo_piece")) return true;
-        return false;
-    };
 
     const isCardFormatLegal = (cardName) => {
         return checkCardFormatLegality(cardName, formData?.format || 'MODERN', !!formData?.allowCustomCards);
