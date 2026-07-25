@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ingestScryfallData, getCardCount } from '../../services/dbIngestor';
+import { ingestScryfallData, ingestOracleTagsData, getCardCount } from '../../services/dbIngestor';
 import { useAppStore } from '../../store/useAppStore';
 
 export default function DataIngestor({ onComplete }) {
@@ -15,17 +15,7 @@ export default function DataIngestor({ onComplete }) {
   const [isTagsUploaded, setIsTagsUploaded] = useState(false);
   const [tagCount, setTagCount] = useState(0);
 
-  const checkExistingData = async () => {
-    try {
-      const count = await getCardCount();
-      setCardCount(count);
-      return count > 0;
-    } catch {
-      return false;
-    }
-  };
-
-  const handleFileUpload = async (e) => {
+  const handleFileUpload = (type) => async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -33,10 +23,8 @@ export default function DataIngestor({ onComplete }) {
     setDbLoading(true);
     setLoadingProgress(0);
     setError(null);
-    setIsTagsUploaded(false);
 
     try {
-      // Pequeño delay para asegurar que el UI se actualice antes del parse pesado
       await new Promise(resolve => setTimeout(resolve, 100));
       
       const text = await file.text();
@@ -59,21 +47,26 @@ export default function DataIngestor({ onComplete }) {
       }
       
       if (!Array.isArray(data) && typeof data !== 'object') {
-        throw new Error('El archivo JSON / JSONL no es válido.');
+        throw new Error('El archivo no es un JSON o JSONL válido.');
       }
 
       setStatus('loading');
-      const result = await ingestScryfallData(data, (p) => {
-        setProgress(p.percentage);
-        setLoadingProgress(p.percentage);
-      });
 
-      if (result && result.isTags) {
+      if (type === 'tags') {
+        const result = await ingestOracleTagsData(data, (p) => {
+          setProgress(p.percentage);
+          setLoadingProgress(p.percentage);
+        });
         setIsTagsUploaded(true);
         setTagCount(result.saved || 0);
       } else {
+        await ingestScryfallData(data, (p) => {
+          setProgress(p.percentage);
+          setLoadingProgress(p.percentage);
+        });
         const total = await getCardCount();
         setCardCount(total);
+        setIsTagsUploaded(false);
       }
 
       setStatus('complete');
@@ -111,9 +104,8 @@ export default function DataIngestor({ onComplete }) {
     );
   }
 
-
   return (
-    <div className="p-8 text-center max-w-xl mx-auto relative">
+    <div className="p-8 text-center max-w-2xl mx-auto relative">
       <AnimatePresence mode="wait">
         {(status === 'loading' || status === 'parsing') ? (
           <motion.div
@@ -123,73 +115,32 @@ export default function DataIngestor({ onComplete }) {
             exit={{ opacity: 0, scale: 1.1 }}
             className="flex flex-col items-center justify-center space-y-12 py-12"
           >
-            {/* Círculo de Invocación Animado */}
             <div className="relative w-48 h-48">
               <motion.div
                 animate={{ rotate: 360 }}
                 transition={{ duration: 10, repeat: Infinity, ease: "linear" }}
                 className="absolute inset-0 border-2 border-dashed border-grimorio-gold/30 rounded-full"
               />
-              <motion.div
-                animate={{ rotate: -360 }}
-                transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
-                className="absolute inset-4 border border-grimorio-gold/20 rounded-full"
-              />
               <div className="absolute inset-0 flex items-center justify-center">
                 <motion.img
                   src="/ASSETS/TomoHome.webp"
                   alt="Cargando..."
-                  animate={{ 
-                    scale: [1, 1.1, 1],
-                    opacity: [0.8, 1, 0.8]
-                  }}
+                  animate={{ scale: [1, 1.1, 1], opacity: [0.8, 1, 0.8] }}
                   transition={{ duration: 2, repeat: Infinity }}
                   className="w-24 h-24 object-contain filter drop-shadow-[0_0_15px_rgba(212,175,55,0.4)]"
                 />
               </div>
-              
-              {/* Progreso Circular */}
-              <svg className="absolute inset-0 w-full h-full -rotate-90">
-                <circle
-                  cx="96"
-                  cy="96"
-                  r="90"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  className="text-black/5"
-                />
-                <motion.circle
-                  cx="96"
-                  cy="96"
-                  r="90"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="3"
-                  strokeDasharray="565"
-                  animate={{ strokeDashoffset: status === 'parsing' ? 565 : 565 - (565 * progress) / 100 }}
-                  transition={{ duration: 0.5 }}
-                  className="text-grimorio-gold"
-                />
-              </svg>
             </div>
 
             <div className="space-y-4">
               <h3 className="text-grimorio-gold font-cinzel text-lg tracking-[0.3em] font-bold uppercase animate-pulse">
-                {status === 'parsing' ? 'Analizando Tomo...' : 'Transcribiendo...'}
+                {status === 'parsing' ? 'Analizando Tomo...' : 'Transcribiendo Archivo...'}
               </h3>
               <div className="flex items-center gap-4 justify-center">
-                <div className="h-px w-12 bg-grimorio-gold/20" />
-                <span className="text-2xl font-cinzel text-magic-gold font-black drop-shadow-[0_0_8px_rgba(255,202,88,0.5)]">
+                <span className="text-2xl font-cinzel text-magic-gold font-black">
                   {status === 'parsing' ? '...' : `${progress}%`}
                 </span>
-                <div className="h-px w-12 bg-grimorio-gold/20" />
               </div>
-              <p className="text-[#f4ece0]/60 font-serif italic text-xs max-w-[200px] mx-auto">
-                {status === 'parsing' 
-                  ? 'Desencriptando lenguajes antiguos y preparando la tinta arcana...'
-                  : 'Organizando las energías arcanas de los archivos Scryfall...'}
-              </p>
             </div>
           </motion.div>
         ) : (
@@ -203,32 +154,51 @@ export default function DataIngestor({ onComplete }) {
               Invocación de Archivos
             </h2>
             
-            <p className="text-[#f4ece0]/70 font-serif italic text-lg leading-relaxed">
-              La biblioteca está vacía. Para comenzar la arquitectura, debemos alimentar el grimorio con los registros de Scryfall.
+            <p className="text-[#f4ece0]/70 font-serif italic text-sm leading-relaxed">
+              Selecciona el tipo de archivo de Scryfall que deseas cargar en la base de datos:
             </p>
 
-            <div className="relative group mt-6">
-              <div className="absolute -inset-1 bg-gradient-to-r from-grimorio-gold/0 via-grimorio-gold/30 to-grimorio-gold/0 blur opacity-0 group-hover:opacity-100 transition duration-1000 group-hover:duration-200"></div>
+            {/* GRID DE DOS BOTONES DIFERENCIADOS */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
               
-              <label className="relative flex flex-col items-center justify-center w-full h-48 border-2 border-dashed border-magic-gold/30 rounded-3xl cursor-pointer bg-black/20 hover:bg-black/40 hover:border-magic-gold/60 transition-all duration-500 overflow-hidden group">
-                <div className="flex flex-col items-center justify-center pt-5 pb-6 space-y-4">
-                  <div className="w-12 h-12 bg-magic-gold/10 border border-magic-gold/20 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform duration-500 shadow-[0_0_15px_rgba(255,202,88,0.2)]">
-                    <svg className="w-6 h-6 text-magic-gold" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                    </svg>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-sm text-magic-gold font-cinzel font-bold tracking-widest uppercase">Entregar Manuscrito</p>
-                    <p className="text-[10px] text-[#f4ece0]/50 font-serif italic mt-1">Formato Scryfall Default Cards (.json)</p>
-                  </div>
+              {/* BOTÓN 1: ORACLE CARDS */}
+              <label className="relative flex flex-col items-center justify-center p-6 border-2 border-dashed border-magic-gold/40 hover:border-magic-gold rounded-2xl cursor-pointer bg-black/30 hover:bg-black/60 transition-all duration-300 group shadow-lg">
+                <div className="w-14 h-14 bg-magic-gold/10 border border-magic-gold/30 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform mb-4">
+                  <span className="text-2xl">📜</span>
                 </div>
+                <h4 className="text-magic-gold font-cinzel font-bold text-sm tracking-wider uppercase">
+                  1. Cargar Cartas
+                </h4>
+                <p className="text-xs text-[#f4ece0]/60 font-serif italic mt-1">
+                  Oracle Cards (.json / .jsonl)
+                </p>
                 <input
                   type="file"
-                  accept=".json"
-                  onChange={handleFileUpload}
+                  accept=".json,.jsonl"
+                  onChange={handleFileUpload('cards')}
                   className="hidden"
                 />
               </label>
+
+              {/* BOTÓN 2: ORACLE TAGS */}
+              <label className="relative flex flex-col items-center justify-center p-6 border-2 border-dashed border-purple-500/40 hover:border-purple-400 rounded-2xl cursor-pointer bg-black/30 hover:bg-black/60 transition-all duration-300 group shadow-lg">
+                <div className="w-14 h-14 bg-purple-500/10 border border-purple-500/30 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform mb-4">
+                  <span className="text-2xl">🏷️</span>
+                </div>
+                <h4 className="text-purple-300 font-cinzel font-bold text-sm tracking-wider uppercase">
+                  2. Cargar Etiquetas (Tags)
+                </h4>
+                <p className="text-xs text-[#f4ece0]/60 font-serif italic mt-1">
+                  Oracle Tags (.json / .jsonl)
+                </p>
+                <input
+                  type="file"
+                  accept=".json,.jsonl"
+                  onChange={handleFileUpload('tags')}
+                  className="hidden"
+                />
+              </label>
+
             </div>
 
             {error && (
@@ -245,6 +215,10 @@ export default function DataIngestor({ onComplete }) {
           </motion.div>
         )}
       </AnimatePresence>
+    </div>
+  );
+}
+ence>
     </div>
   );
 }
