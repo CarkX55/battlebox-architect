@@ -54,12 +54,17 @@ function extractCardData(card) {
 export async function ingestScryfallData(jsonFile, onProgress) {
   const database = await openDB();
   
-  // Detección si el archivo subido es Oracle Tags en lugar de Cartas
+  // Detección precisa si el archivo subido es Oracle Tags en lugar de Cartas
   const sample = Array.isArray(jsonFile) ? jsonFile[0] : jsonFile;
-  const isTagFile = sample && (sample.tag || sample.oracle_id || (!sample.name && sample.oracle_tags));
+  const isTagFile = sample && (
+    sample.tag !== undefined || 
+    sample.label !== undefined || 
+    sample.oracle_tag !== undefined ||
+    (sample.legalities === undefined && sample.type_line === undefined)
+  );
   
   if (isTagFile || (!Array.isArray(jsonFile) && typeof jsonFile === 'object')) {
-    console.log(`🏷️ [DB Ingestor] Detectado archivo de Oracle Tags. Guardando en almacenamiento local...`);
+    console.log(`🏷️ [DB Ingestor] Detectado archivo de Oracle Tags. Guardando en almacenamiento de etiquetas...`);
     try {
       localStorage.setItem('scryfall_oracle_tags', JSON.stringify(jsonFile));
       cachedOracleTags = jsonFile;
@@ -69,6 +74,7 @@ export async function ingestScryfallData(jsonFile, onProgress) {
       console.warn(`⚠️ Error al guardar Oracle Tags en localStorage: ${e.message}`);
     }
   }
+
 
   const CHUNK_SIZE = 5000;
   let offset = 0;

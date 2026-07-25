@@ -12,6 +12,9 @@ export default function DataIngestor({ onComplete }) {
   const setDbLoading = useAppStore(state => state.setDbLoading);
   const setLoadingProgress = useAppStore(state => state.setLoadingProgress);
 
+  const [isTagsUploaded, setIsTagsUploaded] = useState(false);
+  const [tagCount, setTagCount] = useState(0);
+
   const checkExistingData = async () => {
     try {
       const count = await getCardCount();
@@ -30,6 +33,7 @@ export default function DataIngestor({ onComplete }) {
     setDbLoading(true);
     setLoadingProgress(0);
     setError(null);
+    setIsTagsUploaded(false);
 
     try {
       // Pequeño delay para asegurar que el UI se actualice antes del parse pesado
@@ -41,7 +45,6 @@ export default function DataIngestor({ onComplete }) {
       try {
         data = JSON.parse(text);
       } catch (jsonErr) {
-        // Fallback: Si falla por formato JSONL (1 JSON por línea)
         console.log(`ℹ️ Formato JSONL detectado. Parseando línea por línea...`);
         const lines = text.split('\n');
         data = [];
@@ -50,9 +53,7 @@ export default function DataIngestor({ onComplete }) {
           if (trimmedLine) {
             try {
               data.push(JSON.parse(trimmedLine));
-            } catch (lErr) {
-              // ignora líneas vacías o malformadas
-            }
+            } catch (lErr) {}
           }
         }
       }
@@ -67,15 +68,19 @@ export default function DataIngestor({ onComplete }) {
         setLoadingProgress(p.percentage);
       });
 
+      if (result && result.isTags) {
+        setIsTagsUploaded(true);
+        setTagCount(result.saved || 0);
+      } else {
+        const total = await getCardCount();
+        setCardCount(total);
+      }
 
-      const total = await getCardCount();
-      setCardCount(total);
       setStatus('complete');
       setDbLoading(false);
       
       if (onComplete) onComplete();
     } catch (err) {
-
       console.error('Error durante la ingesta:', err);
       setError(err.message);
       setStatus('error');
@@ -91,15 +96,21 @@ export default function DataIngestor({ onComplete }) {
         className="p-8 bg-black/40 backdrop-blur-xl border border-grimorio-gold/30 rounded-2xl text-center space-y-4 shadow-2xl"
       >
         <div className="w-16 h-16 bg-grimorio-gold/10 rounded-full flex items-center justify-center mx-auto border border-grimorio-gold/20">
-          <span className="text-3xl">📜</span>
+          <span className="text-3xl">{isTagsUploaded ? '🏷️' : '📜'}</span>
         </div>
-        <h3 className="text-grimorio-gold font-cinzel text-xl font-bold tracking-widest uppercase">Grimorio Indexado</h3>
+        <h3 className="text-grimorio-gold font-cinzel text-xl font-bold tracking-widest uppercase">
+          {isTagsUploaded ? 'Oracle Tags Vinculadas' : 'Grimorio Indexado'}
+        </h3>
         <p className="text-white/60 font-serif italic text-sm">
-          La biblioteca ha sido actualizada con {cardCount.toLocaleString()} pergaminos ancestrales.
+          {isTagsUploaded 
+            ? `Se han asociado ${tagCount.toLocaleString()} etiquetas comunitarias de Scryfall para potenciar el KnowledgeGraph.`
+            : `La biblioteca ha sido actualizada con ${cardCount.toLocaleString()} pergaminos ancestrales.`
+          }
         </p>
       </motion.div>
     );
   }
+
 
   return (
     <div className="p-8 text-center max-w-xl mx-auto relative">
