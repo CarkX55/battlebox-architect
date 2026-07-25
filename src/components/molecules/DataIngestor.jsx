@@ -86,24 +86,34 @@ export default function DataIngestor({ onComplete }) {
       <motion.div 
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="p-8 bg-black/40 backdrop-blur-xl border border-grimorio-gold/30 rounded-2xl text-center space-y-6 shadow-2xl max-w-xl mx-auto"
+        className="p-8 bg-gradient-to-b from-black/60 to-black/40 backdrop-blur-2xl border border-emerald-500/40 rounded-3xl text-center space-y-6 shadow-[0_0_50px_rgba(16,185,129,0.15)] max-w-xl mx-auto"
       >
-        <div className="w-16 h-16 bg-grimorio-gold/10 rounded-full flex items-center justify-center mx-auto border border-grimorio-gold/20">
-          <span className="text-3xl">{isTagsUploaded ? '🏷️' : '📜'}</span>
+        <div className="w-20 h-20 bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto border border-emerald-500/30 shadow-[0_0_20px_rgba(16,185,129,0.2)]">
+          <span className="text-4xl">{isTagsUploaded ? '🏷️' : '📜'}</span>
         </div>
-        <h3 className="text-grimorio-gold font-cinzel text-xl font-bold tracking-widest uppercase">
-          {isTagsUploaded ? 'Oracle Tags Vinculadas' : 'Grimorio Indexado'}
-        </h3>
-        <p className="text-white/60 font-serif italic text-sm">
-          {isTagsUploaded 
-            ? `Se han asociado ${tagCount.toLocaleString()} etiquetas comunitarias de Scryfall para potenciar el KnowledgeGraph.`
-            : `La biblioteca ha sido actualizada con ${cardCount.toLocaleString()} pergaminos ancestrales.`
-          }
-        </p>
-        <div>
+        
+        <div className="space-y-2">
+          <span className="inline-block px-3 py-1 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-full font-cinzel text-[10px] tracking-widest uppercase font-bold">
+            ¡Invocación Exitosa!
+          </span>
+          <h3 className="text-emerald-400 font-cinzel text-2xl font-bold tracking-widest uppercase drop-shadow-[0_0_10px_rgba(16,185,129,0.3)]">
+            {isTagsUploaded ? 'Oracle Tags Vinculadas' : 'Cartas Indexadas Con Éxito'}
+          </h3>
+        </div>
+
+        <div className="p-4 bg-emerald-950/20 border border-emerald-500/20 rounded-2xl">
+          <p className="text-emerald-200/80 font-serif italic text-sm leading-relaxed">
+            {isTagsUploaded 
+              ? `🎉 ¡Excelente! Se han registrado ${tagCount.toLocaleString()} etiquetas comunitarias de Scryfall. El KnowledgeGraph y el clasificador de roles están al 100%.`
+              : `🎉 ¡Excelente! La biblioteca del Grimorio ha sido enriquecida con ${cardCount.toLocaleString()} cartas únicas.`
+            }
+          </p>
+        </div>
+
+        <div className="pt-2">
           <button
             onClick={() => setStatus('idle')}
-            className="px-6 py-2.5 bg-grimorio-gold/20 hover:bg-grimorio-gold/30 text-grimorio-gold border border-grimorio-gold/40 rounded-xl font-cinzel font-bold text-xs tracking-widest uppercase transition-all duration-300 shadow-lg hover:scale-105"
+            className="px-8 py-3 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 rounded-2xl font-cinzel font-bold text-xs tracking-widest uppercase transition-all duration-300 shadow-lg hover:scale-105"
           >
             🔄 Cargar Otro Archivo (Cartas / Tags)
           </button>
@@ -111,6 +121,7 @@ export default function DataIngestor({ onComplete }) {
       </motion.div>
     );
   }
+
 
 
   return (
