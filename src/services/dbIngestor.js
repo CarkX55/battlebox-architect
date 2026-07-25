@@ -1,8 +1,9 @@
 import { matchesScryfallQuery } from '../utils/scryfallParser.js';
 
 const DB_NAME = 'MagicGrimorioDB';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE_NAME = 'cards';
+const STORE_TAGS = 'oracle_tags';
 const INDEX_NAME = 'cardIndex';
 
 let db = null;
@@ -20,10 +21,13 @@ function openDB() {
     };
     
     request.onupgradeneeded = (event) => {
-      const db = event.target.result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        const store = db.createObjectStore(STORE_NAME, { keyPath: 'id' });
+      const dbInstance = event.target.result;
+      if (!dbInstance.objectStoreNames.contains(STORE_NAME)) {
+        const store = dbInstance.createObjectStore(STORE_NAME, { keyPath: 'id' });
         store.createIndex(INDEX_NAME, 'name', { unique: false });
+      }
+      if (!dbInstance.objectStoreNames.contains(STORE_TAGS)) {
+        dbInstance.createObjectStore(STORE_TAGS, { keyPath: 'id', autoIncrement: true });
       }
     };
   });
@@ -52,18 +56,43 @@ function extractCardData(card) {
 }
 
 export async function ingestOracleTagsData(jsonFile, onProgress) {
-  console.log(`🏷️ [DB Ingestor] Guardando etiquetas de Oracle Tags...`);
-  try {
-    localStorage.setItem('scryfall_oracle_tags', JSON.stringify(jsonFile));
-    cachedOracleTags = jsonFile;
-    if (onProgress) onProgress({ processed: 100, percentage: 100 });
-    const count = Array.isArray(jsonFile) ? jsonFile.length : Object.keys(jsonFile).length;
-    return { saved: count, isTags: true };
-  } catch (e) {
-    console.warn(`⚠️ Error al guardar Oracle Tags: ${e.message}`);
-    throw e;
+  console.log(`🏷️ [DB Ingestor] Guardando etiquetas de Oracle Tags en IndexedDB...`);
+  const database = await openDB();
+  const tagList = Array.isArray(jsonFile) ? jsonFile : [jsonFile];
+  const CHUNK_SIZE = 5000;
+  let offset = 0;
+  let totalSaved = 0;
+
+  while (offset < tagList.length) {
+    const chunk = tagList.slice(offset, offset + CHUNK_SIZE);
+    const tx = database.transaction(STORE_TAGS, 'readwrite');
+    const store = tx.objectStore(STORE_TAGS);
+    
+    for (const item of chunk) {
+      store.put(item);
+    }
+    
+    await new Promise((resolve, reject) => {
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+    
+    totalSaved += chunk.length;
+    offset += CHUNK_SIZE;
+    
+    if (onProgress) {
+      onProgress({
+        processed: totalSaved,
+        percentage: Math.round((totalSaved / tagList.length) * 100),
+      });
+    }
+    await new Promise(resolve => setTimeout(resolve, 0));
   }
+
+  cachedOracleTags = jsonFile;
+  return { saved: totalSaved, isTags: true };
 }
+
 
 export async function ingestScryfallData(jsonFile, onProgress) {
   const database = await openDB();
@@ -120,15 +149,23 @@ export async function ingestScryfallData(jsonFile, onProgress) {
 }
 
 
-let cachedOracleTags = null;
 async function loadOracleTags() {
   if (cachedOracleTags) return cachedOracleTags;
   try {
-    const fromStorage = typeof localStorage !== 'undefined' ? localStorage.getItem('scryfall_oracle_tags') : null;
-    if (fromStorage) {
-      cachedOracleTags = JSON.parse(fromStorage);
-      console.log(`🏷️ [Oracle Tags] Cargado desde localStorage.`);
-      return cachedOracleTags;
+    const database = await openDB();
+    if (database.objectStoreNames.contains(STORE_TAGS)) {
+      const tx = database.transaction(STORE_TAGS, 'readonly');
+      const store = tx.objectStore(STORE_TAGS);
+      const allTags = await new Promise((resolve) => {
+        const req = store.getAll();
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => resolve([]);
+      });
+      if (allTags && allTags.length > 0) {
+        cachedOracleTags = allTags;
+        console.log(`🏷️ [Oracle Tags] Cargado desde IndexedDB (${allTags.length} registros).`);
+        return cachedOracleTags;
+      }
     }
     const response = await fetch('/data/oracle_tags_index.json');
     if (response.ok) {
@@ -140,6 +177,7 @@ async function loadOracleTags() {
   }
   return cachedOracleTags;
 }
+
 
 
 export async function searchCards(query, limit = 20, format = 'MODERN') {

@@ -86,7 +86,7 @@ export default function DataIngestor({ onComplete }) {
       <motion.div 
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="p-8 bg-black/40 backdrop-blur-xl border border-grimorio-gold/30 rounded-2xl text-center space-y-4 shadow-2xl"
+        className="p-8 bg-black/40 backdrop-blur-xl border border-grimorio-gold/30 rounded-2xl text-center space-y-6 shadow-2xl max-w-xl mx-auto"
       >
         <div className="w-16 h-16 bg-grimorio-gold/10 rounded-full flex items-center justify-center mx-auto border border-grimorio-gold/20">
           <span className="text-3xl">{isTagsUploaded ? '🏷️' : '📜'}</span>
@@ -100,9 +100,18 @@ export default function DataIngestor({ onComplete }) {
             : `La biblioteca ha sido actualizada con ${cardCount.toLocaleString()} pergaminos ancestrales.`
           }
         </p>
+        <div>
+          <button
+            onClick={() => setStatus('idle')}
+            className="px-6 py-2.5 bg-grimorio-gold/20 hover:bg-grimorio-gold/30 text-grimorio-gold border border-grimorio-gold/40 rounded-xl font-cinzel font-bold text-xs tracking-widest uppercase transition-all duration-300 shadow-lg hover:scale-105"
+          >
+            🔄 Cargar Otro Archivo (Cartas / Tags)
+          </button>
+        </div>
       </motion.div>
     );
   }
+
 
   return (
     <div className="p-8 text-center max-w-2xl mx-auto relative">
