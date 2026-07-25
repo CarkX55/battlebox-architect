@@ -368,69 +368,127 @@ export const BLACK_LISTED_CARD_NAMES = [
   "Biosynthic Burst"
 ];
 
-export const POOL_SEGURIDAD_DINAMICO = {
-  G: {
-
-    dorks: [
-      { name: "Llanowar Elves", cmc: 1, category: "Creature", role: "mana_dorks_and_growth", oracle_text: "{T}: Add {G}." },
-      { name: "Elvish Mystic", cmc: 1, category: "Creature", role: "mana_dorks_and_growth", oracle_text: "{T}: Add {G}." },
-      { name: "Fyndhorn Elves", cmc: 1, category: "Creature", role: "mana_dorks_and_growth", oracle_text: "{T}: Add {G}." }
+export const POOL_DE_SEGURIDAD = {
+  mana_dorks_and_growth: {
+    G: {
+      dorks: [
+        { name: "Llanowar Elves", cmc: 1, category: "Creature", role: "mana_dorks_and_growth", oracle_text: "{T}: Add {G}." },
+        { name: "Elvish Mystic", cmc: 1, category: "Creature", role: "mana_dorks_and_growth", oracle_text: "{T}: Add {G}." },
+        { name: "Fyndhorn Elves", cmc: 1, category: "Creature", role: "mana_dorks_and_growth", oracle_text: "{T}: Add {G}." }
+      ],
+      ramp_spells: [
+        { name: "Rampant Growth", cmc: 2, category: "Sorcery", role: "mana_dorks_and_growth", oracle_text: "Search your library for a basic land card, put it onto the battlefield tapped, then shuffle." },
+        { name: "Nature's Lore", cmc: 2, category: "Sorcery", role: "mana_dorks_and_growth", oracle_text: "Search your library for a Forest card, put it onto the battlefield, then shuffle." },
+        { name: "Three Visits", cmc: 2, category: "Sorcery", role: "mana_dorks_and_growth", oracle_text: "Search your library for a Forest card, put it onto the battlefield, then shuffle." }
+      ]
+    },
+    R: {
+      dorks: [
+        { name: "Orcish Lumberjack", cmc: 1, category: "Creature", role: "mana_dorks_and_growth", oracle_text: "{T}, Sacrifice a Forest: Add three mana in any combination of {R} and/or {G}." },
+        { name: "Iron Myr", cmc: 2, category: "Artifact Creature", role: "mana_dorks_and_growth", oracle_text: "{T}: Add {R}." }
+      ],
+      ramp_spells: [
+        { name: "Seething Song", cmc: 3, category: "Instant", role: "mana_dorks_and_growth", oracle_text: "Add {R}{R}{R}{R}{R}." },
+        { name: "Pyretic Ritual", cmc: 2, category: "Instant", role: "mana_dorks_and_growth", oracle_text: "Add {R}{R}{R}." }
+      ]
+    },
+    W: {
+      dorks: [
+        { name: "Knight of the White Orchid", cmc: 2, category: "Creature", role: "mana_dorks_and_growth", oracle_text: "When Knight of the White Orchid enters the battlefield, if an opponent controls more lands than you, you may search your library for a Plains card..." },
+        { name: "Gold Myr", cmc: 2, category: "Artifact Creature", role: "mana_dorks_and_growth", oracle_text: "{T}: Add {W}." }
+      ],
+      ramp_spells: [
+        { name: "Gift of Estates", cmc: 2, category: "Sorcery", role: "mana_dorks_and_growth", oracle_text: "If an opponent controls more lands than you, search your library for up to three Plains cards..." }
+      ]
+    },
+    B: {
+      dorks: [
+        { name: "Deathrite Shaman", cmc: 1, category: "Creature", role: "mana_dorks_and_growth", oracle_text: "{T}, Exile target land card from a graveyard: Add one mana of any color." },
+        { name: "Leaden Myr", cmc: 2, category: "Artifact Creature", role: "mana_dorks_and_growth", oracle_text: "{T}: Add {B}." }
+      ],
+      ramp_spells: [
+        { name: "Dark Ritual", cmc: 1, category: "Instant", role: "mana_dorks_and_growth", oracle_text: "Add {B}{B}{B}." }
+      ]
+    },
+    U: {
+      dorks: [
+        { name: "Silver Myr", cmc: 2, category: "Artifact Creature", role: "mana_dorks_and_growth", oracle_text: "{T}: Add {U}." },
+        { name: "Deranged Assistant", cmc: 2, category: "Creature", role: "mana_dorks_and_growth", oracle_text: "{T}, Mill a card: Add {C}." }
+      ],
+      ramp_spells: [
+        { name: "High Tide", cmc: 1, category: "Instant", role: "mana_dorks_and_growth", oracle_text: "Until end of turn, whenever a player taps an Island for mana, its controller adds an additional {U}." }
+      ]
+    },
+    ANY: {
+      dorks: [
+        { name: "Ornithopter of Paradise", cmc: 2, category: "Artifact Creature", role: "mana_dorks_and_growth", oracle_text: "Flying. {T}: Add one mana of any color." }
+      ],
+      ramp_spells: [
+        { name: "Wayfarer's Bauble", cmc: 1, category: "Artifact", role: "mana_dorks_and_growth", oracle_text: "{2}, {T}, Sacrifice Wayfarer's Bauble: Search your library for a basic land card..." },
+        { name: "Mind Stone", cmc: 2, category: "Artifact", role: "mana_dorks_and_growth", oracle_text: "{T}: Add {C}." },
+        { name: "Arcane Signet", cmc: 2, category: "Artifact", role: "mana_dorks_and_growth", oracle_text: "{T}: Add one mana of any color in your commander's color identity." }
+      ]
+    }
+  },
+  protection_and_interaction: {
+    G: [
+      { name: "Beast Within", cmc: 3, category: "Instant", role: "protection_and_interaction", oracle_text: "Destroy target permanent." },
+      { name: "Nature's Claim", cmc: 1, category: "Instant", role: "protection_and_interaction", oracle_text: "Destroy target artifact or enchantment." },
+      { name: "Pick Your Poison", cmc: 1, category: "Sorcery", role: "protection_and_interaction", oracle_text: "Each opponent sacrifices a flying creature, an enchantment, or an artifact." }
     ],
-    ramp_spells: [
-      { name: "Rampant Growth", cmc: 2, category: "Sorcery", role: "mana_dorks_and_growth", oracle_text: "Search your library for a basic land card, put it onto the battlefield tapped, then shuffle." },
-      { name: "Nature's Lore", cmc: 2, category: "Sorcery", role: "mana_dorks_and_growth", oracle_text: "Search your library for a Forest card, put it onto the battlefield, then shuffle." },
-      { name: "Three Visits", cmc: 2, category: "Sorcery", role: "mana_dorks_and_growth", oracle_text: "Search your library for a Forest card, put it onto the battlefield, then shuffle." }
+    W: [
+      { name: "Path to Exile", cmc: 1, category: "Instant", role: "protection_and_interaction", oracle_text: "Exile target creature." },
+      { name: "Swords to Plowshares", cmc: 1, category: "Instant", role: "protection_and_interaction", oracle_text: "Exile target creature." },
+      { name: "Prismatic Ending", cmc: 1, category: "Sorcery", role: "protection_and_interaction", oracle_text: "Exile target nonland permanent with mana value X or less." }
+    ],
+    B: [
+      { name: "Fatal Push", cmc: 1, category: "Instant", role: "protection_and_interaction", oracle_text: "Destroy target creature if it has mana value 2 or less." },
+      { name: "Infernal Grasp", cmc: 2, category: "Instant", role: "protection_and_interaction", oracle_text: "Destroy target creature." },
+      { name: "Cut Down", cmc: 1, category: "Instant", role: "protection_and_interaction", oracle_text: "Destroy target creature with total power and toughness 5 or less." }
+    ],
+    R: [
+      { name: "Lightning Bolt", cmc: 1, category: "Instant", role: "protection_and_interaction", oracle_text: "Lightning Bolt deals 3 damage to any target." },
+      { name: "Abrade", cmc: 2, category: "Instant", role: "protection_and_interaction", oracle_text: "Choose one — Abrade deals 3 damage to target creature; or destroy target artifact." },
+      { name: "Unholy Heat", cmc: 1, category: "Instant", role: "protection_and_interaction", oracle_text: "Unholy Heat deals 2 damage to target creature or planeswalker." }
+    ],
+    U: [
+      { name: "Counterspell", cmc: 2, category: "Instant", role: "protection_and_interaction", oracle_text: "Counter target spell." },
+      { name: "Rapid Hybridization", cmc: 1, category: "Instant", role: "protection_and_interaction", oracle_text: "Destroy target creature." },
+      { name: "Spell Pierce", cmc: 1, category: "Instant", role: "protection_and_interaction", oracle_text: "Counter target noncreature spell unless its controller pays {2}." }
+    ],
+    ANY: [
+      { name: "Dismember", cmc: 3, category: "Instant", role: "protection_and_interaction", oracle_text: "Target creature gets -5/-5 until end of turn." }
     ]
   },
-  R: {
-    dorks: [
-      { name: "Orcish Lumberjack", cmc: 1, category: "Creature", role: "mana_dorks_and_growth", oracle_text: "{T}, Sacrifice a Forest: Add three mana in any combination of {R} and/or {G}." },
-      { name: "Iron Myr", cmc: 2, category: "Artifact Creature", role: "mana_dorks_and_growth", oracle_text: "{T}: Add {R}." }
+  card_advantage_draw: {
+    G: [
+      { name: "Harmonize", cmc: 4, category: "Sorcery", role: "card_advantage_draw", oracle_text: "Draw three cards." },
+      { name: "Lead the Stampede", cmc: 3, category: "Sorcery", role: "card_advantage_draw", oracle_text: "Look at the top five cards of your library..." }
     ],
-    ramp_spells: [
-      { name: "Seething Song", cmc: 3, category: "Instant", role: "mana_dorks_and_growth", oracle_text: "Add {R}{R}{R}{R}{R}." },
-      { name: "Pyretic Ritual", cmc: 2, category: "Instant", role: "mana_dorks_and_growth", oracle_text: "Add {R}{R}{R}." }
-    ]
-  },
-  W: {
-    dorks: [
-      { name: "Knight of the White Orchid", cmc: 2, category: "Creature", role: "mana_dorks_and_growth", oracle_text: "When Knight of the White Orchid enters the battlefield, if an opponent controls more lands than you, you may search your library for a Plains card..." }
+    U: [
+      { name: "Brainstorm", cmc: 1, category: "Instant", role: "card_advantage_draw", oracle_text: "Draw three cards, then put two cards from your hand on top of your library in any order." },
+      { name: "Preordain", cmc: 1, category: "Sorcery", role: "card_advantage_draw", oracle_text: "Scry 2, then draw a card." },
+      { name: "Consider", cmc: 1, category: "Instant", role: "card_advantage_draw", oracle_text: "Look at the top card of your library. You may mill it. Draw a card." }
     ],
-    ramp_spells: [
-      { name: "Gift of Estates", cmc: 2, category: "Sorcery", role: "mana_dorks_and_growth", oracle_text: "If an opponent controls more lands than you, search your library for up to three Plains cards..." }
-    ]
-  },
-  B: {
-    dorks: [
-      { name: "Deathrite Shaman", cmc: 1, category: "Creature", role: "mana_dorks_and_growth", oracle_text: "{T}, Exile target land card from a graveyard: Add one mana of any color." },
-      { name: "Leaden Myr", cmc: 2, category: "Artifact Creature", role: "mana_dorks_and_growth", oracle_text: "{T}: Add {B}." }
+    B: [
+      { name: "Night's Whisper", cmc: 2, category: "Sorcery", role: "card_advantage_draw", oracle_text: "You draw two cards and you lose 2 life." },
+      { name: "Read the Bones", cmc: 3, category: "Sorcery", role: "card_advantage_draw", oracle_text: "Scry 2, then draw two cards. You lose 2 life." }
     ],
-    ramp_spells: [
-      { name: "Dark Ritual", cmc: 1, category: "Instant", role: "mana_dorks_and_growth", oracle_text: "Add {B}{B}{B}." }
-    ]
-  },
-  U: {
-    dorks: [
-      { name: "Silver Myr", cmc: 2, category: "Artifact Creature", role: "mana_dorks_and_growth", oracle_text: "{T}: Add {U}." },
-      { name: "Deranged Assistant", cmc: 2, category: "Creature", role: "mana_dorks_and_growth", oracle_text: "{T}, Mill a card: Add {C}." }
+    R: [
+      { name: "Faithless Looting", cmc: 1, category: "Sorcery", role: "card_advantage_draw", oracle_text: "Draw two cards, then discard two cards." },
+      { name: "Thrill of Possibility", cmc: 2, category: "Instant", role: "card_advantage_draw", oracle_text: "As an additional cost to cast this spell, discard a card. Draw two cards." }
     ],
-    ramp_spells: [
-      { name: "High Tide", cmc: 1, category: "Instant", role: "mana_dorks_and_growth", oracle_text: "Until end of turn, whenever a player taps an Island for mana, its controller adds an additional {U}." }
-    ]
-  },
-  ANY: {
-    dorks: [
-      { name: "Ornithopter of Paradise", cmc: 2, category: "Artifact Creature", role: "mana_dorks_and_growth", oracle_text: "Flying. {T}: Add one mana of any color." }
+    W: [
+      { name: "Tocasia's Welcome", cmc: 3, category: "Enchantment", role: "card_advantage_draw", oracle_text: "Whenever one or more creatures with mana value 3 or less enter the battlefield under your control, draw a card." }
     ],
-    ramp_spells: [
-      { name: "Wayfarer's Bauble", cmc: 1, category: "Artifact", role: "mana_dorks_and_growth", oracle_text: "{2}, {T}, Sacrifice Wayfarer's Bauble: Search your library for a basic land card..." },
-      { name: "Mind Stone", cmc: 2, category: "Artifact", role: "mana_dorks_and_growth", oracle_text: "{T}: Add {C}." },
-      { name: "Arcane Signet", cmc: 2, category: "Artifact", role: "mana_dorks_and_growth", oracle_text: "{T}: Add one mana of any color in your commander's color identity." }
+    ANY: [
+      { name: "The One Ring", cmc: 4, category: "Artifact", role: "card_advantage_draw", oracle_text: "Indestructible. {T}: Put a burden counter on The One Ring, then draw a card for each burden counter on it." },
+      { name: "Mishra's Bauble", cmc: 0, category: "Artifact", role: "card_advantage_draw", oracle_text: "{T}, Sacrifice Mishra's Bauble: Look at the top card of target player's library. Draw a card at the beginning of the next turn's upkeep." }
     ]
   }
 };
 
-export const POOL_DE_SEGURIDAD = POOL_SEGURIDAD_DINAMICO;
+export const POOL_SEGURIDAD_DINAMICO = POOL_DE_SEGURIDAD.mana_dorks_and_growth;
 
 /**
  * Validador de texto literal DINÁMICO POR COLOR DE MAZO para verificar si una carta cumple contractualmente su rol.
@@ -526,7 +584,6 @@ export function esValidaParaRolDinamica(card = {}, role = '', deckColors = ['G']
     return false;
   }
 
-
   // 3. VALIDACIÓN LITERAL PARA PROTECCIÓN E INTERACCIÓN
   if (rLower.includes('interaction') || rLower.includes('protection') || rLower.includes('removal')) {
     const hasInteractionPhrase = 
@@ -552,13 +609,23 @@ export function esValidaParaRol(card = {}, role = '', deckColors = ['G']) {
 }
 
 /**
- * Obtiene una carta segura del POOL_SEGURIDAD_DINAMICO filtrada por color y con balance 50/50 dorks vs hechizos.
+ * Obtiene una carta segura del POOL_DE_SEGURIDAD filtrada por rol, color y con balance 50/50 dorks vs hechizos.
  */
 export function obtenerCartaSegura(roleKey = 'mana_dorks_and_growth', colorIdentity = ['G'], deckCards = []) {
-  const colors = Array.isArray(colorIdentity) && colorIdentity.length > 0 ? colorIdentity.map(c => c.toUpperCase()) : ['G'];
+  const colors = Array.isArray(colorIdentity) && colorIdentity.length > 0 ? colorIdentity.map(c => String(c).toUpperCase()) : ['G'];
 
-  if (roleKey === 'mana_dorks_and_growth') {
-    // Contar dorks (criaturas) vs ramp_spells (conjuros/instantes/artefactos de tierra) en deckCards
+  let normRoleKey = 'mana_dorks_and_growth';
+  if (roleKey.includes('interaction') || roleKey.includes('protection') || roleKey.includes('removal')) {
+    normRoleKey = 'protection_and_interaction';
+  } else if (roleKey.includes('draw')) {
+    normRoleKey = 'card_advantage_draw';
+  } else if (roleKey.includes('dork') || roleKey.includes('ramp') || roleKey.includes('growth')) {
+    normRoleKey = 'mana_dorks_and_growth';
+  }
+
+  const rolePool = POOL_DE_SEGURIDAD[normRoleKey] || POOL_DE_SEGURIDAD.protection_and_interaction || {};
+
+  if (normRoleKey === 'mana_dorks_and_growth') {
     let dorkCount = 0;
     let spellCount = 0;
     deckCards.forEach(c => {
@@ -567,21 +634,28 @@ export function obtenerCartaSegura(roleKey = 'mana_dorks_and_growth', colorIdent
       else spellCount += (c.quantity || 1);
     });
 
-    // Regla de Oro: Si dorks >= 8 y spellCount < 4, priorizar ramp_spells
     const preferSpells = dorkCount >= 8 && spellCount < 4;
 
     let candidatePool = [];
     for (let col of colors) {
-      const colPool = POOL_SEGURIDAD_DINAMICO[col];
+      const colPool = rolePool[col];
       if (colPool) {
-        candidatePool.push(...(preferSpells ? colPool.ramp_spells : colPool.dorks));
-        candidatePool.push(...(preferSpells ? colPool.dorks : colPool.ramp_spells));
+        if (colPool.dorks || colPool.ramp_spells) {
+          candidatePool.push(...(preferSpells ? (colPool.ramp_spells || colPool.dorks) : (colPool.dorks || colPool.ramp_spells)));
+          candidatePool.push(...(preferSpells ? (colPool.dorks || colPool.ramp_spells) : (colPool.ramp_spells || colPool.dorks)));
+        } else if (Array.isArray(colPool)) {
+          candidatePool.push(...colPool);
+        }
       }
     }
-    const anyPool = POOL_SEGURIDAD_DINAMICO.ANY;
+    const anyPool = rolePool.ANY || rolePool.C;
     if (anyPool) {
-      candidatePool.push(...(preferSpells ? anyPool.ramp_spells : anyPool.dorks));
-      candidatePool.push(...(preferSpells ? anyPool.dorks : anyPool.ramp_spells));
+      if (anyPool.dorks || anyPool.ramp_spells) {
+        candidatePool.push(...(preferSpells ? (anyPool.ramp_spells || anyPool.dorks) : (anyPool.dorks || anyPool.ramp_spells)));
+        candidatePool.push(...(preferSpells ? (anyPool.dorks || anyPool.ramp_spells) : (anyPool.ramp_spells || anyPool.dorks)));
+      } else if (Array.isArray(anyPool)) {
+        candidatePool.push(...anyPool);
+      }
     }
 
     for (let candidate of candidatePool) {
@@ -589,25 +663,36 @@ export function obtenerCartaSegura(roleKey = 'mana_dorks_and_growth', colorIdent
       const count = existing ? (existing.quantity || 1) : 0;
       if (count < 4) return { ...candidate };
     }
-    return { ...candidatePool[0] };
+    if (candidatePool.length > 0) return { ...candidatePool[0] };
   }
 
-  // Fallback para otros roles (interacción, draw)
-  const rolePool = POOL_DE_SEGURIDAD[roleKey] || POOL_DE_SEGURIDAD.protection_and_interaction;
+  // Fallback para otros roles (interacción, draw, etc.)
   let candidatePool = [];
-  for (let c of colors) {
-    if (rolePool[c]) candidatePool.push(...rolePool[c]);
+  for (let col of colors) {
+    if (rolePool[col]) {
+      if (Array.isArray(rolePool[col])) {
+        candidatePool.push(...rolePool[col]);
+      } else if (rolePool[col].dorks) {
+        candidatePool.push(...rolePool[col].dorks, ...(rolePool[col].ramp_spells || []));
+      }
+    }
   }
-  if (candidatePool.length === 0 && rolePool.C) candidatePool.push(...rolePool.C);
-  if (candidatePool.length === 0 && rolePool.G) candidatePool.push(...rolePool.G);
+  if (rolePool.ANY && Array.isArray(rolePool.ANY)) candidatePool.push(...rolePool.ANY);
+  if (rolePool.C && Array.isArray(rolePool.C)) candidatePool.push(...rolePool.C);
+  if (rolePool.G && Array.isArray(rolePool.G)) candidatePool.push(...rolePool.G);
 
   for (let candidate of candidatePool) {
     const existing = deckCards.find(c => (c.name || '').toLowerCase() === candidate.name.toLowerCase());
     const count = existing ? (existing.quantity || 1) : 0;
     if (count < 4) return { ...candidate };
   }
-  return { ...candidatePool[0] };
+
+  if (candidatePool.length > 0) return { ...candidatePool[0] };
+
+  // Carta de emergencia fail-safe
+  return { name: "Spell Pierce", cmc: 1, category: "Instant", role: normRoleKey, oracle_text: "Counter target noncreature spell unless its controller pays {2}." };
 }
+
 
 /**
  * Recorre el mazo y purga cualquier carta que viole su rol o esté en la lista negra,
