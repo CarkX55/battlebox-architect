@@ -218,7 +218,3 @@ export default function DataIngestor({ onComplete }) {
     </div>
   );
 }
-ence>
-    </div>
-  );
-}
