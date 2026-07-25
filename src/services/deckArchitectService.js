@@ -16,6 +16,15 @@ import { createDeckDNA60 } from '../constants/deckDNA.js';
 import { buildDeckSkeletonAndSlots } from './slotFillingEngine.js';
 import { scoreAndRankCandidatePool } from './cardScoringEngine.js';
 import { executeIterativeOptimizationLoop } from './deckOptimizerService.js';
+import { 
+  logDeckSnapshot, 
+  computeDeckDiff, 
+  auditBlueprintInvariants, 
+  trackDeckEntries, 
+  trackObjectReference,
+  applyTrackedDeckChange
+} from './deckAuditTrackerService.js';
+
 
 
 let cachedAllCards = [];
@@ -5059,13 +5068,19 @@ export async function assembleDeckFromBlueprint(blueprint, formData, aiConfig, o
         }
       }
       
+      // AUDITORÍA FASE: ENSAMBLADOR
+      const trackedDnaSpells = trackDeckEntries(dnaSpells, 'ENSAMBLADOR', 'Senda2_DNA');
+      logDeckSnapshot(trackedDnaSpells, 'ENSAMBLADOR', blueprint, addLog);
+      auditBlueprintInvariants(trackedDnaSpells, blueprint, 'ENSAMBLADOR', addLog);
+
       // 2. Consolidar copias duplicadas y aplicar capado
       const consolidatedMap = new Map();
-      for (const card of dnaSpells) {
+      for (const card of trackedDnaSpells) {
         const key = card.name.toLowerCase();
         if (consolidatedMap.has(key)) {
           const ext = consolidatedMap.get(key);
           ext.quantity += card.quantity;
+          ext.copies += card.copies;
         } else {
           consolidatedMap.set(key, { ...card });
         }
@@ -5073,14 +5088,23 @@ export async function assembleDeckFromBlueprint(blueprint, formData, aiConfig, o
       
       let finalSpells = Array.from(consolidatedMap.values());
       
+      // AUDITORÍA FASE: CONSOLIDACIÓN
+      computeDeckDiff(trackedDnaSpells, finalSpells, 'CONSOLIDACIÓN', 'Consolidación de duplicados', addLog);
+      logDeckSnapshot(finalSpells, 'CONSOLIDACIÓN', blueprint, addLog);
+      
       for (const card of finalSpells) {
         const cap = getMaxAllowedCopies(card.name, card.category, card.cmc, allCards);
         if (card.quantity > cap) {
           addLog(`[SENDA 2 BYPASS] Capando "${card.name}" de ${card.quantity} a ${cap} copias por reglas de consistencia.`);
           card.quantity = cap;
+          card.copies = cap;
         }
       }
       
+      // AUDITORÍA FASE: CONTROL_DE_CAPS
+      computeDeckDiff(Array.from(consolidatedMap.values()), finalSpells, 'CONTROL_DE_CAPS', 'Capado de copias máximas', addLog);
+      logDeckSnapshot(finalSpells, 'CONTROL_DE_CAPS', blueprint, addLog);
+
       // 3. Determinar tamaño de la baraja y cantidad de tierras
       const hasYorion = finalSpells.some(s => s.name.toLowerCase().includes("yorion, sky nomad")) || 
                        (formData.companero && formData.companero.toLowerCase().includes("yorion"));
@@ -5091,6 +5115,7 @@ export async function assembleDeckFromBlueprint(blueprint, formData, aiConfig, o
       
       // 4. Cuadrar hechizos (inyectar o recortar)
       let currentSpellsSum = finalSpells.reduce((sum, c) => sum + c.quantity, 0);
+      const prevSpellsBeforeSquare = [...finalSpells];
       
       if (currentSpellsSum < targetSpellsCount) {
         addLog(`[SENDA 2 BYPASS] Déficit de hechizos (${currentSpellsSum}/${targetSpellsCount}). Inyectando del RAG pool...`);
@@ -5108,6 +5133,7 @@ export async function assembleDeckFromBlueprint(blueprint, formData, aiConfig, o
       }
       
       finalSpells = finalSpells.filter(c => c.category !== 'Land');
+      computeDeckDiff(prevSpellsBeforeSquare, finalSpells, 'AJUSTE_CUADRADO_SPELLS', 'Cuadrado numérico de hechizos', addLog);
       
       // 5. Calcular pips de maná y generar la base de tierras
       const recalculatedPips = { W: 0, U: 0, B: 0, R: 0, G: 0 };
@@ -5147,6 +5173,12 @@ export async function assembleDeckFromBlueprint(blueprint, formData, aiConfig, o
       );
       
       const finalMainDeck = [...finalSpells, ...newLands];
+      
+      // AUDITORÍA FASE: CÁLCULO_DE_TIERRAS & CONSOLIDACIÓN_SUPREMA
+      logDeckSnapshot(finalMainDeck, 'CÁLCULO_DE_TIERRAS', blueprint, addLog);
+      logDeckSnapshot(finalMainDeck, 'CONSOLIDACIÓN_SUPREMA', blueprint, addLog);
+      auditBlueprintInvariants(finalMainDeck, blueprint, 'CONSOLIDACIÓN_SUPREMA', addLog);
+
       
       // 7. Generar Sideboard dinámico de 15 cartas
       onProgress('assembler', '🛡️ Sideboard Architect analizando debilidades del mazo...');
@@ -5448,6 +5480,11 @@ Genera los campos de metadatos del mazo en JSON puro en español:
 
     addLog("[AGENTIC FLOW] Todas las fases completadas exitosamente.");
 
+    // AUDITORÍA FASE: ENSAMBLADOR
+    currentDeckContext = trackDeckEntries(currentDeckContext, 'ENSAMBLADOR', 'Senda1_Agentic');
+    logDeckSnapshot(currentDeckContext, 'ENSAMBLADOR', blueprint, addLog);
+    auditBlueprintInvariants(currentDeckContext, blueprint, 'ENSAMBLADOR', addLog);
+
     // --- NUEVO PASO: FASE 4 - BUCLE DE DEBATE DE COMITÉ (PRO TOUR COMMITTEE DEBATE) ---
     addLog("[AGENTIC FLOW] Iniciando Bucle de Debate de Comité (Pro Tour Committee Debate)...");
     onProgress('assembler', '⚖️ Comité de Agentes (Estratega + Auditor) debatiendo optimizaciones...');
@@ -5459,6 +5496,7 @@ Genera los campos de metadatos del mazo en JSON puro en español:
     while (debateIteration < maxDebateIterations && !debateFinished) {
       debateIteration++;
       addLog(`[AGENTIC FLOW] Iteración de Debate ${debateIteration} de ${maxDebateIterations}`);
+      const prevContextBeforeDebate = [...currentDeckContext];
       
       try {
         const internalAudit = await internalSynergyAudit(currentDeckContext, formData, aiConfig);
@@ -5573,6 +5611,7 @@ Genera la lista de hechizos completamente corregida y optimizada en JSON.`;
             const newTotal = newDeckContext.reduce((sum, c) => sum + c.quantity, 0);
             addLog(`[AGENTIC CRITIC] Mazo optimizado con éxito en ronda ${debateIteration}. Nuevo total de copias: ${newTotal} (Objetivo: ${blueprint.totalSpells})`);
             currentDeckContext = newDeckContext;
+            computeDeckDiff(prevContextBeforeDebate, currentDeckContext, `AUDITOR_DEBATE_${debateIteration}`, parsedCritic.reasoning, addLog);
           }
         }
       } catch (e) {
@@ -5580,6 +5619,12 @@ Genera la lista de hechizos completamente corregida y optimizada en JSON.`;
         debateFinished = true;
       }
     }
+
+    // AUDITORÍA FASE: AUDITOR
+    currentDeckContext = trackDeckEntries(currentDeckContext, 'AUDITOR', 'Senda1_Committee');
+    logDeckSnapshot(currentDeckContext, 'AUDITOR', blueprint, addLog);
+    auditBlueprintInvariants(currentDeckContext, blueprint, 'AUDITOR', addLog);
+
 
     // Transformar el resultado al formato compatible con el assemblerLoop actual, preservando la cantidad elegida por la IA (Problema 2)
     let rankedCards = currentDeckContext.map((c, index) => ({
@@ -5640,6 +5685,12 @@ Genera la lista de hechizos completamente corregida y optimizada en JSON.`;
 
   let auditedSpells = (spellJuezResult.cards || []).filter(c => c && c.category !== 'Land');
 
+  // AUDITORÍA FASE: JUEZ
+  auditedSpells = trackDeckEntries(auditedSpells, 'JUEZ', 'AplicarJuezFinal');
+  computeDeckDiff(sanitizedFinals_ArraySpells, auditedSpells, 'JUEZ', 'Auditoría inicial de hechizos del Juez', addLog);
+  logDeckSnapshot(auditedSpells, 'JUEZ', blueprint, addLog);
+  auditBlueprintInvariants(auditedSpells, blueprint, 'JUEZ', addLog);
+
   // 2. CONSOLIDACIÓN de hechizos (caps y control de duplicados antes de tierras)
   addLog("[FASE 1] Consolidando hechizos y aplicando caps antes del cálculo de tierras...");
   const consolidatedSpellsMap = new Map();
@@ -5660,6 +5711,10 @@ Genera la lista de hechizos completamente corregida y optimizada en JSON.`;
 
   let consolidatedSpells = Array.from(consolidatedSpellsMap.values());
 
+  // AUDITORÍA FASE: CONSOLIDACIÓN
+  computeDeckDiff(auditedSpells, consolidatedSpells, 'CONSOLIDACIÓN', 'Consolidación de hechizos duplicados', addLog);
+  logDeckSnapshot(consolidatedSpells, 'CONSOLIDACIÓN', blueprint, addLog);
+
   // Aplicar getMaxAllowedCopies
   for (const card of consolidatedSpells) {
       const cap = getMaxAllowedCopies(card.name, card.category, card.cmc, ragResult.pool);
@@ -5668,6 +5723,11 @@ Genera la lista de hechizos completamente corregida y optimizada en JSON.`;
           card.quantity = cap;
       }
   }
+
+  // AUDITORÍA FASE: CONTROL_DE_CAPS
+  computeDeckDiff(Array.from(consolidatedSpellsMap.values()), consolidatedSpells, 'CONTROL_DE_CAPS', 'Capado de copias máximas', addLog);
+  logDeckSnapshot(consolidatedSpells, 'CONTROL_DE_CAPS', blueprint, addLog);
+
 
   // Calcular el land count objetivo final
   let metricalTargetLnd = calculatePerfectLandCount(consolidatedSpells, formData, hasYorion);
@@ -5939,8 +5999,14 @@ Genera la lista de hechizos completamente corregida y optimizada en JSON.`;
   const finalTotal = validResultsStruct.cards.reduce((sum, c) => sum + c.quantity, 0);
   addLog(`[CONSOLIDACIÓN SUPREMA] Mazo verificado con éxito. Total absoluto de cartas: ${finalTotal}/${deckSize}.`);
     
-    // Filtrar cartas que hayan quedado con cantidad 0
-    validResultsStruct.cards = validResultsStruct.cards.filter(c => c.quantity > 0);
+  // AUDITORÍA FASE: CONSOLIDACIÓN_SUPREMA
+  validResultsStruct.cards = trackDeckEntries(validResultsStruct.cards, 'CONSOLIDACIÓN_SUPREMA', 'FinalDeck');
+  logDeckSnapshot(validResultsStruct.cards, 'CONSOLIDACIÓN_SUPREMA', blueprint, addLog);
+  auditBlueprintInvariants(validResultsStruct.cards, blueprint, 'CONSOLIDACIÓN_SUPREMA', addLog);
+
+  // Filtrar cartas que hayan quedado con cantidad 0
+  validResultsStruct.cards = validResultsStruct.cards.filter(c => c.quantity > 0);
+
     
     // === DETERMINISTIC HYPERGEOMETRIC VALIDATION API (POST /api/alg) ===
     let validationEngine = 'local';
