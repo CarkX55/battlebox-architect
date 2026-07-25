@@ -38,12 +38,12 @@ export default function DataIngestor({ onComplete }) {
       const text = await file.text();
       const data = JSON.parse(text);
       
-      if (!Array.isArray(data)) {
-        throw new Error('El archivo no es un array de cartas válido');
+      if (!Array.isArray(data) && typeof data !== 'object') {
+        throw new Error('El archivo JSON no es válido.');
       }
 
       setStatus('loading');
-      await ingestScryfallData(data, (p) => {
+      const result = await ingestScryfallData(data, (p) => {
         setProgress(p.percentage);
         setLoadingProgress(p.percentage);
       });
@@ -55,6 +55,7 @@ export default function DataIngestor({ onComplete }) {
       
       if (onComplete) onComplete();
     } catch (err) {
+
       console.error('Error durante la ingesta:', err);
       setError(err.message);
       setStatus('error');

@@ -54,6 +54,22 @@ function extractCardData(card) {
 export async function ingestScryfallData(jsonFile, onProgress) {
   const database = await openDB();
   
+  // Detección si el archivo subido es Oracle Tags en lugar de Cartas
+  const sample = Array.isArray(jsonFile) ? jsonFile[0] : jsonFile;
+  const isTagFile = sample && (sample.tag || sample.oracle_id || (!sample.name && sample.oracle_tags));
+  
+  if (isTagFile || (!Array.isArray(jsonFile) && typeof jsonFile === 'object')) {
+    console.log(`🏷️ [DB Ingestor] Detectado archivo de Oracle Tags. Guardando en almacenamiento local...`);
+    try {
+      localStorage.setItem('scryfall_oracle_tags', JSON.stringify(jsonFile));
+      cachedOracleTags = jsonFile;
+      if (onProgress) onProgress({ processed: 100, percentage: 100 });
+      return { saved: Object.keys(jsonFile).length || jsonFile.length, isTags: true };
+    } catch (e) {
+      console.warn(`⚠️ Error al guardar Oracle Tags en localStorage: ${e.message}`);
+    }
+  }
+
   const CHUNK_SIZE = 5000;
   let offset = 0;
   let totalSaved = 0;
@@ -87,23 +103,31 @@ export async function ingestScryfallData(jsonFile, onProgress) {
     await new Promise(resolve => setTimeout(resolve, 0));
   }
   
-  return { saved: totalSaved };
+  return { saved: totalSaved, isTags: false };
 }
+
 
 let cachedOracleTags = null;
 async function loadOracleTags() {
   if (cachedOracleTags) return cachedOracleTags;
   try {
+    const fromStorage = typeof localStorage !== 'undefined' ? localStorage.getItem('scryfall_oracle_tags') : null;
+    if (fromStorage) {
+      cachedOracleTags = JSON.parse(fromStorage);
+      console.log(`🏷️ [Oracle Tags] Cargado desde localStorage.`);
+      return cachedOracleTags;
+    }
     const response = await fetch('/data/oracle_tags_index.json');
     if (response.ok) {
       cachedOracleTags = await response.json();
-      console.log(`🏷️ [Oracle Tags - dbIngestor] Índice de tags cargado con éxito.`);
+      console.log(`🏷️ [Oracle Tags] Índice de tags cargado desde /data.`);
     }
   } catch (err) {
-    console.warn(`⚠️ [Oracle Tags - dbIngestor] No se pudo cargar el índice de tags.`, err);
+    console.warn(`⚠️ [Oracle Tags] No se pudo cargar el índice de tags.`, err);
   }
   return cachedOracleTags;
 }
+
 
 export async function searchCards(query, limit = 20, format = 'MODERN') {
   // Cargar tags comunitarios de forma perezosa si la consulta usa filtros de tags
