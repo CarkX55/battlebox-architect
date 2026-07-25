@@ -11,8 +11,9 @@ const getFetchOptions = (signal) => {
 };
 
 const DB_NAME = 'MagicGrimorioDB';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE_NAME = 'cards';
+const STORE_TAGS = 'oracle_tags';
 
 let db = null;
 
@@ -21,6 +22,7 @@ async function openDB() {
   
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
+
     
     request.onerror = () => reject(request.error);
     request.onsuccess = () => {
