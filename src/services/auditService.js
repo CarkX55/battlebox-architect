@@ -517,9 +517,13 @@ ${orphans ? 'CARTAS HUÉRFANAS DETECTADAS:\n' + orphans : ''}
     formData?.stance
   );
 
+  const finalVerdict = jsonResult.verdict || jsonResult.summary || jsonResult.overview || "Auditoría de viabilidad competitiva completada con éxito.";
+
   // Adjuntar el análisis de pilares y karsten al resultado para la UI
   return {
     ...jsonResult,
+    verdict: finalVerdict,
+    summary: finalVerdict,
     score: mathScore,
     suggestions: validatedSuggestions,
     _pillarAnalysis: pillarAnalysis,
@@ -528,6 +532,7 @@ ${orphans ? 'CARTAS HUÉRFANAS DETECTADAS:\n' + orphans : ''}
     _cardRequirements: cardReqs
   };
 }
+
 
 
 // ─────────────────────────────────────────────────────────────────────────────

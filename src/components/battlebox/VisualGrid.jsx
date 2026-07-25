@@ -431,8 +431,9 @@ export default function VisualGrid({ cards, onRemoveCard, onAddCard, isEditing, 
               {/* Body */}
               <div className="p-6 overflow-y-auto space-y-6">
                 <div className="bg-black/40 p-5 rounded-2xl border border-white/5 text-sm text-gray-300 italic font-serif leading-relaxed border-l-4 border-l-purple-500">
-                  <RichTextWithHover text={`"${auditResult.verdict}"`} deckCards={safeCards} />
+                  <RichTextWithHover text={`"${auditResult.verdict || auditResult.summary || auditResult.overview || 'Auditoría determinista de viabilidad procesada con éxito.'}"`} deckCards={safeCards} />
                 </div>
+
 
                 {/* Panel de Pilares Funcionales */}
                 {auditResult._pillarAnalysis && (() => {
