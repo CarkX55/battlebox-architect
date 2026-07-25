@@ -24,6 +24,14 @@ import {
   trackObjectReference,
   applyTrackedDeckChange
 } from './deckAuditTrackerService.js';
+import { 
+  DeckOperationExecutor, 
+  validateBlueprintCompliance, 
+  validateRoleCompatibility, 
+  getCardRoleMetadata, 
+  calculateMultiDimensionalStrategyScore 
+} from './deckContractEngine.js';
+
 
 
 
@@ -1506,42 +1514,83 @@ const distribuirOInyectarHechizosFaltantes = (spellList, targetCount, colors, ad
     let adjustedList = spellList.map(c => ({ ...c }));
     const colorsSet = new Set(colors || []);
 
-    // 1. Intentar subir existentes que tengan menos copias de las permitidas competitivamente
+    // Calcular déficit por rol del Blueprint
+    const roleDeficits = new Map();
+    if (blueprint && Array.isArray(blueprint.roles)) {
+        blueprint.roles.forEach(r => {
+            const roleNameLower = (r.name || '').toLowerCase();
+            const currentRoleCount = adjustedList.filter(c => {
+                const cRoleLower = (c.role || '').toLowerCase();
+                return cRoleLower.includes(roleNameLower) || roleNameLower.includes(cRoleLower);
+            }).reduce((sum, c) => sum + c.quantity, 0);
+            const deficit = r.quantity - currentRoleCount;
+            if (deficit > 0) {
+                roleDeficits.set(roleNameLower, deficit);
+            }
+        });
+    }
+
+    // 1. Prioridad Absoluta: Incrementar hechizos pertenecientes a roles DEFICITARIOS
     for (let spell of adjustedList) {
         if (gap <= 0) break;
-        
-        const maxLimit = getMaxAllowedCopies(spell.name, spell.category, spell.cmc, ragPool);
-        if (spell.quantity < maxLimit) {
-            const addQty = Math.min(maxLimit - spell.quantity, gap);
-            if (addQty > 0) {
-                spell.quantity += addQty;
-                gap -= addQty;
-                const logMsg = `[JUEZ COMPENSACIÓN] Incrementando ${spell.name} en +${addQty} copias (Total: ${spell.quantity} / Límite: ${maxLimit})`;
-                console.log(logMsg);
-                if (addLog) addLog(logMsg);
+        const spellRoleLower = (spell.role || '').toLowerCase();
+        const hasDeficit = Array.from(roleDeficits.keys()).some(defKey => spellRoleLower.includes(defKey) || defKey.includes(spellRoleLower));
+
+        if (hasDeficit) {
+            const maxLimit = getMaxAllowedCopies(spell.name, spell.category, spell.cmc, ragPool);
+            if (spell.quantity < maxLimit) {
+                const addQty = Math.min(maxLimit - spell.quantity, gap);
+                if (addQty > 0) {
+                    spell.quantity += addQty;
+                    gap -= addQty;
+                    const logMsg = `[JUEZ COMPENSACIÓN ROL] Incrementando ${spell.name} (${spell.role}) en +${addQty} copias por déficit de rol (Total: ${spell.quantity} / Límite: ${maxLimit})`;
+                    console.log(logMsg);
+                    if (addLog) addLog(logMsg);
+                }
             }
         }
     }
 
     if (gap <= 0) return adjustedList;
 
-    // Calcular déficit por rol del Blueprint
-    const roleDeficits = new Map();
-    if (blueprint && blueprint.roles) {
-        blueprint.roles.forEach(r => {
-            const currentRoleCount = adjustedList.filter(c => c.role === r.name).reduce((sum, c) => sum + c.quantity, 0);
-            const deficit = r.quantity - currentRoleCount;
-            if (deficit > 0) {
-                roleDeficits.set(r.name, deficit);
-            }
+    // 1b. Si aún falta maná/aceleración y el rol ramp tiene déficit, inyectar dorks de maná del RAG pool
+    if (ragPool && ragPool.length > 0 && roleDeficits.has('mana_dorks_and_growth') || roleDeficits.has('ramp')) {
+        const dorkCandidates = ragPool.filter(p => {
+            const oracle = (p.oracle_text || '').toLowerCase();
+            const cmc = p.mana_value || p.cmc || 0;
+            return cmc <= 2 && (oracle.includes('add ') || oracle.includes('search your library for a land'));
         });
+
+        for (let dork of dorkCandidates) {
+            if (gap <= 0) break;
+            const existing = adjustedList.find(c => c.name.trim().toLowerCase() === dork.name.trim().toLowerCase());
+            if (existing) continue;
+
+            const maxLimit = getMaxAllowedCopies(dork.name, 'Creature', dork.mana_value || 1, ragPool);
+            const addQty = Math.min(maxLimit, gap);
+            if (addQty > 0) {
+                adjustedList.push({
+                    name: dork.name,
+                    quantity: addQty,
+                    category: 'Creature',
+                    cmc: dork.mana_value || 1,
+                    role: 'mana_dorks_and_growth'
+                });
+                gap -= addQty;
+                addLog(`[JUEZ COMPENSACIÓN RAMP] Inyectando dork de maná por déficit de Blueprint: ${addQty}x ${dork.name}`);
+            }
+        }
     }
 
-    // 2. Si todavía falta, buscar en el RAG pool las mejores cartas no-criatura que coincidan con los colores y no estén en la baraja, prioritizando roles con déficit
+    if (gap <= 0) return adjustedList;
+
+    // 2. Si todavía falta, buscar en el RAG pool las mejores cartas que coincidan con los roles con déficit
     if (ragPool && ragPool.length > 0) {
         const sortedPool = [...ragPool].sort((a, b) => {
-            const defA = roleDeficits.has(a.role) ? roleDeficits.get(a.role) : 0;
-            const defB = roleDeficits.has(b.role) ? roleDeficits.get(b.role) : 0;
+            const roleA = (a.role || '').toLowerCase();
+            const roleB = (b.role || '').toLowerCase();
+            const defA = Array.from(roleDeficits.keys()).some(k => roleA.includes(k)) ? 10 : 0;
+            const defB = Array.from(roleDeficits.keys()).some(k => roleB.includes(k)) ? 10 : 0;
             if (defA !== defB) return defB - defA;
             return (b.score || 0) - (a.score || 0);
         });
@@ -1549,8 +1598,6 @@ const distribuirOInyectarHechizosFaltantes = (spellList, targetCount, colors, ad
             if (gap <= 0) break;
 
             const nameLower = poolCard.name.trim().toLowerCase();
-            
-            // Excluir cartas de odio estrecho de banquillo del mazo principal
             const narrowHateCards = ["rest in peace", "surgical extraction", "leyline of the void", "tormod's crypt", "grafdigger's cage", "stony silence"];
             if (narrowHateCards.includes(nameLower)) continue;
 
@@ -1559,26 +1606,11 @@ const distribuirOInyectarHechizosFaltantes = (spellList, targetCount, colors, ad
 
             const typeLower = poolCard.type_line ? poolCard.type_line.toLowerCase() : "";
             if (typeLower.includes("land")) continue;
-            
-            // Si es criatura, solo permitirla si coincide con la tribu (para evitar llenar de criaturas genéricas un mazo falto de hechizos)
-            const hasTribe = formData?.tribe && formData.tribe !== 'none' && formData.tribe !== 'ninguna';
-            let isTribalMatch = false;
-            if (hasTribe && typeLower.includes("creature")) {
-                 const activeTribalSubtypes = MTG_TRIBES.find(t => t.id === formData.tribe)?.subtypes || [];
-                 isTribalMatch = activeTribalSubtypes.some(sub => typeLower.includes(sub));
-            }
-            if (typeLower.includes("creature") && !isTribalMatch) continue;
 
             const matchColors = !poolCard.colors || poolCard.colors.length === 0 || poolCard.colors.every(col => colorsSet.has(col));
             if (!matchColors) continue;
 
-            // Determinar categoría
-            let newCat = "Instant";
-            if (typeLower.includes("sorcery")) newCat = "Sorcery";
-            else if (typeLower.includes("artifact")) newCat = "Artifact";
-            else if (typeLower.includes("enchantment")) newCat = "Enchantment";
-            else if (typeLower.includes("planeswalker")) newCat = "Planeswalker";
-
+            let newCat = typeLower.includes("creature") ? "Creature" : (typeLower.includes("sorcery") ? "Sorcery" : (typeLower.includes("artifact") ? "Artifact" : "Instant"));
             const cardCmc = poolCard.mana_value || 0;
             const maxLimit = getMaxAllowedCopies(poolCard.name, newCat, cardCmc, ragPool);
             const addQty = Math.min(maxLimit, gap);
@@ -1593,12 +1625,16 @@ const distribuirOInyectarHechizosFaltantes = (spellList, targetCount, colors, ad
                 });
                 gap -= addQty;
 
-                const logMsg = `[JUEZ COMPENSACIÓN] Inyectando del pool RAG de élite: ${addQty}x ${poolCard.name} (CMC: ${cardCmc}, Límite: ${maxLimit})`;
+                const logMsg = `[JUEZ COMPENSACIÓN] Inyectando del pool RAG: ${addQty}x ${poolCard.name} (CMC: ${cardCmc}, Límite: ${maxLimit})`;
                 console.log(logMsg);
                 if (addLog) addLog(logMsg);
             }
         }
     }
+
+    return adjustedList;
+};
+
 
     if (gap <= 0) return adjustedList;
 
@@ -1920,7 +1956,7 @@ export function checkCardFormatLegality(cardName, format = 'MODERN', allowCustom
  * Esta función asegura que antes de mostrar el mazo al usuario,
  * se cumplan los mínimos de estrategia y haya criaturas válidas.
  */
-export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ragPool = [], preserveLands = false, spellAuditOnly = false, preserveSpells = false) {
+export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ragPool = [], preserveLands = false, spellAuditOnly = false, preserveSpells = false, blueprint = null) {
     let { cards } = deckResult;
     cards = (cards || []).filter(c => c && typeof c.name === 'string');
     if (!cachedAllCards || cachedAllCards.length === 0) {
@@ -1954,12 +1990,24 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
     // 0. LOCAL HELPER FUNCTIONS
     const esRolProtegido = (r) => {
         if (!r) return false;
+        const roleLower = String(r).toLowerCase();
+        if (blueprint && Array.isArray(blueprint.roles)) {
+            const isBlueprintRole = blueprint.roles.some(bRole => 
+                (bRole.name || '').toLowerCase().includes(roleLower) || 
+                roleLower.includes((bRole.name || '').toLowerCase())
+            );
+            if (isBlueprintRole) return true;
+        }
         const protectedRoles = [
             "combo_enabler", "combo_pieces", "combo_enablers", "reanimation_spells", "reanimation_creature_targets",
             "team_anthem_buffs", "etb_value_creatures", "auras_and_enchantments",
-            "graveyard_payoffs", "cheap_threats"
+            "graveyard_payoffs", "cheap_threats", "mana_dorks_and_growth", "ramp", "mana_dork"
         ];
-        if (protectedRoles.includes(r)) return true;
+        if (protectedRoles.includes(roleLower)) return true;
+        if (roleLower.includes("finisher") || roleLower.includes("win_cond") || roleLower.includes("combo_piece") || roleLower.includes("ramp")) return true;
+        return false;
+    };
+
         if (r.includes("finisher") || r.includes("win_cond") || r.includes("combo_piece")) return true;
         return false;
     };
@@ -5681,7 +5729,8 @@ Genera la lista de hechizos completamente corregida y optimizada en JSON.`;
   // 1. Primer paso: Ejecutar aplicarJuezFinal solo para HECHIZOS (spellAuditOnly=true, preserveLands=true, preserveSpells=false)
   addLog("[FASE 1] Ejecutando Auditoría de Hechizos Inicial...");
   let validResultsStruct = { cards: sanitizedFinals_ArraySpells };
-  const spellJuezResult = await aplicarJuezFinal(validResultsStruct, dnaData, formData, addLog, ragResult.pool, true, true, false);
+  const spellJuezResult = await aplicarJuezFinal(validResultsStruct, dnaData, formData, addLog, ragResult.pool, true, true, false, blueprint);
+
 
   let auditedSpells = (spellJuezResult.cards || []).filter(c => c && c.category !== 'Land');
 
@@ -5873,7 +5922,8 @@ Genera la lista de hechizos completamente corregida y optimizada en JSON.`;
 
   // Segundo paso: Ejecutar aplicarJuezFinal para tierras y sideboard (preserveSpells=true, preserveLands=false, spellAuditOnly=false)
   addLog("[FASE 1] Ejecutando Auditoría de Tierras y Generación de Sideboard...");
-  const finalJuezResult = await aplicarJuezFinal(validResultsStruct, dnaData, formData, addLog, ragResult.pool, false, false, true);
+  const finalJuezResult = await aplicarJuezFinal(validResultsStruct, dnaData, formData, addLog, ragResult.pool, false, false, true, blueprint);
+
   validResultsStruct.cards = finalJuezResult.cards;
   validResultsStruct.sideboard = finalJuezResult.sideboard;
   validResultsStruct.sideboard_strategy = finalJuezResult.sideboard_strategy;
@@ -6122,9 +6172,36 @@ Genera la lista de hechizos completamente corregida y optimizada en JSON.`;
       addLog(`[PRE-FLIGHT LOOP] ⚠️ Aviso: No se pudo completar el ciclo pre-flight: ${preFlightErr.message}`);
     }
 
+    // === REPORTE DE AUDITORÍA Y VEREDICTO DE ARQUITECTURA TRANSACCIONAL ===
+    const finalScoreReport = calculateMultiDimensionalStrategyScore(validResultsStruct.cards, blueprint, formData?.strategy);
+    const complianceCheck = validateBlueprintCompliance(validResultsStruct.cards, blueprint);
+
+    const auditReportText = `
+=== BLUEPRINT COMPLIANCE AUDIT ===
+${complianceCheck.roleAudits.map(r => `${r.roleName}: ${r.actualQty}/${r.expectedQty} [${r.isOk ? 'OK' : 'FAIL'}]`).join('\n')}
+
+=== STRATEGY SCORE (9 DIMENSIONES) ===
+Score Total: ${finalScoreReport.overallScore}/100
+- Blueprint Compliance: ${finalScoreReport.dimensions.blueprintCompliance}%
+- Strategy Execution: ${finalScoreReport.dimensions.strategyExecution}/100
+- Consistency: ${finalScoreReport.dimensions.consistency}/100
+- Curve Balance: ${finalScoreReport.dimensions.curve}/100
+- Synergy: ${finalScoreReport.dimensions.synergy}/100
+- Win Plan: ${finalScoreReport.dimensions.winPlan}/100
+
+VEREDICTO TRANSACCIONAL:
+Blueprint Respetado (100%): ${complianceCheck.isFulfilled ? 'SÍ' : 'NO'}
+Plan Estratégico Intacto: ${finalScoreReport.isApproved ? 'SÍ' : 'NO'}
+Aprobado: ${finalScoreReport.isApproved ? 'SÍ' : 'NO'}
+=========================================
+`;
+    addLog(auditReportText);
+    validResultsStruct.strategyScoreReport = finalScoreReport;
+
     onProgress('done', '🎉 Forja Kitchen Table Generada Exitosamente.');
     addLog("Proceso de forjado completado con éxito.");
     return validResultsStruct; 
+
   } catch (error) {
     addLog(`[ERROR CRÍTICO PIPELINE] ${error.message}`);
     if (error.stack) {
