@@ -28,6 +28,8 @@ dist-ssr
 
 # Database and Temp Files
 database/
+"DATABASE DOWNLOADS/"
+DATABASE DOWNLOADS/
 test.json
 test2.json
 *.json.tmp

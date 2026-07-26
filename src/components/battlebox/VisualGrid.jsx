@@ -431,6 +431,16 @@ export default function VisualGrid({ cards, onRemoveCard, onAddCard, isEditing, 
 
               {/* Body */}
               <div className="p-6 overflow-y-auto space-y-6">
+                {totalCards < (deckSize || 60) && (
+                  <div className="bg-red-950/50 border-2 border-red-500/60 p-4 rounded-2xl flex items-center gap-3 text-red-200 shadow-lg animate-pulse">
+                    <AlertTriangle className="w-6 h-6 text-red-400 shrink-0" />
+                    <div>
+                      <h4 className="font-bold text-sm uppercase text-red-300">🚨 MAZO INCOMPLETO ({totalCards}/{deckSize || 60} CARTAS)</h4>
+                      <p className="text-xs text-red-200/80">Al mazo le faltan <strong>{(deckSize || 60) - totalCards} cartas/tierras</strong> para ser legal. Pulsa en <strong>"APLICAR CAMBIOS"</strong> para autocompletar el mazo.</p>
+                    </div>
+                  </div>
+                )}
+
                 <div className="bg-black/40 p-5 rounded-2xl border border-white/5 text-sm text-gray-300 italic font-serif leading-relaxed border-l-4 border-l-purple-500">
                   <RichTextWithHover text={`"${auditResult.verdict || auditResult.summary || auditResult.overview || 'Auditoría determinista de viabilidad procesada con éxito.'}"`} deckCards={safeCards} />
                 </div>
@@ -482,34 +492,54 @@ export default function VisualGrid({ cards, onRemoveCard, onAddCard, isEditing, 
                   );
                 })()}
 
-                {/* Desplegable Karsten Mana Analysis */}
+                {/* Desplegable Karsten Mana Analysis & 3-Phase Timeline */}
                 {auditResult._karstenAnalysis && auditResult._karstenAnalysis.devotions && auditResult._karstenAnalysis.devotions.length > 0 && (
-                  <div className="bg-black/50 border border-purple-500/20 rounded-2xl p-4">
+                  <div className="bg-black/50 border border-purple-500/20 rounded-2xl p-4 space-y-3">
                     <button
                       onClick={() => setShowKarstenDrawer(!showKarstenDrawer)}
                       className="w-full flex items-center justify-between text-left text-[10px] uppercase font-bold tracking-widest text-purple-400 hover:text-purple-300 transition-colors"
                     >
                       <span className="flex items-center gap-2">
-                        📊 Análisis de Fuentes de Maná (Fórmula Karsten)
+                        📊 Análisis de Maná Pro Tour (Fórmula Karsten & 3 Fases de Tiempo)
                       </span>
                       <span className="text-xs">{showKarstenDrawer ? '▲ Ocultar' : '▼ Mostrar Desglose'}</span>
                     </button>
                     {showKarstenDrawer && (
-                      <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 border-t border-white/5 pt-3">
-                        {auditResult._karstenAnalysis.devotions.map((dev, idx) => (
-                          <div key={idx} className="bg-black/40 border border-white/10 rounded-xl p-2.5 flex flex-col gap-1">
-                            <div className="flex items-center justify-between text-xs font-bold">
-                              <span className="text-purple-300">Color {dev.color} (Devoción máx: {dev.maxDevotion})</span>
-                              <span className={dev.status === 'ok' ? 'text-emerald-400' : dev.status === 'warning' ? 'text-amber-400' : 'text-red-400'}>
-                                {dev.status === 'ok' ? '✓ OK' : dev.status === 'warning' ? '⚠️ Ajustado' : '🚨 Escaso'}
-                              </span>
+                      <div className="space-y-3 border-t border-white/5 pt-3">
+                        {/* 3 Fases de Tiempo Pro-Tour */}
+                        {auditResult._karstenAnalysis.phaseAnalysis && (
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-2">
+                            <div className={`p-2.5 rounded-xl border text-xs flex flex-col gap-1 ${auditResult._karstenAnalysis.phaseAnalysis.earlyGame.status === 'ok' ? 'bg-emerald-950/20 border-emerald-500/30 text-emerald-200' : 'bg-red-950/30 border-red-500/40 text-red-200'}`}>
+                              <span className="font-bold uppercase text-[10px] tracking-wider text-emerald-400">⚡ Early Game (T1-T2)</span>
+                              <p className="text-[10px] leading-tight opacity-90">{auditResult._karstenAnalysis.phaseAnalysis.earlyGame.summary}</p>
                             </div>
-                            <div className="text-[10px] text-gray-400 flex justify-between">
-                              <span>Fuentes reales: {dev.availableSources}</span>
-                              <span>Karsten rec: {dev.requiredSources}</span>
+                            <div className={`p-2.5 rounded-xl border text-xs flex flex-col gap-1 ${auditResult._karstenAnalysis.phaseAnalysis.midGame.status === 'ok' ? 'bg-blue-950/20 border-blue-500/30 text-blue-200' : 'bg-amber-950/30 border-amber-500/40 text-amber-200'}`}>
+                              <span className="font-bold uppercase text-[10px] tracking-wider text-blue-400">⚔️ Mid Game (T3-T4)</span>
+                              <p className="text-[10px] leading-tight opacity-90">{auditResult._karstenAnalysis.phaseAnalysis.midGame.summary}</p>
+                            </div>
+                            <div className={`p-2.5 rounded-xl border text-xs flex flex-col gap-1 ${auditResult._karstenAnalysis.phaseAnalysis.lateGame.status === 'ok' ? 'bg-purple-950/20 border-purple-500/30 text-purple-200' : 'bg-purple-950/40 border-purple-500/40 text-purple-200'}`}>
+                              <span className="font-bold uppercase text-[10px] tracking-wider text-purple-300">👑 Late Game (T5+)</span>
+                              <p className="text-[10px] leading-tight opacity-90">{auditResult._karstenAnalysis.phaseAnalysis.lateGame.summary}</p>
                             </div>
                           </div>
-                        ))}
+                        )}
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                          {auditResult._karstenAnalysis.devotions.map((dev, idx) => (
+                            <div key={idx} className="bg-black/40 border border-white/10 rounded-xl p-2.5 flex flex-col gap-1">
+                              <div className="flex items-center justify-between text-xs font-bold">
+                                <span className="text-purple-300">Color {dev.color} (Devoción máx: {dev.maxDevotion})</span>
+                                <span className={dev.status === 'ok' ? 'text-emerald-400' : dev.status === 'warning' ? 'text-amber-400' : 'text-red-400'}>
+                                  {dev.status === 'ok' ? '✓ OK' : dev.status === 'warning' ? '⚠️ Ajustado' : '🚨 Escaso'}
+                                </span>
+                              </div>
+                              <div className="text-[10px] text-gray-400 flex justify-between">
+                                <span>Fuentes reales: {dev.availableSources}</span>
+                                <span>Karsten rec: {dev.requiredSources}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -681,12 +711,12 @@ export default function VisualGrid({ cards, onRemoveCard, onAddCard, isEditing, 
 
               {/* Footer */}
               <div className="p-4 border-t border-white/10 flex justify-end shrink-0 bg-black/20 gap-3">
-                {onOptimize && auditResult && auditResult.score < 10 && (
+                {onOptimize && auditResult && (
                   <button
                     onClick={() => {
                       const filteredAuditResult = {
                         ...auditResult,
-                        suggestions: auditResult.suggestions.filter((_, i) => selectedSuggestions.has(i)).map(sug => {
+                        suggestions: (auditResult.suggestions || []).filter((_, i) => selectedSuggestions.has(i)).map(sug => {
                           const originalIndex = auditResult.suggestions.indexOf(sug);
                           if (sug.addOptions && sug.addOptions.length > 0) {
                             const chosenIndex = selectedDropdownOptions[originalIndex] || 0;
@@ -702,9 +732,14 @@ export default function VisualGrid({ cards, onRemoveCard, onAddCard, isEditing, 
                       onOptimize(filteredAuditResult);
                       onCloseAudit();
                     }}
-                    className="px-6 py-2 bg-purple-600/20 hover:bg-purple-600/40 border border-purple-500/50 text-purple-200 rounded-lg text-sm font-bold uppercase transition-colors"
+                    className="px-6 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold rounded-xl text-sm uppercase tracking-wider shadow-lg shadow-purple-900/40 border border-purple-400/40 transition-all flex items-center gap-2"
                   >
-                    Aplicar Cambios
+                    <span>⚡ APLICAR CAMBIOS</span>
+                    {totalCards < (deckSize || 60) && (
+                      <span className="bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full font-black">
+                        +{(deckSize || 60) - totalCards} CARTAS
+                      </span>
+                    )}
                   </button>
                 )}
                 <button

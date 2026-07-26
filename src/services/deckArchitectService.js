@@ -13,10 +13,12 @@ import { isCardLegalForBattleBox, isUniversesBeyondOrCustom } from '../utils/leg
 
 import { injectCorePackage } from '../constants/corePackages.js';
 import { getAllCards } from './dbIngestor.js';
-import { FORMAT_CURVE_MODIFIERS } from '../constants/blueprintTemplates.js';
+import { FORMAT_CURVE_MODIFIERS, composeTwoLayerBlueprint } from '../constants/blueprintTemplates.js';
 import { createDeckDNA60 } from '../constants/deckDNA.js';
 import { buildDeckSkeletonAndSlots } from './slotFillingEngine.js';
 import { scoreAndRankCandidatePool } from './cardScoringEngine.js';
+import { calculateGraphCohesion } from './semanticGraphService.js';
+import { generateAbstractStrategyPlan } from './strategyReasoningEngine.js';
 import { executeIterativeOptimizationLoop } from './deckOptimizerService.js';
 import { 
   logDeckSnapshot, 
@@ -475,103 +477,15 @@ export const ARCHETYPE_DNA = {
   }
 };
 
-// Esta función crea el 'Plano' (el JSON de restricciones) DINÁMICAmente con alta adaptabilidad de colores y arquetipos
+// Esta función crea el 'Plano' (el JSON de restricciones) usando la Arquitectura de Dos Capas
 function getDeckBlueprint(archetype, strategyId, formData) {
-  let totalSpells = 36;
-  let roles = {};
+  const composed = composeTwoLayerBlueprint(archetype, strategyId, formData);
+  let totalSpells = composed.totalSpells;
+  let roles = { ...composed.roles };
 
-  const colores = formData?.colores || [];
-  const hasWhite = colores.includes('W');
-  const hasBlack = colores.includes('B');
-  const hasRed = colores.includes('R');
-  const hasBlue = colores.includes('U');
-  const hasGreen = colores.includes('G');
   const hasTribe = !!(formData?.tribe && formData.tribe !== 'none' && formData.tribe !== 'ninguna');
-
-  // 1. CHESIS (Arquetipo Base)
-  if (archetype === 'aggro') {
-    totalSpells = 40;
-    const removalRoleName = hasRed ? "burn_spells" : "interaction_or_combat_tricks";
-    roles = { fast_creatures: 22, [removalRoleName]: 10, synergetic_threats: 8 };
-  } else if (archetype === 'tempo') {
-    totalSpells = 38;
-    const protectionRoleName = hasBlue ? "protection_counterspells" : (hasBlack ? "discard_and_hand_disruption" : "interaction_or_combat_tricks");
-    roles = { cheap_threats: 14, enablers_or_cantrips: 12, [protectionRoleName]: 6, spot_removal: 6 };
-  } else if (archetype === 'midrange') {
-    const rampRoleName = hasGreen ? "mana_dorks_or_ramp" : "spot_removal_or_cantrips";
-    roles = { early_value_creatures: 12, top_end_finishers_cmc4plus: 4, synergetic_threats: 8, [rampRoleName]: 4, interaction_and_disruption: 8 };
-  } else if (archetype === 'control') {
-    const sweepRoleName = (!hasWhite && !hasBlack) ? (hasRed ? "damage_sweepers" : "board_bounce_or_sweepers") : "board_wipes";
-    roles = { planeswalkers_or_heavy_finishers_cmc4plus: 6, [sweepRoleName]: 4, counterspells_and_removal: 16, card_draw: 10 };
-  } else if (archetype === 'prison') {
-    roles = { lock_pieces_and_taxes: 12, threat_creatures: 8, top_end_finishers_cmc4plus: 4, removal_and_interaction: 8, utility_artifacts: 4 };
-  } else if (archetype === 'combo') {
-    totalSpells = 38;
-    roles = { combo_pieces: 12, top_end_combo_finishers_cmc4plus: 2, tutors: 8, protection_spells: 8, fast_mana_or_enablers: 8 };
-  } else if (archetype === 'ramp') {
-    totalSpells = 35;
-    const rampRoleName = hasGreen ? "mana_dorks_and_growth" : "artifact_mana_rocks";
-    roles = { [rampRoleName]: 12, massive_finishers_cmc6plus: 8, card_advantage_draw: 7, protection_and_interaction: 8 };
-  } else {
-    roles = { core_creatures: 16, synergetic_threats: 8, enablers: 4, interaction: 8 };
-  }
-
-  // 2. MOTOR (Estrategia Específica - Sobrescribe o Modifica el Chasis)
-  if (strategyId) {
-    if (strategyId === 'storm') {
-      totalSpells = 43;
-      roles = { cost_reducers_cmc2: 6, mana_rituals_cmc1_2: 10, cantrips_and_draw_cmc1_2: 14, storm_finishers_cmc2_4: 4, protection_and_utility_cmc1_3: 9 };
-    } else if (strategyId === 'cascade') {
-      totalSpells = 38;
-      roles = { cascade_enablers_cmc3: 8, zero_cost_payoffs: 8, interaction_cmc3plus: 10, heavy_finishers_cmc4plus: 4, stabilizers_cmc3plus: 8 };
-    } else if (strategyId === 'tron' || strategyId === 'eldrazi_tron') {
-      roles = { artifact_mana_accelerators: 10, colorless_eldrazi_threats: 10, heavy_finishers_planeswalkers: 6, colorless_interaction_and_removal: 10 };
-    } else if (strategyId === 'ramp') {
-      const rampRoleName = hasGreen ? "mana_dorks_and_growth" : "artifact_mana_rocks";
-      roles = { [rampRoleName]: 12, massive_finishers_cmc5plus: 8, card_advantage_draw: 7, protection_and_interaction: 8 };
-    } else if (strategyId === 'reanimator') {
-      roles = { reanimation_targets_cmc7plus: 8, reanimation_spells: 10, discard_enablers: 10, interaction_and_protection: 8 };
-    } else if (strategyId === 'aristocrats') {
-      roles = { sac_fodder_creatures: 12, sac_outlets: 8, blood_artist_payoffs: 8, top_end_finishers_cmc4plus: 2, interaction: 6 };
-    } else if (strategyId === 'tokens') {
-      roles = { early_token_generators: 12, team_anthem_buffs: 8, top_end_finishers_cmc4plus: 4, interaction: 12 };
-    } else if (strategyId === 'spellslinger') {
-      const spellRoleName = hasRed ? "burn_spells" : "interaction_and_removal";
-      const protectionRoleName = hasBlue ? "protection_counterspells" : (hasBlack ? "hand_disruption_and_discard" : "interaction_or_combat_tricks");
-      roles = { early_prowess_creatures: 8, top_end_finishers_cmc4plus: 2, cheap_cantrips: 12, [spellRoleName]: 8, [protectionRoleName]: 6 };
-    } else if (strategyId === 'blink') {
-      roles = { early_etb_creatures: 12, top_end_finishers_cmc4plus: 4, blink_flicker_spells: 10, interaction: 10 };
-    } else if (strategyId === 'enchantress') {
-      roles = { early_enchantress_creatures: 8, top_end_enchantments_cmc4plus: 4, auras_and_enchantments: 14, ramp_enchantments: 4, interaction: 6 };
-    } else if (strategyId === 'landfall') {
-      roles = { early_landfall_creatures: 10, top_end_finishers_cmc4plus: 6, ramp_spells: 12, interaction: 8 };
-    } else if (strategyId === 'graveyard') {
-      roles = { self_mill_creatures: 10, top_end_graveyard_payoffs_cmc4plus: 6, graveyard_synergy_spells: 12, interaction: 8 };
-    } else if (strategyId === 'lifegain') {
-      roles = { early_lifegain_creatures: 12, pridemate_payoffs: 8, top_end_finishers_cmc4plus: 4, interaction: 12 };
-    } else if (strategyId === 'prison') {
-      roles = { stax_artifacts_enchantments: 14, tax_creatures: 8, top_end_finishers_cmc4plus: 4, removal_and_interaction: 10 };
-    } else if (strategyId === 'voltron') {
-      roles = { voltron_creature_commanders: 8, auras_and_equipments: 14, top_end_finishers_cmc4plus: 2, protection_and_interaction: 12 };
-    } else if (strategyId === 'vehicles') {
-      roles = { early_pilots: 12, great_vehicles: 8, top_end_vehicles_or_finishers_cmc4plus: 4, interaction: 12 };
-    } else if (strategyId === 'toolbox') {
-      // Regla especial de Toolbox en los Blueprints Modulares
-      totalSpells = 38;
-      roles = { core_tutors: 8, silver_bullets_cmc1_to_4: 10, value_creatures: 10, interaction: 10 };
-    } else if (strategyId === 'ninjutsu') {
-      totalSpells = 38;
-      roles = { evasive_enablers_cmc1_2: 12, ninja_payoffs: 10, tempo_interaction: 10, card_draw_advantage: 6 };
-    } else if (strategyId === 'discard_rack') {
-      roles = { hand_disruption: 12, rack_payoffs: 8, spot_removal: 8, card_draw_advantage: 8 };
-    } else if (strategyId === 'dredge') {
-      totalSpells = 41;
-      roles = { dredge_cards: 12, discard_draw_enablers: 12, graveyard_payoffs: 10, interaction_or_flashback: 7 };
-    }
-  }
-
-  // 2.4 TRIBAL OVERRIDE
   const isSpecialArchetype = ['control', 'combo', 'prison', 'storm', 'cascade', 'reanimator'].includes(archetype?.toLowerCase()) || ['control', 'combo', 'prison', 'storm', 'cascade', 'reanimator'].includes(strategyId?.toLowerCase());
+  
   if (hasTribe && !isSpecialArchetype) {
     totalSpells = 40;
     roles = {
@@ -582,96 +496,10 @@ function getDeckBlueprint(archetype, strategyId, formData) {
     };
   }
 
-  // 2.5 STANCE MODIFIER (Ajuste de Enfoque Táctico)
-  const stance = (formData?.stance || 'balanced').toLowerCase();
-  if (stance === 'proactive' || stance === 'reactive') {
-    const proKeys = [];
-    const reactKeys = [];
-    
-    Object.keys(roles).forEach(key => {
-      const kl = key.toLowerCase();
-      const isReact = kl.includes('interaction') || kl.includes('removal') || kl.includes('counter') || 
-                      kl.includes('wipe') || kl.includes('sweep') || kl.includes('protection') || 
-                      kl.includes('discard') || kl.includes('disruption') || kl.includes('stax') || 
-                      kl.includes('tax') || kl.includes('protect');
-      if (isReact) {
-        reactKeys.push(key);
-      } else {
-        proKeys.push(key);
-      }
-    });
-
-    if (proKeys.length > 0 && reactKeys.length > 0) {
-      const shiftAmount = 4;
-      let remainingShift = shiftAmount;
-
-      if (stance === 'proactive') {
-        reactKeys.forEach(k => {
-          if (remainingShift <= 0) return;
-          const currentVal = roles[k] || 0;
-          const maxReduction = Math.min(2, Math.max(0, currentVal - 2));
-          const actualReduction = Math.min(remainingShift, maxReduction);
-          if (actualReduction > 0) {
-            roles[k] = currentVal - actualReduction;
-            remainingShift -= actualReduction;
-          }
-        });
-        
-        const addedShift = shiftAmount - remainingShift;
-        if (addedShift > 0) {
-          let count = addedShift;
-          let idx = 0;
-          while (count > 0) {
-            const k = proKeys[idx % proKeys.length];
-            roles[k] = (roles[k] || 0) + 1;
-            count--;
-            idx++;
-          }
-        }
-      } else {
-        proKeys.forEach(k => {
-          if (remainingShift <= 0) return;
-          const currentVal = roles[k] || 0;
-          const maxReduction = Math.min(2, Math.max(0, currentVal - 2));
-          const actualReduction = Math.min(remainingShift, maxReduction);
-          if (actualReduction > 0) {
-            roles[k] = currentVal - actualReduction;
-            remainingShift -= actualReduction;
-          }
-        });
-
-        const addedShift = shiftAmount - remainingShift;
-        if (addedShift > 0) {
-          let count = addedShift;
-          let idx = 0;
-          while (count > 0) {
-            const k = reactKeys[idx % reactKeys.length];
-            roles[k] = (roles[k] || 0) + 1;
-            count--;
-            idx++;
-          }
-        }
-      }
-    }
-  }
-
-  // 3. CARROCERÍA (Ajustes Tribales sobre el resultado actual)
-  if (hasTribe && !strategyId) {
-    if (archetype === 'aggro') {
-      const removalRoleName = hasRed ? "burn_spells" : "interaction_or_combat_tricks";
-      roles = { early_fast_creatures: 20, top_end_finishers_cmc4plus: 2, synergetic_threats: 8, [removalRoleName]: 10 };
-    } else if (archetype === 'tempo') {
-      const protectionRoleName = hasBlue ? "protection_counterspells" : (hasBlack ? "discard_and_hand_disruption" : "interaction_or_combat_tricks");
-      roles = { early_cheap_threats: 14, top_end_finishers_cmc4plus: 2, enablers_or_cantrips: 10, [protectionRoleName]: 6, spot_removal: 6 };
-    } else if (archetype === 'control') {
-      const sweepRoleName = (!hasWhite && !hasBlack) ? (hasRed ? "damage_sweepers" : "board_bounce_or_sweepers") : "board_wipes";
-      const sweepCount = (!hasWhite && !hasBlack) ? 2 : 4;
-      const removalCount = (!hasWhite && !hasBlack) ? 14 : 12;
-      roles = { early_creature_defense: 6, top_end_heavy_finishers_cmc4plus: 6, [sweepRoleName]: sweepCount, counterspells_and_removal: removalCount + 2, card_draw: 6 };
-    }
-  }
-
-  return { totalSpells, roles };
+  return {
+    totalSpells,
+    roles
+  };
 }
 
 export function generateThematicFallbackName(formData) {
@@ -839,6 +667,34 @@ function getFallbackSearchQuery(roleName, archetype, strategyId, colors = []) {
     if (hasR)  return 'type:instant o:damage mv<=4';
     if (hasW)  return 'type:instant (o:exile or o:destroy) mv<=3';
     return '(type:instant or type:sorcery) (o:destroy or o:exile or o:damage) mv<=3';
+  }
+
+  if (role.includes('land_ramp') || role.includes('land_search')) {
+    return '(type:sorcery or type:instant) (o:search o:library o:land) mv<=3';
+  }
+
+  if (role.includes('dork')) {
+    return 'type:creature (o:add or o:mana) mv<=2';
+  }
+
+  if (role.includes('sac_fodder')) {
+    return 'type:creature mv<=2 (o:dies or o:sacrifice or o:token)';
+  }
+
+  if (role.includes('drain_payoff') || role.includes('blood_artist')) {
+    return '(o:whenever a creature dies or o:whenever you sacrifice) (o:loses life or o:gain life or o:drain) mv<=3';
+  }
+
+  if (role.includes('reanimation_target')) {
+    return 'type:creature mv>=6 (o:enters or o:flying or o:trample or o:haste)';
+  }
+
+  if (role.includes('entomb') || role.includes('discard_enabler')) {
+    return '(type:creature or type:sorcery or type:instant) (o:discard or o:mill or o:put into your graveyard) mv<=2';
+  }
+
+  if (role.includes('cantrip') || role.includes('ritual')) {
+    return '(type:instant or type:sorcery) (o:draw or o:add {r} or o:add {u}) mv<=2';
   }
 
   if (role.includes('ramp') || role.includes('acceleration') || role.includes('mana') || role.includes('rampa')) {
@@ -2740,6 +2596,79 @@ export async function aplicarJuezFinal(deckResult, dnaData, formData, addLog, ra
             }
             return c;
         });
+
+        // 0.7.1 EQUIDAD DE COLOR MULTICOLOR (DIVERSIDAD OBLIGATORIA SI HAY MÁS DE 1 COLOR)
+        if (colors.size > 1) {
+            const targetColors = Array.from(colors);
+            const spellCards = cards.filter(c => c.category !== 'Land');
+            
+            // Contar la presencia de colores en los hechizos no-tierra
+            const colorCounts = {};
+            targetColors.forEach(col => { colorCounts[col] = 0; });
+            
+            spellCards.forEach(c => {
+                const cardCols = getCardColorsReal(c.name);
+                cardCols.forEach(col => {
+                    if (colorCounts[col] !== undefined) colorCounts[col]++;
+                });
+            });
+            
+            // Verificar si algún color requerido tiene 0 presencia
+            const missingColors = targetColors.filter(col => colorCounts[col] === 0);
+            
+            if (missingColors.length > 0) {
+                const logMsgDiv = `⚠️ [JUEZ COLOR DIVERSIDAD] Mazo requiere colores [${targetColors.join(", ")}], pero el color [${missingColors.join(", ")}] tiene 0 cartas en los hechizos. Iniciando inyección de balance de color...`;
+                console.warn(logMsgDiv);
+                if (addLog) addLog(logMsgDiv);
+
+                missingColors.forEach(missingCol => {
+                    let swapped = 0;
+                    const maxSwaps = 4;
+
+                    for (let i = cards.length - 1; i >= 0 && swapped < maxSwaps; i--) {
+                        const targetCard = cards[i];
+                        if (targetCard.category === 'Land') continue;
+
+                        const targetCols = getCardColorsReal(targetCard.name);
+                        const targetRole = targetCard.role || 'utility';
+
+                        if (targetCols.length === 1 && colorCounts[targetCols[0]] > 6) {
+                            const replacement = obtenerMejorCartaDeRemplazo(
+                                targetCard.category,
+                                targetCard.cmc,
+                                [missingCol],
+                                formData?.format,
+                                ragPool,
+                                [targetCard.name],
+                                cachedAllCards,
+                                targetCard.name,
+                                targetRole
+                            );
+
+                            if (replacement && replacement.name) {
+                                const repCmc = replacement.cmc || targetCard.cmc;
+                                const repCat = replacement.category || targetCard.category;
+
+                                const swapLog = `🎨 [JUEZ COLOR DIVERSIDAD] Reemplazando "${targetCard.name}" por "${replacement.name}" (${repCat}, CMC ${repCmc}, Rol: ${targetRole}) para asegurar presencia del color [${missingCol}].`;
+                                console.log(swapLog);
+                                if (addLog) addLog(swapLog);
+
+                                cards[i] = {
+                                    ...targetCard,
+                                    name: replacement.name,
+                                    cmc: repCmc,
+                                    category: repCat,
+                                    role: targetRole
+                                };
+                                colorCounts[targetCols[0]]--;
+                                colorCounts[missingCol] = (colorCounts[missingCol] || 0) + 1;
+                                swapped++;
+                            }
+                        }
+                    }
+                });
+            }
+        }
     }
     // 0.8. INTEGRIDAD TRIBAL (PUREZA DINÁMICA)
     if (hasTribe) {
@@ -4390,6 +4319,8 @@ export function assemblerLoop(rankedCards, blueprint, mergedCoreAndMustInclude, 
           role: role.name,
           mana_cost: poolCard.mana_cost || '',
           type_line: poolCard.type_line || '',
+          oracle_text: poolCard.oracle_text || poolCard.text || '',
+          _ragPoolRef: ragPool,
           functionalTag: poolCard.functionalTag || null
         });
         usedNames.set(poolCard.name.toLowerCase(), alreadyUsed + targetCopies);
@@ -4820,6 +4751,7 @@ Adicionalmente:
 - lore: Frase breve.
 - strategy: Breve descripción.
 - mulligan: Guía de mulligan.
+- totalSpells: Número total de cartas de mazo (sin tierras).
 
 La suma de los roles debe ser exactamente totalSpells. NUNCA incluyas tierras.
 `;
@@ -4831,20 +4763,35 @@ La suma de los roles debe ser exactamente totalSpells. NUNCA incluyas tierras.
              { role: 'user', content: blueprintPrompt }
          ], aiConfig, { 
              forceJSON: true, 
-             maxTokens: 1800, 
+             maxTokens: 3000, 
              schema: GEMINI_BLUEPRINT_SCHEMA,
              selectedModel: formData.selectedModel,
              temperature: formData.creativity !== undefined ? (formData.creativity / 100) : undefined
          });
          blueprint = typeof bpResponse === 'string' ? cleanAndParseJSON(bpResponse) : bpResponse;
          
-         if (!blueprint || typeof blueprint !== 'object') {
-           blueprint = getStrategyFallbackBlueprint(formData.archetype, strategyId, formData);
-         }
-         if (!Array.isArray(blueprint.roles)) {
+         const targetTotalSpells = Number(blueprint.totalSpells) || 38;
+         const rolesSum = Array.isArray(blueprint.roles) 
+           ? blueprint.roles.reduce((s, r) => s + (Number(r.quantity) || 0), 0) 
+           : 0;
+
+         // Si el blueprint devuelto por la IA está incompleto (ej. truncado con solo 1 rol o suma < totalSpells - 4)
+         if (!Array.isArray(blueprint.roles) || blueprint.roles.length < 2 || rolesSum < (targetTotalSpells - 4)) {
+           addLog(`⚠️ [BLUEPRINT VALIDATION] Blueprint IA incompleto o truncado (Suma: ${rolesSum}/${targetTotalSpells}, Roles: ${blueprint.roles?.length || 0}). Usando Blueprint Estratégico completo.`);
            const fallback = getStrategyFallbackBlueprint(formData.archetype, strategyId, formData);
            blueprint.roles = fallback.roles || [];
+           blueprint.totalSpells = fallback.totalSpells || targetTotalSpells;
+           blueprint.deckName = blueprint.deckName || fallback.deckName;
+           blueprint.lore = blueprint.lore || fallback.lore;
+           blueprint.strategy = blueprint.strategy || fallback.strategy;
+           blueprint.mulligan = blueprint.mulligan || fallback.mulligan;
+         } else if (rolesSum !== targetTotalSpells && blueprint.roles.length > 0) {
+           // Auto-normalización si la suma difiere ligeramente por 1 o 2 cartas
+           const diff = targetTotalSpells - rolesSum;
+           blueprint.roles[0].quantity = Math.max(1, (Number(blueprint.roles[0].quantity) || 0) + diff);
+           addLog(`🔧 [BLUEPRINT NORMALIZER] Ajustada cuota de rol principal "${blueprint.roles[0].name}" en ${diff > 0 ? '+' : ''}${diff} para igualar exactamente ${targetTotalSpells} hechizos.`);
          }
+         
 
          // Generar contrato de estado DeckDNA60 e Inyectar Core Packages
          const deckDNA60 = createDeckDNA60(formData, archetypeObj);
@@ -6237,6 +6184,18 @@ Aprobado: ${finalScoreReport.isApproved ? 'SÍ' : 'NO'}
     addLog(auditReportText);
     validResultsStruct.strategyScoreReport = finalScoreReport;
 
+    // AUDITORÍA SEMÁNTICA Y GRAFO DE CONOCIMIENTO (NO-FILLER FILTER)
+    const semanticCohesion = calculateGraphCohesion(validResultsStruct.cards || []);
+    validResultsStruct.semanticCohesion = semanticCohesion;
+    validResultsStruct.orphanCards = semanticCohesion.orphanCards || [];
+    validResultsStruct.capabilitiesVector = semanticCohesion.capabilitiesVector || {};
+
+    if (semanticCohesion.orphanCards && semanticCohesion.orphanCards.length > 0) {
+      addLog(`[GRAFO SEMÁNTICO] ⚠️ Se han detectado ${semanticCohesion.orphanCards.length} cartas huérfanas/sobrantes con bajo ExecutionScore (<45). Cohesión Global: ${semanticCohesion.cohesionScore}%`);
+    } else {
+      addLog(`[GRAFO SEMÁNTICO] ✅ Cohesión Estratégica Completa: ${semanticCohesion.cohesionScore}%. Mazo 100% sinérgico sin cartas sobrantes.`);
+    }
+
     onProgress('done', '🎉 Forja Kitchen Table Generada Exitosamente.');
     addLog("Proceso de forjado completado con éxito.");
     return validResultsStruct; 
@@ -6264,8 +6223,12 @@ Aprobado: ${finalScoreReport.isApproved ? 'SÍ' : 'NO'}
 }
 
 export async function forgeMazoPerfecto(formData, aiConfig, onProgress = () => {}) {
+  onProgress('strategy', '🧠 Strategy Reasoning Engine: Construyendo Strategy Graph abstracto...');
+  const abstractStrategyPlan = generateAbstractStrategyPlan(formData);
   const blueprintData = await generateBlueprintFromAI(formData, aiConfig, onProgress);
-  return await assembleDeckFromBlueprint(blueprintData.blueprint, formData, aiConfig, onProgress, blueprintData);
+  const finalDeck = await assembleDeckFromBlueprint(blueprintData.blueprint, formData, aiConfig, onProgress, blueprintData);
+  finalDeck.abstractStrategyPlan = abstractStrategyPlan;
+  return finalDeck;
 }
 
 

@@ -1251,11 +1251,9 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
       maxCopiesPerUnique = 4;
     }
 
-    let maxTotalDuals = 6;
+    let maxTotalDuals = Math.min(16, Math.max(12, totalLands - currentMinBasics));
     if (format === 'COMMANDER') {
-      maxTotalDuals = 20;
-    } else if (format === 'STANDARD' || format === 'PIONEER' || nonCreatureCount >= 8) {
-      maxTotalDuals = 12; // Allow more dual lands for Standard/Pioneer or spell-heavy decks
+      maxTotalDuals = 25;
     }
     let totalDualsInjected = 0;
 

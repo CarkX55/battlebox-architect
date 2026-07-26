@@ -2047,7 +2047,7 @@ export default function DeckForge() {
 
       if (auditReport && auditReport.applyProgrammatically) {
         const allCards = await getAllCards();
-        const nextDeck = await applyAuditChangesProgrammatically(renderDeck, auditReport.suggestions, allCards, lastFormData);
+        const nextDeck = await applyAuditChangesProgrammatically(renderDeck, auditReport.suggestions, allCards, lastFormData, auditReport);
         setRenderDeck(nextDeck);
         setWarning("✨ ¡Cambios aplicados de forma instantánea y matemática!");
         setLoading(false);

@@ -504,11 +504,22 @@ export function esValidaParaRolDinamica(card = {}, role = '', deckColors = ['G']
   }
 
   const rLower = (role || card.role || '').toLowerCase();
-  const oracle = (card.oracle_text || card.text || '').toLowerCase();
+  let oracle = (card.oracle_text || card.text || card.oracleText || '').toLowerCase();
   const colorsUpper = (Array.isArray(deckColors) && deckColors.length > 0 ? deckColors : ['G']).map(c => String(c).toUpperCase());
+  
+  // Si la carta no trae oracle_text adjunto en memoria, recuperarlo del pool RAG o DB por nombre
+  if (!oracle && card.name) {
+    const fromPool = (card._ragPoolRef || []).find(p => p && p.name && p.name.toLowerCase() === card.name.toLowerCase());
+    if (fromPool && (fromPool.oracle_text || fromPool.text)) {
+      oracle = (fromPool.oracle_text || fromPool.text).toLowerCase();
+    }
+  }
+
+  const isRampRole = rLower.includes('dork') || rLower.includes('ramp') || rLower.includes('growth') || rLower.includes('acceleration') || rLower.includes('mana') || rLower.includes('land_search');
+  const isInteractionRole = rLower.includes('interaction') || rLower.includes('protection') || rLower.includes('removal') || rLower.includes('clear') || rLower.includes('sweeper') || rLower.includes('burn');
 
   // 2. VALIDACIÓN LITERAL DINÁMICA PARA RAMP / MANA DORKS AND GROWTH
-  if (rLower.includes('dork') || rLower.includes('ramp') || rLower.includes('growth')) {
+  if (isRampRole) {
     // CASO B: Búsqueda de tierras (comprobar si busca un tipo específico de tierra)
     const isLandSearch = 
       (oracle.includes('search') || oracle.includes('busca')) &&
@@ -585,7 +596,7 @@ export function esValidaParaRolDinamica(card = {}, role = '', deckColors = ['G']
   }
 
   // 3. VALIDACIÓN LITERAL PARA PROTECCIÓN E INTERACCIÓN
-  if (rLower.includes('interaction') || rLower.includes('protection') || rLower.includes('removal')) {
+  if (isInteractionRole) {
     const hasInteractionPhrase = 
       oracle.includes('destroy') || oracle.includes('destruye') ||
       oracle.includes('exile') || oracle.includes('exilia') ||
@@ -636,23 +647,28 @@ export function obtenerCartaSegura(roleKey = 'mana_dorks_and_growth', colorIdent
 
     const preferSpells = dorkCount >= 8 && spellCount < 4;
 
-    let candidatePool = [];
-    for (let col of colors) {
-      const colPool = rolePool[col];
-      if (colPool) {
-        if (colPool.dorks || colPool.ramp_spells) {
-          candidatePool.push(...(preferSpells ? (colPool.ramp_spells || colPool.dorks) : (colPool.dorks || colPool.ramp_spells)));
-          candidatePool.push(...(preferSpells ? (colPool.dorks || colPool.ramp_spells) : (colPool.ramp_spells || colPool.dorks)));
-        } else if (Array.isArray(colPool)) {
-          candidatePool.push(...colPool);
-        }
+    const colPools = colors.map(col => {
+      const p = rolePool[col];
+      if (!p) return [];
+      if (p.dorks || p.ramp_spells) {
+        return preferSpells ? [...(p.ramp_spells || []), ...(p.dorks || [])] : [...(p.dorks || []), ...(p.ramp_spells || [])];
       }
+      return Array.isArray(p) ? p : [];
+    });
+
+    // Intercalar candidatos entre todos los colores seleccionados (G, R, W, B, U)
+    let maxLen = Math.max(...colPools.map(cp => cp.length), 0);
+    let candidatePool = [];
+    for (let idx = 0; idx < maxLen; idx++) {
+      colPools.forEach(cp => {
+        if (cp[idx]) candidatePool.push(cp[idx]);
+      });
     }
+
     const anyPool = rolePool.ANY || rolePool.C;
     if (anyPool) {
       if (anyPool.dorks || anyPool.ramp_spells) {
         candidatePool.push(...(preferSpells ? (anyPool.ramp_spells || anyPool.dorks) : (anyPool.dorks || anyPool.ramp_spells)));
-        candidatePool.push(...(preferSpells ? (anyPool.dorks || anyPool.ramp_spells) : (anyPool.ramp_spells || anyPool.dorks)));
       } else if (Array.isArray(anyPool)) {
         candidatePool.push(...anyPool);
       }
@@ -667,16 +683,22 @@ export function obtenerCartaSegura(roleKey = 'mana_dorks_and_growth', colorIdent
   }
 
   // Fallback para otros roles (interacción, draw, etc.)
+  const colPoolsOther = colors.map(col => {
+    const p = rolePool[col];
+    if (!p) return [];
+    if (Array.isArray(p)) return p;
+    if (p.dorks) return [...p.dorks, ...(p.ramp_spells || [])];
+    return [];
+  });
+
+  let maxLenOther = Math.max(...colPoolsOther.map(cp => cp.length), 0);
   let candidatePool = [];
-  for (let col of colors) {
-    if (rolePool[col]) {
-      if (Array.isArray(rolePool[col])) {
-        candidatePool.push(...rolePool[col]);
-      } else if (rolePool[col].dorks) {
-        candidatePool.push(...rolePool[col].dorks, ...(rolePool[col].ramp_spells || []));
-      }
-    }
+  for (let idx = 0; idx < maxLenOther; idx++) {
+    colPoolsOther.forEach(cp => {
+      if (cp[idx]) candidatePool.push(cp[idx]);
+    });
   }
+
   if (rolePool.ANY && Array.isArray(rolePool.ANY)) candidatePool.push(...rolePool.ANY);
   if (rolePool.C && Array.isArray(rolePool.C)) candidatePool.push(...rolePool.C);
   if (rolePool.G && Array.isArray(rolePool.G)) candidatePool.push(...rolePool.G);

@@ -314,7 +314,19 @@ export async function auditDeckWithAI(deckCards, _sideboardCards, formData, aiCo
   const pillarAnalysis = analyzeFunctionalPillars(spells, formData?.format || 'MODERN', formData);
   const pillarText = buildPillarSummaryText(pillarAnalysis);
 
-  const allowedColors = formData?.colores || [];
+  // Derivar la identidad de color real del mazo inspeccionando las cartas y la configuración
+  const detectedColors = new Set((formData?.colores || []).map(c => String(c).toUpperCase()));
+  hydratedDeckCards.forEach(c => {
+    if (!c) return;
+    if (Array.isArray(c.colors)) c.colors.forEach(col => detectedColors.add(col.toUpperCase()));
+    if (Array.isArray(c.color_identity)) c.color_identity.forEach(col => detectedColors.add(col.toUpperCase()));
+    const cost = (c.mana_cost || '').toUpperCase();
+    ['W', 'U', 'B', 'R', 'G'].forEach(col => {
+      if (cost.includes(`{${col}}`)) detectedColors.add(col);
+    });
+  });
+  const allowedColors = Array.from(detectedColors);
+  if (allowedColors.length === 0) allowedColors.push('G');
   
   // ── 2.5 Pre-filtrar candidatas RAG para pilares necesitados y la estrategia activa del usuario
   const candidateSummaryLines = [];
@@ -514,10 +526,123 @@ ${orphans ? 'CARTAS HUÉRFANAS DETECTADAS:\n' + orphans : ''}
     pillarAnalysis,
     karstenAnalysis,
     formData?.metrics?.vmp,
-    formData?.stance
+    formData?.stance,
+    totalCards,
+    targetCards
   );
 
-  const finalVerdict = jsonResult.verdict || jsonResult.summary || jsonResult.overview || "Auditoría de viabilidad competitiva completada con éxito.";
+  const criticalAlerts = Array.isArray(jsonResult.criticalAlerts) ? [...jsonResult.criticalAlerts] : [];
+  const warnings = Array.isArray(jsonResult.warnings) ? [...jsonResult.warnings] : [];
+  const suggestions = [...validatedSuggestions];
+
+  const karstenNeedsFix = karstenAnalysis?.devotions?.some(d => d.status === 'critical' || d.status === 'warning');
+
+  // A. PRE-CALCULAR SUSTITUCIONES / ADICIONES EXACTAS CON EXPERT MANA SIMULATION
+  if (totalCards < targetCards || karstenNeedsFix) {
+    try {
+      const { corregirTamañoYBaseDeMana } = await import('./deckOptimizerService.js');
+      const { buildCardPool } = await import('./ragService.js');
+      
+      let ragPool = [];
+      try {
+        const ragResult = await buildCardPool({ ...formData, colores: allowedColors });
+        ragPool = ragResult.pool || [];
+      } catch (e) {
+        console.warn("Fallo al obtener RAG pool en pre-simulación de auditoría", e);
+      }
+
+      const updatedFormData = {
+        ...formData,
+        colores: allowedColors
+      };
+
+      const simulatedDeck = await corregirTamañoYBaseDeMana(hydratedDeckCards, targetCards, updatedFormData, ragPool, false);
+
+      const origMap = new Map();
+      hydratedDeckCards.forEach(c => {
+        if (!c || !c.name) return;
+        const k = c.name.trim();
+        origMap.set(k, (origMap.get(k) || 0) + Number(c.quantity || 1));
+      });
+
+      const simMap = new Map();
+      simulatedDeck.forEach(c => {
+        if (!c || !c.name) return;
+        const k = c.name.trim();
+        simMap.set(k, (simMap.get(k) || 0) + Number(c.quantity || 1));
+      });
+
+      let exactAdds = [];
+      let exactRemoves = [];
+
+      simMap.forEach((qty, name) => {
+        const origQty = origMap.get(name) || 0;
+        if (qty > origQty) {
+          exactAdds.push({ name, quantity: qty - origQty });
+        }
+      });
+
+      origMap.forEach((origQty, name) => {
+        const simQty = simMap.get(name) || 0;
+        if (origQty > simQty) {
+          exactRemoves.push({ name, quantity: origQty - simQty });
+        }
+      });
+
+      // Fallback garantizado: Si Karsten reporta deficiencia y el mapa no cambió, inyectar el intercambio de duales Karsten
+      if (exactAdds.length === 0 && exactRemoves.length === 0 && karstenNeedsFix) {
+        const deficient = karstenAnalysis?.devotions?.find(d => d.status === 'critical' || d.status === 'warning');
+        if (deficient) {
+          const dualLand = deficient.color === 'R' ? 'Stomping Ground' : deficient.color === 'U' ? 'Breeding Pool' : deficient.color === 'B' ? 'Overgrown Tomb' : 'Temple Garden';
+          const basicLandToReduce = 'Forest';
+          
+          exactRemoves.push({ name: basicLandToReduce, quantity: 4 });
+          exactAdds.push({ name: dualLand, quantity: 2 }, { name: deficient.color === 'R' ? 'Mountain' : 'Swamp', quantity: 2 });
+        }
+      }
+
+      if (exactAdds.length > 0 || exactRemoves.length > 0) {
+        let title = 'Ajuste de Base de Maná Pro Tour';
+        if (totalCards < targetCards) {
+          title = `Rellenar ${targetCards - totalCards} cartas faltantes y equilibrar base de maná Karsten`;
+        } else if (karstenNeedsFix) {
+          title = 'Equilibrar fuentes de maná Karsten con tierras duales y básicas';
+        }
+
+        suggestions.unshift({
+          text: title,
+          changeType: 'Mana Base & Size Fix',
+          adds: exactAdds,
+          removes: exactRemoves,
+          _simulated: true
+        });
+      }
+    } catch (simErr) {
+      console.warn("Fallo al pre-calcular sustituciones exactas de tierras/cartas:", simErr);
+    }
+  }
+
+  // B. ALERTA CRÍTICA POR MAZO INCOMPLETO
+  if (totalCards < targetCards) {
+    const missing = targetCards - totalCards;
+    criticalAlerts.unshift(`🚨 MAZO INCOMPLETO (${totalCards}/${targetCards} cartas): Le faltan ${missing} cartas para ser un mazo legal de ${targetCards} cartas.`);
+  }
+
+  // C. ALERTAS ESTRICTAS DE FUENTES DE MANÁ SEGÚN FRANK KARSTEN
+  if (karstenAnalysis && karstenAnalysis.devotions) {
+    karstenAnalysis.devotions.forEach(dev => {
+      if (dev.status === 'critical') {
+        criticalAlerts.push(`🚨 ESCASEZ DE MANÁ ${dev.color}: Tienes ${dev.availableSources} fuentes de maná ${dev.color}. Se requieren al menos ${dev.requiredSources} fuentes según Frank Karsten.`);
+      } else if (dev.status === 'warning') {
+        warnings.push(`⚠️ MANÁ AJUSTADO ${dev.color}: Tienes ${dev.availableSources} fuentes de maná ${dev.color} de las ${dev.requiredSources} recomendadas.`);
+      }
+    });
+  }
+
+  let finalVerdict = jsonResult.verdict || jsonResult.summary || jsonResult.overview || "Auditoría de viabilidad competitiva completada con éxito.";
+  if (totalCards < targetCards) {
+    finalVerdict = `⚠️ Veredicto del Juez: El mazo está INCOMPLETO (${totalCards}/${targetCards} cartas). Le faltan ${targetCards - totalCards} cartas. Haz clic en 'Aplicar Cambios' para autocompletar la base de maná y hechizos.`;
+  }
 
   // Adjuntar el análisis de pilares y karsten al resultado para la UI
   return {
@@ -525,7 +650,9 @@ ${orphans ? 'CARTAS HUÉRFANAS DETECTADAS:\n' + orphans : ''}
     verdict: finalVerdict,
     summary: finalVerdict,
     score: mathScore,
-    suggestions: validatedSuggestions,
+    criticalAlerts,
+    warnings,
+    suggestions,
     _pillarAnalysis: pillarAnalysis,
     _karstenAnalysis: karstenAnalysis,
     _monteCarlo: monteCarlo,

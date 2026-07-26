@@ -1,4 +1,6 @@
 import { getAllCards } from './dbIngestor.js';
+import { parseSemanticCard } from './semanticCardParser.js';
+import { analyzeCardIntelligence } from './cardIntelligenceEngine.js';
 
 const getFetchOptions = (signal) => {
   const options = { signal };
@@ -39,10 +41,15 @@ async function openDB() {
     };
   });
 }
-
 export async function saveCardToDB(card) {
-  if (typeof indexedDB === 'undefined') {
+  if (typeof indexedDB === 'undefined' || !card) {
     return;
+  }
+  if (!card.semantic_representation) {
+    card.semantic_representation = parseSemanticCard(card);
+  }
+  if (!card.card_intelligence) {
+    card.card_intelligence = analyzeCardIntelligence(card);
   }
   const database = await openDB();
   return new Promise((resolve, reject) => {
@@ -61,7 +68,18 @@ export async function getCardFromDB(name) {
     const store = tx.objectStore(STORE_NAME);
     const index = store.index('cardIndex');
     const request = index.get(name);
-    request.onsuccess = () => resolve(request.result || null);
+    request.onsuccess = () => {
+      const result = request.result || null;
+      if (result) {
+        if (!result.semantic_representation) {
+          result.semantic_representation = parseSemanticCard(result);
+        }
+        if (!result.card_intelligence) {
+          result.card_intelligence = analyzeCardIntelligence(result);
+        }
+      }
+      resolve(result);
+    };
     request.onerror = () => reject(request.error);
   });
 }

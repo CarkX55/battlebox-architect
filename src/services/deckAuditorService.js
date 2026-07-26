@@ -263,12 +263,29 @@ export function analyzeFunctionalPillars(spells, format = 'MODERN', archetypeOrF
  * @param {Object} sources - Fuentes coloreadas { W, U, B, R, G }
  * @returns {Object} { hasDevotionWarnings, devotions, doubleDevotionCards }
  */
-export function analyzeKarstenManaDevotion(spells, sources = {}) {
+export function analyzeKarstenManaDevotion(spells = [], sources = {}) {
   const maxDevotion = { W: 0, U: 0, B: 0, R: 0, G: 0 };
   const doubleDevotionCards = [];
 
+  // FASES TEMPORALES DE MANÁ (PRO TOUR HUMAN EXPERT MATH)
+  const earlySpells = []; // CMC 1-2
+  const midSpells = [];   // CMC 3-4
+  const lateSpells = [];  // CMC 5+
+
+  const earlyPips = { W: 0, U: 0, B: 0, R: 0, G: 0 };
+  const midPips = { W: 0, U: 0, B: 0, R: 0, G: 0 };
+  const latePips = { W: 0, U: 0, B: 0, R: 0, G: 0 };
+
   spells.forEach(card => {
+    if (!card) return;
     const cost = card.mana_cost || '';
+    const cmc = card.mana_value ?? card.cmc ?? 0;
+    const qty = card.quantity || 1;
+
+    if (cmc <= 2) earlySpells.push(card);
+    else if (cmc <= 4) midSpells.push(card);
+    else lateSpells.push(card);
+
     ['W', 'U', 'B', 'R', 'G'].forEach(color => {
       const regex = new RegExp(`\\{${color}\\}`, 'g');
       const matches = cost.match(regex);
@@ -279,38 +296,81 @@ export function analyzeKarstenManaDevotion(spells, sources = {}) {
       if (dev >= 2 && !doubleDevotionCards.some(c => c.name === card.name)) {
         doubleDevotionCards.push({ name: card.name, color, devotion: dev, mana_cost: cost });
       }
+
+      if (dev > 0) {
+        if (cmc <= 2) earlyPips[color] += dev * qty;
+        else if (cmc <= 4) midPips[color] += dev * qty;
+        else latePips[color] += dev * qty;
+      }
     });
   });
 
-  const results = [];
+  const devotions = [];
   let totalWarnings = 0;
 
   ['W', 'U', 'B', 'R', 'G'].forEach(color => {
     const dev = maxDevotion[color];
-    if (dev === 0) return;
-    const required = dev === 1 ? 13 : dev === 2 ? 19 : 22;
+    if (dev === 0 && earlyPips[color] === 0 && midPips[color] === 0 && latePips[color] === 0) return;
+    
+    // Tabla Frank Karsten para fuentes requeridas según devoción y fase
+    let required = 13;
+    if (earlyPips[color] > 0 && dev >= 1) required = Math.max(required, 14);
+    if (dev >= 2) required = Math.max(required, 19);
+    if (dev >= 3) required = Math.max(required, 22);
+
     const available = sources[color] || sources[color.toLowerCase()] || 0;
     
     let status = 'ok';
-    if (available > 0 && available < required) {
+    if (available < required) {
       status = available < required - 4 ? 'critical' : 'warning';
       totalWarnings++;
     }
 
-    results.push({
+    devotions.push({
       color,
       maxDevotion: dev,
       requiredSources: required,
       availableSources: available,
       status,
+      earlyPips: earlyPips[color],
+      midPips: midPips[color],
+      latePips: latePips[color],
       exampleCards: doubleDevotionCards.filter(c => c.color === color).map(c => c.name)
     });
   });
 
+  // EVALUACIÓN DE LAS 3 FASES DE TIEMPO PRO-TOUR
+  const phaseAnalysis = {
+    earlyGame: {
+      status: 'ok',
+      summary: 'Turnos 1-2: Salida fluida con fuentes no-giradas suficientes.'
+    },
+    midGame: {
+      status: 'ok',
+      summary: 'Turnos 3-4: Curvado de amenazas e interacción estable.'
+    },
+    lateGame: {
+      status: 'ok',
+      summary: 'Turnos 5+: Consistencia de tierras para finishers masivos.'
+    }
+  };
+
+  devotions.forEach(d => {
+    if (d.earlyPips > 0 && d.availableSources < 14) {
+      phaseAnalysis.earlyGame.status = d.availableSources < 10 ? 'critical' : 'warning';
+      phaseAnalysis.earlyGame.summary = `Turnos 1-2: Riesgo de atasco en maná ${d.color} (Tienes ${d.availableSources} fuentes, se recomiendan 14 no-giradas).`;
+    }
+    if (d.midPips > 0 && d.availableSources < d.requiredSources) {
+      phaseAnalysis.midGame.status = d.status;
+      phaseAnalysis.midGame.summary = `Turnos 3-4: Curvado ajustado para hechizos de maná ${d.color} (Tienes ${d.availableSources}/${d.requiredSources} fuentes).`;
+    }
+  });
+
   return {
     hasDevotionWarnings: totalWarnings > 0,
-    devotions: results,
-    doubleDevotionCards
+    devotions,
+    doubleDevotionCards,
+    phaseAnalysis
   };
 }
 
@@ -454,7 +514,7 @@ export function analyzeCardQuality(deckCards) {
  * Calcula una nota determinista y matemática de viabilidad (1-10) basada en
  * los 5 pilares funcionales, la devoción de Karsten y el VMP de la curva.
  */
-export function calculateDeterministicDeckScore(pillarAnalysis, karstenAnalysis, vmp, stance = 'balanced') {
+export function calculateDeterministicDeckScore(pillarAnalysis, karstenAnalysis, vmp, stance = 'balanced', totalCards = 60, targetCards = 60) {
   let score = 0;
 
   // 1. Pilares Funcionales (hasta 5.0 puntos)
@@ -470,12 +530,12 @@ export function calculateDeterministicDeckScore(pillarAnalysis, karstenAnalysis,
   }
 
   // 2. Base de Maná y Karsten (hasta 3.0 puntos)
-  if (karstenAnalysis && karstenAnalysis.unsatisfied) {
-    const unsatisfiedCount = karstenAnalysis.unsatisfied.length;
-    if (unsatisfiedCount === 0) score += 3.0;
-    else if (unsatisfiedCount === 1) score += 2.2;
-    else if (unsatisfiedCount === 2) score += 1.5;
-    else if (unsatisfiedCount === 3) score += 1.0;
+  if (karstenAnalysis && karstenAnalysis.devotions) {
+    const criticals = karstenAnalysis.devotions.filter(d => d.status === 'critical').length;
+    const warnings = karstenAnalysis.devotions.filter(d => d.status === 'warning').length;
+    if (criticals === 0 && warnings === 0) score += 3.0;
+    else if (criticals === 0 && warnings === 1) score += 2.0;
+    else if (criticals === 1) score += 1.2;
     else score += 0.5;
   } else {
     score += 2.0;
@@ -494,6 +554,14 @@ export function calculateDeterministicDeckScore(pillarAnalysis, karstenAnalysis,
     }
   } else {
     score += 1.5;
+  }
+
+  // 4. PENALIZACIÓN CRÍTICA POR TAMAÑO INCOMPLETO
+  if (totalCards && targetCards && totalCards < targetCards) {
+    const missing = targetCards - totalCards;
+    const sizePenalty = Math.min(6, Math.ceil(missing / 2));
+    score -= sizePenalty;
+    console.warn(`[JUEZ SCORE] Aplicando penalización de -${sizePenalty} puntos por mazo incompleto (${totalCards}/${targetCards} cartas).`);
   }
 
   return Math.min(10, Math.max(1, Math.round(score)));

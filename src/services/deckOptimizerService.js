@@ -527,63 +527,66 @@ export async function optimizarMazo(deckList, formData, aiConfig, preserveLands 
   };
 }
 
-export async function applyAuditChangesProgrammatically(deckList, suggestions, allCards, formData) {
+export async function applyAuditChangesProgrammatically(deckList, suggestions = [], allCards = [], formData = {}, auditReport = null) {
   let newDeck = [...deckList];
 
-  suggestions.forEach(sug => {
-    if (sug && sug._invalid) return; // Guard clause to ignore invalid suggestions
-    
-    if (sug.removes && Array.isArray(sug.removes)) {
-      sug.removes.forEach(remove => {
-        const index = newDeck.findIndex(c => cleanCardNameForMatching(c.name) === cleanCardNameForMatching(remove.name));
-        if (index !== -1) {
-          newDeck[index] = { ...newDeck[index], quantity: newDeck[index].quantity - remove.quantity };
-          if (newDeck[index].quantity <= 0) {
-            newDeck.splice(index, 1);
+  if (Array.isArray(suggestions)) {
+    suggestions.forEach(sug => {
+      if (sug && sug._invalid) return; // Guard clause to ignore invalid suggestions
+      
+      if (sug.removes && Array.isArray(sug.removes)) {
+        sug.removes.forEach(remove => {
+          const index = newDeck.findIndex(c => cleanCardNameForMatching(c.name) === cleanCardNameForMatching(remove.name));
+          if (index !== -1) {
+            newDeck[index] = { ...newDeck[index], quantity: newDeck[index].quantity - remove.quantity };
+            if (newDeck[index].quantity <= 0) {
+              newDeck.splice(index, 1);
+            }
           }
-        }
-      });
-    }
+        });
+      }
 
-    if (sug.adds && Array.isArray(sug.adds)) {
-      sug.adds.forEach(add => {
-        // Saltar adds de cartas que no existen en la BD local
-        const normalizedAddName = cleanCardNameForMatching(add.name);
-        const dbCard = allCards.find(c => cleanCardNameForMatching(c.name) === normalizedAddName);
-        if (!dbCard) {
-          console.warn(`[ApplyAudit] Ignorando add de carta no encontrada en BD: "${add.name}"`);
-          return;
-        }
+      if (sug.adds && Array.isArray(sug.adds)) {
+        sug.adds.forEach(add => {
+          // Saltar adds de cartas que no existen en la BD local
+          const normalizedAddName = cleanCardNameForMatching(add.name);
+          const dbCard = allCards.find(c => cleanCardNameForMatching(c.name) === normalizedAddName);
+          if (!dbCard) {
+            console.warn(`[ApplyAudit] Ignorando add de carta no encontrada en BD: "${add.name}"`);
+            return;
+          }
 
-        const existingIndex = newDeck.findIndex(c => cleanCardNameForMatching(c.name) === normalizedAddName);
-        if (existingIndex !== -1) {
-          newDeck[existingIndex] = { ...newDeck[existingIndex], quantity: newDeck[existingIndex].quantity + add.quantity };
-        } else {
-          newDeck.push({
-            name: dbCard.name,
-            quantity: add.quantity,
-            category: dbCard.type_line?.toLowerCase().includes('creature') ? 'Creature' : 'Spell',
-            cmc: dbCard.mana_value || 0,
-            type_line: dbCard.type_line,
-            mana_cost: dbCard.mana_cost || '',
-            oracle_text: dbCard.oracle_text || '',
-            colors: dbCard.colors || [],
-            color_identity: dbCard.color_identity || [],
-          });
-        }
-      });
-    }
-  });
+          const existingIndex = newDeck.findIndex(c => cleanCardNameForMatching(c.name) === normalizedAddName);
+          if (existingIndex !== -1) {
+            newDeck[existingIndex] = { ...newDeck[existingIndex], quantity: newDeck[existingIndex].quantity + add.quantity };
+          } else {
+            newDeck.push({
+              name: dbCard.name,
+              quantity: add.quantity,
+              category: dbCard.type_line?.toLowerCase().includes('creature') ? 'Creature' : 'Spell',
+              cmc: dbCard.mana_value || 0,
+              type_line: dbCard.type_line,
+              mana_cost: dbCard.mana_cost || '',
+              oracle_text: dbCard.oracle_text || '',
+              colors: dbCard.colors || [],
+              color_identity: dbCard.color_identity || [],
+            });
+          }
+        });
+      }
+    });
+  }
 
   const isYorion = newDeck.some(c => c.name.toLowerCase().includes("yorion, sky nomad"));
   const targetDeckSize = isYorion ? 80 : 60;
   
   let currentTotal = newDeck.reduce((sum, c) => sum + c.quantity, 0);
 
+  const karstenNeedsFix = auditReport?._karstenAnalysis?.devotions?.some(d => d.status === 'critical' || d.status === 'warning');
+
   // PARACAÍDAS INTELIGENTE:
-  // Si el Juez hizo un error matemático y el mazo no suma 60, en lugar de recortar a lo tonto,
-  // llamamos a la función inteligente de base de maná Karsten + Inyecciones RAG, usando las preferencias del usuario.
-  if (currentTotal !== targetDeckSize) {
+  // Se activa si el mazo no suma targetDeckSize (ej. el usuario eliminó tierras) o si Karsten detectó escasez de fuentes de maná
+  if (currentTotal !== targetDeckSize || karstenNeedsFix || (suggestions && suggestions.length > 0)) {
     let ragPool = [];
     try {
       const ragResult = await buildCardPool(formData);
