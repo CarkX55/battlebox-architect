@@ -651,9 +651,10 @@ ${orphans ? 'CARTAS HUÉRFANAS DETECTADAS:\n' + orphans : ''}
   const suggestions = [...validatedSuggestions];
 
   const karstenNeedsFix = karstenAnalysis?.devotions?.some(d => d.status === 'critical' || d.status === 'warning');
+  const hasPillarDeficits = pillarAnalysis && pillarAnalysis.pillarStatus && Object.values(pillarAnalysis.pillarStatus).some(st => st === 'critical' || st === 'low');
 
-  // A. PRE-CALCULAR SUSTITUCIONES / ADICIONES EXACTAS CON EXPERT MANA SIMULATION
-  if (totalCards < targetCards || karstenNeedsFix) {
+  // A. PRE-CALCULAR SUSTITUCIONES / ADICIONES EXACTAS CON EXPERT MANA & PILLAR SIMULATION
+  if (totalCards < targetCards || karstenNeedsFix || hasPillarDeficits || suggestions.length === 0) {
     try {
       const { corregirTamañoYBaseDeMana } = await import('./deckOptimizerService.js');
       const { buildCardPool } = await import('./ragService.js');
@@ -704,29 +705,60 @@ ${orphans ? 'CARTAS HUÉRFANAS DETECTADAS:\n' + orphans : ''}
         }
       });
 
-      // Fallback garantizado: Si Karsten reporta deficiencia y el mapa no cambió, inyectar el intercambio de duales Karsten
+      // Fallback 1: Si Karsten reporta deficiencia y el mapa no cambió, inyectar el intercambio de duales Karsten
       if (exactAdds.length === 0 && exactRemoves.length === 0 && karstenNeedsFix) {
         const deficient = karstenAnalysis?.devotions?.find(d => d.status === 'critical' || d.status === 'warning');
         if (deficient) {
-          const dualLand = deficient.color === 'R' ? 'Stomping Ground' : deficient.color === 'U' ? 'Breeding Pool' : deficient.color === 'B' ? 'Overgrown Tomb' : 'Temple Garden';
+          const dualLand = deficient.color === 'R' ? 'Stomping Ground' : deficient.color === 'U' ? 'Breeding Pool' : deficient.color === 'B' ? 'Overgrown Tomb' : deficient.color === 'W' ? 'Temple Garden' : 'Overgrown Tomb';
           const basicLandToReduce = 'Forest';
           
           exactRemoves.push({ name: basicLandToReduce, quantity: 4 });
-          exactAdds.push({ name: dualLand, quantity: 2 }, { name: deficient.color === 'R' ? 'Mountain' : 'Swamp', quantity: 2 });
+          exactAdds.push({ name: dualLand, quantity: 2 }, { name: deficient.color === 'R' ? 'Mountain' : deficient.color === 'B' ? 'Swamp' : deficient.color === 'U' ? 'Island' : 'Plains', quantity: 2 });
+        }
+      }
+
+      // Fallback 2: Si hay déficit de pilares (ej. Robo 0, Amenazas < rec) y exactAdds sigue vacío, inyectar sustitución inteligente de pilares
+      if (exactAdds.length === 0 && exactRemoves.length === 0 && hasPillarDeficits) {
+        const drawDeficit = pillarAnalysis?.pillarStatus?.draw === 'critical' || pillarAnalysis?.pillars?.draw?.count === 0;
+        const threatDeficit = pillarAnalysis?.pillarStatus?.threats === 'critical' || (pillarAnalysis?.pillars?.threats?.count || 0) < 3;
+        
+        // Identificar hechizos sobrecargados
+        const spellsToTrim = hydratedDeckCards.filter(c => !isLand(c) && (c.quantity || 1) >= 2)
+          .sort((a, b) => (b.quantity || 1) - (a.quantity || 1));
+
+        if (spellsToTrim.length > 0) {
+          const trimTarget = spellsToTrim[0];
+          const qtyToTrim = Math.min(trimTarget.quantity - 1, drawDeficit ? 4 : 3);
+
+          if (qtyToTrim > 0) {
+            exactRemoves.push({ name: trimTarget.name, quantity: qtyToTrim });
+
+            if (drawDeficit) {
+              const drawCandidates = getPillarCandidatesFromDB('draw', allCards, allowedColors, selectedFormat, formData?.rarityMode || 'high-power', [], [], activeStrategy);
+              const topDraw = drawCandidates[0] || (allowedColors.includes('B') ? 'Read the Bones' : allowedColors.includes('U') ? 'Brainstorm' : allowedColors.includes('G') ? 'Harmonize' : 'Night\'s Whisper');
+              exactAdds.push({ name: topDraw, quantity: qtyToTrim });
+            } else if (threatDeficit) {
+              const threatCandidates = getPillarCandidatesFromDB('threats', allCards, allowedColors, selectedFormat, formData?.rarityMode || 'high-power', [], [], activeStrategy);
+              const topThreat = threatCandidates[0] || (allowedColors.includes('G') ? 'Elder Gargaroth' : allowedColors.includes('B') ? 'Grave Titan' : 'Questing Beast');
+              exactAdds.push({ name: topThreat, quantity: qtyToTrim });
+            }
+          }
         }
       }
 
       if (exactAdds.length > 0 || exactRemoves.length > 0) {
-        let title = 'Ajuste de Base de Maná Pro Tour';
+        let title = 'Reequilibrio Estructural Pro Tour (Pilares y Base de Maná)';
         if (totalCards < targetCards) {
           title = `Rellenar ${targetCards - totalCards} cartas faltantes y equilibrar base de maná Karsten`;
         } else if (karstenNeedsFix) {
           title = 'Equilibrar fuentes de maná Karsten con tierras duales y básicas';
+        } else if (hasPillarDeficits) {
+          title = 'Reequilibrar pilares funcionales: inyectar motor de robo / amenazas e igualar curva';
         }
 
         suggestions.unshift({
           text: title,
-          changeType: 'Mana Base & Size Fix',
+          changeType: 'Mana Base & Pillar Fix',
           adds: exactAdds,
           removes: exactRemoves,
           _simulated: true

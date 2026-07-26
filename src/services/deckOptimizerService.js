@@ -548,12 +548,16 @@ export async function applyAuditChangesProgrammatically(deckList, suggestions = 
 
       if (sug.adds && Array.isArray(sug.adds)) {
         sug.adds.forEach(add => {
-          // Saltar adds de cartas que no existen en la BD local
           const normalizedAddName = cleanCardNameForMatching(add.name);
-          const dbCard = allCards.find(c => cleanCardNameForMatching(c.name) === normalizedAddName);
+          let dbCard = allCards.find(c => cleanCardNameForMatching(c.name) === normalizedAddName);
           if (!dbCard) {
-            console.warn(`[ApplyAudit] Ignorando add de carta no encontrada en BD: "${add.name}"`);
-            return;
+            dbCard = { 
+              name: add.name, 
+              quantity: add.quantity, 
+              type_line: 'Spell', 
+              mana_value: 2, 
+              cmc: 2 
+            };
           }
 
           const existingIndex = newDeck.findIndex(c => cleanCardNameForMatching(c.name) === normalizedAddName);
@@ -563,13 +567,14 @@ export async function applyAuditChangesProgrammatically(deckList, suggestions = 
             newDeck.push({
               name: dbCard.name,
               quantity: add.quantity,
-              category: dbCard.type_line?.toLowerCase().includes('creature') ? 'Creature' : 'Spell',
-              cmc: dbCard.mana_value || 0,
-              type_line: dbCard.type_line,
+              category: dbCard.type_line?.toLowerCase().includes('creature') ? 'Creature' : dbCard.type_line?.toLowerCase().includes('land') ? 'Land' : 'Spell',
+              cmc: dbCard.mana_value || dbCard.cmc || 0,
+              type_line: dbCard.type_line || 'Spell',
               mana_cost: dbCard.mana_cost || '',
               oracle_text: dbCard.oracle_text || '',
               colors: dbCard.colors || [],
               color_identity: dbCard.color_identity || [],
+              image_uris: dbCard.image_uris
             });
           }
         });
