@@ -209,8 +209,11 @@ export function getPillarCandidatesFromDB(pillarName, allCards, allowedColors, f
     : rarityMode === 'artisan' ? ['common', 'uncommon']
     : ['common', 'uncommon', 'rare', 'mythic'];
 
-  const normalizedVetoedCards = (vetoedCards || []).map(v => typeof v === 'string' ? v.toLowerCase().trim() : '');
-  const normalizedVetoedKws = (vetoedKeywords || []).map(k => typeof k === 'string' ? k.toLowerCase().trim() : '');
+  const rawVetoCards = Array.isArray(vetoedCards) ? vetoedCards : typeof vetoedCards === 'string' ? vetoedCards.split(',') : [];
+  const rawVetoKws = Array.isArray(vetoedKeywords) ? vetoedKeywords : typeof vetoedKeywords === 'string' ? vetoedKeywords.split(',') : [];
+
+  const normalizedVetoedCards = rawVetoCards.map(v => typeof v === 'string' ? v.toLowerCase().trim() : (v?.name || '').toLowerCase().trim()).filter(Boolean);
+  const normalizedVetoedKws = rawVetoKws.map(k => typeof k === 'string' ? k.toLowerCase().trim() : '').filter(Boolean);
 
   const stratLower = (activeStrategy || '').toLowerCase();
 
@@ -381,12 +384,29 @@ export async function auditDeckWithAI(deckCards, _sideboardCards, formData, aiCo
   const concept = formData?.prompt || formData?.lore || formData?.aiMetadata?.lore;
   const userConceptText = concept ? ('\nIdea / Lore Temático del Usuario: "' + concept + '"') : '';
 
-  const mustInc = formData?.mustInclude && formData.mustInclude.length > 0 ? formData.mustInclude.join(', ') : '';
+  let mustInc = '';
+  if (Array.isArray(formData?.mustInclude)) {
+    mustInc = formData.mustInclude.join(', ');
+  } else if (typeof formData?.mustInclude === 'string') {
+    mustInc = formData.mustInclude;
+  }
   const mustIncludeText = mustInc ? ('\nCartas Obligatorias Definidas por el Usuario: ' + mustInc) : '';
 
-  const vetoKws = formData?.vetoedKeywords?.join(', ') || 'Ninguna';
-  const vetoCards = formData?.vetoedCards?.join(', ') || 'Ninguna';
-  const vetoText = (formData?.vetoedKeywords?.length > 0 || formData?.vetoedCards?.length > 0)
+  let vetoKws = 'Ninguna';
+  if (Array.isArray(formData?.vetoedKeywords)) {
+    vetoKws = formData.vetoedKeywords.join(', ');
+  } else if (typeof formData?.vetoedKeywords === 'string') {
+    vetoKws = formData.vetoedKeywords;
+  }
+
+  let vetoCards = 'Ninguna';
+  if (Array.isArray(formData?.vetoedCards)) {
+    vetoCards = formData.vetoedCards.map(c => typeof c === 'string' ? c : c?.name || '').filter(Boolean).join(', ');
+  } else if (typeof formData?.vetoedCards === 'string') {
+    vetoCards = formData.vetoedCards;
+  }
+
+  const vetoText = (vetoKws !== 'Ninguna' || vetoCards !== 'Ninguna')
     ? ('\nVetos del Usuario: Palabras: ' + vetoKws + ' | Cartas: ' + vetoCards)
     : '';
 

@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../../utils/cn';
-import { Sparkles, Swords, Shield, Zap, Flame, Crown, BookOpen, Search, Check, Plus, AlertCircle, Wand2, Compass, PlusCircle, MinusCircle, Scroll, TrendingUp, Lock, Unlock, ShieldAlert, RefreshCw } from 'lucide-react';
+import { Sparkles, Swords, Shield, Zap, Flame, Crown, BookOpen, Search, Check, Plus, AlertCircle, Wand2, Compass, PlusCircle, MinusCircle, Scroll, TrendingUp, Lock, Unlock, ShieldAlert, RefreshCw, Globe } from 'lucide-react';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { vibrateTouch } from '../../utils/haptic';
 import BottomSheet from '../atoms/BottomSheet';
@@ -12,6 +12,8 @@ import { getDynamicArchetypes, buildCardPool } from '../../services/ragService';
 import { injectCorePackage } from '../../constants/corePackages';
 import { getAllCards } from '../../services/dbIngestor';
 import ManaCurve from './ManaCurve';
+import { composeTwoLayerBlueprint } from '../../constants/blueprintTemplates';
+import { isUniversesBeyondOrCustom } from '../../utils/legalityCheck';
 
 // Componente de Renderizado Gráfico de Coste de Maná Premium (Scryfall Style)
 export function RenderManaCost({ manaCost, className }) {
@@ -649,6 +651,10 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
   const [packCards, setPackCards] = useState([]);
   const [synergyTypeFilter, setSynergyTypeFilter] = useState('all');
   const [synergyRoleFilter, setSynergyRoleFilter] = useState('all');
+  const [synergyCmcFilter, setSynergyCmcFilter] = useState('all');
+  const [synergyRarityFilter, setSynergyRarityFilter] = useState('all');
+  const [synergySortBy, setSynergySortBy] = useState('synergy');
+  const [synergyBlueprintContainer, setSynergyBlueprintContainer] = useState('all');
 
   const [forgeHistory, setForgeHistory] = useState([]);
 
@@ -855,16 +861,121 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
     return Object.values(seedCards).reduce((acc, q) => acc + q, 0);
   }, [seedCards]);
 
+  const composedBlueprint = useMemo(() => {
+    try {
+      const arch = formData.archetype || 'midrange';
+      const strat = formData.selectedEngineId || formData.strategy || '';
+      return composeTwoLayerBlueprint(arch, strat, formData);
+    } catch (e) {
+      return null;
+    }
+  }, [formData.archetype, formData.selectedEngineId, formData.strategy, formData.colores]);
+
+  const matchesContainerRole = useCallback((card, container) => {
+    if (!card || !container) return false;
+    const cmc = card.cmc ?? card.mana_value ?? 0;
+    const role = detectFunctionalRole(card).toLowerCase();
+    const oracle = (card.oracle_text || card.text || '').toLowerCase();
+    const typeLine = (card.type_line || '').toLowerCase();
+    const roleKey = (container.roleKey || '').toLowerCase();
+
+    if (container.cmc) {
+      if (typeof container.cmc === 'number' && container.quality === 'finisher' && cmc < 5) return false;
+      if (roleKey.includes('early') && cmc > 3) return false;
+    }
+
+    if (roleKey.includes('dork') || roleKey.includes('ramp')) {
+      return role.includes('rampa') || oracle.includes('add {') || oracle.includes('search your library for a land');
+    }
+    if (roleKey.includes('removal') || roleKey.includes('clear')) {
+      return role.includes('remoción') || oracle.includes('destroy') || oracle.includes('exile') || oracle.includes('deals');
+    }
+    if (roleKey.includes('draw')) {
+      return role.includes('robo') || oracle.includes('draw');
+    }
+    if (roleKey.includes('finisher') || roleKey.includes('threat') || roleKey.includes('apex')) {
+      return cmc >= 4 || typeLine.includes('planeswalker') || (typeLine.includes('creature') && parseInt(card.power || '0') >= 3);
+    }
+    if (roleKey.includes('fodder') || roleKey.includes('sac')) {
+      return oracle.includes('sacrifice') || oracle.includes('dies') || cmc <= 2;
+    }
+    if (roleKey.includes('reanimat') || roleKey.includes('target')) {
+      return cmc >= 6 || oracle.includes('reanimate') || oracle.includes('graveyard');
+    }
+
+    return true;
+  }, []);
+
+  const containerProgress = useMemo(() => {
+    if (!composedBlueprint || !composedBlueprint.containers) return [];
+    return composedBlueprint.containers.map(ct => {
+      let currentCopies = 0;
+      packCards.forEach(card => {
+        const count = seedCards[card.name] || 0;
+        if (count > 0 && matchesContainerRole(card, ct)) {
+          currentCopies += count;
+        }
+      });
+      return {
+        ...ct,
+        currentCopies,
+        isFilled: currentCopies >= (ct.targetCopies || 4)
+      };
+    });
+  }, [composedBlueprint, packCards, seedCards, matchesContainerRole]);
+
+  const handleAutoFillBlueprint = useCallback(() => {
+    if (!composedBlueprint || !composedBlueprint.containers || packCards.length === 0) return;
+    vibrateTouch();
+
+    const newSeed = {};
+    let currentTotal = 0;
+    const targetTotal = maxSpells || 35;
+
+    composedBlueprint.containers.forEach(ct => {
+      const needed = ct.targetCopies || 4;
+      let filled = 0;
+
+      const matching = packCards.filter(card => matchesContainerRole(card, ct));
+      for (const card of matching) {
+        if (filled >= needed || currentTotal >= targetTotal) break;
+        const currentInSeed = newSeed[card.name] || 0;
+        if (currentInSeed < 4) {
+          const add = Math.min(4 - currentInSeed, Math.min(needed - filled, targetTotal - currentTotal));
+          if (add > 0) {
+            newSeed[card.name] = currentInSeed + add;
+            filled += add;
+            currentTotal += add;
+          }
+        }
+      }
+    });
+
+    if (currentTotal < targetTotal) {
+      for (const card of packCards) {
+        if (currentTotal >= targetTotal) break;
+        const currentInSeed = newSeed[card.name] || 0;
+        if (currentInSeed < 4) {
+          const add = Math.min(4 - currentInSeed, targetTotal - currentTotal);
+          newSeed[card.name] = currentInSeed + add;
+          currentTotal += add;
+        }
+      }
+    }
+
+    setSeedCards(newSeed);
+  }, [composedBlueprint, packCards, maxSpells, matchesContainerRole]);
+
   const filteredPackCards = useMemo(() => {
-    return packCards.filter(card => {
-      // Filtro de tipo
+    let result = packCards.filter(card => {
+      // 1. Tipo
       if (synergyTypeFilter !== 'all') {
         const type = (card.type_line || '').toLowerCase();
         if (synergyTypeFilter === 'creature' && !type.includes('creature')) return false;
         if (synergyTypeFilter === 'spell' && !type.includes('instant') && !type.includes('sorcery')) return false;
         if (synergyTypeFilter === 'other' && (type.includes('creature') || type.includes('instant') || type.includes('sorcery'))) return false;
       }
-      // Filtro de rol
+      // 2. Rol
       if (synergyRoleFilter !== 'all') {
         const role = detectFunctionalRole(card).toLowerCase();
         if (synergyRoleFilter === 'removal' && !role.includes('remoción')) return false;
@@ -873,9 +984,45 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
         if (synergyRoleFilter === 'motor' && !role.includes('motor')) return false;
         if (synergyRoleFilter === 'payoff' && !role.includes('payoff')) return false;
       }
+      // 3. CMC
+      const cmc = card.cmc ?? card.mana_value ?? 0;
+      if (synergyCmcFilter === '1' && cmc !== 1) return false;
+      if (synergyCmcFilter === '2' && cmc !== 2) return false;
+      if (synergyCmcFilter === '3' && cmc !== 3) return false;
+      if (synergyCmcFilter === '4' && cmc !== 4) return false;
+      if (synergyCmcFilter === '5+' && cmc < 5) return false;
+
+      // 4. Rareza
+      if (synergyRarityFilter !== 'all') {
+        const rarity = (card.rarity || 'common').toLowerCase();
+        if (synergyRarityFilter === 'common' && rarity !== 'common') return false;
+        if (synergyRarityFilter === 'uncommon' && rarity !== 'uncommon') return false;
+        if (synergyRarityFilter === 'rare' && (rarity !== 'rare' && rarity !== 'mythic')) return false;
+      }
+
+      // 5. Blueprint Container
+      if (synergyBlueprintContainer !== 'all' && composedBlueprint && composedBlueprint.containers) {
+        const targetContainer = composedBlueprint.containers.find(c => c.roleKey === synergyBlueprintContainer);
+        if (targetContainer && !matchesContainerRole(card, targetContainer)) return false;
+      }
+
+      // 6. Universes Beyond (Crossover / Custom)
+      if (!formData.allowCustomCards && isUniversesBeyondOrCustom(card)) {
+        return false;
+      }
+
       return true;
     });
-  }, [packCards, synergyTypeFilter, synergyRoleFilter]);
+
+    return result.sort((a, b) => {
+      const cmcA = a.cmc ?? a.mana_value ?? 0;
+      const cmcB = b.cmc ?? b.mana_value ?? 0;
+      if (synergySortBy === 'cmc_asc') return cmcA - cmcB;
+      if (synergySortBy === 'cmc_desc') return cmcB - cmcA;
+      if (synergySortBy === 'meta') return (b.metaPercent || 0) - (a.metaPercent || 0);
+      return (b.score || 0) - (a.score || 0);
+    });
+  }, [packCards, synergyTypeFilter, synergyRoleFilter, synergyCmcFilter, synergyRarityFilter, synergyBlueprintContainer, synergySortBy, composedBlueprint, matchesContainerRole, formData.allowCustomCards]);
 
   // Cargar el pack de sinergias (estático o RAG local)
   useEffect(() => {
@@ -2495,6 +2642,36 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8 relative z-10 items-start">
                   <div className="md:col-span-2 space-y-6">
+                    {/* Universes Beyond Quick Control Bar */}
+                    <div className="p-3.5 bg-black/60 border border-purple-500/30 rounded-xl relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-[0_0_15px_rgba(168,85,247,0.1)]">
+                      <div className="flex items-center gap-2.5">
+                        <Globe className={formData.allowCustomCards ? "text-purple-400 animate-pulse" : "text-white/40"} size={18} />
+                        <div>
+                          <span className="text-xs font-cinzel font-bold text-purple-200 uppercase tracking-wider flex items-center gap-1.5">
+                            Ediciones Universes Beyond (Crossovers)
+                          </span>
+                          <span className="text-[10px] text-white/50 font-serif block">
+                            El Señor de los Anillos, Fallout, Final Fantasy, Marvel, Doctor Who, Warhammer 40k...
+                          </span>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          vibrateTouch();
+                          setFormData(prev => ({ ...prev, allowCustomCards: !prev.allowCustomCards }));
+                        }}
+                        className={cn(
+                          "px-3.5 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider border transition-all flex items-center gap-2 shrink-0 select-none shadow-md",
+                          formData.allowCustomCards
+                            ? "bg-purple-950/90 border-purple-500/70 text-purple-300 shadow-[0_0_12px_rgba(168,85,247,0.4)] scale-[1.02]"
+                            : "bg-black/60 border-white/15 text-white/40 hover:text-white hover:border-white/30"
+                        )}
+                      >
+                        {formData.allowCustomCards ? '🌌 INCLUIDOS ✓' : '🚫 EXCLUIDOS ✕'}
+                      </button>
+                    </div>
+
                     {/* Banner de Leyenda */}
                     {currentArchetype && (
                       <div className="p-4 bg-black/90 border border-magic-gold/30 rounded-xl shadow-2xl relative overflow-hidden">
@@ -2800,149 +2977,294 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                       </div>
                     </div>
 
-                    {/* Synergy Pack Selector */}
+                    {/* Synergy Pack Selector & Blueprint Role Guide */}
                     {(formData.selectedEngineId || formData.archetype) && (
                       <div className="space-y-4 bg-black/45 p-5 rounded-2xl border border-white/5 relative overflow-hidden">
                         <div className="absolute inset-0 bg-[url('/ASSETS/FrostedGlass.webp')] bg-cover opacity-5 pointer-events-none" />
                         
+                        {/* Header con Auto-Completar y Contador */}
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-3 relative z-10">
                           <div>
-                            <label className="text-xs font-cinzel font-bold text-[#ffca58] uppercase tracking-wider flex items-center gap-1.5">
-                              <Scroll size={12} className="text-magic-gold" /> Synergy Pack (Cartas Sugeridas)
-                            </label>
-                            <p className="text-[10px] text-white/50 font-serif">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <label className="text-xs font-cinzel font-bold text-[#ffca58] uppercase tracking-wider flex items-center gap-1.5">
+                                <Scroll size={12} className="text-magic-gold" /> Synergy Pack (Cartas Sugeridas)
+                              </label>
+                              {composedBlueprint && (
+                                <span className="text-[9px] bg-purple-950/80 border border-purple-500/40 text-purple-300 font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                                  Blueprint: {composedBlueprint.archetype.toUpperCase()} + {composedBlueprint.strategy.toUpperCase()}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[10px] text-white/50 font-serif mt-0.5">
                               {formData.selectedEngineId 
-                                ? "Ajusta las copias de las cartas recomendadas para tu motor estratégico."
-                                : "Ajusta las copias de las cartas recomendadas para tu arquetipo y colores."}
+                                ? "Ajusta las copias recomendadas o usa la guía Blueprint para equilibrar tu mazo."
+                                : "Selección personalizada guiada por las cuotas Pro-Tour del Blueprint."}
                             </p>
                           </div>
                           
-                          {/* Barra de progreso de hechizos */}
-                          <div className="flex flex-col items-end shrink-0">
-                            <span className={cn(
-                              "text-[10px] font-black uppercase tracking-wider",
-                              totalSelectedSpells > maxSpells ? "text-red-400 font-extrabold animate-pulse" : "text-magic-gold"
-                            )}>
-                              Hechizos Seleccionados: {totalSelectedSpells} / {maxSpells}
-                            </span>
-                            <div className="w-36 h-2 bg-white/10 rounded-full mt-1.5 overflow-hidden border border-white/5 relative">
-                              <div 
+                          {/* Botón Auto-Completar y Barra de Progreso */}
+                          <div className="flex items-center gap-3 shrink-0">
+                            {composedBlueprint && (
+                              <button
+                                type="button"
+                                onClick={handleAutoFillBlueprint}
+                                className="px-3 py-1.5 bg-gradient-to-r from-amber-500 to-emerald-600 hover:from-amber-400 hover:to-emerald-500 text-black font-extrabold rounded-xl text-[10px] uppercase tracking-wider shadow-lg shadow-amber-900/30 transition-all flex items-center gap-1.5 border border-amber-300/40"
+                              >
+                                <Sparkles size={12} /> Auto-Completar según Blueprint
+                              </button>
+                            )}
+
+                            <div className="flex flex-col items-end shrink-0">
+                              <span className={cn(
+                                "text-[10px] font-black uppercase tracking-wider",
+                                totalSelectedSpells > maxSpells ? "text-red-400 font-extrabold animate-pulse" : "text-magic-gold"
+                              )}>
+                                Hechizos: {totalSelectedSpells} / {maxSpells}
+                              </span>
+                              <div className="w-28 h-2 bg-white/10 rounded-full mt-1 overflow-hidden border border-white/5 relative">
+                                <div 
+                                  className={cn(
+                                    "h-full transition-all duration-300 rounded-full",
+                                    totalSelectedSpells > maxSpells 
+                                      ? "bg-red-500 shadow-[0_0_8px_#ef4444]" 
+                                      : "bg-emerald-500 shadow-[0_0_8px_#10b981]"
+                                  )}
+                                  style={{ width: `${Math.min(100, (totalSelectedSpells / maxSpells) * 100)}%` }}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* GUÍA VISUAL POR BLUEPRINT (PARA JUGADORES INEXPERTOS) */}
+                        {containerProgress.length > 0 && (
+                          <div className="relative z-10 space-y-1.5 pt-1 border-b border-white/5 pb-3">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[9px] text-[#ffca58] uppercase tracking-[0.15em] font-black flex items-center gap-1">
+                                <Compass size={11} /> GUÍA DE CUOTAS BLUEPRINT (HAZ CLIC PARA FILTRAR):
+                              </span>
+                              {synergyBlueprintContainer !== 'all' && (
+                                <button
+                                  type="button"
+                                  onClick={() => setSynergyBlueprintContainer('all')}
+                                  className="text-[8px] text-amber-400/80 hover:text-amber-300 underline font-mono uppercase"
+                                >
+                                  Ver todos los roles
+                                </button>
+                              )}
+                            </div>
+                            <div className="flex gap-1.5 overflow-x-auto pb-1 custom-scrollbar">
+                              {containerProgress.map((ct, idx) => {
+                                const isSelected = synergyBlueprintContainer === ct.roleKey;
+                                return (
+                                  <button
+                                    key={idx}
+                                    type="button"
+                                    onClick={() => {
+                                      vibrateTouch();
+                                      setSynergyBlueprintContainer(isSelected ? 'all' : ct.roleKey);
+                                    }}
+                                    className={cn(
+                                      "px-2.5 py-1 rounded-xl text-[9px] font-bold uppercase tracking-wider border transition-all flex items-center gap-1.5 shrink-0",
+                                      isSelected
+                                        ? "bg-amber-400 text-black border-amber-300 shadow-[0_0_10px_rgba(251,191,36,0.5)] font-black scale-105"
+                                        : ct.isFilled
+                                          ? "bg-emerald-950/40 border-emerald-500/40 text-emerald-300 hover:bg-emerald-900/50"
+                                          : ct.currentCopies > 0
+                                            ? "bg-amber-950/40 border-amber-500/40 text-amber-300 hover:bg-amber-900/50"
+                                            : "bg-black/40 border-white/10 text-white/50 hover:border-white/30"
+                                    )}
+                                  >
+                                    <span>{ct.name}</span>
+                                    <span className={cn(
+                                      "px-1.5 py-0.2 rounded-full text-[8px] font-black font-mono",
+                                      ct.isFilled ? "bg-emerald-500 text-black" : "bg-black/60 text-white"
+                                    )}>
+                                      {ct.currentCopies}/{ct.targetCopies || 4} {ct.isFilled ? '✓' : ''}
+                                    </span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* BARRA DE FILTROS Y ORDENACIÓN AVANZADA (PARA PROS Y PRINCIPIANTES) */}
+                        <div className="relative z-10 space-y-2.5 pt-1 border-b border-white/5 pb-3">
+                          {/* Fila 1: Maná Orbs & Universes Beyond Control */}
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[9px] text-[#ffca58] uppercase tracking-[0.15em] font-extrabold select-none">
+                                Filtrar Color de Maná:
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  vibrateTouch();
+                                  setFormData(prev => ({ ...prev, allowCustomCards: !prev.allowCustomCards }));
+                                }}
                                 className={cn(
-                                  "h-full transition-all duration-300 rounded-full",
-                                  totalSelectedSpells > maxSpells 
-                                    ? "bg-red-500 shadow-[0_0_8px_#ef4444]" 
-                                    : "bg-emerald-500 shadow-[0_0_8px_#10b981]"
+                                  "px-2.5 py-1 rounded-xl text-[9px] font-extrabold uppercase tracking-wider border transition-all flex items-center gap-1.5 shrink-0 select-none ml-2",
+                                  formData.allowCustomCards
+                                    ? "bg-purple-950/90 border-purple-500/60 text-purple-300 shadow-[0_0_10px_rgba(168,85,247,0.3)] scale-105"
+                                    : "bg-black/40 border-white/10 text-white/40 hover:text-white hover:border-white/20"
                                 )}
-                                style={{ width: `${Math.min(100, (totalSelectedSpells / maxSpells) * 100)}%` }}
-                              />
+                                title="Incluir o excluir ediciones de Universes Beyond (Lord of the Rings, Fallout, Final Fantasy, Marvel, Doctor Who, Warhammer, etc.)"
+                              >
+                                <Globe size={11} className={formData.allowCustomCards ? "text-purple-400 animate-pulse" : "text-white/40"} />
+                                <span>Universes Beyond:</span>
+                                <span className={cn(
+                                  "px-1.5 py-0.2 rounded text-[8px] font-black font-mono",
+                                  formData.allowCustomCards ? "bg-purple-500 text-black" : "bg-white/10 text-white/40"
+                                )}>
+                                  {formData.allowCustomCards ? 'INCLUIDOS ✓' : 'EXCLUIDOS ✕'}
+                                </span>
+                              </button>
                             </div>
-                          </div>
-                        </div>
-                        {/* Selector de Filtros por Color en Paso 2 */}
-                        <div className="relative z-10 space-y-1.5 pt-1.5 pb-2 border-b border-white/5">
-                          <span className="text-[9px] text-[#ffca58] uppercase tracking-[0.15em] font-extrabold block">
-                            Filtrar sugerencias por color de maná:
-                          </span>
-                          <div className="flex gap-2 justify-center p-2 bg-black/40 border border-white/10 rounded-xl">
-                            {COLORS.map(color => {
-                              const isSelected = (formData?.colores || []).includes(color.id);
-                              const allowedList = allowedColorsInfo?.allowed || [];
-                              const isAllowed = allowedList.length === 6 || allowedList.includes(color.id);
-                              
-                              let shadowGlow = "";
-                              if (isSelected) {
-                                if (color.id === 'W') shadowGlow = 'shadow-[0_0_12px_rgba(248,246,216,0.6)] border-[#f8f6d8]/60 scale-105';
-                                else if (color.id === 'U') shadowGlow = 'shadow-[0_0_12px_rgba(14,104,171,0.7)] border-[#0e68ab]/60 scale-105';
-                                else if (color.id === 'B') shadowGlow = 'shadow-[0_0_12px_rgba(255,255,255,0.3)] border-white/40 scale-105';
-                                else if (color.id === 'R') shadowGlow = 'shadow-[0_0_12px_rgba(211,32,42,0.7)] border-[#d3202a]/60 scale-105';
-                                else if (color.id === 'G') shadowGlow = 'shadow-[0_0_12px_rgba(0,115,62,0.7)] border-[#00733e]/60 scale-105';
-                                else if (color.id === 'C') shadowGlow = 'shadow-[0_0_12px_rgba(150,153,154,0.6)] border-[#96999a]/60 scale-105';
-                              }
+                            
+                            <div className="flex gap-2 justify-center p-1.5 bg-black/40 border border-white/10 rounded-xl">
+                              {COLORS.map(color => {
+                                const isSelected = (formData?.colores || []).includes(color.id);
+                                const allowedList = allowedColorsInfo?.allowed || [];
+                                const isAllowed = allowedList.length === 6 || allowedList.includes(color.id);
+                                
+                                let shadowGlow = "";
+                                if (isSelected) {
+                                  if (color.id === 'W') shadowGlow = 'shadow-[0_0_12px_rgba(248,246,216,0.6)] border-[#f8f6d8]/60 scale-105';
+                                  else if (color.id === 'U') shadowGlow = 'shadow-[0_0_12px_rgba(14,104,171,0.7)] border-[#0e68ab]/60 scale-105';
+                                  else if (color.id === 'B') shadowGlow = 'shadow-[0_0_12px_rgba(255,255,255,0.3)] border-white/40 scale-105';
+                                  else if (color.id === 'R') shadowGlow = 'shadow-[0_0_12px_rgba(211,32,42,0.7)] border-[#d3202a]/60 scale-105';
+                                  else if (color.id === 'G') shadowGlow = 'shadow-[0_0_12px_rgba(0,115,62,0.7)] border-[#00733e]/60 scale-105';
+                                  else if (color.id === 'C') shadowGlow = 'shadow-[0_0_12px_rgba(150,153,154,0.6)] border-[#96999a]/60 scale-105';
+                                }
 
-                              return (
-                                <button
-                                  key={color.id}
-                                  type="button"
-                                  disabled={!isAllowed || lockedColors}
-                                  onClick={() => {
-                                    vibrateTouch();
-                                    toggleColor(color.id);
-                                  }}
-                                  className={cn(
-                                    "transition-all duration-300 relative flex items-center justify-center rounded-full focus:outline-none border border-transparent p-0.5",
-                                    (!isAllowed || lockedColors) ? "opacity-20 grayscale cursor-not-allowed" :
-                                    isSelected ? "opacity-100" : "opacity-35 hover:opacity-85"
-                                  )}
-                                  title={color.name}
-                                >
-                                  <ManaOrb color={color.id} size="w-7 h-7" className={shadowGlow} />
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-
-                        {/* Filtros de Tipo y Rol */}
-                        <div className="relative z-10 flex flex-col md:flex-row gap-3 items-start md:items-center justify-between border-b border-white/5 pb-3">
-                          {/* Filtro de Tipo */}
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="text-[9px] text-[#ffca58] uppercase tracking-[0.1em] font-extrabold select-none">Filtrar Tipo:</span>
-                            <div className="flex gap-1 bg-black/40 p-1 border border-white/10 rounded-lg">
-                              {[
-                                { id: 'all', label: 'Todos' },
-                                { id: 'creature', label: 'Criaturas' },
-                                { id: 'spell', label: 'Hechizos' },
-                                { id: 'other', label: 'Otros' }
-                              ].map(t => (
-                                <button
-                                  key={t.id}
-                                  type="button"
-                                  onClick={() => {
-                                    vibrateTouch();
-                                    setSynergyTypeFilter(t.id);
-                                  }}
-                                  className={cn(
-                                    "px-2 py-0.5 rounded text-[8px] font-extrabold uppercase tracking-wider transition-all",
-                                    synergyTypeFilter === t.id
-                                      ? "bg-[#ffca58] text-black font-black shadow-sm scale-105"
-                                      : "bg-transparent text-white/40 hover:text-white/80"
-                                  )}
-                                >
-                                  {t.label}
-                                </button>
-                              ))}
+                                return (
+                                  <button
+                                    key={color.id}
+                                    type="button"
+                                    disabled={!isAllowed || lockedColors}
+                                    onClick={() => {
+                                      vibrateTouch();
+                                      toggleColor(color.id);
+                                    }}
+                                    className={cn(
+                                      "transition-all duration-300 relative flex items-center justify-center rounded-full focus:outline-none border border-transparent p-0.5",
+                                      (!isAllowed || lockedColors) ? "opacity-20 grayscale cursor-not-allowed" :
+                                      isSelected ? "opacity-100" : "opacity-35 hover:opacity-85"
+                                    )}
+                                    title={color.name}
+                                  >
+                                    <ManaOrb color={color.id} size="w-6 h-6" className={shadowGlow} />
+                                  </button>
+                                );
+                              })}
                             </div>
                           </div>
 
-                          {/* Filtro de Rol */}
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="text-[9px] text-[#ffca58] uppercase tracking-[0.1em] font-extrabold select-none">Filtrar Rol:</span>
-                            <div className="flex gap-1 bg-black/40 p-1 border border-white/10 rounded-lg flex-wrap">
-                              {[
-                                { id: 'all', label: 'Todos' },
-                                { id: 'removal', label: 'Remoción' },
-                                { id: 'ramp', label: 'Rampa' },
-                                { id: 'draw', label: 'Robo' },
-                                { id: 'motor', label: 'Motor' },
-                                { id: 'payoff', label: 'Payoff' }
-                              ].map(r => (
-                                <button
-                                  key={r.id}
-                                  type="button"
-                                  onClick={() => {
-                                    vibrateTouch();
-                                    setSynergyRoleFilter(r.id);
-                                  }}
-                                  className={cn(
-                                    "px-2 py-0.5 rounded text-[8px] font-extrabold uppercase tracking-wider transition-all",
-                                    synergyRoleFilter === r.id
-                                      ? "bg-[#ffca58] text-black font-black shadow-sm scale-105"
-                                      : "bg-transparent text-white/40 hover:text-white/80"
-                                  )}
-                                >
-                                  {r.label}
-                                </button>
-                              ))}
+                          {/* Fila 2: Filtros de Tipo, Rol, CMC, Rareza y Ordenación */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 text-[8px]">
+                            {/* Filtro de Tipo */}
+                            <div className="flex flex-col gap-1 bg-black/40 p-2 border border-white/10 rounded-xl">
+                              <span className="text-[#ffca58] uppercase font-bold tracking-wider">Tipo de Carta:</span>
+                              <div className="flex gap-1 flex-wrap">
+                                {[
+                                  { id: 'all', label: 'Todos' },
+                                  { id: 'creature', label: 'Criaturas' },
+                                  { id: 'spell', label: 'Hechizos' },
+                                  { id: 'other', label: 'Otros' }
+                                ].map(t => (
+                                  <button
+                                    key={t.id}
+                                    type="button"
+                                    onClick={() => setSynergyTypeFilter(t.id)}
+                                    className={cn(
+                                      "px-1.5 py-0.5 rounded font-extrabold uppercase transition-all",
+                                      synergyTypeFilter === t.id ? "bg-[#ffca58] text-black font-black" : "bg-white/5 text-white/40 hover:text-white"
+                                    )}
+                                  >
+                                    {t.label}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* Filtro de Curva / CMC */}
+                            <div className="flex flex-col gap-1 bg-black/40 p-2 border border-white/10 rounded-xl">
+                              <span className="text-[#ffca58] uppercase font-bold tracking-wider">Coste de Maná (CMC):</span>
+                              <div className="flex gap-1 flex-wrap">
+                                {[
+                                  { id: 'all', label: 'Todos' },
+                                  { id: '1', label: '1' },
+                                  { id: '2', label: '2' },
+                                  { id: '3', label: '3' },
+                                  { id: '4', label: '4' },
+                                  { id: '5+', label: '5+' }
+                                ].map(c => (
+                                  <button
+                                    key={c.id}
+                                    type="button"
+                                    onClick={() => setSynergyCmcFilter(c.id)}
+                                    className={cn(
+                                      "px-1.5 py-0.5 rounded font-extrabold uppercase transition-all",
+                                      synergyCmcFilter === c.id ? "bg-amber-400 text-black font-black" : "bg-white/5 text-white/40 hover:text-white"
+                                    )}
+                                  >
+                                    {c.label}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* Filtro de Rol Funcional */}
+                            <div className="flex flex-col gap-1 bg-black/40 p-2 border border-white/10 rounded-xl">
+                              <span className="text-[#ffca58] uppercase font-bold tracking-wider">Rol Funcional:</span>
+                              <div className="flex gap-1 flex-wrap">
+                                {[
+                                  { id: 'all', label: 'Todos' },
+                                  { id: 'removal', label: 'Remoción' },
+                                  { id: 'ramp', label: 'Rampa' },
+                                  { id: 'draw', label: 'Robo' },
+                                  { id: 'motor', label: 'Motor' },
+                                  { id: 'payoff', label: 'Payoff' }
+                                ].map(r => (
+                                  <button
+                                    key={r.id}
+                                    type="button"
+                                    onClick={() => setSynergyRoleFilter(r.id)}
+                                    className={cn(
+                                      "px-1.5 py-0.5 rounded font-extrabold uppercase transition-all",
+                                      synergyRoleFilter === r.id ? "bg-[#ffca58] text-black font-black" : "bg-white/5 text-white/40 hover:text-white"
+                                    )}
+                                  >
+                                    {r.label}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* Ordenación Pro */}
+                            <div className="flex flex-col gap-1 bg-black/40 p-2 border border-white/10 rounded-xl">
+                              <span className="text-[#ffca58] uppercase font-bold tracking-wider">Ordenar Sugerencias:</span>
+                              <div className="flex gap-1 flex-wrap">
+                                {[
+                                  { id: 'synergy', label: '★ Sinergia' },
+                                  { id: 'cmc_asc', label: 'CMC ↑' },
+                                  { id: 'cmc_desc', label: 'CMC ↓' },
+                                  { id: 'meta', label: 'Meta %' }
+                                ].map(s => (
+                                  <button
+                                    key={s.id}
+                                    type="button"
+                                    onClick={() => setSynergySortBy(s.id)}
+                                    className={cn(
+                                      "px-1.5 py-0.5 rounded font-extrabold uppercase transition-all",
+                                      synergySortBy === s.id ? "bg-purple-400 text-black font-black" : "bg-white/5 text-white/40 hover:text-white"
+                                    )}
+                                  >
+                                    {s.label}
+                                  </button>
+                                ))}
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -2959,11 +3281,13 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                               "relative z-10 p-1",
                               isMobile 
                                 ? "flex flex-row overflow-x-auto snap-x shrink-0 gap-3 pb-2 custom-scrollbar" 
-                                : "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 max-h-[300px] overflow-y-auto"
+                                : "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 max-h-[340px] overflow-y-auto"
                             )}>
                               {filteredPackCards.map(card => {
                               const copies = seedCards[card.name] || 0;
                               const isLegal = !card.legalities || card.legalities[selectedFormat.toLowerCase()] === 'legal';
+                              const cmcVal = card.cmc ?? card.mana_value ?? 0;
+                              const isUB = isUniversesBeyondOrCustom(card);
                               
                               return (
                                 <div
@@ -2971,9 +3295,9 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                                   onMouseEnter={() => setHoveredCard(card)}
                                   onMouseLeave={() => setHoveredCard(null)}
                                   className={cn(
-                                    "p-2.5 rounded-xl border transition-all duration-300 bg-black/60 flex flex-col justify-between min-h-[96px] group hover:bg-black/80 hover:border-white/25",
+                                    "p-2.5 rounded-xl border transition-all duration-300 bg-black/60 flex flex-col justify-between min-h-[105px] group hover:bg-black/80 hover:border-white/25 relative overflow-hidden",
                                     isMobile ? "min-w-[160px] snap-center shrink-0" : "",
-                                    copies > 0 ? "border-[#ffca58]/50 shadow-[0_0_8px_rgba(255,202,88,0.1)]" : "border-white/15"
+                                    copies > 0 ? "border-[#ffca58]/60 shadow-[0_0_12px_rgba(255,202,88,0.15)] bg-amber-950/20" : "border-white/15"
                                   )}
                                 >
                                   <div>
@@ -2981,27 +3305,41 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                                       <span className="font-cinzel text-[10.5px] font-bold text-white group-hover:text-[#ffca58] transition-colors leading-tight truncate w-full" title={card.name}>
                                         {card.name}
                                       </span>
-                                      {card.mana_cost && (
+                                      {card.mana_cost ? (
                                         <RenderManaCost manaCost={card.mana_cost} className="shrink-0 select-none" />
+                                      ) : (
+                                        <span className="text-[9px] font-mono text-white/40 bg-white/10 px-1 rounded">CMC {cmcVal}</span>
                                       )}
                                     </div>
-                                    <span className="text-[8px] text-white/45 font-sans block mt-0.5 truncate uppercase tracking-widest">
-                                      {card.type_line?.split('—')[0].trim()}
-                                    </span>
-                                    
-                                    {!isLegal && (
-                                      <span className="text-[8px] text-red-400 bg-red-950/40 border border-red-500/20 px-1 py-0.5 rounded uppercase font-bold tracking-wider mt-1 inline-block">
-                                        No legal en {selectedFormat}
+                                    <div className="flex items-center justify-between gap-1 mt-0.5">
+                                      <span className="text-[8px] text-white/45 font-sans truncate uppercase tracking-widest">
+                                        {card.type_line?.split('—')[0].trim()}
                                       </span>
-                                    )}
+                                      <span className="text-[8px] font-mono text-amber-300/80 bg-black/40 px-1 rounded border border-amber-500/20">
+                                        CMC {cmcVal}
+                                      </span>
+                                    </div>
+                                    
+                                    <div className="flex gap-1 flex-wrap mt-0.5">
+                                      {!isLegal && (
+                                        <span className="text-[8px] text-red-400 bg-red-950/40 border border-red-500/20 px-1 py-0.5 rounded uppercase font-bold tracking-wider inline-block">
+                                          No legal en {selectedFormat}
+                                        </span>
+                                      )}
+                                      {isUB && (
+                                        <span className="text-[7.5px] bg-purple-950/80 border border-purple-500/40 text-purple-300 px-1 py-0.2 rounded uppercase font-bold tracking-wider inline-flex items-center gap-0.5">
+                                          <Globe size={8} /> UB Crossover
+                                        </span>
+                                      )}
+                                    </div>
                                   </div>
 
                                   <div className="flex items-center justify-between gap-2 mt-2 pt-1.5 border-t border-white/5">
-                                    <span className="text-[9.5px] text-[#ffca58] font-bold">
+                                    <span className="text-[9.5px] text-[#ffca58] font-bold truncate">
                                       {detectFunctionalRole(card)}
                                     </span>
                                     
-                                    <div className="flex items-center gap-1.5">
+                                    <div className="flex items-center gap-1.5 shrink-0">
                                       <button
                                         type="button"
                                         disabled={copies === 0}
@@ -3055,18 +3393,18 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                                 </div>
                               );
                             })}
-                          </div>
+                            </div>
+                          ) : (
+                            <div className="py-8 flex flex-col items-center justify-center text-center relative z-10 bg-black/30 rounded-xl border border-white/5">
+                              <span className="text-xs text-white/35 font-serif">No hay cartas sugeridas que coincidan con los filtros de tipo, CMC, rareza o rol elegidos.</span>
+                            </div>
+                          )
                         ) : (
-                          <div className="py-8 flex flex-col items-center justify-center text-center relative z-10 bg-black/30 rounded-xl border border-white/5">
-                            <span className="text-xs text-white/35 font-serif">No hay cartas sugeridas que coincidan con los filtros de tipo o rol elegidos.</span>
+                          <div className="p-8 text-center bg-black/30 rounded-xl border border-white/5 relative z-10">
+                            <span className="text-white/40 text-[10px] font-mono uppercase tracking-widest">Selecciona colores viables o un motor para cargar sinergias</span>
                           </div>
-                        )
-                      ) : (
-                        <div className="p-8 text-center bg-black/30 rounded-xl border border-white/5 relative z-10">
-                          <span className="text-white/40 text-[10px] font-mono uppercase tracking-widest">Selecciona colores viables o un motor para cargar sinergias</span>
-                        </div>
-                      )}
-                        
+                        )}
+                          
                         {totalSelectedSpells > maxSpells && (
                           <div className="p-3 bg-red-950/40 border border-red-500/30 rounded-xl flex items-center gap-2 relative z-10 animate-pulse">
                             <ShieldAlert className="text-red-400 shrink-0" size={16} />
@@ -3693,22 +4031,23 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                       />
                     </div>
 
-                    {/* Custom Cards Toggle */}
-                    <div className="flex items-center justify-between gap-4 bg-black/45 p-4 rounded-xl border border-white/5 relative overflow-hidden group mb-4">
-                      <div className="absolute inset-0 bg-magic-gold/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+                    {/* Universes Beyond & Custom Cards Toggle */}
+                    <div className="flex items-center justify-between gap-4 bg-black/55 p-4 rounded-xl border border-purple-500/30 relative overflow-hidden group mb-4 shadow-[0_0_15px_rgba(168,85,247,0.1)]">
+                      <div className="absolute inset-0 bg-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
                       <div className="relative z-10 space-y-1">
-                        <label className="flex items-center gap-1.5 text-xs font-bold text-magic-gold uppercase tracking-wider">
-                          <Sparkles size={12} className="text-[#ffca58]" /> Permitir Cartas Personalizadas (Crossover/Custom)
+                        <label className="flex items-center gap-2 text-xs font-bold text-purple-300 uppercase tracking-wider">
+                          <Globe size={14} className="text-purple-400 animate-pulse" /> Ediciones Universes Beyond (Crossovers) & Custom
                         </label>
-                        <p className="text-[10px] text-[#f4ece0]/50 tracking-wider">
-                          Habilita cartas especiales (Avatar, Final Fantasy, TMNT, etc.) en la generación. Desactívalo para forjar mazos con legalidad oficial estricta.
+                        <p className="text-[10px] text-[#f4ece0]/60 tracking-wider font-serif">
+                          Incluye o excluye expansiones crossover oficiales (El Señor de los Anillos, Fallout, Final Fantasy, Marvel, Doctor Who, Warhammer 40k, etc.). Desactívalo si buscas estricta fidelidad al MTG clásico.
                         </p>
                       </div>
-                      <label className="relative z-10 flex items-center gap-2 cursor-pointer select-none">
+                      <label className="relative z-10 flex items-center gap-2 cursor-pointer select-none shrink-0">
                         <input
                           type="checkbox"
                           checked={!!formData.allowCustomCards}
                           onChange={(e) => {
+                            vibrateTouch();
                             setFormData(prev => ({ 
                               ...prev, 
                               allowCustomCards: e.target.checked
@@ -3716,8 +4055,8 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                           }}
                           className="sr-only"
                         />
-                        <div className={cn("w-9 h-5 rounded-full transition-colors relative", formData.allowCustomCards ? "bg-[#ffca58]/40 border border-[#ffca58]/55" : "bg-white/10 border border-white/20")}>
-                          <div className={cn("absolute top-0.5 left-0.5 w-3.5 h-3.5 rounded-full transition-all", formData.allowCustomCards ? "bg-white translate-x-4" : "bg-white/60 translate-x-0")} />
+                        <div className={cn("w-10 h-5 rounded-full transition-all relative border", formData.allowCustomCards ? "bg-purple-900/80 border-purple-400" : "bg-white/10 border-white/20")}>
+                          <div className={cn("absolute top-0.5 left-0.5 w-3.5 h-3.5 rounded-full transition-all shadow-md", formData.allowCustomCards ? "bg-purple-300 translate-x-5" : "bg-white/60 translate-x-0")} />
                         </div>
                       </label>
                     </div>
