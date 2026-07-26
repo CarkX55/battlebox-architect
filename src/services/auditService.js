@@ -264,6 +264,101 @@ export function getPillarCandidatesFromDB(pillarName, allCards, allowedColors, f
   return candidates.map(c => c.name);
 }
 
+/**
+ * Sintetiza un texto de veredicto fluido, profesional y humano de nivel Juez Pro Tour MTG
+ * que hace referencia explícita al concepto/arquetipo/estrategia inicial del usuario,
+ * a las fisuras estructurales (pilares y Karsten) y al plan de cambios sugeridos.
+ */
+export function buildProTourExpertVerdict(formData, hydratedDeckCards, pillarAnalysis, karstenAnalysis, totalCards, targetCards, suggestions, rawVerdictFromAI) {
+  const archetype = (formData?.archetype || 'Midrange').toUpperCase();
+  const strategy = (formData?.strategy || formData?.selectedEngineId || formData?.aiMetadata?.strategy || 'Estrategia').toUpperCase();
+  const colorsList = formData?.colores || [];
+  const colorsStr = colorsList.length > 0 ? colorsList.join('/') : 'Incoloro/Genérico';
+  const concept = formData?.prompt || formData?.lore || formData?.aiMetadata?.lore;
+
+  const sections = [];
+
+  // 1. INTENCIÓN Y CONCEPTO DEL USUARIO
+  let paragraph1 = `🏛️ **Diagnóstico de Juez Pro Tour (${archetype} - ${strategy} ${colorsStr})**:\n`;
+  if (concept) {
+    paragraph1 += `Evaluando tu visión original ("${concept}"), hemos analizado la sinergia y curva para adaptar tu concepto al metagame actual.`;
+  } else {
+    paragraph1 += `Hemos analizado la consistencia de tu lista de ${totalCards} cartas evaluando la curva de maná, densidad de motores y devoción de color según Karsten Math.`;
+  }
+  sections.push(paragraph1);
+
+  // 2. DIAGNÓSTICO ESTRUCTURAL (Tamaño, Karsten & Pilares)
+  const diagLines = [];
+
+  if (totalCards < targetCards) {
+    diagLines.push(`• **Mazo Incompleto**: La lista actual contiene ${totalCards} de las ${targetCards} cartas requeridas (faltan ${targetCards - targetCards} cartas).`);
+  }
+
+  const criticalKarsten = karstenAnalysis?.devotions?.filter(d => d.status === 'critical') || [];
+  if (criticalKarsten.length > 0) {
+    const karstenDetail = criticalKarsten.map(d => `${d.color} (${d.availableSources} fuentes vs ${d.requiredSources} requeridas)`).join(', ');
+    diagLines.push(`• **Escasez de Fuentes de Maná (Karsten Math)**: Sufres un déficit severo en los pips ${karstenDetail}, lo que generará atascos de maná en primeros turnos.`);
+  }
+
+  const criticalPillars = [];
+  const overloadedPillars = [];
+  if (pillarAnalysis && pillarAnalysis.pillars) {
+    const pillarNames = { ramp: 'Aceleración (Ramp)', draw: 'Motor de Robo (Draw)', removal: 'Remoción (Removal)', threats: 'Amenazas (Finishers)', protection: 'Protección (Defensa)' };
+    Object.entries(pillarAnalysis.pillars).forEach(([key, data]) => {
+      const name = pillarNames[key] || key;
+      if (data.count === 0 && data.threshold > 0) {
+        criticalPillars.push(`**${name}** (0 copias)`);
+      } else if (data.count < data.threshold) {
+        criticalPillars.push(`**${name}** (${data.count}/${data.threshold} rec.)`);
+      } else if (data.count > data.threshold * 1.7 && data.count >= 10) {
+        overloadedPillars.push(`**${name}** (${data.count} copias)`);
+      }
+    });
+  }
+
+  if (overloadedPillars.length > 0 || criticalPillars.length > 0) {
+    let pText = '• **Desequilibrio Funcional**: ';
+    if (overloadedPillars.length > 0) {
+      pText += `Sobrecarga en ${overloadedPillars.join(' y ')}. `;
+    }
+    if (criticalPillars.length > 0) {
+      pText += `Déficit en ${criticalPillars.join(', ')}.`;
+    }
+    diagLines.push(pText);
+  }
+
+  if (diagLines.length > 0) {
+    sections.push(`⚠️ **Fisuras Estructurales Detectadas**:\n${diagLines.join('\n')}`);
+  }
+
+  // 3. DICTAMEN DE IA (SI CORRESPONDE Y NO ES FALLBACK DUMMY)
+  if (rawVerdictFromAI && rawVerdictFromAI.length > 25 && !rawVerdictFromAI.includes("Auditoría determinista")) {
+    sections.push(`💬 **Dictamen Táctico**: ${rawVerdictFromAI}`);
+  }
+
+  // 4. PLAN DE ACCIÓN PASO A PASO (CAMBIOS RECOMENDADOS)
+  if (suggestions && suggestions.length > 0) {
+    const planItems = suggestions.slice(0, 4).map(s => {
+      let actionStr = '';
+      if (s.removes && s.removes.length > 0) {
+        actionStr += `Retirar ${s.removes.map(r => `${r.quantity}x [[${r.name}]]`).join(', ')}`;
+      }
+      if (s.adds && s.adds.length > 0) {
+        if (actionStr) actionStr += ' e ';
+        else actionStr += 'Añadir ';
+        actionStr += `inyectar ${s.adds.map(a => `${a.quantity}x [[${a.name}]]`).join(', ')}`;
+      }
+      return actionStr ? `• **${s.text || s.changeType || 'Ajuste Táctico'}**: ${actionStr}.` : `• ${s.text}`;
+    }).filter(Boolean);
+
+    if (planItems.length > 0) {
+      sections.push(`⚡ **Plan de Corrección Recomendado por Experto MTG**:\n${planItems.join('\n')}`);
+    }
+  }
+
+  return sections.join('\n\n');
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // FUNCIÓN PRINCIPAL DE AUDITORÍA CON IA
 // ─────────────────────────────────────────────────────────────────────────────
@@ -659,10 +754,18 @@ ${orphans ? 'CARTAS HUÉRFANAS DETECTADAS:\n' + orphans : ''}
     });
   }
 
-  let finalVerdict = jsonResult.verdict || jsonResult.summary || jsonResult.overview || "Auditoría de viabilidad competitiva completada con éxito.";
-  if (totalCards < targetCards) {
-    finalVerdict = `⚠️ Veredicto del Juez: El mazo está INCOMPLETO (${totalCards}/${targetCards} cartas). Le faltan ${targetCards - totalCards} cartas. Haz clic en 'Aplicar Cambios' para autocompletar la base de maná y hechizos.`;
-  }
+  const rawAIProse = jsonResult?.verdict || (typeof jsonResult?.summary === 'string' && !jsonResult?.summary?.includes('Auditoría determinista') ? jsonResult?.summary : '') || jsonResult?.overview || "";
+  
+  const finalVerdict = buildProTourExpertVerdict(
+    formData,
+    hydratedDeckCards,
+    pillarAnalysis,
+    karstenAnalysis,
+    totalCards,
+    targetCards,
+    suggestions,
+    rawAIProse
+  );
 
   // Adjuntar el análisis de pilares y karsten al resultado para la UI
   return {
