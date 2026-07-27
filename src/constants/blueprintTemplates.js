@@ -60,9 +60,9 @@ export const BLUEPRINTS = {
   midrange: {
     id: 'midrange',
     deckSize: 60,
-    lands: { total: 24 },
+    lands: { total: 23 },
     spells: {
-      total: 36,
+      total: 37,
       distribution: {
         creatures: { min: 14, max: 18 },
         removal: { min: 8, max: 12 },
@@ -432,8 +432,8 @@ export const ARCHETYPE_BASE = {
   midrange: {
     id: 'midrange',
     label: 'Midrange',
-    landCount: 24,
-    totalSpells: 36,
+    landCount: 23,
+    totalSpells: 37,
     curveProfile: 'balanced',
     roles: {
       early_value_creatures: 12,
