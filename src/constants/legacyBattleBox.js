@@ -899,6 +899,225 @@ export const MTG_TRIBES = [
   { id: 'sliver-5c', label: 'Slivers (Pentacolor 5C)', category: 'exotica', colors: ['W', 'U', 'B', 'R', 'G'], primaryColor: ['W', 'U', 'B', 'R', 'G'], strategies: ['tokens', 'slivers'], archetypes: ['aggro', 'midrange', 'combo', 'tempo'], subtypes: ['sliver'], formats: ['MODERN'] },
   { id: 'sliver-bant', label: 'Slivers (Bant/Naya Base)', category: 'exotica', colors: ['W', 'U', 'G', 'R'], primaryColor: ['G', 'W'], strategies: ['tokens', 'slivers'], archetypes: ['aggro', 'midrange', 'combo', 'tempo'], subtypes: ['sliver'], formats: ['MODERN'] },
 
+  // NUEVAS TRIBUS ICÓNICAS MTG (SAPROLINES, HOMBRES LOBO, HIDRAS, DEFENDEDORES, LIMOS, GORGONAS, ESQUELETOS, ETC)
+  {
+    id: 'saproling',
+    label: 'Saprolines & Hongos (Saprolings)',
+    category: 'clasica',
+    colors: ['G', 'B', 'W'],
+    primaryColor: 'G',
+    strategies: ['tokens', 'aristocrats', 'landfall'],
+    archetypes: ['aggro', 'midrange', 'combo', 'ramp'],
+    subtypes: ['saproling', 'fungus', 'thallid'],
+    flavors: [
+      {
+        id: 'saproling_swarm',
+        label: 'Enjambre de Esporas (Token Swarm & Lords)',
+        description: 'Genera hordas inagotables de saprolines potenciados por lords y hongueros.',
+        vetoedKeywords: [],
+        boostKeywords: ['saproling', 'fungus', 'thallid', 'sporecrown thallid', 'tendershoot dryad', 'slimefoot', 'mycoloth', 'saproling migration']
+      },
+      {
+        id: 'saproling_sacrifice',
+        label: 'Sacrificio Fúngico (Aristocrats)',
+        description: 'Sacrifica saprolines para drenar vida al rival e igualar el campo.',
+        vetoedKeywords: [],
+        boostKeywords: ['sacrifice a saproling', 'fungal plots', 'slimefoot, the stowaway', 'blood artist', 'zulaport cutthroat', 'saproling'],
+        corePackageId: 'aristocrats'
+      }
+    ]
+  },
+  {
+    id: 'werewolf',
+    label: 'Hombres Lobo & Lobos (Werewolves)',
+    category: 'monstruo',
+    colors: ['R', 'G'],
+    primaryColor: ['R', 'G'],
+    strategies: ['voltron', 'tokens'],
+    archetypes: ['aggro', 'midrange', 'tempo', 'ramp'],
+    subtypes: ['werewolf', 'wolf'],
+    flavors: [
+      {
+        id: 'werewolf_daynight',
+        label: 'Furia de Luna Llena (Daybound/Nightbound)',
+        description: 'Transforma tus humanos en licántropos feroces según el ciclo del día y la noche.',
+        vetoedKeywords: [],
+        boostKeywords: ['werewolf', 'wolf', 'daybound', 'nightbound', 'tovolar', 'tovolar\'s huntmaster', 'reckless stormseeker', 'mayor of avabruck']
+      }
+    ]
+  },
+  {
+    id: 'hydra',
+    label: 'Hidras (Hydras - Big Mana & Counters)',
+    category: 'monstruo',
+    colors: ['G', 'R', 'U'],
+    primaryColor: 'G',
+    strategies: ['tokens', 'landfall'],
+    archetypes: ['midrange', 'ramp', 'combo', 'aggro'],
+    subtypes: ['hydra'],
+    flavors: [
+      {
+        id: 'hydra_ramp',
+        label: 'Crecimiento Colosal (+1/+1 Counters & X-Spells)',
+        description: 'Genera maná masivo para lanzar hidras gigantescas que se multiplican.',
+        vetoedKeywords: [],
+        boostKeywords: ['hydra', 'gargos', 'kalonian hydra', 'primordial hydra', 'goldvein hydra', 'mistcutter hydra', 'hardened scales', '+1/+1 counter']
+      }
+    ]
+  },
+  {
+    id: 'ooze',
+    label: 'Limos & Gelatinas (Oozes)',
+    category: 'monstruo',
+    colors: ['G', 'B'],
+    primaryColor: 'G',
+    strategies: ['aristocrats', 'reanimator'],
+    archetypes: ['midrange', 'combo', 'control', 'ramp'],
+    subtypes: ['ooze'],
+    flavors: [
+      {
+        id: 'ooze_growth',
+        label: 'Masa Gelatinosa (Graveyard & Counters)',
+        description: 'Limos que devoran el cementerio y crecen con contadores descontrolados.',
+        vetoedKeywords: [],
+        boostKeywords: ['ooze', 'scavenging ooze', 'experiment one', 'biogenic ooze', 'aeve', 'mitotic slime', 'acidic slime']
+      }
+    ]
+  },
+  {
+    id: 'gorgon',
+    label: 'Gorgonas (Gorgons - Touch of Death)',
+    category: 'monstruo',
+    colors: ['B', 'G'],
+    primaryColor: 'B',
+    strategies: ['aristocrats', 'reanimator'],
+    archetypes: ['midrange', 'control', 'prison'],
+    subtypes: ['gorgon'],
+    flavors: [
+      {
+        id: 'gorgon_petrify',
+        label: 'Mirada Petrificante (Deathtouch & Control)',
+        description: 'Gorgonas letales que destruyen a cualquier atacante al mínimo contacto.',
+        vetoedKeywords: [],
+        boostKeywords: ['gorgon', 'deathtouch', 'vraska', 'hythonia', 'pharika', 'reaper of the wilds']
+      }
+    ]
+  },
+  {
+    id: 'wall',
+    label: 'Murallas & Defensores (Walls - Arcades Combo)',
+    category: 'exotica',
+    colors: ['W', 'U', 'G'],
+    primaryColor: ['W', 'G'],
+    strategies: ['tokens', 'toolbox'],
+    archetypes: ['midrange', 'combo', 'control', 'prison', 'ramp'],
+    subtypes: ['wall', 'plant'],
+    flavors: [
+      {
+        id: 'wall_toughness',
+        label: 'Ataque de Resistencia (Toughness Stompy)',
+        description: 'Ataca con murallas y criaturas de resistencia masiva usando la fuerza del valor de resistencia.',
+        vetoedKeywords: [],
+        boostKeywords: ['defender', 'wall', 'arcades, the strategist', 'high alert', 'assault formation', 'overgrown battlement', 'axebane guardian', 'wall of blossoms']
+      }
+    ]
+  },
+  {
+    id: 'giant',
+    label: 'Gigantes (Giants)',
+    category: 'monstruo',
+    colors: ['R', 'W', 'G'],
+    primaryColor: 'R',
+    strategies: ['voltron', 'tokens'],
+    archetypes: ['midrange', 'ramp', 'aggro'],
+    subtypes: ['giant'],
+    flavors: [
+      {
+        id: 'giant_stomp',
+        label: 'Pasos de Titán (Giant Stompy)',
+        description: 'Gigantes colosales que pisotean las líneas enemigas con daño brutal.',
+        vetoedKeywords: [],
+        boostKeywords: ['giant', 'calamity bearer', 'aegar', 'sunrise sovereign', 'bonecrusher giant', 'realm-cloaked giant']
+      }
+    ]
+  },
+  {
+    id: 'skeleton',
+    label: 'Esqueletos (Skeletons)',
+    category: 'clasica',
+    colors: ['B', 'R'],
+    primaryColor: 'B',
+    strategies: ['aristocrats', 'reanimator'],
+    archetypes: ['aggro', 'midrange'],
+    subtypes: ['skeleton'],
+    flavors: [
+      {
+        id: 'skeleton_recurrence',
+        label: 'Osamenta Inmortal (Recursion Aggro)',
+        description: 'Esqueletos inagotables que renacen una y otra vez del cementerio.',
+        vetoedKeywords: [],
+        boostKeywords: ['skeleton', 'reassembling skeleton', 'corpses of the lost', 'skeleton crew', 'gutmorn', 'skeletal swarm']
+      }
+    ]
+  },
+  {
+    id: 'dog',
+    label: 'Canes & Felinos (Dogs & Hounds)',
+    category: 'exotica',
+    colors: ['W', 'R'],
+    primaryColor: 'W',
+    strategies: ['voltron', 'tokens'],
+    archetypes: ['aggro', 'midrange'],
+    subtypes: ['dog', 'hound'],
+    flavors: [
+      {
+        id: 'dog_aggro',
+        label: 'Jauría Leal (Aggro & Protection)',
+        description: 'Canes rápidos y leales que protegen a sus aliados y atacan en jauría.',
+        vetoedKeywords: [],
+        boostKeywords: ['dog', 'hound', 'pack leader', 'resolute watchdog', 'selfless savior', 'isamaru', 'bolt hound']
+      }
+    ]
+  },
+  {
+    id: 'changeling',
+    label: 'Metamorfos (Changelings - Universal Tribal)',
+    category: 'exotica',
+    colors: ['W', 'U', 'B', 'R', 'G'],
+    primaryColor: 'W',
+    strategies: ['tokens', 'toolbox'],
+    archetypes: ['aggro', 'midrange', 'combo', 'ramp'],
+    subtypes: ['changeling', 'shapeshifter'],
+    flavors: [
+      {
+        id: 'changeling_all',
+        label: 'Sinergia Multitribal Universal',
+        description: 'Criaturas que cuentan como todas las tribus simultáneamente activando señores tribales.',
+        vetoedKeywords: [],
+        boostKeywords: ['changeling', 'every creature type', 'mirror entity', 'taurean mauler', 'realmwalker', 'unsettled mariner']
+      }
+    ]
+  },
+  {
+    id: 'warlock',
+    label: 'Brujos & Cultistas (Warlocks)',
+    category: 'vocacion',
+    colors: ['B', 'R', 'U'],
+    primaryColor: 'B',
+    strategies: ['aristocrats', 'reanimator', 'spellslinger'],
+    archetypes: ['midrange', 'control', 'combo'],
+    subtypes: ['warlock', 'wizard'],
+    flavors: [
+      {
+        id: 'warlock_curse',
+        label: 'Círculo de Brujería & Maldiciones',
+        description: 'Hechiceros oscuros que lanzan maldiciones y sacrifican siervos por conocimiento.',
+        vetoedKeywords: [],
+        boostKeywords: ['warlock', 'curse', 'sedgemoor witch', 'wicked visitor', 'braids', 'witch\'s oven']
+      }
+    ]
+  },
+
   // ALIANZAS Y MEZCLAS TEMÁTICAS
   { id: 'boros_guild', label: '⚔️ Gremio Boros (Prowess & Sunforger)', category: 'alianza', colors: ['W', 'R'], primaryColor: 'R', strategies: ['spellslinger', 'voltron'], archetypes: ['aggro', 'tempo', 'midrange'], subtypes: ['human', 'soldier', 'knight'] },
   { id: 'golgari_guild', label: '💀 Gremio Golgari (Dredge & Undergrowth)', category: 'alianza', colors: ['B', 'G'], primaryColor: 'B', strategies: ['reanimator', 'aristocrats'], archetypes: ['midrange', 'combo', 'reanimator'], subtypes: ['zombie', 'elf', 'plant', 'fungus'] },
