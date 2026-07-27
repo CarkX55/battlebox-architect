@@ -4,7 +4,7 @@ import { CURVE_BOUNDS, calculateRealTimeVMPWarning, evaluateDeckHealthFast } fro
 import { internalSynergyAudit } from './auditService.js';
 import { callAI, buildAgenticPhasePrompt, GEMINI_PHASE_SCHEMA, DECK_BUILDER_TOOLS } from './aiFactory.js';
 import { API_ENDPOINTS } from '../config/apiEndpoints.js';
-import { BATTLEBOX_VETOS, BANLIST_SUBSTITUTIONS, BATTLEBOX_ARCHETYPES, MTG_STRATEGIES, MTG_TRIBES, getIntelligentSubstitution, PARASITIC_RULES, COMPETITIVE_ANTI_SYNERGIES, inferStrategyFromArchetype, MICRO_SYNERGIES_GRAPH, CONTEXTUAL_DEPENDENCIES } from '../constants/legacyBattleBox.js';
+import { BATTLEBOX_VETOS, BANLIST_SUBSTITUTIONS, BATTLEBOX_ARCHETYPES, MTG_STRATEGIES, MTG_TRIBES, GOLDEN_CORE_PACKAGES, getIntelligentSubstitution, PARASITIC_RULES, COMPETITIVE_ANTI_SYNERGIES, inferStrategyFromArchetype, MICRO_SYNERGIES_GRAPH, CONTEXTUAL_DEPENDENCIES } from '../constants/legacyBattleBox.js';
 import { buildCardPool, getDynamicArchetypes } from './ragService.js';
 import { extractActivationSignals } from './synergyActivationEngine.js';
 import { findFuzzyMatchInDB, getCardFromDB, hydrateCard } from './cardHydrator.js';
@@ -1729,7 +1729,15 @@ function recortarHechizosExcedentesInteligente(spells, targetSpellsCount, addLog
         
         for (let cand of candidates) {
             if (excess <= 0) break;
-            const toReduce = Math.min(cand.quantity - pase.minQtyAllowed, excess);
+
+            // Proteger la cuota mínima del rol en el blueprint para evitar desajustes
+            const currentRoleTotal = spells.filter(s => s.role === cand.role).reduce((sum, s) => sum + s.quantity, 0);
+            const expectedRoleTarget = blueprint?.spells?.distribution?.[cand.role]?.min || blueprint?.roles?.[cand.role] || 0;
+            const maxTrimAllowed = expectedRoleTarget > 0 ? Math.max(0, currentRoleTotal - expectedRoleTarget) : excess;
+
+            if (expectedRoleTarget > 0 && maxTrimAllowed <= 0) continue; // No recortar si provocaría déficit en el rol
+            
+            const toReduce = Math.min(cand.quantity - pase.minQtyAllowed, excess, maxTrimAllowed > 0 ? maxTrimAllowed : excess);
             if (toReduce > 0) {
                 cand.quantity -= toReduce;
                 excess -= toReduce;
@@ -4185,6 +4193,46 @@ export function assemblerLoop(rankedCards, blueprint, mergedCoreAndMustInclude, 
     if (roleObj) {
       roleObj.remaining = Math.max(0, roleObj.remaining - card.quantity);
     }
+  }
+
+  // --- INYECCIÓN AUTOMÁTICA DE PAQUETE DORADO TRIBAL / ESTRATÉGICO ---
+  let activeTribeKey = (formData?.tribe || '').toLowerCase();
+  if (!activeTribeKey || activeTribeKey === 'ninguna') {
+    const promptLower = (formData?.prompt || '').toLowerCase();
+    if (promptLower.includes('saprolin') || promptLower.includes('fungus') || promptLower.includes('hongo') || promptLower.includes('espora')) activeTribeKey = 'saproling';
+    else if (promptLower.includes('elf')) activeTribeKey = 'elf';
+    else if (promptLower.includes('goblin') || promptLower.includes('trasgo')) activeTribeKey = 'goblin';
+    else if (promptLower.includes('zombie')) activeTribeKey = 'zombie';
+    else if (promptLower.includes('vampir')) activeTribeKey = 'vampire';
+    else if (promptLower.includes('ninja')) activeTribeKey = 'ninja';
+    else if (promptLower.includes('eldrazi')) activeTribeKey = 'eldrazi';
+    else if (promptLower.includes('sliver') || promptLower.includes('fectidio')) activeTribeKey = 'sliver';
+    else if (promptLower.includes('muralla') || promptLower.includes('wall') || promptLower.includes('defens')) activeTribeKey = 'wall';
+    else if (promptLower.includes('hidra') || promptLower.includes('hydra')) activeTribeKey = 'hydra';
+    else if (promptLower.includes('lobo') || promptLower.includes('werewolf')) activeTribeKey = 'werewolf';
+  }
+
+  const goldenPackage = GOLDEN_CORE_PACKAGES[activeTribeKey];
+  if (goldenPackage && Array.isArray(goldenPackage)) {
+    addLog(`✨ [GOLDEN CORE PACKAGE] Pre-sembrando paquete estandar de oro para tribu/tema "${activeTribeKey}" (${goldenPackage.length} cartas)...`);
+    goldenPackage.forEach(item => {
+      const alreadyUsed = usedNames.get(item.name.toLowerCase()) || 0;
+      const toAdd = Math.min(item.quantity, 4 - alreadyUsed);
+      if (toAdd > 0) {
+        deck.push({
+          name: item.name,
+          quantity: toAdd,
+          category: 'Spell',
+          role: item.role,
+          priority: 1
+        });
+        usedNames.set(item.name.toLowerCase(), alreadyUsed + toAdd);
+        const matchingRole = residualBlueprint.find(r => r.name === item.role);
+        if (matchingRole) {
+          matchingRole.remaining = Math.max(0, matchingRole.remaining - toAdd);
+        }
+      }
+    });
   }
 
   const allowedColorsSet = new Set(colors || []);

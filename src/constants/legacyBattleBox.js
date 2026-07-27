@@ -1149,6 +1149,86 @@ export const TRIBE_CATEGORIES = {
   alianza: '🤝 Alianzas y Mezclas Temáticas'
 };
 
+export const GOLDEN_CORE_PACKAGES = {
+  saproling: [
+    { name: "Sporecrown Thallid", quantity: 4, role: "lords_and_anthems" },
+    { name: "Slimefoot, the Stowaway", quantity: 4, role: "saproling_fungus_engines" },
+    { name: "Tendershoot Dryad", quantity: 4, role: "go_wide_finishers" },
+    { name: "Saproling Migration", quantity: 4, role: "early_fungus_spores" },
+    { name: "Mycoloth", quantity: 4, role: "fungus_saproling_finishers" }
+  ],
+  elf: [
+    { name: "Llanowar Elves", quantity: 4, role: "mana_acceleration" },
+    { name: "Elvish Archdruid", quantity: 4, role: "lords_and_anthems" },
+    { name: "Leaf-Crowned Visionary", quantity: 4, role: "card_advantage_draw" },
+    { name: "Heritage Druid", quantity: 4, role: "mana_acceleration" },
+    { name: "Craterhoof Behemoth", quantity: 2, role: "apex_finishers" }
+  ],
+  goblin: [
+    { name: "Goblin Guide", quantity: 4, role: "one_drop_beaters" },
+    { name: "Goblin Chieftain", quantity: 4, role: "lords_and_anthems" },
+    { name: "Krenko, Mob Boss", quantity: 4, role: "tribal_core_creatures" },
+    { name: "Sling-Gang Lieutenant", quantity: 4, role: "reach_and_burn" },
+    { name: "Conspicuous Snoop", quantity: 4, role: "two_drop_synergies" }
+  ],
+  zombie: [
+    { name: "Gravecrawler", quantity: 4, role: "tribal_core_creatures" },
+    { name: "Death Baron", quantity: 4, role: "lords_and_anthems" },
+    { name: "Diregraf Captain", quantity: 4, role: "lords_and_anthems" },
+    { name: "Diregraf Colossus", quantity: 4, role: "tribal_core_creatures" },
+    { name: "Cryptbreaker", quantity: 4, role: "card_advantage_draw" }
+  ],
+  vampire: [
+    { name: "Legion Lieutenant", quantity: 4, role: "lords_and_anthems" },
+    { name: "Sorin, Imperious Bloodlord", quantity: 4, role: "card_advantage_engines" },
+    { name: "Vein Ripper", quantity: 3, role: "apex_finishers" },
+    { name: "Vampire Socialite", quantity: 4, role: "two_drop_synergies" },
+    { name: "Cordial Vampire", quantity: 4, role: "two_drop_synergies" }
+  ],
+  ninja: [
+    { name: "Ornithopter", quantity: 4, role: "evasive_cheap_threats" },
+    { name: "Yuriko, the Tiger's Shadow", quantity: 4, role: "ninja_payloads_and_draw" },
+    { name: "Thousand-Faced Shadow", quantity: 4, role: "evasive_cheap_threats" },
+    { name: "Moon-Circuit Hacker", quantity: 4, role: "ninja_payloads_and_draw" },
+    { name: "Ingenious Prodigy", quantity: 4, role: "ninja_payloads_and_draw" }
+  ],
+  eldrazi: [
+    { name: "Thought-Knot Seer", quantity: 4, role: "tribal_core_creatures" },
+    { name: "Reality Smasher", quantity: 4, role: "eldrazi_titans_and_smashers" },
+    { name: "Matter Reshaper", quantity: 4, role: "early_value_creatures" },
+    { name: "Expedition Map", quantity: 4, role: "colorless_sol_lands_and_map" },
+    { name: "Ulamog, the Ceaseless Hunger", quantity: 2, role: "eldrazi_titans_and_smashers" }
+  ],
+  sliver: [
+    { name: "Predatory Sliver", quantity: 4, role: "sliver_lords_and_buffs" },
+    { name: "Sinew Sliver", quantity: 4, role: "sliver_lords_and_buffs" },
+    { name: "Manaweft Sliver", quantity: 4, role: "cheap_mana_and_evasion_slivers" },
+    { name: "Gemhide Sliver", quantity: 4, role: "cheap_mana_and_evasion_slivers" },
+    { name: "Diffusion Sliver", quantity: 4, role: "removal_and_utility_slivers" }
+  ],
+  wall: [
+    { name: "Arcades, the Strategist", quantity: 4, role: "toughness_combat_enablers" },
+    { name: "High Alert", quantity: 4, role: "toughness_combat_enablers" },
+    { name: "Overgrown Battlement", quantity: 4, role: "mana_walls_and_ramp" },
+    { name: "Wall of Blossoms", quantity: 4, role: "defender_walls_high_toughness" },
+    { name: "Wall of Omens", quantity: 4, role: "defender_walls_high_toughness" }
+  ],
+  hydra: [
+    { name: "Goldvein Hydra", quantity: 4, role: "apex_finishers" },
+    { name: "Kalonian Hydra", quantity: 4, role: "apex_finishers" },
+    { name: "Gargos, Vicious Watcher", quantity: 3, role: "apex_finishers" },
+    { name: "Hardened Scales", quantity: 4, role: "two_drop_synergies" },
+    { name: "Delighted Halfling", quantity: 4, role: "early_mana_dorks" }
+  ],
+  werewolf: [
+    { name: "Tovolar, Dire Overlord", quantity: 4, role: "lords_and_anthems" },
+    { name: "Reckless Stormseeker", quantity: 4, role: "tribal_core_creatures" },
+    { name: "Tovolar's Huntmaster", quantity: 3, role: "apex_finishers" },
+    { name: "Kessig Naturalist", quantity: 4, role: "early_mana_dorks" },
+    { name: "Mayor of Avabruck", quantity: 4, role: "lords_and_anthems" }
+  ]
+};
+
 export const MTG_STRATEGIES = [
   { 
     id: 'aristocrats', 

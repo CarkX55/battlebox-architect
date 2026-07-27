@@ -1019,6 +1019,24 @@ export const buildCardPool = async (formData) => {
         }
       }
 
+      // Tier-1 Engine Payoff Boost (Impulso masivo a motores exponenciales de juego)
+      if (oracleText.includes('at the beginning of') || oracleText.includes('whenever a creature') || oracleText.includes('creatures you control get') || oracleText.includes('create a 1/1') || oracleText.includes('create two') || oracleText.includes('create a token')) {
+        score += 500;
+      }
+
+      // Penalización a cartas de borrador sin impacto de motor
+      if (!oracleText.includes('create') && !oracleText.includes('token') && !oracleText.includes('counter') && !oracleText.includes('draw') && !oracleText.includes('destroy') && !oracleText.includes('exile') && !oracleText.includes('+1/+1')) {
+        score -= 200;
+      }
+
+      // Veto contextual de subtipos incoherentes (ej. Rabbit/Mouse lords en mazos de Saprolines)
+      if (oracleText.includes('rabbit') || oracleText.includes('mouse') || oracleText.includes('otter') || oracleText.includes('raccoon')) {
+        const activeTribe = (formData?.tribe || '').toLowerCase();
+        if (activeTribe && !['rabbit', 'mouse', 'otter', 'raccoon'].includes(activeTribe)) {
+          score -= 1000;
+        }
+      }
+
       // --- INTEGRACIÓN CON EL AGENTE EXTRACTOR SEMÁNTICO (AI Semantic Parser Boost) ---
       if (semanticData) {
         const { keywords, subtypes, englishTranslation } = semanticData;
