@@ -419,6 +419,43 @@ export const buildCardPool = async (formData) => {
     }
   }
 
+  // Extraer tribu / tema automáticamente si el usuario lo escribió en formData.prompt pero no seleccionó tribu
+  if (formData.prompt && typeof formData.prompt === 'string') {
+    const pLower = formData.prompt.toLowerCase();
+    const promptTribes = [
+      { trigger: 'saprolin', tribe: 'Saproling' },
+      { trigger: 'saproling', tribe: 'Saproling' },
+      { trigger: 'trasgo', tribe: 'Goblin' },
+      { trigger: 'elfo', tribe: 'Elf' },
+      { trigger: 'zombi', tribe: 'Zombie' },
+      { trigger: 'vampiro', tribe: 'Vampire' },
+      { trigger: 'dragon', tribe: 'Dragon' },
+      { trigger: 'dragón', tribe: 'Dragon' },
+      { trigger: 'dinosaurio', tribe: 'Dinosaur' },
+      { trigger: 'hada', tribe: 'Faerie' },
+      { trigger: 'espíritu', tribe: 'Spirit' },
+      { trigger: 'espiritu', tribe: 'Spirit' },
+      { trigger: 'tritón', tribe: 'Merfolk' },
+      { trigger: 'triton', tribe: 'Merfolk' },
+      { trigger: 'caballero', tribe: 'Knight' },
+      { trigger: 'soldado', tribe: 'Soldier' },
+      { trigger: 'mago', tribe: 'Wizard' },
+      { trigger: 'limo', tribe: 'Ooze' },
+      { trigger: 'ángel', tribe: 'Angel' },
+      { trigger: 'angel', tribe: 'Angel' },
+      { trigger: 'demonio', tribe: 'Demon' }
+    ];
+
+    if (!formData.tribe || formData.tribe === 'Ninguna' || formData.tribe === 'ninguna') {
+      const match = promptTribes.find(pt => pLower.includes(pt.trigger));
+      if (match) {
+        formData.tribe = match.tribe;
+        normalizedTribe = match.tribe.toLowerCase();
+        console.log(`🌿 [RAG Dynamic Extractor] Extraída tribu "${match.tribe}" automáticamente desde la visión del usuario ("${formData.prompt}")`);
+      }
+    }
+  }
+
   // Extraer información de Tribu y Estrategia para bonus extra
   let tribeData = MTG_TRIBES.find(t => 
     t.id.toLowerCase() === normalizedTribe || 
@@ -949,14 +986,19 @@ export const buildCardPool = async (formData) => {
           'zombis': 'zombie', 'zombies': 'zombie', 'zombi': 'zombie', 'vampiros': 'vampire', 'vampiro': 'vampire',
           'humanos': 'human', 'humano': 'human', 'hadas': 'faerie', 'hada': 'faerie',
           'espiritus': 'spirit', 'espíritus': 'spirit', 'espiritu': 'spirit', 'espíritu': 'spirit',
+          'saprolines': 'saproling', 'saprolin': 'saproling', 'saproling': 'saproling', 'saprolings': 'saproling', 'saporling': 'saproling', 'hongo': 'fungus', 'hongos': 'fungus', 'espora': 'spore', 'esporas': 'spore',
+          'fichas': 'token', 'ficha': 'token', 'tokens': 'token', 'token': 'token',
+          'contadores': 'counter', 'contador': 'counter', 'proliferar': 'proliferate',
           'artefactos': 'artifact', 'artefacto': 'artifact', 'encantamientos': 'enchantment', 'encantamiento': 'enchantment',
+          'equipo': 'equipment', 'equipos': 'equipment', 'vehiculo': 'vehicle', 'vehículos': 'vehicle',
           'hechizos': 'spell', 'instantaneos': 'instant', 'instantáneos': 'instant', 'conjuros': 'sorcery',
           'volar': 'flying', 'arrollar': 'trample', 'prisa': 'haste', 'vinculo vital': 'lifelink', 'vínculo vital': 'lifelink',
-          'cementerio': 'graveyard', 'robar': 'draw', 'descartar': 'discard',
-          'daño': 'damage', 'destruir': 'destroy', 'exiliar': 'exile', 'contador': 'counter',
+          'cementerio': 'graveyard', 'reanimar': 'reanimate', 'robar': 'draw', 'descartar': 'discard',
+          'daño': 'damage', 'destruir': 'destroy', 'exiliar': 'exile',
           'criatura': 'creature', 'criaturas': 'creature', 'tierra': 'land', 'tierras': 'land',
           'buscar': 'search', 'biblioteca': 'library', 'mano': 'hand',
-          'limos': 'ooze', 'limo': 'ooze', 'tritones': 'merfolk', 'caballeros': 'knight', 'soldados': 'soldier', 'magos': 'wizard'
+          'limos': 'ooze', 'limo': 'ooze', 'tritones': 'merfolk', 'caballeros': 'knight', 'soldados': 'soldier', 'magos': 'wizard',
+          'dragones': 'dragon', 'dragon': 'dragon', 'dinosaurios': 'dinosaur', 'dinosaurio': 'dinosaur', 'angeles': 'angel', 'ángeles': 'angel', 'demonios': 'demon', 'demonio': 'demon'
         };
 
         const promptTerms = formData.prompt.toLowerCase()
@@ -967,13 +1009,13 @@ export const buildCardPool = async (formData) => {
         
         let termMatches = 0;
         promptTerms.forEach(term => {
-          if (cardNameLower.includes(term)) termMatches += 3;
-          if (typeLine.includes(term)) termMatches += 2;
-          if (oracleText.includes(term)) termMatches += 1;
+          if (cardNameLower.includes(term)) termMatches += 4;
+          if (typeLine.includes(term)) termMatches += 3;
+          if (oracleText.includes(term)) termMatches += 2;
         });
         
         if (termMatches > 0) {
-          score += Math.round(termMatches * 30 * thematicMultiplier); // Impulso semántico instantáneo
+          score += Math.round(termMatches * 150 * thematicMultiplier); // IMPULSO SEMÁNTICO MASIVO PRO-TOUR
         }
       }
 

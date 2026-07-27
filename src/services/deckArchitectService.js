@@ -4370,8 +4370,17 @@ export function assemblerLoop(rankedCards, blueprint, mergedCoreAndMustInclude, 
       });
 
       if (fallbacks.length === 0) {
-        addLog(`[ENSAMBLADOR] Fallback de CMC estricto (${role.cmcCategory}) vacío para rol "${role.name}". Relajando restricción.`);
-        fallbacks = cmcFilteredFallbacks;
+        addLog(`[ENSAMBLADOR] Fallback de CMC estricto (${role.cmcCategory}) vacío para rol "${role.name}". Relajando restricción con filtro de calidad.`);
+        const isFinisherRole = role.name.toLowerCase().includes('finisher') || role.name.toLowerCase().includes('apex') || role.finisherQuality === 'finisher';
+        if (isFinisherRole) {
+          fallbacks = cmcFilteredFallbacks.filter(p => {
+            const cmc = p.mana_value !== undefined ? p.mana_value : (p.cmc || 0);
+            return cmc >= 4;
+          });
+          if (fallbacks.length === 0) fallbacks = cmcFilteredFallbacks;
+        } else {
+          fallbacks = cmcFilteredFallbacks;
+        }
       }
 
       fallbacks.sort((a, b) => b.score - a.score);
@@ -4411,8 +4420,12 @@ export function assemblerLoop(rankedCards, blueprint, mergedCoreAndMustInclude, 
   let finalGap = targetTotal - currentTotal;
   if (finalGap > 0) {
     addLog(`[ENSAMBLADOR] Failsafe: Faltan ${finalGap} cartas para llegar al total. Rellenando con mejores cartas del RAG Pool...`);
+    const SINGLETON_INCOMPATIBLE = [
+      'slime against humanity', 'shadowborn apostle', 'relentless rats', 'rat colony', 'dragon\'s approach', 'seven dwarves'
+    ];
     const extraSpells = ragPool
       .filter(p => p && typeof p.name === 'string' && !usedNames.has(p.name.toLowerCase()))
+      .filter(p => !SINGLETON_INCOMPATIBLE.includes(p.name.toLowerCase()))
       .filter(p => isColorLegal(p))
       .filter(p => p.name && !isAntiSynergistic(p.name, strategyId))
       .sort((a, b) => b.score - a.score);
