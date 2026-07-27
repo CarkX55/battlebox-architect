@@ -1065,12 +1065,26 @@ export const buildCardPool = async (formData) => {
         const activeSynonyms = tribeSynonymsMap[activeTribeKey] || [activeTribeKey];
         const matchesTribeMultiField = activeSynonyms.some(syn => typeLine.includes(syn) || oracleText.includes(syn) || cardNameLower.includes(syn));
         if (matchesTribeMultiField) {
-          score += 600; // Impulso tribal multicapa (name + type_line + oracle_text)
+          score += 1000; // Impulso tribal multicapa supremo (name + type_line + oracle_text)
         }
 
-        // Veto de subtipos incoherentes (ej. Rabbit/Mouse/Otter/Raccoon lords en mazos de otras tribus)
+        // Veto de subtipos e incompatibilidades mecánicas
         if ((oracleText.includes('rabbit') || oracleText.includes('mouse') || oracleText.includes('otter') || oracleText.includes('raccoon')) && !['rabbit', 'mouse', 'otter', 'raccoon'].includes(activeTribeKey)) {
           score -= 1000;
+        }
+
+        // Veto de cartas incoherentes con mazos de tokens/1-1s (ej. Garruk's Uprising exige fuerza >= 4, inútil para tokens 1/1)
+        if (activeTribeKey === 'saproling' || activeTribeKey === 'fungus' || (formData?.strategy || '').toLowerCase().includes('token')) {
+          if (oracleText.includes('power 4 or greater') || oracleText.includes('power 3 or greater')) {
+            score -= 1000;
+          }
+          if (oracleText.includes('blink') || cardNameLower.includes('parting gust') || cardNameLower.includes('personify')) {
+            score -= 600;
+          }
+          // Impulso masivo a cartas con sinergia directa de Saprolines / Tokens / Contadores
+          if (oracleText.includes('saproling') || oracleText.includes('fungus') || oracleText.includes('token') || oracleText.includes('+1/+1 counter') || oracleText.includes('creatures you control get')) {
+            score += 800;
+          }
         }
       }
 

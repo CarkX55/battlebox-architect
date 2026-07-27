@@ -4097,6 +4097,12 @@ function isAntiSynergistic(cardName, strategyId) {
     return true;
   }
   
+  if (strategyId === "tokens" || strategyId === "saproling") {
+    if (nameLower === "garruk's uprising" || nameLower === "stubborn denial" || nameLower === "parting gust" || nameLower === "personify" || nameLower === "skullcap snail" || nameLower === "deathcap marionette") {
+      return true;
+    }
+  }
+
   return false;
 }
 
