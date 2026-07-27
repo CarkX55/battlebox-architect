@@ -1029,10 +1029,47 @@ export const buildCardPool = async (formData) => {
         score -= 200;
       }
 
-      // Veto contextual de subtipos incoherentes (ej. Rabbit/Mouse lords en mazos de Saprolines)
-      if (oracleText.includes('rabbit') || oracleText.includes('mouse') || oracleText.includes('otter') || oracleText.includes('raccoon')) {
-        const activeTribe = (formData?.tribe || '').toLowerCase();
-        if (activeTribe && !['rabbit', 'mouse', 'otter', 'raccoon'].includes(activeTribe)) {
+      // Inferencia y Veto de Tribu Activa para todo el Sistema Senda 1
+      let activeTribeKey = (formData?.tribe || '').toLowerCase();
+      if (!activeTribeKey || activeTribeKey === 'none' || activeTribeKey === 'ninguna') {
+        const promptLower = (formData?.prompt || '').toLowerCase();
+        if (promptLower.includes('saprolin') || promptLower.includes('fungus') || promptLower.includes('hongo') || promptLower.includes('espora')) activeTribeKey = 'saproling';
+        else if (promptLower.includes('elf')) activeTribeKey = 'elf';
+        else if (promptLower.includes('goblin') || promptLower.includes('trasgo')) activeTribeKey = 'goblin';
+        else if (promptLower.includes('zombie')) activeTribeKey = 'zombie';
+        else if (promptLower.includes('vampir')) activeTribeKey = 'vampire';
+        else if (promptLower.includes('ninja')) activeTribeKey = 'ninja';
+        else if (promptLower.includes('eldrazi')) activeTribeKey = 'eldrazi';
+        else if (promptLower.includes('sliver') || promptLower.includes('fectidio')) activeTribeKey = 'sliver';
+        else if (promptLower.includes('muralla') || promptLower.includes('wall') || promptLower.includes('defens')) activeTribeKey = 'wall';
+        else if (promptLower.includes('hidra') || promptLower.includes('hydra')) activeTribeKey = 'hydra';
+        else if (promptLower.includes('lobo') || promptLower.includes('werewolf')) activeTribeKey = 'werewolf';
+      }
+
+      // Impulso y Veto Contextual de Tribu (name + type_line + oracle_text)
+      if (activeTribeKey && activeTribeKey !== 'none' && activeTribeKey !== 'ninguna') {
+        const tribeSynonymsMap = {
+          saproling: ['saproling', 'fungus', 'dryad', 'thallid', 'espora', 'hongo'],
+          fungus: ['fungus', 'saproling', 'thallid'],
+          elf: ['elf'],
+          goblin: ['goblin'],
+          zombie: ['zombie'],
+          vampire: ['vampire'],
+          ninja: ['ninja'],
+          eldrazi: ['eldrazi'],
+          sliver: ['sliver'],
+          wall: ['wall'],
+          hydra: ['hydra'],
+          werewolf: ['werewolf', 'wolf']
+        };
+        const activeSynonyms = tribeSynonymsMap[activeTribeKey] || [activeTribeKey];
+        const matchesTribeMultiField = activeSynonyms.some(syn => typeLine.includes(syn) || oracleText.includes(syn) || cardNameLower.includes(syn));
+        if (matchesTribeMultiField) {
+          score += 600; // Impulso tribal multicapa (name + type_line + oracle_text)
+        }
+
+        // Veto de subtipos incoherentes (ej. Rabbit/Mouse/Otter/Raccoon lords en mazos de otras tribus)
+        if ((oracleText.includes('rabbit') || oracleText.includes('mouse') || oracleText.includes('otter') || oracleText.includes('raccoon')) && !['rabbit', 'mouse', 'otter', 'raccoon'].includes(activeTribeKey)) {
           score -= 1000;
         }
       }
@@ -1049,7 +1086,7 @@ export const buildCardPool = async (formData) => {
         });
         
         subtypes.forEach(st => {
-          if (st && typeLine.includes(st)) {
+          if (st && (typeLine.includes(st) || oracleText.includes(st) || cardNameLower.includes(st))) {
             semanticBoost += 250;
           }
         });
