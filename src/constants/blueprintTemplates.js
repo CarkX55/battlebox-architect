@@ -592,6 +592,69 @@ export const STRATEGY_MODIFIERS = {
       one_drop_beaters: { name: 'artifact_enablers_cmc0_1', quantity: 12 },
       two_drop_synergies: { name: 'affinity_payoffs_and_lords', quantity: 10 }
     }
+  },
+  ninjutsu: {
+    id: 'ninjutsu',
+    label: 'Ninjutsu / Infiltración',
+    override: {
+      evasive_cheap_threats: { name: 'evasive_unblockable_enablers', quantity: 10 },
+      cantrips_and_scry: { name: 'ninja_payloads_and_draw', quantity: 10 },
+      bounce_and_soft_removal: { name: 'tempo_removal_and_disruption', quantity: 8 }
+    }
+  },
+  defender: {
+    id: 'defender',
+    label: 'Defensores / Ataque de Resistencia',
+    override: {
+      tax_lock_pieces: { name: 'defender_walls_high_toughness', quantity: 12 },
+      threat_creatures: { name: 'toughness_combat_enablers', quantity: 6 },
+      utility_artifacts: { name: 'mana_walls_and_ramp', quantity: 6 }
+    }
+  },
+  eldrazi_tron: {
+    id: 'eldrazi_tron',
+    label: 'Eldrazi Tron / Incoloro',
+    override: {
+      early_mana_dorks: { name: 'colorless_sol_lands_and_map', quantity: 8 },
+      massive_finishers_cmc5plus: { name: 'eldrazi_titans_and_smashers', quantity: 10 },
+      protection_and_interaction: { name: 'stax_trinkets_and_chalice', quantity: 6 }
+    }
+  },
+  discard_rack: {
+    id: 'discard_rack',
+    label: 'Discard & Rack / Desgaste',
+    override: {
+      early_value_creatures: { name: 'targeted_discard_spells', quantity: 12 },
+      threats_cmc3_4: { name: 'rack_and_affliction_payoffs', quantity: 8 },
+      versatile_removal: { name: 'cheap_removal_and_liliana', quantity: 8 }
+    }
+  },
+  dredge: {
+    id: 'dredge',
+    label: 'Dredge / Cementerio',
+    override: {
+      early_value_creatures: { name: 'dredgers_and_mill_enablers', quantity: 12 },
+      threats_cmc3_4: { name: 'graveyard_recursion_payoffs', quantity: 10 },
+      card_advantage_engines: { name: 'draw_discard_catalysts', quantity: 8 }
+    }
+  },
+  slivers: {
+    id: 'slivers',
+    label: 'Slivers / Fectidios',
+    override: {
+      one_drop_beaters: { name: 'cheap_mana_and_evasion_slivers', quantity: 10 },
+      two_drop_synergies: { name: 'sliver_lords_and_buffs', quantity: 12 },
+      reach_and_burn: { name: 'removal_and_utility_slivers', quantity: 6 }
+    }
+  },
+  enrage: {
+    id: 'enrage',
+    label: 'Enrage / Furia Jurásica',
+    override: {
+      early_mana_dorks: { name: 'dinosaur_cost_reducers', quantity: 6 },
+      massive_finishers_cmc5plus: { name: 'apex_dinosaurs_and_enrage', quantity: 10 },
+      protection_and_interaction: { name: 'self_damage_enablers', quantity: 6 }
+    }
   }
 };
 
