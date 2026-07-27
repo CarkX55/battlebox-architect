@@ -4390,22 +4390,35 @@ export function assemblerLoop(rankedCards, blueprint, mergedCoreAndMustInclude, 
 
     if (role.remaining > 0) {
       addLog(`[ENSAMBLADOR] IA no completó el rol "${role.name}". Buscando en RAG Pool fallback...`);
-      const isCreatureRole = role.name.toLowerCase().includes('creature') || role.finisherQuality === 'finisher';
+      const roleLower = role.name.toLowerCase();
+      const isRemovalRole = roleLower.includes('removal') || roleLower.includes('interaction') || roleLower.includes('destroy') || roleLower.includes('exile') || roleLower.includes('sweeper');
+      const isCreatureRole = roleLower.includes('creature') || roleLower.includes('generator') || roleLower.includes('beater') || roleLower.includes('threat') || roleLower.includes('lord') || roleLower.includes('finisher') || roleLower.includes('spore') || roleLower.includes('fungus') || role.finisherQuality === 'finisher';
+      const isDrawRole = roleLower.includes('draw') || roleLower.includes('advantage') || roleLower.includes('cantrip') || roleLower.includes('engine');
       
       const cmcFilteredFallbacks = ragPool
         .filter(p => p && typeof p.name === 'string' && !usedNames.has(p.name.toLowerCase()))
         .filter(p => {
           const typeLower = (p.type_line || '').toLowerCase();
+          const textLower = (p.oracle_text || p.text || '').toLowerCase();
           const isC = typeLower.includes('creature');
-          return isCreatureRole ? isC : !isC;
+          
+          if (isRemovalRole) {
+            return textLower.includes('destroy') || textLower.includes('exile') || textLower.includes('counter target') || textLower.includes('deal') || textLower.includes('damage') || textLower.includes('-x/-x') || textLower.includes('fight') || textLower.includes('target creature') || textLower.includes('target nonland permanent');
+          }
+          if (isDrawRole) {
+            return textLower.includes('draw') || textLower.includes('investigate') || textLower.includes('search your library') || textLower.includes('look at the top');
+          }
+          if (isCreatureRole) {
+            return isC || textLower.includes('create') || textLower.includes('token');
+          }
+          return true;
         })
         .filter(p => isColorLegal(p))
         .filter(p => p.name && !isAntiSynergistic(p.name, strategyId))
         .filter(p => {
           if (curveWarning.panicMode && (p.mana_value || p.cmc || 2) > curveWarning.maxAllowedCmc) {
-            return false; // Vetado por el BOTÓN de PÁNICO
+            return false;
           }
-          // Fallback Contextual Veto
           const oText = p.oracle_text ? p.oracle_text.toLowerCase() : '';
           const tpLine = p.type_line ? p.type_line.toLowerCase() : '';
           const combText = `${oText} | ${tpLine}`;
