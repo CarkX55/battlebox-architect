@@ -1360,6 +1360,20 @@ export const buildCardPool = async (formData) => {
       score -= countKeywords(oracleText, blueprintPenaltyLower) * 100; // Escalado a 100
     }
 
+    // === ENFOQUE TÁCTICO (STANCE SCORING ADJUSTMENT) ===
+    if (formData.stance === 'proactive') {
+      if (typeLine.includes('creature') || oracleText.includes('haste') || oracleText.includes('attacks') || oracleText.includes('damage')) {
+        score += 120;
+      }
+      if (typeLine.includes('instant') && (oracleText.includes('counter target') || oracleText.includes('destroy target'))) {
+        score -= 40;
+      }
+    } else if (formData.stance === 'reactive') {
+      if (typeLine.includes('instant') || oracleText.includes('counter target') || oracleText.includes('destroy target') || oracleText.includes('exile target')) {
+        score += 140;
+      }
+    }
+
     // === MULTIDIMENSIONAL GUILD / COLOR-PAIR SYNERGY SCORING ===
     if (allowedColors.includes('U') && allowedColors.includes('R')) {
       score += countKeywords(oracleText, urKeywords) * 8;
