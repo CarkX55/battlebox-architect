@@ -4910,6 +4910,15 @@ export async function assembleDeckFromBlueprint(blueprint, formData, aiConfig, o
    let contextGen_Prompt = preCalculatedData.contextGen_Prompt || "";
    let genResponseRawJson_Object = preCalculatedData.genResponseRawJson_Object || "";
 
+   if (!blueprint || typeof blueprint !== 'object' || !Array.isArray(blueprint.roles)) {
+     const fallbackStrat = inferStrategyFromArchetype(formData.archetype, formData.strategy, formData.prompt);
+     const fallback = getStrategyFallbackBlueprint(formData.archetype, fallbackStrat, formData);
+     blueprint = blueprint && typeof blueprint === 'object' ? { ...fallback, ...blueprint } : fallback;
+     if (!Array.isArray(blueprint.roles)) blueprint.roles = fallback.roles;
+     if (!blueprint.totalSpells) blueprint.totalSpells = fallback.totalSpells || 36;
+     addLog(`⚠️ [BLUEPRINT RECOVERY] Blueprint ausente o inválido. Inicializado blueprint de respaldo para arquetipo: "${formData.archetype}" y estrategia: "${fallbackStrat}".`);
+   }
+
    try {
      const strategyObj = preCalculatedData.strategyObj || MTG_STRATEGIES.find(s => s.label === formData.strategy || s.id === formData.strategy) || {};
      let strategyId = preCalculatedData.strategyId || strategyObj.id || formData.strategy || "";
