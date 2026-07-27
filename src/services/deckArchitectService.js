@@ -487,10 +487,10 @@ function getDeckBlueprint(archetype, strategyId, formData) {
   const isSpecialArchetype = ['control', 'combo', 'prison', 'storm', 'cascade', 'reanimator'].includes(archetype?.toLowerCase()) || ['control', 'combo', 'prison', 'storm', 'cascade', 'reanimator'].includes(strategyId?.toLowerCase());
   
   if (hasTribe && !isSpecialArchetype) {
-    totalSpells = 40;
+    totalSpells = 37;
     roles = {
-      lords_and_anthems: 10,
-      tribal_core_creatures: 20,
+      lords_and_anthems: 8,
+      tribal_core_creatures: 19,
       interaction_spells: 6,
       card_advantage_draw: 4
     };
