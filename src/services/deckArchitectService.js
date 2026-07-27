@@ -5370,6 +5370,40 @@ Genera los campos de metadatos del mazo en JSON puro en español:
       coreCards = injectCorePackage(strategyId, formData.colores || [], formData.format || 'MODERN', allCards);
     }
     const mergedCoreAndMustInclude = mergeUserMustIncludeWithCore(formData.mustInclude, coreCards, allCards, formData.format || 'MODERN', blueprint.totalSpells, addLog);
+
+    // Inyectar Paquete Dorado Tribal si hay coincidencia previa a la IA
+    let activeTribeKey = (formData?.tribe || '').toLowerCase();
+    if (!activeTribeKey || activeTribeKey === 'ninguna') {
+      const promptLower = (formData?.prompt || '').toLowerCase();
+      if (promptLower.includes('saprolin') || promptLower.includes('fungus') || promptLower.includes('hongo') || promptLower.includes('espora')) activeTribeKey = 'saproling';
+      else if (promptLower.includes('elf')) activeTribeKey = 'elf';
+      else if (promptLower.includes('goblin') || promptLower.includes('trasgo')) activeTribeKey = 'goblin';
+      else if (promptLower.includes('zombie')) activeTribeKey = 'zombie';
+      else if (promptLower.includes('vampir')) activeTribeKey = 'vampire';
+      else if (promptLower.includes('ninja')) activeTribeKey = 'ninja';
+      else if (promptLower.includes('eldrazi')) activeTribeKey = 'eldrazi';
+      else if (promptLower.includes('sliver') || promptLower.includes('fectidio')) activeTribeKey = 'sliver';
+      else if (promptLower.includes('muralla') || promptLower.includes('wall') || promptLower.includes('defens')) activeTribeKey = 'wall';
+      else if (promptLower.includes('hidra') || promptLower.includes('hydra')) activeTribeKey = 'hydra';
+      else if (promptLower.includes('lobo') || promptLower.includes('werewolf')) activeTribeKey = 'werewolf';
+    }
+
+    const preGoldenPackage = GOLDEN_CORE_PACKAGES[activeTribeKey];
+    if (preGoldenPackage && Array.isArray(preGoldenPackage)) {
+      addLog(`✨ [PRE-SEED GOLDEN PACKAGE] Inyectando 20 cartas estandarte doradas de "${activeTribeKey}" en el núcleo pre-IA...`);
+      preGoldenPackage.forEach(gCard => {
+        const exists = mergedCoreAndMustInclude.find(m => m.name.toLowerCase() === gCard.name.toLowerCase());
+        if (!exists) {
+          mergedCoreAndMustInclude.push({
+            name: gCard.name,
+            quantity: gCard.quantity,
+            role: gCard.role,
+            isMustInclude: true
+          });
+        }
+      });
+    }
+
     const injectedCoreNames = mergedCoreAndMustInclude.filter(c => c && typeof c.name === 'string').map(c => c.name);
     const excludedNames = mergedCoreAndMustInclude.filter(c => c && typeof c.name === 'string').map(c => c.name);
     const mustIncludeNamesList = mergedCoreAndMustInclude.filter(c => c && c.isMustInclude && typeof c.name === 'string').map(c => c.name.toLowerCase());
