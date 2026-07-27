@@ -4237,7 +4237,8 @@ export function assemblerLoop(rankedCards, blueprint, mergedCoreAndMustInclude, 
           priority: 1
         });
         usedNames.set(item.name.toLowerCase(), alreadyUsed + toAdd);
-        const matchingRole = residualBlueprint.find(r => r.name === item.role);
+        const bestRoleName = findBestBlueprintRole(item, residualBlueprint);
+        const matchingRole = residualBlueprint.find(r => r.name === bestRoleName || r.name === item.role);
         if (matchingRole) {
           matchingRole.remaining = Math.max(0, matchingRole.remaining - toAdd);
         }
@@ -5410,13 +5411,19 @@ Genera los campos de metadatos del mazo en JSON puro en español:
     const preGoldenPackage = GOLDEN_CORE_PACKAGES[activeTribeKey];
     if (preGoldenPackage && Array.isArray(preGoldenPackage)) {
       addLog(`✨ [PRE-SEED GOLDEN PACKAGE] Inyectando 20 cartas estandarte doradas de "${activeTribeKey}" en el núcleo pre-IA...`);
+      const bpRolesList = Array.isArray(blueprint?.roles) ? blueprint.roles : [];
       preGoldenPackage.forEach(gCard => {
         const exists = mergedCoreAndMustInclude.find(m => m.name.toLowerCase() === gCard.name.toLowerCase());
         if (!exists) {
+          let assignedRole = gCard.role;
+          if (bpRolesList.length > 0) {
+            const bestRoleName = findBestBlueprintRole(gCard, bpRolesList);
+            if (bestRoleName) assignedRole = bestRoleName;
+          }
           mergedCoreAndMustInclude.push({
             name: gCard.name,
             quantity: gCard.quantity,
-            role: gCard.role,
+            role: assignedRole,
             isMustInclude: true
           });
         }
