@@ -1151,11 +1151,16 @@ export const TRIBE_CATEGORIES = {
 
 export const GOLDEN_CORE_PACKAGES = {
   saproling: [
-    { name: "Sporecrown Thallid", quantity: 4, role: "lords_and_anthems" },
-    { name: "Slimefoot, the Stowaway", quantity: 4, role: "saproling_fungus_engines" },
-    { name: "Tendershoot Dryad", quantity: 4, role: "go_wide_finishers" },
-    { name: "Saproling Migration", quantity: 4, role: "early_fungus_spores" },
-    { name: "Mycoloth", quantity: 4, role: "fungus_saproling_finishers" }
+    // Tier 1: Core DNA (Ecosistema base)
+    { name: "Sporecrown Thallid", quantity: 4, role: "lords_and_anthems", tier: 1 },
+    { name: "Slimefoot, the Stowaway", quantity: 3, role: "saproling_fungus_engines", tier: 1 },
+    { name: "Tendershoot Dryad", quantity: 3, role: "go_wide_finishers", tier: 1 },
+    { name: "Saproling Migration", quantity: 4, role: "early_fungus_spores", tier: 1 },
+    { name: "Mycoloth", quantity: 2, role: "fungus_saproling_finishers", tier: 1 },
+    // Tier 2: Synergy Multipliers & Support (Craterhoof, Caretaker's Talent, Heroic Intervention)
+    { name: "Craterhoof Behemoth", quantity: 2, role: "go_wide_finishers", tier: 2 },
+    { name: "Caretaker's Talent", quantity: 3, role: "card_advantage_draw", tier: 2 },
+    { name: "Heroic Intervention", quantity: 2, role: "interaction_spells", tier: 2 }
   ],
   elf: [
     { name: "Llanowar Elves", quantity: 4, role: "mana_acceleration" },

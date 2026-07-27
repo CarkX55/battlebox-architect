@@ -1073,17 +1073,29 @@ export const buildCardPool = async (formData) => {
           score -= 1000;
         }
 
-        // Veto de cartas incoherentes con mazos de tokens/1-1s (ej. Garruk's Uprising exige fuerza >= 4, inútil para tokens 1/1)
+        // Evaluador Dinámico de Puntuación de Aportación (Contribution Score Engine)
         if (activeTribeKey === 'saproling' || activeTribeKey === 'fungus' || (formData?.strategy || '').toLowerCase().includes('token')) {
+          // Off-plan Veto
           if (oracleText.includes('power 4 or greater') || oracleText.includes('power 3 or greater')) {
             score -= 1000;
           }
-          if (oracleText.includes('blink') || cardNameLower.includes('parting gust') || cardNameLower.includes('personify')) {
-            score -= 600;
+          if (cardNameLower.includes('parting gust') || cardNameLower.includes('personify') || cardNameLower.includes('marionette') || cardNameLower.includes('skitter')) {
+            score -= 800;
           }
-          // Impulso masivo a cartas con sinergia directa de Saprolines / Tokens / Contadores
-          if (oracleText.includes('saproling') || oracleText.includes('fungus') || oracleText.includes('token') || oracleText.includes('+1/+1 counter') || oracleText.includes('creatures you control get')) {
-            score += 800;
+
+          // Aportación Máxima a Multiplicadores de Soporte de Élite (Craterhoof, Doubling Season, Chord of Calling, Heroic Intervention)
+          if (cardNameLower.includes('craterhoof') || cardNameLower.includes('behemoth')) {
+            score += 1500; // Impulso máximo: Finisher definitivo de enjambres
+          } else if (cardNameLower.includes('doubling season') || cardNameLower.includes('parallel lives') || cardNameLower.includes('anointed procession')) {
+            score += 1200; // Multiplicador exponencial de fichas
+          } else if (cardNameLower.includes('chord of calling') || cardNameLower.includes('finale of devastation') || cardNameLower.includes('green sun')) {
+            score += 1000; // Tutor verde de victoria
+          } else if (cardNameLower.includes('heroic intervention') || cardNameLower.includes('flawless maneuver') || cardNameLower.includes('teferi\'s protection')) {
+            score += 900;  // Protección de mesa enjambre
+          } else if (cardNameLower.includes('caretaker\'s talent') || cardNameLower.includes('idol of oblivion')) {
+            score += 1000; // Motor de ventaja de cartas de fichas
+          } else if (oracleText.includes('saproling') || oracleText.includes('fungus') || oracleText.includes('token') || oracleText.includes('+1/+1 counter') || oracleText.includes('creatures you control get')) {
+            score += 800;  // Sinergia temática directa
           }
         }
       }
