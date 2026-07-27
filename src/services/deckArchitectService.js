@@ -1690,7 +1690,7 @@ function obtenerPrioridadDeRecorte(card) {
  * Recorta de forma inteligente y progresiva el exceso de copias de hechizos,
  * protegiendo los roles ESTRATÉGICOs y registrando todo en el oráculo.
  */
-function recortarHechizosExcedentesInteligente(spells, targetSpellsCount, addLog, mustIncludeNames = []) {
+function recortarHechizosExcedentesInteligente(spells, targetSpellsCount, addLog, mustIncludeNames = [], blueprint = null) {
     let actualSum = spells.reduce((sum, c) => sum + (c.quantity || 0), 0);
     let excess = actualSum - targetSpellsCount;
     if (excess <= 0) return spells;
@@ -1732,7 +1732,17 @@ function recortarHechizosExcedentesInteligente(spells, targetSpellsCount, addLog
 
             // Proteger la cuota mínima del rol en el blueprint para evitar desajustes
             const currentRoleTotal = spells.filter(s => s.role === cand.role).reduce((sum, s) => sum + s.quantity, 0);
-            const expectedRoleTarget = blueprint?.spells?.distribution?.[cand.role]?.min || blueprint?.roles?.[cand.role] || 0;
+            let expectedRoleTarget = 0;
+            if (blueprint) {
+                if (blueprint.spells && blueprint.spells.distribution && blueprint.spells.distribution[cand.role]) {
+                    expectedRoleTarget = blueprint.spells.distribution[cand.role].min || 0;
+                } else if (Array.isArray(blueprint.roles)) {
+                    const found = blueprint.roles.find(r => r.name === cand.role);
+                    expectedRoleTarget = found ? (found.quantity || 0) : 0;
+                } else if (blueprint.roles && typeof blueprint.roles === 'object') {
+                    expectedRoleTarget = blueprint.roles[cand.role] || 0;
+                }
+            }
             const maxTrimAllowed = expectedRoleTarget > 0 ? Math.max(0, currentRoleTotal - expectedRoleTarget) : excess;
 
             if (expectedRoleTarget > 0 && maxTrimAllowed <= 0) continue; // No recortar si provocaría déficit en el rol
@@ -5879,7 +5889,7 @@ Genera la lista de hechizos completamente corregida y optimizada en JSON.`;
       consolidatedSpells = distribuirOInyectarHechizosFaltantes(consolidatedSpells, targetSpellsCount, formData?.colores || [], addLog, ragResult.pool, formData, blueprint);
   } else if (consolidatedSpellsSum > targetSpellsCount) {
       addLog(`[CONSOLIDACIÓN SP] Ajustando exceso en hechizos (${consolidatedSpellsSum}/${targetSpellsCount})...`);
-      consolidatedSpells = recortarHechizosExcedentesInteligente(consolidatedSpells, targetSpellsCount, addLog, mustIncludeNamesList);
+      consolidatedSpells = recortarHechizosExcedentesInteligente(consolidatedSpells, targetSpellsCount, addLog, mustIncludeNamesList, blueprint);
   }
 
   // Asegurar que la categoría no sea Land para los hechizos finales
