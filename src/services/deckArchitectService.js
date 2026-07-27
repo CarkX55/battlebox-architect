@@ -5807,7 +5807,7 @@ Genera la lista de hechizos completamente corregida y optimizada en JSON.`;
 
   // Recalcular el CMC promedio real tras la inyección de interacción
   const updatedVmp = calculateVMP(consolidatedSpells);
-  metricalTargetLnd = calculatePerfectLandCount(consolidatedSpells, updatedVmp, formData);
+  metricalTargetLnd = calculatePerfectLandCount(consolidatedSpells, formData, hasYorion);
   addLog(`[CÁLCULO CONTEXTUAL TIERRAS] VMP final de hechizos: ${updatedVmp.toFixed(2)}. Tierras meta fijadas en: ${metricalTargetLnd}.`);
 
   // Recalcular pips reales con la lista final de hechizos
@@ -6028,19 +6028,47 @@ Genera la lista de hechizos completamente corregida y optimizada en JSON.`;
     let excess = exactTotal - targetDeckTotal;
     addLog(`[CONSOLIDACIÓN SUPREMA] ✂️ EXCESO DETECTADO: El mazo tiene ${exactTotal} cartas (Objetivo: ${targetDeckTotal}). Aplicando recorte estricto de ${excess} copias...`);
 
-    const sobranteFinisher = validResultsStruct.cards.find(c => (c.role || '').includes('finisher') && c.quantity > 2 && !isLand(c));
-    if (sobranteFinisher) {
-      sobranteFinisher.quantity -= excess;
-      addLog(`[RECORTE ESTRICTO 60] -${excess}x "${sobranteFinisher.name}" (Finisher).`);
-    } else {
-      const spellToTrim = validResultsStruct.cards.slice().reverse().find(c => !isLand(c) && c.quantity > 1);
-      if (spellToTrim) {
-        spellToTrim.quantity -= excess;
-        addLog(`[RECORTE ESTRICTO 60] -${excess}x "${spellToTrim.name}".`);
-      } else {
-        validResultsStruct.cards[validResultsStruct.cards.length - 1].quantity -= excess;
+    // 1. Recortar tierras sobrantes primero si superan el objetivo de tierras
+    const currentLandCount = validResultsStruct.cards.filter(c => isLand(c)).reduce((s, c) => s + c.quantity, 0);
+    let landExcess = Math.min(excess, Math.max(0, currentLandCount - metricalTargetLnd));
+
+    if (landExcess > 0) {
+      const basicLands = validResultsStruct.cards.filter(c => isLand(c) && isBasicLand(c.name));
+      for (const bLand of basicLands) {
+        if (landExcess <= 0) break;
+        const toCut = Math.min(landExcess, Math.max(0, bLand.quantity - 1));
+        if (toCut > 0) {
+          bLand.quantity -= toCut;
+          landExcess -= toCut;
+          excess -= toCut;
+          addLog(`[RECORTE ESTRICTO TIERRAS] -${toCut}x "${bLand.name}" (Tierra Básica).`);
+        }
       }
     }
+
+    // 2. Si aún queda exceso, recortar de hechizos de relleno (NUNCA finishers ni must-includes)
+    if (excess > 0) {
+      const fillerSpells = validResultsStruct.cards.filter(c => !isLand(c) && !(c.role || '').includes('finisher') && c.quantity > 1);
+      for (const spell of fillerSpells) {
+        if (excess <= 0) break;
+        const toCut = Math.min(excess, spell.quantity - 1);
+        if (toCut > 0) {
+          spell.quantity -= toCut;
+          excess -= toCut;
+          addLog(`[RECORTE ESTRICTO RELLENO] -${toCut}x "${spell.name}".`);
+        }
+      }
+    }
+
+    // 3. Failsafe si aún persiste exceso
+    if (excess > 0) {
+      const anySpell = validResultsStruct.cards.slice().reverse().find(c => !isLand(c) && c.quantity > 1);
+      if (anySpell) {
+        anySpell.quantity -= excess;
+        addLog(`[RECORTE ESTRICTO FAILSAFE] -${excess}x "${anySpell.name}".`);
+      }
+    }
+
     validResultsStruct.cards = validResultsStruct.cards.filter(c => c.quantity > 0);
   }
 
