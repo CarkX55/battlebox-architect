@@ -6468,28 +6468,49 @@ export function validarCondicionesDeVictoria(spells, strategyId, archetype, ragP
                 'angels': 'angel',
                 'demons': 'demon'
             };
-            let tribeLowerSingular = t;
-            if (singularMap[t]) {
+            const tribeSynonyms = {
+              saproling: ['saproling', 'fungus', 'dryad', 'thallid', 'espora', 'hongo'],
+              fungus: ['fungus', 'saproling', 'thallid'],
+              elf: ['elf'],
+              goblin: ['goblin'],
+              zombie: ['zombie'],
+              vampire: ['vampire'],
+              ninja: ['ninja'],
+              eldrazi: ['eldrazi'],
+              sliver: ['sliver'],
+              wall: ['wall'],
+              hydra: ['hydra'],
+              werewolf: ['werewolf', 'wolf']
+            };
+            if (tribeSynonyms[t]) {
+              tribeSubtypes = tribeSynonyms[t];
+            } else if (singularMap[t]) {
                 tribeLowerSingular = singularMap[t];
+                tribeSubtypes = [tribeLowerSingular];
             } else if (t.endsWith('ves')) {
                 tribeLowerSingular = t.substring(0, t.length - 3) + 'f';
+                tribeSubtypes = [tribeLowerSingular];
             } else if (t.endsWith('ies')) {
                 tribeLowerSingular = t.substring(0, t.length - 3) + 'ie';
+                tribeSubtypes = [tribeLowerSingular];
             } else if (t.endsWith('s')) {
                 tribeLowerSingular = t.slice(0, -1);
+                tribeSubtypes = [tribeLowerSingular];
             } else {
                 tribeLowerSingular = t;
+                tribeSubtypes = [tribeLowerSingular];
             }
-            tribeSubtypes = [tribeLowerSingular];
         }
     }
     if (isTribal && !needsAdjustment) {
-        const tribalCreatures = creatures.filter(c => {
-            if (!c.type_line) return false;
-            const typeLower = c.type_line.toLowerCase();
-            return tribeSubtypes.some(st => typeLower.includes(st));
+        const tribalCreatures = spells.filter(c => {
+            if (!c || !c.name) return false;
+            const typeLower = (c.type_line || '').toLowerCase();
+            const textLower = (c.oracle_text || c.text || '').toLowerCase();
+            const nameLower = c.name.toLowerCase();
+            return tribeSubtypes.some(st => typeLower.includes(st) || textLower.includes(st) || nameLower.includes(st));
         });
-        const tribalQty = tribalCreatures.reduce((sum, c) => sum + c.quantity, 0);
+        const tribalQty = tribalCreatures.reduce((sum, c) => sum + (c.quantity || 1), 0);
         if (tribalQty < 12) {
             needsAdjustment = true;
             targetQuantityNeeded = 12 - tribalQty;
