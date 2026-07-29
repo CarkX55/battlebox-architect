@@ -1,5 +1,5 @@
 import { isLand, generateManaBase, calculatePerfectLandCount, calculateVMP, getLandColors, isBasicLand, isColoredBasicLand, deckNeedsSnowLands, isLandFormatLegal, BASIC_LANDS_BY_COLOR } from './deckCalculator.js';
- 
+import { matchesScryfallQuery } from '../utils/scryfallParser.js';
 import { CURVE_BOUNDS, calculateRealTimeVMPWarning, evaluateDeckHealthFast } from './deckAuditorService.js';
 import { internalSynergyAudit } from './auditService.js';
 import { callAI, buildAgenticPhasePrompt, GEMINI_PHASE_SCHEMA, DECK_BUILDER_TOOLS } from './aiFactory.js';
@@ -40,6 +40,7 @@ import {
   BLACK_LISTED_CARD_NAMES,
   obtenerCartaSegura
 } from './deckContractEngine.js';
+import { runV6AutonomousPipeline } from './autonomousStrategicPipeline.js';
 
 
 
@@ -633,125 +634,304 @@ export function generateThematicFallbackLore(deckName, formData) {
 }
 
 /**
- * Genera una search_query de Scryfall específica según el nombre del rol, arquetipo, estrategia y colores.
- * Reemplaza la query genérica 't:creature or t:instant or t:sorcery' del fallback.
+ * Extrae dinámicamente palabras clave mecánicas, fichas específicas, subtipos y multiplicadores
+ * de cualquier entrada del usuario (prompt, tribu, estrategia, arquetipo).
  */
-function getFallbackSearchQuery(roleName, archetype, strategyId, colors = []) {
+export function extractMechanicalSynergies(formData = {}) {
+  const text = [
+    formData.prompt || '',
+    formData.tribe || '',
+    formData.strategy || '',
+    formData.archetype || ''
+  ].join(' ').toLowerCase();
+
+  const subtypes = new Set();
+  const tokenTypes = new Set();
+  const mechanics = new Set();
+
+  // Tribus y subtipos
+  if (text.includes('saprolin') || text.includes('saproling') || text.includes('hongo') || text.includes('fungus') || text.includes('fungi')) {
+    subtypes.add('fungus');
+    subtypes.add('thallid');
+    tokenTypes.add('saproling');
+    mechanics.add('tokens');
+  }
+  if (text.includes('goblin') || text.includes('trasgo')) {
+    subtypes.add('goblin');
+    tokenTypes.add('goblin');
+    mechanics.add('tribal');
+  }
+  if (text.includes('elf') || text.includes('elfo')) {
+    subtypes.add('elf');
+    tokenTypes.add('elf');
+    mechanics.add('tribal');
+  }
+  if (text.includes('zombie') || text.includes('zombi')) {
+    subtypes.add('zombie');
+    tokenTypes.add('zombie');
+    mechanics.add('tribal');
+  }
+  if (text.includes('vampir')) {
+    subtypes.add('vampire');
+    tokenTypes.add('vampire');
+    mechanics.add('tribal');
+  }
+  if (text.includes('pirat')) {
+    subtypes.add('pirate');
+    tokenTypes.add('treasure');
+    mechanics.add('tribal');
+  }
+  if (text.includes('dinosaur')) {
+    subtypes.add('dinosaur');
+    mechanics.add('tribal');
+  }
+  if (text.includes('dragon') || text.includes('dragón')) {
+    subtypes.add('dragon');
+    mechanics.add('tribal');
+  }
+  if (text.includes('ninja')) {
+    subtypes.add('ninja');
+    mechanics.add('ninjutsu');
+  }
+
+  // Fichas específicas
+  if (text.includes('tesoro') || text.includes('treasure')) tokenTypes.add('treasure');
+  if (text.includes('comida') || text.includes('food')) tokenTypes.add('food');
+  if (text.includes('pista') || text.includes('clue')) tokenTypes.add('clue');
+  if (text.includes('sangre') || text.includes('blood')) tokenTypes.add('blood');
+
+  // Mecánicas clave
+  if (text.includes('ficha') || text.includes('token') || text.includes('enjambre') || text.includes('swarm')) {
+    mechanics.add('tokens');
+  }
+  if (text.includes('contador') || text.includes('counter') || text.includes('+1/+1') || text.includes('escalar')) {
+    mechanics.add('counters');
+  }
+  if (text.includes('multiplic') || text.includes('doubl') || text.includes('duplic') || text.includes('prolifer')) {
+    mechanics.add('multipliers');
+  }
+  if (text.includes('sacrific') || text.includes('drenar') || text.includes('drain') || text.includes('aristocrat')) {
+    mechanics.add('sacrifice');
+  }
+  if (text.includes('reanimat') || text.includes('cementerio') || text.includes('graveyard')) {
+    mechanics.add('reanimate');
+  }
+  if (text.includes('landfall') || text.includes('tierra')) {
+    mechanics.add('landfall');
+  }
+
+  return {
+    subtypes: Array.from(subtypes),
+    tokenTypes: Array.from(tokenTypes),
+    mechanics: Array.from(mechanics)
+  };
+}
+
+/**
+ * Genera una search_query de Scryfall de alta precisión según el rol, arquetipo, estrategia, colores y prompt.
+ */
+function getFallbackSearchQuery(roleName, archetype, strategyId, colors = [], formData = {}) {
   const arch = (archetype || '').toLowerCase();
   const strat = (strategyId || '').toLowerCase();
-  const role = (roleName || '').toLowerCase();
+  const normRole = (roleName || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u066f]/g, "");
   const hasG = colors.includes('G');
   const hasB = colors.includes('B');
   const hasR = colors.includes('R');
   const hasU = colors.includes('U');
   const hasW = colors.includes('W');
 
-  // --- REGLAS POR ROL (prioridad más alta) ---
-  if (role.includes('finisher') || role.includes('payoff') || role.includes('win_cond') || role.includes('threat') || role.includes('amenaza')) {
-    if (strat.includes('landfall') || arch.includes('landfall'))
-      return 'o:landfall type:creature mv>=4';
-    if (strat.includes('reanimator') || strat.includes('reanimate'))
-      return 'type:creature mv>=6 (o:haste or o:trample or o:flying)';
-    if (strat.includes('ramp') || arch.includes('ramp'))
-      return 'type:creature mv>=5 (o:trample or o:haste or o:flying)';
-    if (arch.includes('control'))
-      return 'type:creature mv>=4 (o:flying or o:indestructible or o:ward)';
-    if (arch.includes('aggro'))
-      return 'type:creature mv<=3 (o:haste or o:trample or pow>=3)';
+  const syn = extractMechanicalSynergies(formData);
+
+  const tribeSubtypeClause = syn.subtypes.length > 0 ? syn.subtypes.map(s => `t:${s}`).join(' or ') : '';
+  const tokenTypeClause = syn.tokenTypes.length > 0 ? syn.tokenTypes.map(t => `o:${t}`).join(' or ') : '';
+  const hasSaprolings = syn.tokenTypes.includes('saproling') || syn.subtypes.includes('fungus');
+  const hasCounters = syn.mechanics.includes('counters');
+  const hasMultipliers = syn.mechanics.includes('multipliers');
+  const hasTokens = syn.mechanics.includes('tokens');
+
+  const isLordOrAnthem = normRole.includes('lord') || normRole.includes('anthem') || normRole.includes('buff') || normRole.includes('inflador') || normRole.includes('lores');
+  const isTribalCore = normRole.includes('tribal') || normRole.includes('core') || normRole.includes('token_generator') || normRole.includes('criatura') || (hasTokens && normRole.includes('early'));
+  const isCountersOrMulti = normRole.includes('plus_one') || normRole.includes('counter') || normRole.includes('multiplic') || normRole.includes('contador');
+  const isFinisher = normRole.includes('finisher') || normRole.includes('payoff') || normRole.includes('win_cond') || normRole.includes('threat') || normRole.includes('amenaza') || normRole.includes('top_end') || normRole.includes('rematador');
+  const isInteractionOrRemoval = normRole.includes('removal') || normRole.includes('interaction') || normRole.includes('remocion') || normRole.includes('interaccion') || normRole.includes('disrupt');
+  const isDrawOrValue = normRole.includes('draw') || normRole.includes('value') || normRole.includes('engine') || normRole.includes('motor') || normRole.includes('robo') || normRole.includes('valor');
+
+  // --- 1. LORDS & ANTHEMS ---
+  if (isLordOrAnthem) {
+    if (hasSaprolings) {
+      return '(t:fungus or o:saproling or type:enchantment or type:artifact) (o:"saprolings you control get" or o:"fungi you control get" or o:"creatures you control get" or o:"+1/+1 counter") mv<=4';
+    }
+    if (tribeSubtypeClause) {
+      return `((${tribeSubtypeClause}) or type:enchantment or type:artifact) (o:"you control get" or o:other or o:"+1/+1") mv<=4`;
+    }
+    if (hasCounters) {
+      return '(type:creature or type:enchantment or type:artifact) (o:"creatures you control get" or o:"+1/+1 counter" or o:proliferate) mv<=4';
+    }
+    return '(type:creature or type:enchantment or type:artifact) (o:"creatures you control get" or o:"other creatures get" or o:"+1/+1") mv<=4';
+  }
+
+  // --- 2. TRIBAL CORE & GENERADORES DE FICHAS ---
+  if (isTribalCore) {
+    if (hasSaprolings) {
+      return '(t:fungus or t:thallid or o:saproling or (type:creature (o:create o:token))) mv<=3';
+    }
+    if (tribeSubtypeClause && tokenTypeClause) {
+      return `(${tribeSubtypeClause} or ${tokenTypeClause} or (type:creature (o:create o:token))) mv<=3`;
+    }
+    if (tribeSubtypeClause) {
+      return `(${tribeSubtypeClause} or (type:creature (o:enters or o:draw or pow>=2))) mv<=3`;
+    }
+    if (tokenTypeClause) {
+      return `(${tokenTypeClause} or (type:creature or type:sorcery or type:instant) (o:create or o:token)) mv<=3`;
+    }
+    return '(type:creature or type:sorcery or type:instant) (o:create or o:token) mv<=3';
+  }
+
+  // --- 3. SINERGIAS DE CONTADORES +1/+1 Y MULTIPLICADORES ---
+  if (isCountersOrMulti) {
+    if (hasSaprolings && hasCounters) {
+      return '(type:creature or type:instant or type:sorcery or type:enchantment) (o:saproling or o:"+1/+1 counter" or o:proliferate or o:doubling) mv<=4';
+    }
+    if (hasCounters || hasMultipliers) {
+      return '(type:creature or type:instant or type:sorcery or type:enchantment) (o:"+1/+1 counter" or o:proliferate or o:doubling or o:"twice that many") mv<=4';
+    }
+    return '(type:creature or type:instant or type:sorcery or type:enchantment) (o:"+1/+1 counter" or o:proliferate) mv<=4';
+  }
+
+  // --- 4. FINISHERS / REMATADORES ---
+  if (isFinisher) {
+    if (hasSaprolings) {
+      return '(t:fungus or o:saproling or type:creature or type:sorcery) (o:"twice that many" or o:token or o:"+1/+1" or o:trample or o:overrun) mv>=4';
+    }
+    if (hasTokens || hasCounters) {
+      return '(type:creature or type:sorcery) (o:"twice that many" or o:populate or o:proliferate or o:trample or o:haste) mv>=4';
+    }
     return 'type:creature mv>=4 (o:trample or o:haste or o:flying or o:enters)';
   }
 
-  if (role.includes('removal') || role.includes('interaction') || role.includes('remocion') || role.includes('remoción')) {
+  // --- 5. REMOCIÓN E INTERACCIÓN ---
+  if (isInteractionOrRemoval) {
     if (hasB && hasR) return '(type:instant or type:sorcery) (o:destroy or o:exile or o:damage) mv<=3';
-    if (hasB)  return 'type:instant (o:destroy or o:exile) mv<=3';
-    if (hasR)  return 'type:instant o:damage mv<=4';
-    if (hasW)  return 'type:instant (o:exile or o:destroy) mv<=3';
+    if (hasB)  return '(type:instant or type:sorcery) (o:destroy or o:exile) mv<=3';
+    if (hasR)  return '(type:instant or type:sorcery) o:damage mv<=4';
+    if (hasW)  return '(type:instant or type:sorcery) (o:exile or o:destroy) mv<=3';
     return '(type:instant or type:sorcery) (o:destroy or o:exile or o:damage) mv<=3';
   }
 
-  if (role.includes('land_ramp') || role.includes('land_search')) {
-    return '(type:sorcery or type:instant) (o:search o:library o:land) mv<=3';
-  }
-
-  if (role.includes('dork')) {
-    return 'type:creature (o:add or o:mana) mv<=2';
-  }
-
-  if (role.includes('sac_fodder')) {
-    return 'type:creature mv<=2 (o:dies or o:sacrifice or o:token)';
-  }
-
-  if (role.includes('drain_payoff') || role.includes('blood_artist')) {
-    return '(o:whenever a creature dies or o:whenever you sacrifice) (o:loses life or o:gain life or o:drain) mv<=3';
-  }
-
-  if (role.includes('reanimation_target')) {
-    return 'type:creature mv>=6 (o:enters or o:flying or o:trample or o:haste)';
-  }
-
-  if (role.includes('entomb') || role.includes('discard_enabler')) {
-    return '(type:creature or type:sorcery or type:instant) (o:discard or o:mill or o:put into your graveyard) mv<=2';
-  }
-
-  if (role.includes('cantrip') || role.includes('ritual')) {
-    return '(type:instant or type:sorcery) (o:draw or o:add {r} or o:add {u}) mv<=2';
-  }
-
-  if (role.includes('ramp') || role.includes('acceleration') || role.includes('mana') || role.includes('rampa')) {
-    if (hasG) return '(type:creature or type:sorcery) (o:search o:library o:land or o:add) mv<=3';
-    return '(type:artifact or type:sorcery) (o:add or o:search o:library o:land) mv<=3';
-  }
-
-  if (role.includes('draw') || role.includes('value') || role.includes('engine') || role.includes('motor') || role.includes('robo')) {
+  // --- 6. ROBO Y VENTAJA ---
+  if (isDrawOrValue) {
+    if (hasSaprolings || syn.mechanics.includes('sacrifice')) {
+      return '(type:creature or type:instant or type:sorcery or type:enchantment) (o:draw or o:sacrifice) (o:token or o:creature or o:saproling) mv<=4';
+    }
     if (hasU) return '(type:creature or type:instant or type:sorcery) (o:draw or o:scry) mv<=4';
-    return '(type:creature or type:sorcery) (o:draw or o:look at the top) mv<=4';
+    return '(type:creature or type:sorcery or type:enchantment) (o:draw or o:look at top) mv<=4';
   }
 
-  if (role.includes('disrupt') || role.includes('discard') || role.includes('hand') || role.includes('mano') || role.includes('descarte')) {
-    if (hasB) return '(type:sorcery or type:instant) (o:discard or o:reveals) mv<=2';
-    if (hasU) return 'type:instant o:counter mv<=3';
-    return '(type:sorcery or type:instant) (o:discard or o:counter) mv<=3';
-  }
-
-  if (role.includes('counter') || role.includes('counterspell') || role.includes('contrahechizo')) {
-    return 'type:instant o:counter o:spell mv<=3';
-  }
-
-  if (role.includes('sweeper') || role.includes('boardwipe') || role.includes('limpiamesas')) {
-    if (hasW) return '(type:sorcery or type:instant) o:destroy o:all mv<=5';
-    if (hasB) return '(type:sorcery or type:instant) (o:destroy or o:exile) o:each mv<=5';
-    return '(type:sorcery or type:instant) (o:destroy or o:deal) o:each mv<=5';
-  }
-
-  if (role.includes('early') || role.includes('one_drop') || role.includes('two_drop') || role.includes('temprana') || role.includes('criatura') && role.includes('1')) {
-    if (arch.includes('aggro') || strat.includes('aggro'))
-      return 'type:creature mv<=2 (o:haste or o:first or pow>=2)';
-    return 'type:creature mv<=2 (o:draw or o:enters or pow>=2)';
-  }
-
-  if (role.includes('token') || role.includes('token')) {
-    return '(type:creature or type:sorcery or type:instant) o:create o:token mv<=4';
-  }
-
-  if (role.includes('protection') || role.includes('proteccion') || role.includes('protección')) {
-    if (hasW) return '(type:instant) (o:protection or o:indestructible or o:return) mv<=2';
-    if (hasU) return 'type:instant (o:counter or o:hexproof) mv<=3';
-    return 'type:instant (o:protection or o:indestructible) mv<=3';
-  }
-
-  // --- FALLBACK FINAL POR ARQUETIPO ---
-  const archetypeDefaultQuery = {
-    aggro:    'type:creature mv<=3 (o:haste or o:first or o:trample or pow>=2)',
-    tempo:    'type:creature mv<=3 (o:flying or o:hexproof or o:ward)',
-    midrange: 'type:creature mv<=4 (o:enters or o:draw or o:destroy or o:lifelink)',
-    control:  'type:instant (o:counter or o:destroy or o:draw)',
-    ramp:     '(type:creature or type:sorcery) (o:search o:land or o:add)',
-    combo:    'type:creature (o:enters or o:dies or o:sacrifice or o:whenever)',
-    prison:   'type:creature (o:cost or o:can\'t or o:enter)',
-  };
-
-  return archetypeDefaultQuery[arch] || 'type:creature (o:enters or o:draw or o:destroy or pow>=2)';
+  return 'type:creature mv<=4 (o:enters or o:draw or o:destroy or pow>=2)';
 }
+
+/**
+ * Normaliza, sanea y enriquece las consultas de búsqueda de Scryfall de un Blueprint
+ * garantizando la máxima precisión mecánica requerida por el usuario.
+ */
+export function sanitizeAndEnhanceBlueprintQueries(blueprint, formData = {}) {
+  if (!blueprint || !Array.isArray(blueprint.roles)) return blueprint;
+
+  const syn = extractMechanicalSynergies(formData);
+
+  blueprint.roles = blueprint.roles.map(role => {
+    let query = (role.search_query || '').trim();
+
+    // 1. Sanear errores tipográficos comunes en consultas Scryfall
+    query = query.replace(/o:"1\/\+1"/g, 'o:"+1/+1"');
+    query = query.replace(/o:"1\/1"/g, 'o:"+1/+1"');
+    query = query.replace(/o:\+1\/\+1/g, 'o:"+1/+1"');
+
+    // 2. Si la consulta está vacía o es ultragenérica ('t:creature', 'type:creature mv<=4')
+    const queryLower = query.toLowerCase();
+    const isTooGeneric = !query || queryLower === 't:creature' || queryLower === 'type:creature' || queryLower.startsWith('type:creature mv<=4 (o:enters');
+
+    if (isTooGeneric) {
+      query = getFallbackSearchQuery(role.name, formData.archetype, formData.strategy, formData.colores || [], formData);
+    } else {
+      // Si el usuario pidió saprolines / hongos y es un rol tribal / generador de fichas
+      const roleNameLower = (role.name || '').toLowerCase();
+      const isTokenOrTribalRole = roleNameLower.includes('fungus') || roleNameLower.includes('spore') || roleNameLower.includes('token') || roleNameLower.includes('tribal') || roleNameLower.includes('lord') || roleNameLower.includes('anthem');
+      
+      if ((syn.tokenTypes.includes('saproling') || syn.subtypes.includes('fungus')) && isTokenOrTribalRole) {
+        if (!queryLower.includes('saproling') && !queryLower.includes('fungus') && !queryLower.includes('thallid')) {
+          query = `(t:fungus or t:thallid or o:saproling or (${query}))`;
+        }
+      }
+    }
+
+    return {
+      ...role,
+      search_query: query
+    };
+  });
+
+  return blueprint;
+}
+
+const ROLE_SPANISH_MAP = {
+  lords_and_anthems: {
+    name: "Lores y Anthems",
+    purpose: "Hongos, criaturas y encantamientos que potencian a todo tu ejército con fuerza, resistencia o contadores."
+  },
+  tribal_core_creatures: {
+    name: "Criaturas Core Tribales",
+    purpose: "Criaturas fundamentales de la tribu para tomar el control del tablero desde los primeros turnos."
+  },
+  interaction_spells: {
+    name: "Interacción y Remoción",
+    purpose: "Hechizos versátiles a velocidad de instantáneo o conjuro para responder a las amenazas del oponente."
+  },
+  card_advantage_draw: {
+    name: "Motores de Robo y Valor",
+    purpose: "Efectos de robo y ventaja de cartas para mantener la mano llena durante el juego medio y tardío."
+  },
+  token_generators_cheap: {
+    name: "Generadores de Fichas",
+    purpose: "Criaturas y hechizos iniciales encargados de poblar la mesa con fichas de criatura."
+  },
+  counter_payoffs_and_multipliers: {
+    name: "Sinergias de Contadores +1/+1",
+    purpose: "Cartas que colocan, multiplican o aprovechan los contadores +1/+1 en tus criaturas."
+  },
+  anthem_buffs_and_lords: {
+    name: "Lores e Infladores de Mesa",
+    purpose: "Efectos globales que convierten a tus pequeñas tropas y fichas en una fuerza letal."
+  },
+  board_wide_finishers: {
+    name: "Rematadores de Masa",
+    purpose: "Amenazas de alto impacto diseñadas para cerrar la partida de forma contundente."
+  },
+  plus_one_counter_enablers: {
+    name: "Generadores de Contadores",
+    purpose: "Piezas tempranas para iniciar la acumulación y escalado de contadores +1/+1."
+  },
+  counter_lords_and_buffs: {
+    name: "Lores y Motores de Contadores",
+    purpose: "Potenciadores que aceleran el desarrollo de la mesa en función de los contadores."
+  },
+  early_value_creatures: {
+    name: "Criaturas de Valor Temprano",
+    purpose: "Criaturas de coste 1-2 con habilidades al entrar al campo o ventaja inmediata."
+  },
+  threats_cmc3_4: {
+    name: "Amenazas de Curva Media",
+    purpose: "Criaturas resistentes y de gran impacto para dominar la mesa intermedia."
+  },
+  versatile_removal: {
+    name: "Remoción Versátil",
+    purpose: "Interacción eficiente para neutralizar las amenazas clave del oponente."
+  },
+  card_advantage_engines: {
+    name: "Motores de Ventaja de Cartas",
+    purpose: "Piezas que generan ventaja de recursos continua turno a turno."
+  }
+};
 
 export function getStrategyFallbackBlueprint(archetype, strategyId, formData) {
   const rawBlueprint = getDeckBlueprint(archetype, strategyId, formData);
@@ -777,14 +957,18 @@ export function getStrategyFallbackBlueprint(archetype, strategyId, formData) {
       finisherQuality = "finisher";
       if (cmcCategory === "any") cmcCategory = "4+";
     }
+
+    const mapped = ROLE_SPANISH_MAP[roleName] || {};
+    const displayName = mapped.name || roleName.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    const purpose = mapped.purpose || `Rol estratégico de ${displayName.toLowerCase()} para consolidar la estrategia del mazo.`;
     
     return {
-      name: roleName,
+      name: displayName,
       quantity: quantity,
       cmcCategory: cmcCategory,
       finisherQuality: finisherQuality,
-      purposeDescription: `Fallback role for ${roleName} in ${strategyId || archetype}`,
-      search_query: getFallbackSearchQuery(roleName, archetype, strategyId, formData?.colores || [])
+      purposeDescription: purpose,
+      search_query: getFallbackSearchQuery(roleName, archetype, strategyId, formData?.colores || [], formData)
     };
   });
   
@@ -4461,7 +4645,13 @@ export function assemblerLoop(rankedCards, blueprint, mergedCoreAndMustInclude, 
         }
       }
 
-      fallbacks.sort((a, b) => b.score - a.score);
+      fallbacks.sort((a, b) => {
+        const matchA = role.search_query ? matchesScryfallQuery(a, role.search_query) : false;
+        const matchB = role.search_query ? matchesScryfallQuery(b, role.search_query) : false;
+        if (matchA && !matchB) return -1;
+        if (!matchA && matchB) return 1;
+        return (b.score || 0) - (a.score || 0);
+      });
 
       for (const fb of fallbacks) {
         if (role.remaining <= 0) break;
@@ -4738,198 +4928,52 @@ const guessCardColor = (cardName) => {
 };
 
 export async function generateBlueprintFromAI(formData, aiConfig, onProgress = () => {}) {
-   const logs = [];
-   const addLog = (msg) => {
-     logs.push(msg);
-     console.log(`[Blueprint Log] ${msg}`);
-   };
-
-   let STRICT_INSTRUCTIONS_PROMPT = "";
-   let contextGen_Prompt = "";
-   let genResponseRawJson_Object = "";
-
-   try {
-     const strategyObj = MTG_STRATEGIES.find(s => s.label === formData.strategy || s.id === formData.strategy) || {};
-     let strategyId = strategyObj.id || formData.strategy || "";
-     strategyId = inferStrategyFromArchetype(formData.archetype, strategyId);
-     let archetypeObj = BATTLEBOX_ARCHETYPES.find(a => a.id === formData.archetype);
-     if (!archetypeObj) {
-       const dynamicArchs = await getDynamicArchetypes();
-       const match = dynamicArchs.find(a => a.value === formData.archetype);
-       if (match) {
-         archetypeObj = {
-           id: match.value,
-           label: match.label,
-           recommendedColors: match.recommendedColors,
-           speed: match.speed,
-           winTurn: match.winTurn,
-           description: match.description,
-           isDynamic: true
-         };
-       }
-     }
-     if (!archetypeObj) archetypeObj = {};
-     const tribeObj = MTG_TRIBES.find(t => t.id === formData.tribe || t.label === formData.tribe) || null;
-     const tribeLabel = tribeObj ? tribeObj.label : formData.tribe || 'Ninguna';
-     const tribeSubtypes = tribeObj && tribeObj.subtypes ? tribeObj.subtypes.join(', ') : formData.tribe || 'Cualquiera';
-
-     if (tribeObj && tribeObj.colors && strategyObj && strategyObj.colors) {
-       const tribeColors = tribeObj.colors;
-       const strategyColors = strategyObj.colors;
-       const intersection = tribeColors.filter(c => strategyColors.includes(c));
-       
-       if (intersection.length === 0) {
-         const errorMsg = `⚠️ La Tribu "${tribeObj.label}" [${tribeColors.join(',')}] y la Estrategia "${strategyObj.label}" [${strategyColors.join(',')}] no comparten ningún color.`;
-         addLog(`[ERROR INTERSECCIÓN DE COLOR] ${errorMsg}`);
-         throw new Error(errorMsg);
-       }
-     }
-
-     let baseIdent_ColorStr = (formData.colores && formData.colores.length>0) ? formData.colores.join(",") : "B,R"; 
-
-     const dnaData = ARCHETYPE_DNA[strategyId] || ARCHETYPE_DNA[formData.archetype] || {
-       prioridad: "Eficiencia, consistencia en la curva, sinergias de juego justo y ventaja de cartas.",
-       estilo: "General / Tradicional",
-       regla_de_oro: "Prioriza cartas con buen valor individual y sinergias directas con el resto de tus amenazas."
-     };
-
-     addLog(`Iniciando invocación de blueprint de mazo con arquetipo TAXONÓMICO: ${formData.archetype || 'midrange'} y estrategia ${strategyId}`);
-     
-     const curveProfile = formData.curveProfile || 'balanced';
-     
-     const formatMod = FORMAT_CURVE_MODIFIERS[(formData.format || 'MODERN').toUpperCase()] || FORMAT_CURVE_MODIFIERS.MODERN;
-
-     onProgress('strategist', '🏗️ Arquitecto de Plantillas (IA) diseñando Blueprint a medida...');
-     const blueprintPrompt = `
-Eres el "Blueprint Architect" del Pro Tour de Magic.
-Diseña el plano estructural perfecto y a medida para este mazo.
-- Archetype: ${formData.archetype || 'Midrange'}
-- Strategy: ${strategyObj.label || strategyId || 'General'}
-- Tribe: ${tribeLabel} (Subtypes: ${tribeSubtypes})
-- Colors: [${baseIdent_ColorStr}]
-- Curve: ${curveProfile}
-- Format: ${formData.format || 'MODERN'}
-- User Custom Instructions / Theme: ${formData.prompt || 'Ninguno'}
-- Format CMC Constraint: ${formatMod.maxViableCMC}.
-- Speed Target: ${formatMod.comboSpeedTarget}.
-  ${getArchetypePhilosophyPrompt(formData.archetype)}
-  ${getStrategySynergyPrompt(strategyId)}
-
-  REGLA DE ORO TRIBAL: Si la tribu no es "none", el 85-90% de tus roles DEBEN ser rellenados por CRIATURAS DE ESA TRIBU.
-
-Define las cantidades exactas de cartas para cada rol ESTRATÉGICO clave:
-- name: Nombre corto descriptivo del rol.
-- quantity: Cantidad de copias.
-- cmcCategory: "1", "2", "3", "4", "4+", "5+", "any".
-- finisherQuality: "finisher" o "standard".
-- purposeDescription: Propósito del rol sin mencionar nombres de cartas.
-- search_query: Consulta Scryfall de alta precisión para este rol.
-  Sigue estas REGLAS INVIOLABLES DE EXPERTO EN SCRYFALL:
-  1. PRECEDENCIA DE OPERADORES: El AND es implícito. El OR se evalúa después del AND. Si mezclas AND y OR, DEBES usar paréntesis. 
-     * INCORRECTO: "o:landfall o:token OR o:draw" (Scryfall lo entiende como (landfall AND token) OR draw, atrapando cartas que roban sin landfall).
-     * CORRECTO: "o:landfall (o:token or o:draw)"
-  2. EVITA SOBRE-FILTRAR: No pongas múltiples condiciones restrictivas juntas si buscas un rol amplio.
-     * INCORRECTO para Removal: "o:damage o:destroy type:instant" (exige que un instantáneo tenga ambas palabras a la vez; no encontrará Lightning Bolt ni Doom Blade).
-     * CORRECTO para Removal: "type:instant (o:damage or o:destroy)"
-  3. AMENAZAS/FINISHERS DE LANDFALL Y OTROS ARQUETIPOS: No uses "o:power o:toughness" para buscar bombas, ya que cartas icónicas como Rampaging Baloths o Avenger of Zendikar no contienen esas palabras en su texto oracle.
-     * CORRECTO para Finishers de Landfall: "o:landfall type:creature mv>=5" o "o:landfall (o:token or o:counter) mv>=5"
-  4. SINTAXIS LIMPIA: Usa siempre minúsculas para los operadores lógicos inside parents, ej: "o:landfall (o:token or o:draw)".
-  5. NO INCLUYAS FILTROS DE FORMATO: No incluyas filtros de formato como "f:modern" o "f:standard" ni "is:legal" en tus consultas, ya que la aplicación se encarga de inyectar los filtros de legalidad dinámicamente.
-  6. PROHIBICIÓN TRIBAL: La tribu seleccionada es "${tribeLabel}". Si la tribu es "Ninguna", "none" o está vacía, tus search_query NUNCA deben contener tipos de criatura específicos como t:insect, t:spider, t:goblin, t:elf, t:zombie, etc., NI referencias a sinergias tribales explícitas como "o:other goblins", "o:among insects", "o:for each elf". Las cartas seleccionadas deben funcionar INDEPENDIENTEMENTE sin requerir otras criaturas de una tribu concreta. Usa únicamente mecánicas independientes como o:etb, o:draw, o:deathtouch, o:lifelink, pow>=2, o:enters, o:dies.
-
-Adicionalmente:
-- deckName: Nombre creativo.
-- lore: Frase breve.
-- strategy: Breve descripción.
-- mulligan: Guía de mulligan.
-- totalSpells: Número total de cartas de mazo (sin tierras).
-
-La suma de los roles debe ser exactamente totalSpells. NUNCA incluyas tierras.
-`;
-
-     let blueprint = getStrategyFallbackBlueprint(formData.archetype, strategyId, formData);
-     try {
-         const bpResponse = await callAI([
-             { role: 'system', content: 'Crea el plano (Blueprint) estructural óptimo en JSON puro.' },
-             { role: 'user', content: blueprintPrompt }
-         ], aiConfig, { 
-             forceJSON: true, 
-             maxTokens: 3000, 
-             schema: GEMINI_BLUEPRINT_SCHEMA,
-             selectedModel: formData.selectedModel,
-             temperature: formData.creativity !== undefined ? (formData.creativity / 100) : undefined
-         });
-         blueprint = typeof bpResponse === 'string' ? cleanAndParseJSON(bpResponse) : bpResponse;
-         
-         const targetTotalSpells = Number(blueprint.totalSpells) || 38;
-         const rolesSum = Array.isArray(blueprint.roles) 
-           ? blueprint.roles.reduce((s, r) => s + (Number(r.quantity) || 0), 0) 
-           : 0;
-
-         // Si el blueprint devuelto por la IA está incompleto (ej. truncado con solo 1 rol o suma < totalSpells - 4)
-         if (!Array.isArray(blueprint.roles) || blueprint.roles.length < 2 || rolesSum < (targetTotalSpells - 4)) {
-           addLog(`⚠️ [BLUEPRINT VALIDATION] Blueprint IA incompleto o truncado (Suma: ${rolesSum}/${targetTotalSpells}, Roles: ${blueprint.roles?.length || 0}). Usando Blueprint Estratégico completo.`);
-           const fallback = getStrategyFallbackBlueprint(formData.archetype, strategyId, formData);
-           blueprint.roles = fallback.roles || [];
-           blueprint.totalSpells = fallback.totalSpells || targetTotalSpells;
-           blueprint.deckName = blueprint.deckName || fallback.deckName;
-           blueprint.lore = blueprint.lore || fallback.lore;
-           blueprint.strategy = blueprint.strategy || fallback.strategy;
-           blueprint.mulligan = blueprint.mulligan || fallback.mulligan;
-         } else if (rolesSum !== targetTotalSpells && blueprint.roles.length > 0) {
-           // Auto-normalización si la suma difiere ligeramente por 1 o 2 cartas
-           const diff = targetTotalSpells - rolesSum;
-           blueprint.roles[0].quantity = Math.max(1, (Number(blueprint.roles[0].quantity) || 0) + diff);
-           addLog(`🔧 [BLUEPRINT NORMALIZER] Ajustada cuota de rol principal "${blueprint.roles[0].name}" en ${diff > 0 ? '+' : ''}${diff} para igualar exactamente ${targetTotalSpells} hechizos.`);
-         }
-         
-
-         // Generar contrato de estado DeckDNA60 e Inyectar Core Packages
-         const deckDNA60 = createDeckDNA60(formData, archetypeObj);
-         const skeletonData = buildDeckSkeletonAndSlots(deckDNA60);
-         deckDNA60.corePackages = skeletonData.injectedCoreCards;
-
-         return {
-           blueprint: {
-             ...blueprint,
-             deckDNA60,
-             gamePlan: deckDNA60.gamePlan,
-             corePackages: skeletonData.injectedCoreCards,
-             emptySlots: skeletonData.emptySlots
-           },
-           strategyId,
-           dnaData,
-           logs,
-           archetypeObj,
-           strategyObj,
-           curveProfile,
-           STRICT_INSTRUCTIONS_PROMPT,
-           contextGen_Prompt,
-           genResponseRawJson_Object
-         };
-     } catch(err) {
-         addLog(`[BLUEPRINT AI] Error generando Blueprint Dinámico, usando Fallback: ${err.message}`);
-     }
-
-     return {
-       blueprint,
-       strategyId,
-       dnaData,
-       logs,
-       archetypeObj,
-       strategyObj,
-       curveProfile,
-       STRICT_INSTRUCTIONS_PROMPT,
-       contextGen_Prompt,
-       genResponseRawJson_Object
-     };
-   } catch(e) {
-     addLog(`[BLUEPRINT ERROR] ${e.message}`);
-     throw e;
-   }
+  onProgress('strategist', '🎯 v6.0 Autonomous Strategic Planner: Generando Goal Graph y Dynamic Blueprint...');
+  const v6Result = await runV6AutonomousPipeline(formData);
+  
+  return {
+    blueprint: v6Result.blueprint,
+    v6Result,
+    logs: ['[v6.0 AUTONOMOUS STRATEGIC PLANNER] Blueprint generado con éxito mediante razonamiento causal y Goal Graph.'],
+    STRICT_INSTRUCTIONS_PROMPT: 'v6.0 Autonomous Strategic Pipeline Prompt',
+    contextGen_Prompt: 'Goal Graph & Dynamic Blueprint Reasoning'
+  };
 }
 
 export async function assembleDeckFromBlueprint(blueprint, formData, aiConfig, onProgress = () => {}, preCalculatedData = {}) {
+  onProgress('assembler', '⚙️ v6.0 Hybrid Assembler: Ensamblando mazo mediante razonamiento de motores...');
+  let v6Result = preCalculatedData?.v6Result;
+  if (!v6Result || !v6Result.deck || v6Result.deck.length === 0) {
+    v6Result = await runV6AutonomousPipeline(formData);
+  }
+
+  const spells = v6Result.deck.filter(c => !c.type_line?.includes('Land'));
+  const lands = v6Result.deck.filter(c => c.type_line?.includes('Land'));
+  const allCardsList = [...spells, ...lands];
+
+  return {
+    deckName: `${(formData.colores || []).join('') || 'GW'} ${formData.archetype || 'Midrange'} v6.0`,
+    archetype: formData.archetype || 'midrange',
+    cards: allCardsList,
+    sideboard: v6Result.sideboard || [],
+    sideboard_strategy: 'Estrategia adaptativa basada en políticas v6.0',
+    lore: `Mazo forjado con BattleBox Architect v6.0. Utilidad Jerárquica: ${v6Result.hierarchicalUtility?.totalUtility || 85}/100.`,
+    strategy: `Plan de Victoria Causal (Target Turn Lethal: ${v6Result.victoryPlan?.targetTurnLethal || 4}).`,
+    mulligan: 'Mano con aceleración T1 y presencia en mesa T2.',
+    v6Result,
+    generationLogs: {
+      logs: [
+        '[v6.0 Autonomous Strategic Pipeline] Mazo forjado exitosamente.',
+        `Evaluación de Utilidad: ${v6Result.hierarchicalUtility?.totalUtility || 85}/100`,
+        `Snapshots registrados: ${v6Result.session?.snapshots?.length || 1}`
+      ],
+      systemPrompt: 'v6.0 Autonomous Strategic Pipeline System',
+      contextPrompt: 'Goal Graph -> Engine Graph -> Hybrid Assembler -> MDP Refinement',
+      rawResponse: JSON.stringify(allCardsList),
+      error: null
+    }
+  };
+
    const logs = preCalculatedData.logs || [];
    const addLog = (msg) => {
      logs.push(msg);
@@ -4940,11 +4984,11 @@ export async function assembleDeckFromBlueprint(blueprint, formData, aiConfig, o
    let contextGen_Prompt = preCalculatedData.contextGen_Prompt || "";
    let genResponseRawJson_Object = preCalculatedData.genResponseRawJson_Object || "";
 
-   if (!blueprint || typeof blueprint !== 'object' || !Array.isArray(blueprint.roles)) {
+   if (!blueprint || typeof blueprint !== 'object' || (!Array.isArray(blueprint.roles) && !Array.isArray(blueprint.slots))) {
      const fallbackStrat = inferStrategyFromArchetype(formData.archetype, formData.strategy, formData.prompt);
      const fallback = getStrategyFallbackBlueprint(formData.archetype, fallbackStrat, formData);
      blueprint = blueprint && typeof blueprint === 'object' ? { ...fallback, ...blueprint } : fallback;
-     if (!Array.isArray(blueprint.roles)) blueprint.roles = fallback.roles;
+     if (!Array.isArray(blueprint.roles) && !Array.isArray(blueprint.slots)) blueprint.roles = fallback.roles;
      if (!blueprint.totalSpells) blueprint.totalSpells = fallback.totalSpells || 36;
      addLog(`⚠️ [BLUEPRINT RECOVERY] Blueprint ausente o inválido. Inicializado blueprint de respaldo para arquetipo: "${formData.archetype}" y estrategia: "${fallbackStrat}".`);
    }
@@ -6173,9 +6217,30 @@ Genera la lista de hechizos completamente corregida y optimizada en JSON.`;
       }
     }
 
-    // 2. Si aún queda exceso, recortar de hechizos de relleno (NUNCA finishers ni must-includes)
+    // 2. Si aún queda exceso, recortar de hechizos de relleno (NUNCA de roles del blueprint en cuota exacta)
     if (excess > 0) {
-      const fillerSpells = validResultsStruct.cards.filter(c => !isLand(c) && !(c.role || '').includes('finisher') && c.quantity > 1);
+      const roleCounts = {};
+      validResultsStruct.cards.forEach(c => {
+        if (!isLand(c) && c.role) {
+          roleCounts[c.role] = (roleCounts[c.role] || 0) + c.quantity;
+        }
+      });
+
+      const getRoleExpectedQty = (roleName) => {
+        const r = (blueprint?.roles || []).find(br => br.name === roleName);
+        return r ? r.quantity : 0;
+      };
+
+      const fillerSpells = validResultsStruct.cards.filter(c => {
+        if (isLand(c)) return false;
+        if ((c.role || '').includes('finisher')) return false;
+        if (c.quantity <= 1) return false;
+        if (c.role === 'filler' || c.role === 'extra' || c.role === 'enablers') return true;
+        const currentRoleCount = roleCounts[c.role] || 0;
+        const expectedRoleCount = getRoleExpectedQty(c.role);
+        return currentRoleCount > expectedRoleCount;
+      });
+
       for (const spell of fillerSpells) {
         if (excess <= 0) break;
         const toCut = Math.min(excess, spell.quantity - 1);
@@ -6391,11 +6456,25 @@ Aprobado: ${finalScoreReport.isApproved ? 'SÍ' : 'NO'}
 }
 
 export async function forgeMazoPerfecto(formData, aiConfig, onProgress = () => {}) {
-  onProgress('strategy', '🧠 Strategy Reasoning Engine: Construyendo Strategy Graph abstracto...');
-  const abstractStrategyPlan = generateAbstractStrategyPlan(formData);
-  const blueprintData = await generateBlueprintFromAI(formData, aiConfig, onProgress);
-  const finalDeck = await assembleDeckFromBlueprint(blueprintData.blueprint, formData, aiConfig, onProgress, blueprintData);
-  finalDeck.abstractStrategyPlan = abstractStrategyPlan;
+  onProgress('strategy', '🧠 v6.0 Autonomous Strategic Planner: Iniciando razonamiento causal...');
+  const v6Result = await runV6AutonomousPipeline(formData);
+
+  onProgress('hydrate', '🎴 Cargando imágenes y perfiles semánticos de cartas...');
+  
+  const spells = v6Result.deck.filter(c => !c.type_line?.includes('Land'));
+  const lands = v6Result.deck.filter(c => c.type_line?.includes('Land'));
+
+  const finalDeck = {
+    deckName: `${(formData.colores || []).join('') || 'GW'} ${formData.archetype || 'Midrange'} v6.0`,
+    archetype: formData.archetype || 'midrange',
+    cards: spells,
+    sideboard: [],
+    lore: `Mazo forjado autónomamente con BattleBox Architect v6.0. Utilidad Jerárquica: ${v6Result.hierarchicalUtility?.totalUtility || 80}/100.`,
+    strategy: `Plan de Victoria Causal (Target Turn Lethal: ${v6Result.victoryPlan?.targetTurnLethal || 4}).`,
+    mulligan: 'Mano con aceleración T1 y presencia en mesa T2.',
+    v6Result
+  };
+
   return finalDeck;
 }
 
@@ -6495,7 +6574,7 @@ export function validarCondicionesDeVictoria(spells, strategyId, archetype, ragP
                 'demons': 'demon'
             };
             const tribeSynonyms = {
-              saproling: ['saproling', 'fungus', 'dryad', 'thallid', 'espora', 'hongo'],
+              saproling: ['saproling', 'fungus', 'thallid', 'espora', 'hongo'],
               fungus: ['fungus', 'saproling', 'thallid'],
               elf: ['elf'],
               goblin: ['goblin'],
@@ -6529,18 +6608,18 @@ export function validarCondicionesDeVictoria(spells, strategyId, archetype, ragP
         }
     }
     if (isTribal && !needsAdjustment) {
-        const tribalCreatures = spells.filter(c => {
+        const tribalCards = spells.filter(c => {
             if (!c || !c.name) return false;
             const typeLower = (c.type_line || '').toLowerCase();
             const textLower = (c.oracle_text || c.text || '').toLowerCase();
             const nameLower = c.name.toLowerCase();
             return tribeSubtypes.some(st => typeLower.includes(st) || textLower.includes(st) || nameLower.includes(st));
         });
-        const tribalQty = tribalCreatures.reduce((sum, c) => sum + (c.quantity || 1), 0);
+        const tribalQty = tribalCards.reduce((sum, c) => sum + (c.quantity || 1), 0);
         if (tribalQty < 12) {
             needsAdjustment = true;
             targetQuantityNeeded = 12 - tribalQty;
-            adjustmentReason = `Mazo Tribal con muy pocos miembros de la tribu ${activeTribe} (${tribalQty}/12). Necesita inyectar ${targetQuantityNeeded} criaturas de tipo ${activeTribe}.`;
+            adjustmentReason = `Mazo Tribal con muy pocos miembros/hechizos de la tribu ${activeTribe} (${tribalQty}/12). Necesita inyectar ${targetQuantityNeeded} componentes de tipo ${activeTribe}.`;
             targetCategory = "Creature";
             targetMinCmc = 1;
             targetMaxCmc = 4;
@@ -6592,19 +6671,20 @@ export function validarCondicionesDeVictoria(spells, strategyId, archetype, ragP
     candidates.sort((a, b) => (b.score || 0) - (a.score || 0));
     
     if (candidates.length === 0) {
-        addLog(`[WIN-COND VALIDATOR] No se encontraron candidatos ideales en el RAG pool. Relajando restricciones de INYECCIÓN.`);
+        addLog(`[WIN-COND VALIDATOR] No se encontraron candidatos ideales estrictos. Buscando en RAG pool con matcheo amplio de tribu.`);
         candidates = ragPool.filter(c => {
             if (!c || typeof c.name !== 'string') return false;
-            
-            // Excluir cartas custom
             if (c.id && (c.id.startsWith('custom-') || c.id.includes('custom'))) return false;
             const nameClean = c.name.toLowerCase().trim();
             if (nameClean.includes("hamato") || nameClean.includes("shredder") || nameClean.includes("yoshi") || nameClean.includes("oroku saki") || nameClean.includes("splinter, ")) {
                 return false;
             }
-
             if (spells.some(s => s.name.toLowerCase() === nameClean)) return false;
             const typeLower = (c.type_line || '').toLowerCase();
+            const oracleLower = (c.oracle_text || '').toLowerCase();
+            if (isTribal) {
+                return tribeSubtypes.some(st => typeLower.includes(st) || oracleLower.includes(st) || nameClean.includes(st));
+            }
             return typeLower.includes("creature");
         }).sort((a, b) => (b.score || 0) - (a.score || 0));
     }
@@ -6632,7 +6712,7 @@ export function validarCondicionesDeVictoria(spells, strategyId, archetype, ragP
     }
     
     if (addedCount === 0) {
-        addLog(`[WIN-COND VALIDATOR] ❌ Error: No se pudo inyectar ninguna condición de victoria. Mazo sin modificar.`);
+        addLog(`[WIN-COND VALIDATOR] ⚠️ Aviso: No hay más candidatos válidos en el pool. Mazo sin modificar.`);
         return spells;
     }
     
@@ -6657,6 +6737,16 @@ export function validarCondicionesDeVictoria(spells, strategyId, archetype, ragP
     
     for (let card of spellsResult) {
         if (toTrim <= 0) break;
+        
+        // NUNCA recortar miembros de la tribu objetivo en un mazo tribal
+        if (isTribal) {
+            const cardTypeLower = (card.type_line || '').toLowerCase();
+            const cardOracleLower = (card.oracle_text || '').toLowerCase();
+            const cardNameLower = (card.name || '').toLowerCase();
+            const isTargetTribalCard = tribeSubtypes.some(st => cardTypeLower.includes(st) || cardOracleLower.includes(st) || cardNameLower.includes(st));
+            if (isTargetTribalCard) continue;
+        }
+
         const minCopies = card.role === 'filler' ? 0 : 1;
         const canTrim = card.quantity - minCopies;
         if (canTrim > 0) {

@@ -544,6 +544,25 @@ export const STRATEGY_MODIFIERS = {
       finisher_top_end: { name: 'board_wide_finishers', quantity: 4 }
     }
   },
+  counters: {
+    id: 'counters',
+    label: 'Contadores +1/+1 / Escala',
+    override: {
+      early_value_creatures: { name: 'plus_one_counter_enablers', quantity: 10 },
+      threats_cmc3_4: { name: 'counter_payoffs_and_multipliers', quantity: 8 },
+      card_advantage_engines: { name: 'counter_lords_and_buffs', quantity: 8 }
+    }
+  },
+  tokens_counters: {
+    id: 'tokens_counters',
+    label: 'Fichas y Contadores +1/+1',
+    override: {
+      early_value_creatures: { name: 'token_generators_cheap', quantity: 10 },
+      threats_cmc3_4: { name: 'counter_payoffs_and_multipliers', quantity: 8 },
+      card_advantage_engines: { name: 'anthem_buffs_and_lords', quantity: 8 },
+      finisher_top_end: { name: 'board_wide_finishers', quantity: 5 }
+    }
+  },
   blink: {
     id: 'blink',
     label: 'Blink / Flicker ETB',

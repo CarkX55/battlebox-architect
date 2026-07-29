@@ -431,6 +431,44 @@ export const UNIVERSAL_ENGINES = [
 export const MTG_TRIBES = [
   // TRIBUS CLÁSICAS
   { 
+    id: 'saproling', 
+    label: 'Saprolines & Hongos', 
+    category: 'clasica', 
+    colors: ['G', 'B', 'W'], 
+    primaryColor: 'G', 
+    strategies: ['tokens', 'aristocrats'], 
+    archetypes: ['midrange', 'aggro', 'combo'], 
+    subtypes: ['saproling', 'fungus'],
+    flavors: [
+      {
+        id: 'saproling_tokens',
+        label: 'Enjambre de Saprolines (Tokens)',
+        description: 'Multiplica fichas de Saproling y hongos para abrumar la mesa y potenciar tus himnos.',
+        vetoedKeywords: [],
+        boostKeywords: ['saproling', 'fungus', 'slimefoot', 'saproling migration', 'spore swarm', 'fungal plots', 'saproling symbiosis', 'craterhoof', 'intangible virtue', 'parallel lives', 'tendershoot thallid']
+      }
+    ]
+  },
+  { 
+    id: 'fungus', 
+    label: 'Hongos & Esporas', 
+    category: 'clasica', 
+    colors: ['G', 'B', 'W'], 
+    primaryColor: 'G', 
+    strategies: ['tokens', 'aristocrats'], 
+    archetypes: ['midrange', 'aggro'], 
+    subtypes: ['fungus', 'saproling'],
+    flavors: [
+      {
+        id: 'fungus_tokens',
+        label: 'Cultivo de Esporas',
+        description: 'Genera contadores de espora para producir Saprolines y drenar vida.',
+        vetoedKeywords: [],
+        boostKeywords: ['fungus', 'saproling', 'spore', 'thallid', 'slimefoot', 'mycotyrant']
+      }
+    ]
+  },
+  { 
     id: 'human', 
     label: 'Humanos', 
     category: 'clasica', 

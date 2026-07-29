@@ -603,7 +603,9 @@ export function esValidaParaRolDinamica(card = {}, role = '', deckColors = ['G']
       oracle.includes('counter target') || oracle.includes('contrarresta') ||
       oracle.includes('remove') || oracle.includes('remueve') ||
       oracle.includes('deals') || oracle.includes('daña') ||
-      oracle.includes('return target');
+      oracle.includes('return target') || oracle.includes('gets -') ||
+      oracle.includes('target creature gets') || oracle.includes('fight') ||
+      oracle.includes('damage to target');
 
     if (!hasInteractionPhrase) {
       console.warn(`⛔ [FILTRADO LITERAL] "${nameTrimmed}" NO contiene frases explícitas de remoción o interacción. Rechazada para INTERACCIÓN.`);
@@ -650,10 +652,9 @@ export function obtenerCartaSegura(roleKey = 'mana_dorks_and_growth', colorIdent
     const colPools = colors.map(col => {
       const p = rolePool[col];
       if (!p) return [];
-      if (p.dorks || p.ramp_spells) {
-        return preferSpells ? [...(p.ramp_spells || []), ...(p.dorks || [])] : [...(p.dorks || []), ...(p.ramp_spells || [])];
-      }
-      return Array.isArray(p) ? p : [];
+      if (Array.isArray(p)) return p;
+      if (preferSpells) return p.ramp_spells || p.dorks || [];
+      return [...(p.dorks || []), ...(p.ramp_spells || [])];
     });
 
     // Intercalar candidatos entre todos los colores seleccionados (G, R, W, B, U)
@@ -665,21 +666,15 @@ export function obtenerCartaSegura(roleKey = 'mana_dorks_and_growth', colorIdent
       });
     }
 
-    const anyPool = rolePool.ANY || rolePool.C;
-    if (anyPool) {
-      if (anyPool.dorks || anyPool.ramp_spells) {
-        candidatePool.push(...(preferSpells ? (anyPool.ramp_spells || anyPool.dorks) : (anyPool.dorks || anyPool.ramp_spells)));
-      } else if (Array.isArray(anyPool)) {
-        candidatePool.push(...anyPool);
-      }
-    }
+    if (rolePool.ANY && Array.isArray(rolePool.ANY)) candidatePool.push(...rolePool.ANY);
+    if (rolePool.C && Array.isArray(rolePool.C)) candidatePool.push(...rolePool.C);
+    if (rolePool.G && Array.isArray(rolePool.G)) candidatePool.push(...rolePool.G);
 
     for (let candidate of candidatePool) {
       const existing = deckCards.find(c => (c.name || '').toLowerCase() === candidate.name.toLowerCase());
       const count = existing ? (existing.quantity || 1) : 0;
       if (count < 4) return { ...candidate };
     }
-    if (candidatePool.length > 0) return { ...candidatePool[0] };
   }
 
   // Fallback para otros roles (interacción, draw, etc.)
@@ -712,7 +707,7 @@ export function obtenerCartaSegura(roleKey = 'mana_dorks_and_growth', colorIdent
   if (candidatePool.length > 0) return { ...candidatePool[0] };
 
   // Carta de emergencia fail-safe
-  return { name: "Spell Pierce", cmc: 1, category: "Instant", role: normRoleKey, oracle_text: "Counter target noncreature spell unless its controller pays {2}." };
+  return { name: "Fatal Push", cmc: 1, category: "Instant", role: normRoleKey, oracle_text: "Destroy target creature if it has mana value 2 or less." };
 }
 
 
@@ -748,7 +743,7 @@ export function purgaDeInvalidos(cards = [], blueprint = null, colorIdentity = [
 
       for (let q = 0; q < qtyToReplace; q++) {
         const replacement = obtenerCartaSegura(normRole, colorIdentity, safeDeck);
-        const existing = safeDeck.find(c => (c.name || '').toLowerCase() === replacement.name.toLowerCase());
+        const existing = safeDeck.find(c => (c.name || '').toLowerCase() === replacement.name.toLowerCase() && c.role === role);
         if (existing) {
           existing.quantity = (existing.quantity || 1) + 1;
           existing.copies = existing.quantity;
@@ -758,10 +753,10 @@ export function purgaDeInvalidos(cards = [], blueprint = null, colorIdentity = [
             id: generateUniqueCardId(replacement.name, 'purged'),
             quantity: 1,
             copies: 1,
-            role: normRole
+            role: role // PRESERVAR EL NOMBRE DE ROL ORIGINAL DEL BLUEPRINT
           });
         }
-        addLog(`[PURGA REEMPLAZO] ✅ Inyectando 1x "${replacement.name}" del POOL DE SEGURIDAD (${colorIdentity.join('')}).`);
+        addLog(`[PURGA REEMPLAZO] ✅ Inyectando 1x "${replacement.name}" del POOL DE SEGURIDAD (${colorIdentity.join('')}) para el rol "${role}".`);
       }
     }
   }
@@ -778,8 +773,10 @@ export function purgaDeInvalidos(cards = [], blueprint = null, colorIdentity = [
 export function hardEnforceInteraction(cards = [], blueprint = null, colorIdentity = ['G'], addLog = console.log) {
   const safeDeck = [...cards];
   const isInteractionRole = (r = '') => {
-    const l = r.toLowerCase();
-    return l.includes('interaction') || l.includes('protection') || l.includes('removal');
+    const norm = (r || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u066f]/g, "");
+    return norm.includes('interaction') || norm.includes('protection') || norm.includes('removal') ||
+           norm.includes('interaccion') || norm.includes('remocion') || norm.includes('descarte') ||
+           norm.includes('control') || norm.includes('disrupt');
   };
 
   let totalInteraction = safeDeck

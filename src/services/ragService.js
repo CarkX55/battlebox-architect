@@ -943,6 +943,10 @@ export const buildCardPool = async (formData) => {
               isAlignedTag = true;
             } else if (strategyId === 'sea_monsters' && (cleanTag.includes('kraken') || cleanTag.includes('leviathan') || cleanTag.includes('octopus') || cleanTag.includes('serpent') || cleanTag.includes('fish') || cleanTag.includes('sea'))) {
               isAlignedTag = true;
+            } else if ((strategyId === 'tokens' || (formData.prompt || '').toLowerCase().includes('token') || (formData.prompt || '').toLowerCase().includes('ficha') || (formData.prompt || '').toLowerCase().includes('saprolin')) && (cleanTag.includes('token') || cleanTag.includes('swarm') || cleanTag.includes('populate') || cleanTag.includes('parallel') || cleanTag.includes('saproling') || cleanTag.includes('fungus'))) {
+              isAlignedTag = true;
+            } else if ((strategyId === 'counters' || (formData.prompt || '').toLowerCase().includes('contador') || (formData.prompt || '').toLowerCase().includes('+1/+1')) && (cleanTag.includes('counter') || cleanTag.includes('+1/+1') || cleanTag.includes('proliferate') || cleanTag.includes('scale'))) {
+              isAlignedTag = true;
             }
 
             if (isAlignedTag) {
@@ -1030,7 +1034,19 @@ export const buildCardPool = async (formData) => {
       }
 
       // Inferencia y Veto de Tribu Activa para todo el Sistema Senda 1
-      let activeTribeKey = (formData?.tribe || '').toLowerCase();
+      let activeTribeKey = tribeData ? tribeData.id : (formData?.tribe || '').toLowerCase();
+      if (activeTribeKey.includes('saprolin') || activeTribeKey.includes('fungus') || activeTribeKey.includes('hongo') || activeTribeKey.includes('espora')) {
+        activeTribeKey = 'saproling';
+      } else if (activeTribeKey.includes('elf')) {
+        activeTribeKey = 'elf';
+      } else if (activeTribeKey.includes('goblin') || activeTribeKey.includes('trasgo')) {
+        activeTribeKey = 'goblin';
+      } else if (activeTribeKey.includes('zombie') || activeTribeKey.includes('zombi')) {
+        activeTribeKey = 'zombie';
+      } else if (activeTribeKey.includes('vampir')) {
+        activeTribeKey = 'vampire';
+      }
+
       if (!activeTribeKey || activeTribeKey === 'none' || activeTribeKey === 'ninguna') {
         const promptLower = (formData?.prompt || '').toLowerCase();
         if (promptLower.includes('saprolin') || promptLower.includes('fungus') || promptLower.includes('hongo') || promptLower.includes('espora')) activeTribeKey = 'saproling';
@@ -1049,7 +1065,7 @@ export const buildCardPool = async (formData) => {
       // Impulso y Veto Contextual de Tribu (name + type_line + oracle_text)
       if (activeTribeKey && activeTribeKey !== 'none' && activeTribeKey !== 'ninguna') {
         const tribeSynonymsMap = {
-          saproling: ['saproling', 'fungus', 'dryad', 'thallid', 'espora', 'hongo'],
+          saproling: ['saproling', 'fungus', 'thallid', 'espora', 'hongo'],
           fungus: ['fungus', 'saproling', 'thallid'],
           elf: ['elf'],
           goblin: ['goblin'],
@@ -1065,11 +1081,24 @@ export const buildCardPool = async (formData) => {
         const activeSynonyms = tribeSynonymsMap[activeTribeKey] || [activeTribeKey];
         const matchesTribeMultiField = activeSynonyms.some(syn => typeLine.includes(syn) || oracleText.includes(syn) || cardNameLower.includes(syn));
         if (matchesTribeMultiField) {
-          score += 1000; // Impulso tribal multicapa supremo (name + type_line + oracle_text)
+          score += 1500; // Impulso tribal multicapa supremo (name + type_line + oracle_text)
+        } else if (typeLine.includes('creature') || typeLine.includes('planeswalker')) {
+          // Si es una criatura o planeswalker y NO matchea la tribu activa ni genera fichas de esa tribu/himnos
+          const isTargetTribeTokenOrAnthem = (oracleText.includes(activeTribeKey) || oracleText.includes('fungus') || oracleText.includes('saproling') || oracleText.includes('creature tokens') || oracleText.includes('tokens you control')) && 
+                                              (oracleText.includes('create') || oracleText.includes('put') || oracleText.includes('get'));
+          if (!isTargetTribeTokenOrAnthem) {
+            score -= 5000; // Penalización/veto severo a criaturas y planeswalkers fuera de tribu / tema
+          }
         }
 
-        // Veto de subtipos e incompatibilidades mecánicas
-        if ((oracleText.includes('rabbit') || oracleText.includes('mouse') || oracleText.includes('otter') || oracleText.includes('raccoon')) && !['rabbit', 'mouse', 'otter', 'raccoon'].includes(activeTribeKey)) {
+        // Veto de subtipos e incompatibilidades mecánicas para la tribu activa
+        if (activeTribeKey === 'saproling' || activeTribeKey === 'fungus') {
+          const isOffTribeCreatureOrToken = typeLine.includes('cat') || typeLine.includes('rat') || typeLine.includes('knight') || typeLine.includes('vampire') || typeLine.includes('elk') || typeLine.includes('elemental') ||
+                                             oracleText.includes('cat creature token') || oracleText.includes('rat creature token') || oracleText.includes('vampire creature token') || oracleText.includes('fish creature token');
+          if (isOffTribeCreatureOrToken) {
+            score -= 5000; // Veto absoluto a criaturas y fichas de otras tribus (gatos, ratas, alces, peces, caballeros)
+          }
+        } else if ((oracleText.includes('rabbit') || oracleText.includes('mouse') || oracleText.includes('otter') || oracleText.includes('raccoon')) && !['rabbit', 'mouse', 'otter', 'raccoon'].includes(activeTribeKey)) {
           score -= 1000;
         }
 
@@ -1754,7 +1783,7 @@ export const buildCardPool = async (formData) => {
     if (formData.blueprintRoles && Array.isArray(formData.blueprintRoles)) {
       for (const role of formData.blueprintRoles) {
         if (role.search_query && matchesSearchQuery(card, role.search_query)) {
-          blueprintMatchBoost += 120; // Priorizar según query semántica del Blueprint
+          blueprintMatchBoost += 450; // Priorizar fuertemente cartas que matcheen la query del Blueprint
         }
       }
     }

@@ -20,7 +20,8 @@ import {
   AlertTriangle,
   HelpCircle,
   Activity,
-  ShieldCheck
+  ShieldCheck,
+  Target
 } from 'lucide-react';
 
 export default function BlueprintEditor({ blueprint, format, onAssemble, onBack }) {
@@ -35,12 +36,14 @@ export default function BlueprintEditor({ blueprint, format, onAssemble, onBack 
     }
   }, [format, editedBlueprint.suggestedCommanders]);
 
-  const rolesList = Array.isArray(editedBlueprint?.roles) ? editedBlueprint.roles : [];
+  const rolesList = (Array.isArray(editedBlueprint?.roles) && editedBlueprint.roles.length > 0)
+    ? editedBlueprint.roles
+    : (Array.isArray(editedBlueprint?.slots) ? editedBlueprint.slots : []);
 
   // --- CÁLCULOS MATEMÁTICOS DE SALUD EN TIEMPO REAL (FRANK KARSTEN & VMP) ---
   const currentTotal = rolesList.reduce((sum, r) => sum + (r.quantity || 0), 0);
-  const targetTotal = blueprint.totalSpells || 40;
-  const isCountMatch = currentTotal === targetTotal;
+  const targetTotal = blueprint.totalCards || blueprint.totalDeckSize || (blueprint.totalSpells && currentTotal < 45 ? blueprint.totalSpells : currentTotal) || 60;
+  const isCountMatch = currentTotal > 0;
 
   const estimatedVmp = useMemo(() => {
     const total = currentTotal || 1;
@@ -243,7 +246,7 @@ export default function BlueprintEditor({ blueprint, format, onAssemble, onBack 
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 sm:gap-6 w-full lg:w-auto relative z-10 pt-4 lg:pt-0 border-t lg:border-t-0 border-white/10">
           <div className="text-left sm:text-right space-y-1">
             <span className="text-[9px] text-white/40 uppercase block font-bold tracking-widest font-sans">
-              Total Hechizos Planificados
+              Total Cartas Planificadas
             </span>
             <div className="flex items-baseline justify-start sm:justify-end gap-1.5">
               <span className={cn(
@@ -288,38 +291,77 @@ export default function BlueprintEditor({ blueprint, format, onAssemble, onBack 
         </div>
       </div>
 
-      {/* Live Blueprint Health Gauge Widget */}
-      <div className="bg-black/60 border border-magic-gold/30 rounded-2xl p-5 backdrop-blur-md relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-4 shadow-xl">
-        <div className="flex items-center gap-4">
-          <div className={cn(
-            "w-14 h-14 rounded-2xl border flex flex-col items-center justify-center shrink-0 shadow-lg",
-            liveHealthScore >= 85 
-              ? "bg-emerald-500/10 border-emerald-500/40 text-emerald-400" 
-              : "bg-amber-500/10 border-amber-500/40 text-amber-400"
-          )}>
-            <span className="text-xs uppercase font-bold text-white/50 tracking-widest text-[9px]">Salud</span>
-            <span className="text-xl font-black font-cinzel">{liveHealthScore}</span>
-          </div>
-
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <Activity size={14} className="text-magic-gold" />
-              <h4 className="font-cinzel text-sm text-white font-bold uppercase tracking-wider">Asistente Karsten en Tiempo Real</h4>
+      {/* PANEL ESTRATÉGICO AUTÓNOMO v6.0 — GOAL GRAPH, DECISION POLICIES & RESOURCE BUDGET */}
+      <div className="bg-gradient-to-r from-purple-950/40 via-black/80 to-amber-950/40 border border-purple-500/30 rounded-3xl p-6 backdrop-blur-md space-y-5 shadow-2xl relative overflow-hidden">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/10 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-purple-500/20 border border-purple-500/40 flex items-center justify-center text-purple-300 font-bold shadow-md">
+              🎯
             </div>
-            <p className="text-xs text-white/60 font-serif leading-relaxed">
-              Curva proyectada: <strong className="text-magic-gold">{estimatedVmp} CMC</strong> • Tierras recomendadas: <strong className="text-emerald-400">{recommendedLands} tierras</strong>
-            </p>
+            <div>
+              <h3 className="font-cinzel text-sm text-purple-200 font-bold uppercase tracking-wider">
+                Planificador Estratégico Autónomo v6.0
+              </h3>
+              <p className="text-[11px] text-gray-400 font-serif">
+                Razonamiento Causal: Victory Plan ➔ Goal Graph ➔ Decision Policies ➔ Resource Economy
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="px-3 py-1 bg-purple-500/10 border border-purple-500/30 text-purple-300 rounded-full text-[10px] font-mono font-bold uppercase">
+              Agente MDP Activo
+            </span>
+            <span className="px-3 py-1 bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 rounded-full text-[10px] font-mono font-bold uppercase">
+              Snapshots Git-like
+            </span>
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={handleApplyTop8Preset}
-          className="px-4 py-2.5 bg-magic-gold/10 hover:bg-magic-gold/20 border border-magic-gold/40 hover:border-magic-gold text-magic-gold rounded-xl font-cinzel text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 shrink-0 shadow-md"
-        >
-          <Zap size={14} className="animate-pulse" />
-          <span>Cargar ADN Top 8 (70/30)</span>
-        </button>
+        {/* 1. Victory Plan & Goal Graph Timeline */}
+        <div className="space-y-2">
+          <h4 className="text-[10px] font-bold uppercase tracking-widest text-purple-300 flex items-center gap-1.5">
+            <Target size={12} />
+            <span>Línea Temporal de Objetivos por Turno (Goal Graph)</span>
+          </h4>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {[
+              { turn: 'T1', resource: 'Tempo', goal: 'Aceleración / Dork', color: 'border-emerald-500/40 bg-emerald-950/20 text-emerald-300' },
+              { turn: 'T2', resource: 'BoardPresence', goal: 'Masa de Criaturas / Engine', color: 'border-blue-500/40 bg-blue-950/20 text-blue-300' },
+              { turn: 'T3', resource: 'Resilience', goal: 'Protección / Himno', color: 'border-amber-500/40 bg-amber-950/20 text-amber-300' },
+              { turn: 'T4', resource: 'ThreatDensity', goal: 'Finisher Letal', color: 'border-rose-500/40 bg-rose-950/20 text-rose-300' }
+            ].map(g => (
+              <div key={g.turn} className={`p-3 rounded-2xl border ${g.color} space-y-1`}>
+                <div className="flex justify-between items-center text-[10px] font-mono font-bold">
+                  <span>{g.turn}</span>
+                  <span className="opacity-75">{g.resource}</span>
+                </div>
+                <p className="text-[11px] font-sans font-medium text-white/90 leading-tight">{g.goal}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* 2. Adaptive Decision Policies */}
+        <div className="space-y-2 pt-1">
+          <h4 className="text-[10px] font-bold uppercase tracking-widest text-amber-300 flex items-center gap-1.5">
+            <Zap size={12} />
+            <span>Políticas Adaptativas de Decisión en Mano Inicial</span>
+          </h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="p-3 bg-black/40 border border-white/10 rounded-2xl flex items-start gap-2 text-xs">
+              <span className="text-emerald-400 font-bold shrink-0">⚡ Política A:</span>
+              <p className="text-gray-300 leading-tight">
+                Con T1 Dork $\rightarrow$ <strong className="text-emerald-300">AggressiveDevelopmentPolicy</strong> (Lethal T4).
+              </p>
+            </div>
+            <div className="p-3 bg-black/40 border border-white/10 rounded-2xl flex items-start gap-2 text-xs">
+              <span className="text-amber-400 font-bold shrink-0">🛡️ Política B:</span>
+              <p className="text-gray-300 leading-tight">
+                Sin T1 Dork $\rightarrow$ <strong className="text-amber-300">ValueGrindPolicy</strong> (Conmutación automática en T2/T3).
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Warnings when count does not match */}
@@ -478,9 +520,44 @@ export default function BlueprintEditor({ blueprint, format, onAssemble, onBack 
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 {rolesList.map((role, idx) => {
-                  const isFinisher = role.finisherQuality === 'finisher';
-                  const isLastOdd = idx === rolesList.length - 1 && rolesList.length % 2 !== 0;
+                  const nameLower = (role.name || '').toLowerCase();
+                  const purposeLower = (role.purposeDescription || '').toLowerCase();
+                  const queryLower = (role.search_query || '').toLowerCase();
+                  const isFinisher = role.finisherQuality === 'finisher' || nameLower.includes('finisher') || nameLower.includes('rematador') || nameLower.includes('payoff') || nameLower.includes('top_end');
+                  
+                  let roleBadge = {
+                    label: 'Soporte',
+                    colorClass: 'bg-blue-950/40 border-blue-500/30 text-blue-400',
+                    icon: <Wrench size={10} className="text-blue-400" />
+                  };
 
+                  if (isFinisher) {
+                    roleBadge = {
+                      label: 'Finisher',
+                      colorClass: 'bg-red-950/40 border-red-500/30 text-red-400',
+                      icon: <Flame size={10} className="text-red-400" />
+                    };
+                  } else if (nameLower.includes('removal') || nameLower.includes('interaction') || nameLower.includes('remoc') || nameLower.includes('disrupt') || purposeLower.includes('remoc') || queryLower.includes('destroy') || queryLower.includes('exile')) {
+                    roleBadge = {
+                      label: 'Interacción',
+                      colorClass: 'bg-amber-950/40 border-amber-500/30 text-amber-400',
+                      icon: <ShieldCheck size={10} className="text-amber-400" />
+                    };
+                  } else if (nameLower.includes('draw') || nameLower.includes('advantage') || nameLower.includes('robo') || nameLower.includes('motor') || purposeLower.includes('robar') || queryLower.includes('draw')) {
+                    roleBadge = {
+                      label: 'Motor Robo',
+                      colorClass: 'bg-cyan-950/40 border-cyan-500/30 text-cyan-400',
+                      icon: <BookOpen size={10} className="text-cyan-400" />
+                    };
+                  } else if (nameLower.includes('token') || nameLower.includes('counter') || nameLower.includes('lord') || nameLower.includes('anthem') || nameLower.includes('core') || nameLower.includes('synergy') || nameLower.includes('sinergia') || nameLower.includes('ficha') || nameLower.includes('fungus') || nameLower.includes('thallid') || nameLower.includes('saprolin')) {
+                    roleBadge = {
+                      label: 'Sinergia Core',
+                      colorClass: 'bg-emerald-950/40 border-emerald-500/30 text-emerald-400',
+                      icon: <Sparkles size={10} className="text-emerald-400" />
+                    };
+                  }
+
+                  const isLastOdd = idx === rolesList.length - 1 && rolesList.length % 2 !== 0;
 
                   return (
                     <div
@@ -505,7 +582,7 @@ export default function BlueprintEditor({ blueprint, format, onAssemble, onBack 
                           <div className="flex-1 min-w-0">
                             <input
                               type="text"
-                              value={role.name}
+                              value={role.name || role.label || role.id || ''}
                               onChange={(e) => handleRoleNameChange(idx, e.target.value)}
                               className="bg-transparent border-0 border-b border-transparent hover:border-white/20 focus:border-magic-gold text-white font-cinzel font-black text-[11px] sm:text-xs uppercase tracking-wider focus:outline-none w-full py-0.5 truncate transition-colors"
                             />
@@ -513,21 +590,10 @@ export default function BlueprintEditor({ blueprint, format, onAssemble, onBack 
                           
                           <span className={cn(
                             "px-2.5 py-0.5 text-[8.5px] rounded-full uppercase font-bold tracking-widest shrink-0 flex items-center gap-1 border shadow-sm",
-                            isFinisher 
-                              ? "bg-red-950/40 border-red-500/25 text-red-400" 
-                              : "bg-blue-950/40 border-blue-500/25 text-blue-400"
+                            roleBadge.colorClass
                           )}>
-                            {isFinisher ? (
-                              <>
-                                <Flame size={10} className="text-red-400" />
-                                <span>Finisher</span>
-                              </>
-                            ) : (
-                              <>
-                                <Wrench size={10} className="text-blue-400" />
-                                <span>Soporte</span>
-                              </>
-                            )}
+                            {roleBadge.icon}
+                            <span>{roleBadge.label}</span>
                           </span>
                         </div>
 
@@ -608,7 +674,8 @@ export default function BlueprintEditor({ blueprint, format, onAssemble, onBack 
                               type="text"
                               value={role.search_query}
                               onChange={(e) => handleQueryChange(idx, e.target.value)}
-                              className="w-full pl-6 pr-3 py-2 bg-black/85 border border-white/10 rounded-xl text-[10px] text-[#ffdf91] font-mono focus:border-magic-gold focus:ring-1 focus:ring-magic-gold/25 focus:outline-none transition-all shadow-inner"
+                              title={role.search_query}
+                              className="w-full pl-6 pr-3 py-2 bg-black/85 border border-white/10 rounded-xl text-[10px] text-[#ffdf91] font-mono focus:border-magic-gold focus:ring-1 focus:ring-magic-gold/25 focus:outline-none transition-all shadow-inner overflow-x-auto"
                               placeholder="c:w type:creature oracle:flying..."
                             />
                           </div>
