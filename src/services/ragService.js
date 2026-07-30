@@ -511,10 +511,14 @@ export const buildCardPool = async (formData) => {
   const flavorKeywordsLower = (activeFlavor?.boostKeywords || []).map(k => k.toLowerCase());
   const flavorVetoedKeywordsLower = (activeFlavor?.vetoedKeywords || []).map(k => k.toLowerCase());
   
+  const mustIncludeArr = Array.isArray(formData.mustInclude) 
+    ? formData.mustInclude.map(s => (typeof s === 'string' ? s : s?.name || '').toLowerCase().trim()).filter(Boolean)
+    : (typeof formData.mustInclude === 'string' ? formData.mustInclude.toLowerCase().split(/[,\n]/).map(s => s.trim()).filter(Boolean) : []);
+
   // Registrar nombres activos pre-seleccionados para el motor de coocurrencia
   const activePreSelectedNames = new Set([
     ...(injectedCoreNames || []).map(n => n.toLowerCase()),
-    ...(formData.mustInclude ? formData.mustInclude.toLowerCase().split(/[,\n]/).map(s => s.trim()) : []),
+    ...mustIncludeArr,
     ...(formData.dnaSkeleton || []).map(c => c.name.toLowerCase())
   ]);
 
@@ -886,9 +890,8 @@ export const buildCardPool = async (formData) => {
             const coeff = syn.coeff || 0.5;
 
             let hasGraphMatch = false;
-            if (formData.mustInclude) {
-              const mustIncludes = formData.mustInclude.toLowerCase();
-              if (mustIncludes.includes(synNameLower)) hasGraphMatch = true;
+            if (mustIncludeArr.length > 0) {
+              if (mustIncludeArr.some(m => m.includes(synNameLower) || synNameLower.includes(m))) hasGraphMatch = true;
             }
 
             const archetypePillars = {
@@ -1229,7 +1232,7 @@ export const buildCardPool = async (formData) => {
 
       const archVetos = ARCHETYPE_INCOMPATIBLE_MECHANICS[archLower] || [];
       if (archVetos.length > 0 && isCreature) {
-        const isMustIncludeCard = (formData.mustInclude || '').toLowerCase().includes(cardNameLower);
+        const isMustIncludeCard = mustIncludeArr.some(m => m.includes(cardNameLower) || cardNameLower.includes(m));
         if (!isMustIncludeCard) {
           archVetos.forEach(veto => {
             const cmcOk = veto.cmcMin ? card.mana_value >= veto.cmcMin : true;
@@ -1260,8 +1263,7 @@ export const buildCardPool = async (formData) => {
         }
 
         // Excepción 2: Cartas ingresadas en mustInclude por el usuario
-        const mustIncludeNamesList = (formData.mustInclude || '').toLowerCase();
-        const isMustInclude = mustIncludeNamesList.includes(cardNameLower);
+        const isMustInclude = mustIncludeArr.some(m => m.includes(cardNameLower) || cardNameLower.includes(m));
 
         // Excepción 3: Finishers icónicos de coste alto (CMC >= 6) que actúan como payoffs del color
         const isHighEndPayoff = card.mana_value >= 6 && (
@@ -1340,10 +1342,8 @@ export const buildCardPool = async (formData) => {
 
     // B) Sinergia de Coocurrencia en Metagame (Calculado Matemáticamente desde MTGTop8 / Apify)
     // Si la carta actual co-ocurre con alguna de las cartas obligatorias (Must-Include) del usuario
-    if (formData.mustInclude) {
-      const userMustIncludes = formData.mustInclude.split(/[,\n]/)
-        .map(s => s.trim().toLowerCase())
-        .filter(s => s.length > 0);
+    if (mustIncludeArr.length > 0) {
+      const userMustIncludes = mustIncludeArr;
       
       let mustIncludeSynergyBonus = 0;
       userMustIncludes.forEach(mustName => {

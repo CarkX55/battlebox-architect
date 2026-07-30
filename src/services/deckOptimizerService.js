@@ -63,18 +63,18 @@ const isLandCard = (c) => {
  * Corrige el Tamaño de la baraja principal y regenera/rebalancea la base de tierras
  * para asegurar que sume exactamente targetDeckSize (60 u 80).
  */
-async function corregirTamañoYBaseDeMana(cards, targetDeckSize, formData, ragPool, preserveLands = false) {
-  // Asegurar normalizaciÃ³n de cantidades antes de procesar
+export async function corregirTamañoYBaseDeMana(cards, targetDeckSize, formData, ragPool, preserveLands = false) {
+  // Asegurar normalización de cantidades antes de procesar
   const normalizedCards = cards.map(c => ({
     ...c,
-    quantity: Number(c.quantity || c.count || 1)
+    quantity: Number(c.quantity || c.count || c.qty || 1)
   }));
 
   // 1. Separar hechizos y tierras
   const spells = normalizedCards.filter(c => !isLandCard(c));
   const lands = normalizedCards.filter(c => isLandCard(c));
 
-  // 2. Calcular objetivos matemÃ¡ticos perfectos
+  // 2. Calcular objetivos matemáticos perfectos
   const targetLandCount = preserveLands 
     ? lands.reduce((sum, c) => sum + c.quantity, 0)
     : calculatePerfectLandCount(spells, formData, targetDeckSize === 80);
@@ -97,9 +97,10 @@ async function corregirTamañoYBaseDeMana(cards, targetDeckSize, formData, ragPo
       }
     }
 
-    // B. Inyectar hechizos sinÃ©rgicos nuevos del RAG pool
+    // B. Inyectar hechizos sinérgicos nuevos del RAG pool si están en la base de datos real
     const colorsSet = new Set(formData?.colores || []);
     const ragSpells = (ragPool || []).filter(c => {
+      if (!c || !c.name) return false;
       const type = (c.type_line || c.category || '').toLowerCase();
       if (type.includes('land')) return false;
       const cardColors = c.colors || [];
@@ -114,7 +115,7 @@ async function corregirTamañoYBaseDeMana(cards, targetDeckSize, formData, ragPo
       const qty = Math.min(needed, maxLimit);
       if (qty > 0) {
         spells.push({
-          name: rs.name,
+          ...rs,
           quantity: qty,
           category: rs.category || (rs.type_line?.toLowerCase().includes('creature') ? 'Creature' : 'Instant'),
           cmc: rs.mana_value || rs.cmc || 2,
@@ -123,33 +124,6 @@ async function corregirTamañoYBaseDeMana(cards, targetDeckSize, formData, ragPo
           type_line: rs.type_line || ''
         });
         needed -= qty;
-      }
-    }
-
-    // C. Si aÃºn faltan (RAG pool vacÃ­o o identidades incompatibles), inyectar staples genÃ©ricos
-    if (needed > 0) {
-      const standardStaples = [
-        { name: "Lightning Bolt", color: "R", category: "Instant", cmc: 1 },
-        { name: "Counterspell", color: "U", category: "Instant", cmc: 2 },
-        { name: "Fatal Push", color: "B", category: "Instant", cmc: 1 },
-        { name: "Swords to Plowshares", color: "W", category: "Instant", cmc: 1 },
-        { name: "Llanowar Elves", color: "G", category: "Creature", cmc: 1 }
-      ];
-      for (let staple of standardStaples) {
-        if (needed <= 0) break;
-        if (colorsSet.has(staple.color)) {
-          const qty = Math.min(needed, 4);
-          spells.push({
-            name: staple.name,
-            quantity: qty,
-            category: staple.category,
-            cmc: staple.cmc,
-            role: 'interaction',
-            mana_cost: '',
-            type_line: staple.category
-          });
-          needed -= qty;
-        }
       }
     }
 

@@ -116,11 +116,22 @@ export async function executeRefinementLoop(session, maxPasses = 3) {
       expectedDelta: +10
     });
 
-    // Ejecutar experimento hipotético (Sustituir una carta pesada por una redundancia ligera)
-    const heavyCard = session.working.currentDeck.find(c => c.cmc >= 5 && c.name !== 'Forest' && c.name !== 'Plains');
+    // Ejecutar experimento hipotético (Sustituir una carta pesada por una redundancia barata del color del mazo)
+    const heavyCard = session.working.currentDeck.find(c => (c.cmc || c.mana_value || 0) >= 5 && !c.type_line?.includes('Land'));
     if (heavyCard) {
-      removeCardFromWorking(session, heavyCard.name);
-      addCardToWorking(session, { name: 'Elvish Mystic', cmc: 1, type_line: 'Creature — Elf', produces: ['Mana'] }, 'ramp_slot', 'ramp_engine');
+      const colors = session.deckIntent?.colors || ['G'];
+      const candidateReplacements = (session.candidatePool || []).filter(c => {
+        if (!c || !c.name || (c.cmc || c.mana_value || 0) > 2) return false;
+        if (c.type_line?.includes('Land')) return false;
+        const cardColors = c.colors || [];
+        return cardColors.length === 0 || cardColors.every(col => colors.includes(col));
+      });
+
+      if (candidateReplacements.length > 0) {
+        const bestReplacement = candidateReplacements[0];
+        removeCardFromWorking(session, heavyCard.name);
+        addCardToWorking(session, { ...bestReplacement, quantity: 1 }, 'curve_fix_slot', 'refinement_engine');
+      }
     }
 
     // Re-evaluar nueva Utilidad Dinámica

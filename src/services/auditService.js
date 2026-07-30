@@ -291,7 +291,7 @@ export function buildProTourExpertVerdict(formData, hydratedDeckCards, pillarAna
   const diagLines = [];
 
   if (totalCards < targetCards) {
-    diagLines.push(`• **Mazo Incompleto**: La lista actual contiene ${totalCards} de las ${targetCards} cartas requeridas (faltan ${targetCards - targetCards} cartas).`);
+    diagLines.push(`• **Mazo Incompleto**: La lista actual contiene ${totalCards} de las ${targetCards} cartas requeridas (faltan ${targetCards - totalCards} cartas).`);
   }
 
   const criticalKarsten = karstenAnalysis?.devotions?.filter(d => d.status === 'critical') || [];
@@ -705,15 +705,21 @@ ${orphans ? 'CARTAS HUÉRFANAS DETECTADAS:\n' + orphans : ''}
         }
       });
 
-      // Fallback 1: Si Karsten reporta deficiencia y el mapa no cambió, inyectar el intercambio de duales Karsten
+      // Fallback 1: Si Karsten reporta deficiencia y el mapa no cambió, inyectar el intercambio de duales/básicas respetando la identidad de color activa
       if (exactAdds.length === 0 && exactRemoves.length === 0 && karstenNeedsFix) {
         const deficient = karstenAnalysis?.devotions?.find(d => d.status === 'critical' || d.status === 'warning');
-        if (deficient) {
-          const dualLand = deficient.color === 'R' ? 'Stomping Ground' : deficient.color === 'U' ? 'Breeding Pool' : deficient.color === 'B' ? 'Overgrown Tomb' : deficient.color === 'W' ? 'Temple Garden' : 'Overgrown Tomb';
-          const basicLandToReduce = 'Forest';
+        const activeColors = updatedFormData?.colores || [];
+        if (deficient && (activeColors.length === 0 || activeColors.includes(deficient.color))) {
+          const colorToLand = { W: 'Plains', U: 'Island', B: 'Swamp', R: 'Mountain', G: 'Forest' };
+          const neededBasic = colorToLand[deficient.color] || 'Island';
           
-          exactRemoves.push({ name: basicLandToReduce, quantity: 4 });
-          exactAdds.push({ name: dualLand, quantity: 2 }, { name: deficient.color === 'R' ? 'Mountain' : deficient.color === 'B' ? 'Swamp' : deficient.color === 'U' ? 'Island' : 'Plains', quantity: 2 });
+          // Encontrar una tierra abundante en el mazo actual para recortar
+          const landEntries = hydratedDeckCards.filter(c => isLand(c) && (c.quantity || 1) > 1);
+          if (landEntries.length > 0) {
+            const reduceLand = landEntries[0];
+            exactRemoves.push({ name: reduceLand.name, quantity: 2 });
+            exactAdds.push({ name: neededBasic, quantity: 2 });
+          }
         }
       }
 
@@ -799,7 +805,14 @@ ${orphans ? 'CARTAS HUÉRFANAS DETECTADAS:\n' + orphans : ''}
     rawAIProse
   );
 
-  // Adjuntar el análisis de pilares y karsten al resultado para la UI
+  let supremeJudgeReport = null;
+  try {
+    const { runSupremeJudgeAudit } = await import('../judge/services/supremeJudgeService.js');
+    supremeJudgeReport = await runSupremeJudgeAudit(hydratedDeckCards, { ...formData, colores: allowedColors, format: selectedFormat }, allCards);
+  } catch (jErr) {
+    console.warn("Fallo al ejecutar auditoría v7 de Supreme Judge:", jErr);
+  }
+
   return {
     ...jsonResult,
     verdict: finalVerdict,
@@ -811,7 +824,8 @@ ${orphans ? 'CARTAS HUÉRFANAS DETECTADAS:\n' + orphans : ''}
     _pillarAnalysis: pillarAnalysis,
     _karstenAnalysis: karstenAnalysis,
     _monteCarlo: monteCarlo,
-    _cardRequirements: cardReqs
+    _cardRequirements: cardReqs,
+    _supremeJudgeReport: supremeJudgeReport
   };
 }
 

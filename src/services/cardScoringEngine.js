@@ -89,8 +89,20 @@ export function scoreCardForDeckDNA(card, deckDNA, injectedCoreCards = [], occup
   else if (cmc === 4) efficiencyScore = 55;
   else efficiencyScore = 40;
 
+  // 5. PENALIZACIÓN DE DIVERGENCIA DE PLAN (PlanDivergenceTax)
+  let planDivergenceTax = 0;
+  const oracleLower = (card.oracle_text || card.text || '').toLowerCase();
+  const archetypeLower = (deckDNA.archetype || '').toLowerCase();
+
+  if ((archetypeLower.includes('wall') || archetypeLower.includes('defender')) && oracleLower.includes("can't be blocked by creatures with defender")) {
+    planDivergenceTax = 80; // Wall Crawl penalty
+  }
+  if ((archetypeLower.includes('wall') || archetypeLower.includes('defender')) && oracleLower.includes('spiders you control')) {
+    planDivergenceTax = 80;
+  }
+
   // CÁLCULO FINAL PONDERADO (0-100)
-  const finalScore = Math.round(
+  const baseScore = Math.round(
     (semanticExecScore * 0.35) +
     (gamePlanScore * 0.25) +
     (coreSynergyScore * 0.20) +
@@ -98,6 +110,7 @@ export function scoreCardForDeckDNA(card, deckDNA, injectedCoreCards = [], occup
     (efficiencyScore * 0.10)
   );
 
+  const finalScore = baseScore - planDivergenceTax;
   return Math.max(0, Math.min(100, finalScore));
 }
 

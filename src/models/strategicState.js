@@ -250,3 +250,74 @@ export function consolidateDeckCards(cards = []) {
   }
   return Array.from(map.values());
 }
+
+export function countCopies(cards = []) {
+  if (!Array.isArray(cards)) return 0;
+  return cards.reduce((sum, c) => sum + (Number(c?.quantity) || 1), 0);
+}
+
+export function countWhere(cards = [], predicate = () => true) {
+  if (!Array.isArray(cards)) return 0;
+  return cards.reduce((sum, c) => sum + (predicate(c) ? (Number(c?.quantity) || 1) : 0), 0);
+}
+
+export function normalizeForgeInput(formData = {}) {
+  if (!formData || typeof formData !== 'object') return {};
+
+  const rawFormat = formData.format || formData.formato || 'MODERN';
+  const format = String(rawFormat).toUpperCase().trim();
+
+  let colors = formData.colors || formData.colores || [];
+  if (typeof colors === 'string') {
+    colors = colors.split(',').map(c => c.trim().toUpperCase()).filter(Boolean);
+  } else if (Array.isArray(colors)) {
+    colors = colors.map(c => String(c).trim().toUpperCase()).filter(Boolean);
+  }
+
+  const archetype = (formData.archetype || formData.arquetipo || 'midrange').toLowerCase().trim();
+  const strategy = (formData.strategy || formData.estrategia || '').toLowerCase().trim();
+  const tribe = (formData.tribe || formData.tribu || 'none').toLowerCase().trim();
+  const prompt = (formData.prompt || formData.instrucciones || '').trim();
+
+  let mustInclude = [];
+  if (typeof formData.mustInclude === 'string') {
+    mustInclude = formData.mustInclude.split(/[,\n]/).map(s => s.trim()).filter(Boolean);
+  } else if (Array.isArray(formData.mustInclude)) {
+    mustInclude = formData.mustInclude.map(s => typeof s === 'string' ? s.trim() : (s?.name || '')).filter(Boolean);
+  }
+
+  let vetoedCards = [];
+  if (typeof formData.vetoedCards === 'string') {
+    vetoedCards = formData.vetoedCards.split(/[,\n]/).map(s => s.trim()).filter(Boolean);
+  } else if (Array.isArray(formData.vetoedCards)) {
+    vetoedCards = formData.vetoedCards.map(s => typeof s === 'string' ? s.trim() : (s?.name || '')).filter(Boolean);
+  }
+
+  let vetoedKeywords = [];
+  if (typeof formData.vetoedKeywords === 'string') {
+    vetoedKeywords = formData.vetoedKeywords.split(/[,\n]/).map(s => s.trim()).filter(Boolean);
+  } else if (Array.isArray(formData.vetoedKeywords)) {
+    vetoedKeywords = formData.vetoedKeywords.map(s => String(s).trim()).filter(Boolean);
+  }
+
+  const deckSize = Number(formData.deckSize || formData.size || 60);
+
+  return {
+    ...formData,
+    format,
+    formato: format,
+    colors,
+    colores: colors,
+    archetype,
+    arquetipo: archetype,
+    strategy,
+    estrategia: strategy,
+    tribe,
+    tribu: tribe,
+    prompt,
+    mustInclude,
+    vetoedCards,
+    vetoedKeywords,
+    deckSize
+  };
+}

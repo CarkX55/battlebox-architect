@@ -8,7 +8,7 @@
  */
 
 import { createDeckIntent, createVictoryPlan, createGoalGraph, createAdaptiveStrategyPlan } from '../models/deckModels.js';
-import { createStrategicSession, updateWorkingStrategyPlan, updateWorkingBlueprint, consolidateDeckCards } from '../models/strategicState.js';
+import { createStrategicSession, updateWorkingStrategyPlan, updateWorkingBlueprint, consolidateDeckCards, normalizeForgeInput } from '../models/strategicState.js';
 import { analyzeCardIntelligence } from './cardIntelligenceEngine.js';
 import { buildCausalCardGraph } from './cardGraphService.js';
 import { discoverEnginesFromCapabilities } from './engineDiscoveryService.js';
@@ -21,6 +21,7 @@ import { executeRefinementLoop, runAdversarialMonteCarloScenarios } from './refi
 import { generateExplicabilityReport, recordStrategicPattern } from './strategicMemoryService.js';
 import { getAllCards } from './dbIngestor.js';
 import { buildCardPool } from './ragService.js';
+import { generateAbstractStrategyPlan } from './strategyReasoningEngine.js';
 
 /**
  * Ejecuta el pipeline completo de planificación estratégica v6.0.
@@ -29,17 +30,23 @@ import { buildCardPool } from './ragService.js';
  * @returns {Object} Resultado completo para la UI (deck, session, snapshot, explicabilityReport, blueprint)
  */
 export async function runV6AutonomousPipeline(formData = {}) {
+  const normInput = normalizeForgeInput(formData);
   // 1. DeckIntent & Objetivos Cuestionales
-  const intent = createDeckIntent(formData);
+  const intent = createDeckIntent(normInput);
   const session = createStrategicSession(intent);
   const victoryPlan = createVictoryPlan(intent);
   const goalGraph = createGoalGraph(victoryPlan);
 
+  const abstractPlan = generateAbstractStrategyPlan(normInput);
+
   const strategyPlan = createAdaptiveStrategyPlan({
-    macroStrategy: `${intent.strategicArchetype.toUpperCase()} Causal Strategy`,
-    openingPlan: { targetTurn: 2, goal: 'Desarrollar maná / aceleración' },
-    midgameTransition: { targetTurn: 4, goal: 'Desplegar motor principal' },
-    closingPlan: { targetTurn: 6, goal: 'Ataque letal / Finisher' }
+    macroStrategy: `${intent.strategicArchetype.toUpperCase()} (${abstractPlan.strategy || 'Causal'}) Strategy`,
+    targetTurnExecution: abstractPlan.targetTurnExecution,
+    strategyGraph: abstractPlan.strategyGraph,
+    requiredCapabilities: abstractPlan.requiredCapabilities,
+    openingPlan: { targetTurn: 2, goal: 'Desarrollar maná / aceleración / filtrado' },
+    midgameTransition: { targetTurn: Math.floor(abstractPlan.targetTurnExecution), goal: 'Desplegar motor principal y control' },
+    closingPlan: { targetTurn: Math.ceil(abstractPlan.targetTurnExecution + 1.5), goal: 'Ejecución letal / Finisher' }
   }, 1, 92);
 
   updateWorkingStrategyPlan(session, strategyPlan);
