@@ -118,13 +118,13 @@ export function createAdaptiveStrategyPlan(reasoning = {}, version = 1, planConf
     decisionPolicies: Object.freeze([
       {
         condition: 'openingHand.hasResource("Tempo") && openingHand.hasT1Dork',
-        activePolicy: 'AggressiveDevelopmentPolicy',
+        activePolicy: 'ExpectedTurnToWin',
         targetTurn: 4,
         description: 'Desarrollar aceleración y desplegar masa agresiva rápidamente'
       },
       {
         condition: '!openingHand.hasT1Dork && openingHand.hasResource("CardAdvantage")',
-        activePolicy: 'ValueGrindPolicy',
+        activePolicy: 'ResourceEfficiency',
         targetTurn: 6,
         description: 'Conmutar automáticamente a acumulación de recursos e interacción en turno 2/3'
       }

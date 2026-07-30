@@ -361,15 +361,15 @@ export default function BlueprintEditor({ blueprint, format, onAssemble, onBack 
           </h4>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div className="p-3 bg-black/40 border border-white/10 rounded-2xl flex items-start gap-2 text-xs">
-              <span className="text-emerald-400 font-bold shrink-0">⚡ Política A:</span>
+              <span className="text-emerald-400 font-bold shrink-0">⚡ Objetivo Primario:</span>
               <p className="text-gray-300 leading-tight">
-                Con T1 Dork $\rightarrow$ <strong className="text-emerald-300">AggressiveDevelopmentPolicy</strong> (Lethal T4).
+                Con T1 Acceleration ➔ <strong className="text-emerald-300">ExpectedTurnToWin (FastWin Objective)</strong>.
               </p>
             </div>
             <div className="p-3 bg-black/40 border border-white/10 rounded-2xl flex items-start gap-2 text-xs">
-              <span className="text-amber-400 font-bold shrink-0">🛡️ Política B:</span>
+              <span className="text-amber-400 font-bold shrink-0">🛡️ Objetivo Secundario:</span>
               <p className="text-gray-300 leading-tight">
-                Sin T1 Dork $\rightarrow$ <strong className="text-amber-300">ValueGrindPolicy</strong> (Conmutación automática en T2/T3).
+                Sin T1 Acceleration ➔ <strong className="text-amber-300">ResourceEfficiency & Consistency Objective</strong>.
               </p>
             </div>
           </div>
