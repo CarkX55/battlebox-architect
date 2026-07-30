@@ -30,6 +30,17 @@ import { analyzeFunctionalDependencies } from '../judge/capabilities/FunctionalD
  * @param {Array<Object>} functionalPackages Lista de paquetes funcionales
  * @returns {Object} StateSnapshot congelado tras ensamblado
  */
+import { evaluateCandidateAdmission } from '../judge/candidates/CandidateAdmissionGate.js';
+import { scoreCapability } from '../judge/capabilities/CapabilityScorer.js';
+
+/**
+ * Ensambla un mazo de 60 cartas en la sesión de trabajo.
+ * 
+ * @param {Object} session Sesión de trabajo
+ * @param {Array<Object>} candidatePool Pool de cartas candidatas
+ * @param {Array<Object>} functionalPackages Lista de paquetes funcionales
+ * @returns {Object} StateSnapshot congelado tras ensamblado
+ */
 export function assembleDeckInSession(session, candidatePool = [], functionalPackages = []) {
   const blueprint = session.working.blueprint;
   if (!blueprint || (!blueprint.slots && !blueprint.roles)) {
@@ -45,33 +56,19 @@ export function assembleDeckInSession(session, candidatePool = [], functionalPac
 
   const intent = session.deckIntent || session.working?.intent || {};
   const deckIdentity = buildDeckIdentity(intent);
-  const tribeLower = (intent.tribe || intent.userPrompt || '').toLowerCase();
 
-  // Filtrar candidatePool con DeckIdentityEngine (eliminar direcciones prohibidas)
+  // 1. Pool Limpio Inicial (SIN ORDENAMIENTO GLOBAL)
   const cleanPool = candidatePool.filter(c => !deckIdentity.isCardForbidden(c));
 
-  // Ordenar el pool de candidatos priorizando coincidencia temática/tribal genuina (Lord, Miembro o Generador)
-  const sortedPool = [...cleanPool].sort((a, b) => {
-    const typeLineA = (a.type_line || '').toLowerCase();
-    const typeLineB = (b.type_line || '').toLowerCase();
-    const textA = `${a.name} ${a.type_line || ''} ${a.oracle_text || ''}`.toLowerCase();
-    const textB = `${b.name} ${b.type_line || ''} ${b.oracle_text || ''}`.toLowerCase();
-    
-    // Coincidencia tribal si es de la tribu o genera fichas/himnos de la tribu (NO si es un removal anti-tribu)
-    const isProTribeA = tribeLower && (typeLineA.includes(tribeLower) || (textA.includes(tribeLower) && (textA.includes('create') || textA.includes('token') || textA.includes('control'))));
-    const isProTribeB = tribeLower && (typeLineB.includes(tribeLower) || (textB.includes(tribeLower) && (textB.includes('create') || textB.includes('token') || textB.includes('control'))));
+  console.log(`\n================================================`);
+  console.log(`🚀 INICIANDO ENSAMBLADO V7 (CAPABILITY DRIVEN)`);
+  console.log(`Pool inicial limpio: ${cleanPool.length} cartas`);
+  console.log(`================================================\n`);
 
-    const tribeMatchA = isProTribeA ? 500 : 0;
-    const tribeMatchB = isProTribeB ? 500 : 0;
-    
-    const scoreA = (a.score || 0) + tribeMatchA;
-    const scoreB = (b.score || 0) + tribeMatchB;
-    return scoreB - scoreA;
-  });
-
-  // 1. Rellenar slots de hechizos
+  // 2. Rellenar slots de hechizos mediante RANKING LOCAL Y CONTEXTSCORE POR SLOT
   for (const slot of spellSlots) {
     let needed = slot.quantity || 4;
+    const slotName = slot.name || slot.label || slot.id;
 
     // A. Intentar rellenar desde Functional Packages
     const matchingPkg = functionalPackages.find(p => p.engine === slot.sourceEngine || p.capabilities?.some(c => slot.capabilities?.includes(c)));
@@ -89,57 +86,87 @@ export function assembleDeckInSession(session, candidatePool = [], functionalPac
       }
     }
 
-    // B. Rellenar con los mejores candidatos filtrados para este slot
+    // B. Rellenar con evaluación de contrato + ranking local por ContextScore
     if (needed > 0) {
-      let matchingCandidates = sortedPool;
+      const acceptedCandidates = [];
+      const rejectedReasons = {};
 
-      // Evaluador dinámico de sintaxis Scryfall por slot
-      if (slot.search_query) {
-        const scryfallMatches = sortedPool.filter(card => {
-          try {
-            return matchesScryfallQuery(card, slot.search_query);
-          } catch (e) {
-            return true;
-          }
+      for (const card of cleanPool) {
+        // Validación de admisible por Gate y Contrato
+        const gateResult = evaluateCandidateAdmission(card, {
+          contract: slot,
+          deckIdentity,
+          currentDeck: session.working.currentDeck,
+          requestedColors: intent.colors
         });
-        if (scryfallMatches.length > 0) {
-          matchingCandidates = scryfallMatches;
+
+        // Validación adicional por Scryfall Syntax si existe
+        let matchesQuery = true;
+        if (slot.search_query) {
+          try {
+            matchesQuery = matchesScryfallQuery(card, slot.search_query);
+          } catch (e) {
+            matchesQuery = true;
+          }
+        }
+
+        if (gateResult.allowed && matchesQuery) {
+          const capScore = scoreCapability(card, slot);
+          if (capScore.valid) {
+            acceptedCandidates.push({
+              card,
+              contextScore: capScore.contextScore,
+              confidence: capScore.confidence,
+              breakdown: capScore.breakdown,
+              satisfiedContracts: capScore.satisfiedContracts
+            });
+          } else {
+            rejectedReasons['CONTEXT_SCORE_ZERO'] = (rejectedReasons['CONTEXT_SCORE_ZERO'] || 0) + 1;
+          }
+        } else {
+          const primaryReason = gateResult.reasons[0] || (!matchesQuery ? 'QUERY_MISMATCH' : 'REJECTED');
+          rejectedReasons[primaryReason] = (rejectedReasons[primaryReason] || 0) + 1;
         }
       }
 
-      const slotNameLower = (slot.name || slot.label || '').toLowerCase();
-      const isFinisherSlot = slotNameLower.includes('finisher') || slotNameLower.includes('bomb') || slotNameLower.includes('letal');
-      const isRampSlot = slotNameLower.includes('rampa') || slotNameLower.includes('ramp') || slotNameLower.includes('aceleraci');
-      const isRemovalSlot = slotNameLower.includes('remoci') || slotNameLower.includes('interacci') || slotNameLower.includes('eficiente');
-      const isTokenSlot = slotNameLower.includes('ficha') || slotNameLower.includes('token') || slotNameLower.includes('generador');
-
-      const categoryFiltered = matchingCandidates.filter(card => {
-        const text = `${card.name} ${card.type_line || ''} ${card.oracle_text || ''}`.toLowerCase();
-        if (isTokenSlot) return text.includes('token') || (tribeLower && text.includes(tribeLower)) || text.includes('create');
-        // Rampa exige aceleración real de maná (prohibir hechizos de cmc<=2 sin aceleración)
-        if (isRampSlot) return text.includes('add ') || text.includes('search your library for a land') || text.includes('search your library for a basic land') || text.includes('put a land card') || text.includes('additional land');
-        // Remoción exige interacción (prohibir cantrips o tutores pasivos)
-        if (isRemovalSlot) return text.includes('destroy') || text.includes('exile') || text.includes('deal') || text.includes('counter target') || text.includes('fight') || text.includes('-x/-x');
-        // Finishers exigen impacto real en mesa
-        if (isFinisherSlot) return text.includes('trample') || text.includes('+x/+x') || text.includes('haste') || text.includes('creatures you control get') || text.includes('flying') || text.includes('indestructible') || text.includes('win the game') || (card.mana_value || card.cmc || 0) >= 5;
-        return true;
+      // ORDENAMIENTO ESTRICTAMENTE LOCAL PARA ESTE SLOT POR CONTEXTSCORE
+      acceptedCandidates.sort((a, b) => {
+        if (b.contextScore !== a.contextScore) {
+          return b.contextScore - a.contextScore; // Primary key: ContextScore
+        }
+        return (b.card.score || 0) - (a.card.score || 0); // Tie-breaker: Global Score
       });
 
-      const poolToUse = categoryFiltered.length > 0 ? categoryFiltered : matchingCandidates;
-      let candidateIdx = 0;
+      // LOG AUDITABLE COMPLETO POR SLOT
+      const totalRejected = Object.values(rejectedReasons).reduce((a, b) => a + b, 0);
+      console.log(`================================================`);
+      console.log(`Slot: ${slotName}`);
+      console.log(`================================================`);
+      console.log(`Pool inicial: ${cleanPool.length} cartas`);
+      console.log(`↓\nCapabilityValidator & AdmissionGate`);
+      console.log(`Aceptadas: ${acceptedCandidates.length}`);
+      console.log(`Rechazadas: ${totalRejected}`);
+      console.log(`Motivos de Rechazo:`, rejectedReasons);
+      console.log(`↓\nCapabilityScorer (Top 5 Candidatos Locales):`);
+      acceptedCandidates.slice(0, 5).forEach((item, idx) => {
+        console.log(`  ${idx + 1}. ${item.card.name} | ContextScore: ${item.contextScore} | Breakdown:`, item.breakdown);
+      });
 
-      while (needed > 0 && poolToUse.length > 0 && candidateIdx < poolToUse.length * 2) {
-        const card = poolToUse[candidateIdx % poolToUse.length];
-        const depAnalysis = analyzeFunctionalDependencies(card, session.working.currentDeck);
+      let candidateIdx = 0;
+      while (needed > 0 && candidateIdx < acceptedCandidates.length) {
+        const candidateItem = acceptedCandidates[candidateIdx];
+        const card = candidateItem.card;
         const existingCount = countCopies(session.working.currentDeck.filter(c => c.name.toLowerCase() === card.name.toLowerCase()));
 
-        if (existingCount < 4 && depAnalysis.isSatisfied) {
+        if (existingCount < 4) {
           const allowed = Math.min(needed, 4 - existingCount);
           addCardToWorking(session, { ...card, quantity: allowed }, slot.id, slot.sourceEngine);
           needed -= allowed;
+          console.log(`↓\nSeleccionada para mazo: ${card.name} (${allowed}x) [ContextScore: ${candidateItem.contextScore}]`);
         }
         candidateIdx++;
       }
+      console.log(`================================================\n`);
     }
   }
 

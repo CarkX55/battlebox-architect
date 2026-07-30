@@ -378,9 +378,12 @@ function matchSingleTerm(card, token, cachedOracleTags) {
  */
 export function matchesScryfallQuery(card, query, cachedOracleTags = null) {
   if (!query || !query.trim()) return true;
+
+  const cleanQueryStr = query.replace(/^\[CONTRACT:[^\]]+\]\s*/i, '').trim();
+  if (!cleanQueryStr) return true;
   
   try {
-    const rawTokens = tokenizeQuery(query);
+    const rawTokens = tokenizeQuery(cleanQueryStr);
     if (rawTokens.length === 0) return true;
     
     const tokens = insertImplicitAnds(rawTokens);
