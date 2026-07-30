@@ -5009,13 +5009,15 @@ export async function assembleDeckFromBlueprint(blueprint, formData, aiConfig, o
     v6Result,
     generationLogs: {
       logs: [
-        '[v6.0 Autonomous Strategic Pipeline] Mazo forjado exitosamente.',
+        '[v7.0 Compiler-Grade Pipeline] Mazo compilado deterministamente.',
         `Evaluación de Utilidad: ${v6Result.hierarchicalUtility?.totalUtility || 85}/100`,
         `Base de Maná Dinámica: ${targetLandCount} tierras calculadas para pips [${Object.entries(pips).filter(([_, v]) => v > 0).map(([k, v]) => `${k}:${v}`).join(', ')}]`
       ],
-      systemPrompt: 'v6.0 Autonomous Strategic Pipeline System',
-      contextPrompt: 'Goal Graph -> Engine Graph -> Hybrid Assembler -> MDP Refinement',
-      rawResponse: JSON.stringify(cleanFinalDeck, null, 2),
+      systemPrompt: 'v7.0 Compiler-Grade Pipeline System (Ensamblador Determínico Local)',
+      contextPrompt: 'Goal Graph -> Engine Graph -> CandidateAdmissionGate -> Strategic Planner',
+      rawResponse: null,
+      compiledDeck: cleanFinalDeck,
+      generationMode: 'DETERMINISTIC_V7_PIPELINE',
       error: null
     }
   };

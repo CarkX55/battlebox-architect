@@ -67,9 +67,17 @@ export async function runV6AutonomousPipeline(formData = {}) {
     candidatePool = allCards.slice(0, 150);
   }
 
+  // 2.5 Filter candidate pool with DeckIdentityEngine FIRST to eliminate forbidden directions
+  const { buildDeckIdentity } = await import('../judge/identity/DeckIdentityEngine.js');
+  const deckIdentity = buildDeckIdentity(normInput);
+  const cleanPool = candidatePool.filter(card => !deckIdentity.isCardForbidden(card));
+
+  session.candidatePool = cleanPool;
+  session.working.deckIdentity = deckIdentity;
+
   // 3. Causal Card Graph & Engine Discovery & Weighted EngineGraph
-  const causalCardGraph = buildCausalCardGraph(candidatePool);
-  const discoveredNodes = discoverEnginesFromCapabilities(causalCardGraph, candidatePool);
+  const causalCardGraph = buildCausalCardGraph(cleanPool);
+  const discoveredNodes = discoverEnginesFromCapabilities(causalCardGraph, cleanPool);
   const engineGraph = buildEngineGraph(discoveredNodes, session);
 
   // 4. Strategic Engine Composer -> Dynamic Blueprint
@@ -77,8 +85,8 @@ export async function runV6AutonomousPipeline(formData = {}) {
   updateWorkingBlueprint(session, blueprint);
 
   // 5. Functional Packages & Hybrid Assembler
-  const packages = buildFunctionalPackages(candidatePool, blueprint);
-  assembleDeckInSession(session, candidatePool, packages);
+  const packages = buildFunctionalPackages(cleanPool, blueprint);
+  assembleDeckInSession(session, cleanPool, packages);
 
   // 6. Validadores SSOT de Contrato
   const validationResult = validateSessionDeck(session);

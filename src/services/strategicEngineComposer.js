@@ -85,12 +85,21 @@ export function composeDynamicBlueprint(session, engineGraph) {
   const totalLandQuota = 24;
 
   const intent = session?.deckIntent || session?.working?.intent || {};
+  const deckIdentity = session?.working?.deckIdentity || session?.deckIdentity;
   const allowedEngineIds = new Set(['token_engine', 'sacrificefodder_engine', 'anthem_engine', 'draw_engine', 'ramp_engine', 'removal_engine', 'finisher_engine', 'protection_engine']);
-  const allNodes = (engineGraph?.nodes || []).filter(n => allowedEngineIds.has(n.id));
   
-  // Limitar a máximo 3 motores primarios y 2 de soporte para mantener alta redundancia y cohesión
-  const primaryNodes = allNodes.filter(n => n.type === 'primary').slice(0, 3);
-  const supportNodes = allNodes.filter(n => n.type !== 'primary').slice(0, 2);
+  // Filter out engines forbidden by DeckIdentity (e.g. sacrificefodder_engine in a Wall deck)
+  const validNodes = (engineGraph?.nodes || []).filter(n => {
+    if (!allowedEngineIds.has(n.id)) return false;
+    if (deckIdentity && deckIdentity.forbiddenDirections) {
+      if (deckIdentity.forbiddenDirections.includes('sacrifice') && n.id === 'sacrificefodder_engine') return false;
+      if (deckIdentity.forbiddenDirections.includes('surveil') && n.id.includes('surveil')) return false;
+    }
+    return true;
+  });
+
+  const primaryNodes = validNodes.filter(n => n.type === 'primary');
+  const supportNodes = validNodes.filter(n => n.type !== 'primary');
 
   let assignedSpells = 0;
 

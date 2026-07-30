@@ -87,7 +87,7 @@ export function discoverEnginesFromCapabilities(causalCardGraph, candidates = []
 }
 
 function deriveEngineIdFromCapability(cap) {
-  if (!cap) return 'token_engine';
+  if (!cap) return null;
   const c = cap.toLowerCase();
   if (c.includes('mana') || c.includes('acceleration') || c.includes('ramp')) return 'ramp_engine';
   if (c.includes('token') || c.includes('gowide') || c.includes('boardwidth') || c.includes('presence')) return 'token_engine';
@@ -97,5 +97,5 @@ function deriveEngineIdFromCapability(cap) {
   if (c.includes('removal') || c.includes('control') || c.includes('interaction')) return 'removal_engine';
   if (c.includes('alphastrike') || c.includes('finisher') || c.includes('wincond')) return 'finisher_engine';
   if (c.includes('protection') || c.includes('countermagic')) return 'protection_engine';
-  return 'token_engine';
+  return null;
 }
