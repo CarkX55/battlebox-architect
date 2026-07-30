@@ -300,44 +300,56 @@ export default function BlueprintEditor({ blueprint, format, onAssemble, onBack 
             </div>
             <div>
               <h3 className="font-cinzel text-sm text-purple-200 font-bold uppercase tracking-wider">
-                Planificador Estratégico Autónomo v6.0
+                Planificador Estratégico Autónomo v7.0 (Compiler-Grade)
               </h3>
               <p className="text-[11px] text-gray-400 font-serif">
-                Razonamiento Causal: Victory Plan ➔ Goal Graph ➔ Decision Policies ➔ Resource Economy
+                Contratos de Capacidades ➔ IR Semántico ➔ Pareto Tournament ➔ Reemplazo Diferido
               </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
             <span className="px-3 py-1 bg-purple-500/10 border border-purple-500/30 text-purple-300 rounded-full text-[10px] font-mono font-bold uppercase">
-              Agente MDP Activo
+              Capability Engine v7
             </span>
             <span className="px-3 py-1 bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 rounded-full text-[10px] font-mono font-bold uppercase">
-              Snapshots Git-like
+              Contratos Activos
             </span>
           </div>
         </div>
 
-        {/* 1. Victory Plan & Goal Graph Timeline */}
+        {/* 1. Victory Plan & Goal Graph Timeline (Dynamic) */}
         <div className="space-y-2">
           <h4 className="text-[10px] font-bold uppercase tracking-widest text-purple-300 flex items-center gap-1.5">
             <Target size={12} />
             <span>Línea Temporal de Objetivos por Turno (Goal Graph)</span>
           </h4>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {[
-              { turn: 'T1', resource: 'Tempo', goal: 'Aceleración / Dork', color: 'border-emerald-500/40 bg-emerald-950/20 text-emerald-300' },
-              { turn: 'T2', resource: 'BoardPresence', goal: 'Masa de Criaturas / Engine', color: 'border-blue-500/40 bg-blue-950/20 text-blue-300' },
-              { turn: 'T3', resource: 'Resilience', goal: 'Protección / Himno', color: 'border-amber-500/40 bg-amber-950/20 text-amber-300' },
-              { turn: 'T4', resource: 'ThreatDensity', goal: 'Finisher Letal', color: 'border-rose-500/40 bg-rose-950/20 text-rose-300' }
-            ].map(g => (
-              <div key={g.turn} className={`p-3 rounded-2xl border ${g.color} space-y-1`}>
-                <div className="flex justify-between items-center text-[10px] font-mono font-bold">
-                  <span>{g.turn}</span>
-                  <span className="opacity-75">{g.resource}</span>
+            {(() => {
+              const text = `${editedBlueprint.deckName || ''} ${editedBlueprint.strategy || ''}`.toLowerCase();
+              const isWall = text.includes('muro') || text.includes('wall') || text.includes('defender');
+
+              const timeline = isWall ? [
+                { turn: 'T1', resource: 'EarlyDefender', goal: 'Muros / Defensores T1-T2', color: 'border-emerald-500/40 bg-emerald-950/20 text-emerald-300' },
+                { turn: 'T2', resource: 'CardAdvantage', goal: 'Cantrips & Desarrollo', color: 'border-blue-500/40 bg-blue-950/20 text-blue-300' },
+                { turn: 'T3', resource: 'DefenderPayoff', goal: 'Arcades / High Alert', color: 'border-amber-500/40 bg-amber-950/20 text-amber-300' },
+                { turn: 'T4', resource: 'CombatAttack', goal: 'Ataque por Resistencia', color: 'border-rose-500/40 bg-rose-950/20 text-rose-300' }
+              ] : [
+                { turn: 'T1', resource: 'Tempo', goal: 'Aceleración / Dork', color: 'border-emerald-500/40 bg-emerald-950/20 text-emerald-300' },
+                { turn: 'T2', resource: 'BoardPresence', goal: 'Masa de Criaturas / Engine', color: 'border-blue-500/40 bg-blue-950/20 text-blue-300' },
+                { turn: 'T3', resource: 'Resilience', goal: 'Protección / Himno', color: 'border-amber-500/40 bg-amber-950/20 text-amber-300' },
+                { turn: 'T4', resource: 'ThreatDensity', goal: 'Finisher Letal', color: 'border-rose-500/40 bg-rose-950/20 text-rose-300' }
+              ];
+
+              return timeline.map(g => (
+                <div key={g.turn} className={`p-3 rounded-2xl border ${g.color} space-y-1`}>
+                  <div className="flex justify-between items-center text-[10px] font-mono font-bold">
+                    <span>{g.turn}</span>
+                    <span className="opacity-75">{g.resource}</span>
+                  </div>
+                  <p className="text-[11px] font-sans font-medium text-white/90 leading-tight">{g.goal}</p>
                 </div>
-                <p className="text-[11px] font-sans font-medium text-white/90 leading-tight">{g.goal}</p>
-              </div>
-            ))}
+              ));
+            })()}
           </div>
         </div>
 
@@ -662,11 +674,11 @@ export default function BlueprintEditor({ blueprint, format, onAssemble, onBack 
                           </div>
                         </div>
 
-                        {/* Scryfall terminal query */}
+                        {/* Capability Contract Terminal */}
                         <div className="space-y-1">
                           <label className="text-[8px] uppercase font-bold text-white/30 tracking-wider mb-0.5 block flex items-center gap-1">
                             <Terminal size={8} />
-                            <span>Consulta de Filtro RAG (Scryfall)</span>
+                            <span>Firma de Contrato de Capacidad (Capability Contract)</span>
                           </label>
                           <div className="relative flex items-center">
                             <span className="absolute left-3 text-[9px] font-black font-mono text-[#ffca58] select-none">&gt;</span>

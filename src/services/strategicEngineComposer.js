@@ -13,15 +13,53 @@ function buildSlotMetadata(node, intent) {
   const tribe = intent?.tribe && intent.tribe !== 'none' && intent.tribe !== 'ninguna' ? intent.tribe : (intent?.userPrompt || 'Ecosistema');
   const colorsStr = (intent?.colors || ['G']).join('').toLowerCase();
   const tribeLower = tribe.toLowerCase();
+  const promptLower = (intent?.userPrompt || '').toLowerCase();
+  const isWallDeck = promptLower.includes('muro') || promptLower.includes('wall') || promptLower.includes('defender') || tribeLower.includes('wall') || tribeLower.includes('defender');
   
   const idLower = (node.id || '').toLowerCase();
   const labelLower = (node.label || '').toLowerCase();
   
   let name = `${node.label || 'Core Motor'} (${tribe})`;
   let purposeDescription = `Despliega componentes de ${node.label || 'Motor Táctico'} alineados con el plan de victoria de ${tribe}.`;
-  let searchQuery = `(t:${tribeLower} or o:${tribeLower}) c<=${colorsStr}`;
+  let searchQuery = `[CAPABILITY CONTRACT] Needs: ${node.capabilities?.[0] || 'CoreFunction'} | CMC <= 3`;
   let cmcCategory = '2';
   let finisherQuality = 'standard';
+
+  if (isWallDeck) {
+    if (idLower.includes('token') || labelLower.includes('token') || labelLower.includes('board') || idLower.includes('gowide')) {
+      name = `Masa Temprana de Muros y Defensores (T1-T3)`;
+      purposeDescription = `Despliega defensores eficientes a bajo coste para detener ataques iniciales y establecer la base del plan.`;
+      searchQuery = `[CONTRACT: EarlyDefender] (t:wall or o:defender) mv<=3 c<=${colorsStr}`;
+      cmcCategory = '2';
+    } else if (idLower.includes('anthem') || idLower.includes('buff') || labelLower.includes('anthem') || labelLower.includes('lord') || labelLower.includes('synergy')) {
+      name = `Habilitadores de Ataque & Payoffs de Resistencia`;
+      purposeDescription = `Permite a tus defensores atacar asignando daño igual a su resistencia (Arcades, High Alert, etc.).`;
+      searchQuery = `[CONTRACT: DefenderPayoff] (o:"assigns combat damage equal to its toughness" or o:"can attack as though it didn't have defender") c<=${colorsStr}`;
+      cmcCategory = '3';
+    } else if (idLower.includes('draw') || idLower.includes('advantage') || labelLower.includes('draw')) {
+      name = `Robo de Cartas Compatible con Defensores`;
+      purposeDescription = `Mantiene la ventaja de cartas mediante cantrips de muros o sinergias al entrar criaturas con defender.`;
+      searchQuery = `[CONTRACT: DefenderCardDraw] (o:"creature with defender enters" or (t:wall and o:draw)) c<=${colorsStr}`;
+      cmcCategory = '2';
+    } else if (idLower.includes('ramp') || idLower.includes('mana') || labelLower.includes('ramp')) {
+      name = `Fijado de Maná y Estabilidad de Curva`;
+      purposeDescription = `Asegura tierras y maná de tus colores principales para desplegar tus cartas clave a tiempo.`;
+      searchQuery = `[CONTRACT: ManaStability] (type:land or o:"add ") c<=${colorsStr} mv<=2`;
+      cmcCategory = '1';
+    } else if (idLower.includes('removal') || idLower.includes('protection') || idLower.includes('interaction')) {
+      name = `Interacción y Remoción Puntual`;
+      purposeDescription = `Elimina amenazas voladoras o clave del rival a bajo coste instantáneo.`;
+      searchQuery = `[CONTRACT: Interaction] (type:instant or type:sorcery) (o:destroy or o:exile or o:counter) mv<=2 c<=${colorsStr}`;
+      cmcCategory = '2';
+    } else if (idLower.includes('finisher') || labelLower.includes('finisher')) {
+      name = `Remate por Explosión de Resistencia`;
+      purposeDescription = `Convierte la masa acumulada de muros en un golpe letal en un solo turno.`;
+      searchQuery = `[CONTRACT: DefenderFinisher] (o:"creatures you control get" and o:toughness) or (o:defender and mv>=4)`;
+      cmcCategory = '4+';
+      finisherQuality = 'finisher';
+    }
+    return { name, purposeDescription, search_query: searchQuery, cmcCategory, finisherQuality };
+  }
 
   const isSaprolingOrFungus = tribeLower.includes('saprolin') || tribeLower.includes('fungus') || tribeLower.includes('hongo');
 
@@ -29,42 +67,38 @@ function buildSlotMetadata(node, intent) {
     name = `Generadores de Fichas (${tribe})`;
     purposeDescription = `Produce fichas de criatura ${tribe} de forma recurrente para establecer presencia temprana en mesa.`;
     searchQuery = isSaprolingOrFungus
-      ? `(t:saproling or t:fungus or o:saproling or o:"fungus creature token") (o:create or o:put)`
-      : `(t:${tribeLower} or o:${tribeLower} or o:"create" or o:"token") c<=${colorsStr}`;
+      ? `[CONTRACT: TokenEngine] (t:saproling or t:fungus or o:"fungus creature token")`
+      : `[CONTRACT: TokenEngine] (t:${tribeLower} or o:${tribeLower} or o:"create token") c<=${colorsStr}`;
     cmcCategory = '2';
   } else if (idLower.includes('sacrifice') || labelLower.includes('sacrifice') || idLower.includes('fodder')) {
     name = `Motores de Sacrificio y Alimento (${tribe})`;
     purposeDescription = `Sacrifica fichas o criaturas recurrentes para obtener ventajas de cartas, vidas o daño.`;
-    searchQuery = isSaprolingOrFungus
-      ? `(t:saproling or t:fungus or o:saproling) (o:sacrifice or o:dies or o:damage or o:draw)`
-      : `(o:sacrifice or o:dies or o:graveyard) c<=${colorsStr}`;
+    searchQuery = `[CONTRACT: SacrificeEngine] (o:sacrifice or o:dies) c<=${colorsStr}`;
     cmcCategory = '2';
   } else if (idLower.includes('anthem') || idLower.includes('buff') || labelLower.includes('anthem') || labelLower.includes('lord') || labelLower.includes('synergy')) {
     name = `Himnos y Multiplicadores de Fichas`;
     purposeDescription = `Potencia a todas tus fichas y criaturas con bonificadores globales +1/+1 o multiplicadores de fichas.`;
-    searchQuery = `(o:"creature tokens" or o:"tokens you control" or o:"+1/+1") (o:get or o:indestructible or o:twice or o:double) c<=${colorsStr}`;
+    searchQuery = `[CONTRACT: AnthemEngine] (o:"tokens you control get" or o:"+1/+1") c<=${colorsStr}`;
     cmcCategory = '3';
   } else if (idLower.includes('draw') || idLower.includes('advantage') || labelLower.includes('draw') || labelLower.includes('card')) {
     name = `Motores de Ventaja de Cartas y Robo`;
     purposeDescription = `Mantiene la ventaja de recursos en mano aprovechando la mesa acumulada.`;
-    searchQuery = isSaprolingOrFungus
-      ? `(t:saproling or t:fungus or o:saproling or o:"fungus creature token" or o:"tokens you control") (o:draw or o:card)`
-      : `(o:draw or o:"card advantage" or o:"draw a card") c<=${colorsStr}`;
+    searchQuery = `[CONTRACT: CardAdvantage] (o:draw or o:"card advantage") c<=${colorsStr}`;
     cmcCategory = '2';
   } else if (idLower.includes('ramp') || idLower.includes('mana') || labelLower.includes('ramp') || labelLower.includes('mana')) {
     name = `Aceleración y Rampa Temprana (T1-T2)`;
     purposeDescription = `Garantiza maná de curva rápida en Turno 1 y Turno 2 para acelerar el despliegue del motor principal.`;
-    searchQuery = `(o:"add " or type:land or o:"search your library for a land") c<=${colorsStr} mv<=2`;
+    searchQuery = `[CONTRACT: ManaRamp] (o:"add " or type:land or o:"search your library for a land") c<=${colorsStr} mv<=2`;
     cmcCategory = '1';
   } else if (idLower.includes('removal') || idLower.includes('protection') || idLower.includes('interaction') || labelLower.includes('control') || labelLower.includes('removal')) {
     name = `Interacción y Remoción Eficiente`;
     purposeDescription = `Protege tus motores y elimina las mayores amenazas del oponente a bajo coste de maná.`;
-    searchQuery = `(type:instant or type:sorcery) (o:destroy or o:exile or o:deal) mv<=2 c<=${colorsStr}`;
+    searchQuery = `[CONTRACT: Interaction] (type:instant or type:sorcery) (o:destroy or o:exile or o:deal) mv<=2 c<=${colorsStr}`;
     cmcCategory = '2';
   } else if (idLower.includes('finisher') || idLower.includes('apex') || labelLower.includes('finisher') || labelLower.includes('apex')) {
     name = `Rematadores y Bombas Letales`;
     purposeDescription = `Convierte la masa de criaturas acumuladas en el campo de batalla en letal inmediato.`;
-    searchQuery = `(o:"creatures you control get" and o:trample) or (o:"+x/+x" and o:trample) or (o:saproling and mv>=4)`;
+    searchQuery = `[CONTRACT: Finisher] (o:"creatures you control get" and o:trample) or (o:"+x/+x" and o:trample)`;
     cmcCategory = '4+';
     finisherQuality = 'finisher';
   }
