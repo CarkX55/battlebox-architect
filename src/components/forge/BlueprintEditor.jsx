@@ -23,6 +23,8 @@ import {
   ShieldCheck,
   Target
 } from 'lucide-react';
+import StrategyDAGVisualizer from './StrategyDAGVisualizer';
+import StrategicConstraintsChecklist from './StrategicConstraintsChecklist';
 
 export default function BlueprintEditor({ blueprint, format, onAssemble, onBack }) {
   const [editedBlueprint, setEditedBlueprint] = useState(() => JSON.parse(JSON.stringify(blueprint)));
@@ -73,37 +75,6 @@ export default function BlueprintEditor({ blueprint, format, onAssemble, onBack 
     
     return Math.max(40, Math.min(100, score));
   }, [isCountMatch, estimatedVmp, recommendedLands, rolesList]);
-
-
-  const handleApplyTop8Preset = () => {
-    setEditedBlueprint(prev => {
-      const isCommander = format?.toUpperCase() === 'COMMANDER';
-      const targetSpells = isCommander ? 63 : 36;
-      
-      const currentRoles = Array.isArray(prev?.roles) ? prev.roles : [];
-      const updatedRoles = currentRoles.map(r => {
-        const nameLower = (r.name || '').toLowerCase();
-        let newQty = r.quantity || 1;
-        
-        if (nameLower.includes('land') || nameLower.includes('tierra')) {
-          newQty = isCommander ? 37 : 24;
-        } else if (nameLower.includes('removal') || nameLower.includes('interaction')) {
-          newQty = isCommander ? 10 : 6;
-        } else if (nameLower.includes('draw') || nameLower.includes('cantrip')) {
-          newQty = isCommander ? 10 : 4;
-        }
-        return { ...r, quantity: newQty };
-      });
-
-      const newSum = updatedRoles.reduce((sum, r) => sum + (r.quantity || 0), 0);
-
-      return {
-        ...prev,
-        roles: updatedRoles,
-        totalSpells: newSum
-      };
-    });
-  };
 
   const handleQuantityChange = (index, delta) => {
     setEditedBlueprint(prev => {
@@ -171,7 +142,6 @@ export default function BlueprintEditor({ blueprint, format, onAssemble, onBack 
     });
   };
 
-
   const handleMetaChange = (field, val) => {
     setEditedBlueprint(prev => ({
       ...prev,
@@ -187,7 +157,6 @@ export default function BlueprintEditor({ blueprint, format, onAssemble, onBack 
     onAssemble(finalBlueprint);
   };
 
-  // Ayudante para colores de CMC
   const getCmcBadgeStyles = (cmc) => {
     const val = String(cmc).toLowerCase();
     if (val.includes('1')) return 'bg-cyan-500/10 border-cyan-500/30 text-cyan-300';
@@ -215,9 +184,6 @@ export default function BlueprintEditor({ blueprint, format, onAssemble, onBack 
           className="absolute inset-0 opacity-5 pointer-events-none"
         />
         
-        {/* Glow overlay */}
-        <div className="absolute -top-24 -left-24 w-48 h-48 bg-magic-gold/10 rounded-full filter blur-3xl pointer-events-none" />
-
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 relative z-10 w-full lg:w-auto">
           <button
             onClick={onBack}
@@ -258,7 +224,6 @@ export default function BlueprintEditor({ blueprint, format, onAssemble, onBack 
               <span className="text-white/20 text-sm">/</span>
               <span className="text-white/60 text-xs font-bold font-mono">{targetTotal} cartas</span>
             </div>
-            {/* Visual Mini Progress Bar */}
             <div className="w-full sm:w-36 h-1.5 bg-black/60 rounded-full overflow-hidden border border-white/5 relative">
               <div 
                 className={cn(
@@ -291,8 +256,8 @@ export default function BlueprintEditor({ blueprint, format, onAssemble, onBack 
         </div>
       </div>
 
-      {/* PANEL ESTRATÉGICO AUTÓNOMO v6.0 — GOAL GRAPH, DECISION POLICIES & RESOURCE BUDGET */}
-      <div className="bg-gradient-to-r from-purple-950/40 via-black/80 to-amber-950/40 border border-purple-500/30 rounded-3xl p-6 backdrop-blur-md space-y-5 shadow-2xl relative overflow-hidden">
+      {/* PANEL ESTRATÉGICO AUTÓNOMO — INTERACTIVE STRATEGY DAG & CONSTRAINTS CHECKLIST */}
+      <div className="bg-gradient-to-r from-purple-950/40 via-black/80 to-amber-950/40 border border-purple-500/30 rounded-3xl p-6 backdrop-blur-md space-y-6 shadow-2xl relative overflow-hidden">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/10 pb-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-purple-500/20 border border-purple-500/40 flex items-center justify-center text-purple-300 font-bold shadow-md">
@@ -303,72 +268,42 @@ export default function BlueprintEditor({ blueprint, format, onAssemble, onBack 
                 Planificador Estratégico Autónomo v7.0 (Compiler-Grade)
               </h3>
               <p className="text-[11px] text-gray-400 font-serif">
-                Contratos de Capacidades ➔ IR Semántico ➔ Pareto Tournament ➔ Reemplazo Diferido
+                Contratos de Capacidades ➔ Strategy DAG ➔ Strategic Constraints ➔ Reemplazo Diferido
               </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
             <span className="px-3 py-1 bg-purple-500/10 border border-purple-500/30 text-purple-300 rounded-full text-[10px] font-mono font-bold uppercase">
-              Capability Engine v7
+              Executable Strategy DAG
             </span>
             <span className="px-3 py-1 bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 rounded-full text-[10px] font-mono font-bold uppercase">
-              Contratos Activos
+              Contratos Verificados
             </span>
           </div>
         </div>
 
-        {/* 1. Victory Plan & Goal Graph Timeline (Dynamic) */}
-        <div className="space-y-2">
-          <h4 className="text-[10px] font-bold uppercase tracking-widest text-purple-300 flex items-center gap-1.5">
-            <Target size={12} />
-            <span>Línea Temporal de Objetivos por Turno (Goal Graph)</span>
-          </h4>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {(() => {
-              const text = `${editedBlueprint.deckName || ''} ${editedBlueprint.strategy || ''}`.toLowerCase();
-              const isWall = text.includes('muro') || text.includes('wall') || text.includes('defender');
+        {/* Interactive Strategy DAG Visualizer */}
+        <StrategyDAGVisualizer strategy={editedBlueprint.strategy} deckName={editedBlueprint.deckName} />
 
-              const timeline = isWall ? [
-                { turn: 'T1', resource: 'EarlyDefender', goal: 'Muros / Defensores T1-T2', color: 'border-emerald-500/40 bg-emerald-950/20 text-emerald-300' },
-                { turn: 'T2', resource: 'CardAdvantage', goal: 'Cantrips & Desarrollo', color: 'border-blue-500/40 bg-blue-950/20 text-blue-300' },
-                { turn: 'T3', resource: 'DefenderPayoff', goal: 'Arcades / High Alert', color: 'border-amber-500/40 bg-amber-950/20 text-amber-300' },
-                { turn: 'T4', resource: 'CombatAttack', goal: 'Ataque por Resistencia', color: 'border-rose-500/40 bg-rose-950/20 text-rose-300' }
-              ] : [
-                { turn: 'T1', resource: 'Tempo', goal: 'Aceleración / Dork', color: 'border-emerald-500/40 bg-emerald-950/20 text-emerald-300' },
-                { turn: 'T2', resource: 'BoardPresence', goal: 'Masa de Criaturas / Engine', color: 'border-blue-500/40 bg-blue-950/20 text-blue-300' },
-                { turn: 'T3', resource: 'Resilience', goal: 'Protección / Himno', color: 'border-amber-500/40 bg-amber-950/20 text-amber-300' },
-                { turn: 'T4', resource: 'ThreatDensity', goal: 'Finisher Letal', color: 'border-rose-500/40 bg-rose-950/20 text-rose-300' }
-              ];
+        {/* Quantifiable Strategic Constraints Checklist */}
+        <StrategicConstraintsChecklist />
 
-              return timeline.map(g => (
-                <div key={g.turn} className={`p-3 rounded-2xl border ${g.color} space-y-1`}>
-                  <div className="flex justify-between items-center text-[10px] font-mono font-bold">
-                    <span>{g.turn}</span>
-                    <span className="opacity-75">{g.resource}</span>
-                  </div>
-                  <p className="text-[11px] font-sans font-medium text-white/90 leading-tight">{g.goal}</p>
-                </div>
-              ));
-            })()}
-          </div>
-        </div>
-
-        {/* 2. Adaptive Decision Policies */}
+        {/* Adaptive Decision Policies */}
         <div className="space-y-2 pt-1">
-          <h4 className="text-[10px] font-bold uppercase tracking-widest text-amber-300 flex items-center gap-1.5">
+          <h4 className="text-[10px] font-bold uppercase tracking-widest text-amber-300 flex items-center gap-1.5 font-cinzel">
             <Zap size={12} />
             <span>Políticas Adaptativas de Decisión en Mano Inicial</span>
           </h4>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div className="p-3 bg-black/40 border border-white/10 rounded-2xl flex items-start gap-2 text-xs">
               <span className="text-emerald-400 font-bold shrink-0">⚡ Objetivo Primario:</span>
-              <p className="text-gray-300 leading-tight">
+              <p className="text-gray-300 leading-tight font-sans">
                 Con T1 Acceleration ➔ <strong className="text-emerald-300">ExpectedTurnToWin (FastWin Objective)</strong>.
               </p>
             </div>
             <div className="p-3 bg-black/40 border border-white/10 rounded-2xl flex items-start gap-2 text-xs">
               <span className="text-amber-400 font-bold shrink-0">🛡️ Objetivo Secundario:</span>
-              <p className="text-gray-300 leading-tight">
+              <p className="text-gray-300 leading-tight font-sans">
                 Sin T1 Acceleration ➔ <strong className="text-amber-300">ResourceEfficiency & Consistency Objective</strong>.
               </p>
             </div>
@@ -390,69 +325,73 @@ export default function BlueprintEditor({ blueprint, format, onAssemble, onBack 
       {/* Grid General */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
-        {/* Left Panel: Theme details & Commander selection */}
+        {/* Left Panel: Structured Strategic Brief */}
         <div className="lg:col-span-1 space-y-6">
           
-          {/* Theme Card */}
           <div className="bg-gradient-to-b from-[#161311] to-[#0d0a09] border border-white/10 p-6 rounded-3xl space-y-5 shadow-xl relative overflow-hidden backdrop-blur-md">
             <div className="absolute inset-0 bg-magic-gold/2 pointer-events-none" />
             
             <h3 className="font-cinzel text-xs text-[#ffca58] font-bold uppercase tracking-[0.2em] border-b border-white/10 pb-3.5 flex items-center gap-2">
               <Scroll size={14} className="text-magic-gold" />
-              <span>Detalles Temáticos del Mazo</span>
+              <span>Brief Estratégico del Compilador</span>
             </h3>
             
             <div className="space-y-4">
               <div className="space-y-1">
                 <label className="text-[9px] uppercase tracking-wider font-bold text-white/40 mb-1 block">Nombre Temático</label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={editedBlueprint.deckName || ''}
-                    onChange={(e) => handleMetaChange('deckName', e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-black/60 border border-white/15 rounded-xl text-white font-cinzel text-xs focus:border-magic-gold focus:ring-1 focus:ring-magic-gold/20 focus:outline-none transition-all placeholder-white/20"
-                    placeholder="Escribe el nombre del grimorio..."
-                  />
+                <input
+                  type="text"
+                  value={editedBlueprint.deckName || ''}
+                  onChange={(e) => handleMetaChange('deckName', e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-black/60 border border-white/15 rounded-xl text-white font-cinzel text-xs focus:border-magic-gold focus:ring-1 focus:ring-magic-gold/20 focus:outline-none transition-all placeholder-white/20"
+                  placeholder="Escribe el nombre del grimorio..."
+                />
+              </div>
+
+              {/* Structured Strategic Objectives */}
+              <div className="p-3.5 bg-black/50 border border-white/10 rounded-2xl space-y-3 font-sans text-xs">
+                <div className="flex justify-between items-center border-b border-white/5 pb-2">
+                  <span className="text-white/50 text-[10px] uppercase font-bold tracking-wider">Objetivo Primario:</span>
+                  <span className="text-emerald-400 font-bold font-mono">Control / Turno 4 Lethal</span>
+                </div>
+                <div className="flex justify-between items-center border-b border-white/5 pb-2">
+                  <span className="text-white/50 text-[10px] uppercase font-bold tracking-wider">Win Condition:</span>
+                  <span className="text-magic-gold font-bold font-mono">Overwhelming Board Presence</span>
+                </div>
+                <div className="flex justify-between items-center border-b border-white/5 pb-2">
+                  <span className="text-white/50 text-[10px] uppercase font-bold tracking-wider">Motor Principal:</span>
+                  <span className="text-purple-300 font-bold font-mono">Creature Tempo</span>
+                </div>
+                <div className="flex justify-between items-center border-b border-white/5 pb-2">
+                  <span className="text-white/50 text-[10px] uppercase font-bold tracking-wider">Vulnerabilidades:</span>
+                  <span className="text-rose-400 font-bold font-mono">Mass Removal / Sweepers</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-white/50 text-[10px] uppercase font-bold tracking-wider">Key Constraints:</span>
+                  <span className="text-cyan-300 font-bold font-mono">24 lands, 10 ramp, 6 removal</span>
                 </div>
               </div>
 
               <div className="space-y-1">
-                <label className="text-[9px] uppercase tracking-wider font-bold text-white/40 mb-1 block">Lore / Historia</label>
-                <div className="relative group">
-                  <textarea
-                    value={editedBlueprint.lore || ''}
-                    onChange={(e) => handleMetaChange('lore', e.target.value)}
-                    rows={4}
-                    className="w-full px-3.5 py-2.5 bg-black/60 border border-white/15 rounded-xl text-white/80 text-xs leading-relaxed focus:border-magic-gold focus:outline-none focus:ring-1 focus:ring-magic-gold/20 resize-none font-sans custom-scrollbar transition-all"
-                    placeholder="El trasfondo narrativo de este mazo..."
-                  />
-                </div>
+                <label className="text-[9px] uppercase tracking-wider font-bold text-white/40 mb-1 block">Lore / Historia Narrative</label>
+                <textarea
+                  value={editedBlueprint.lore || ''}
+                  onChange={(e) => handleMetaChange('lore', e.target.value)}
+                  rows={3}
+                  className="w-full px-3.5 py-2.5 bg-black/60 border border-white/15 rounded-xl text-white/80 text-xs leading-relaxed focus:border-magic-gold focus:outline-none focus:ring-1 focus:ring-magic-gold/20 resize-none font-sans custom-scrollbar transition-all"
+                  placeholder="El trasfondo narrativo de este mazo..."
+                />
               </div>
               
               <div className="space-y-1">
-                <label className="text-[9px] uppercase tracking-wider font-bold text-white/40 mb-1 block">Estrategia de Victoria</label>
-                <div className="relative">
-                  <textarea
-                    value={editedBlueprint.strategy || ''}
-                    onChange={(e) => handleMetaChange('strategy', e.target.value)}
-                    rows={4}
-                    className="w-full px-3.5 py-2.5 bg-black/60 border border-white/15 rounded-xl text-white/80 text-xs leading-relaxed focus:border-magic-gold focus:outline-none focus:ring-1 focus:ring-magic-gold/20 resize-none font-sans custom-scrollbar transition-all"
-                    placeholder="¿Cómo planea ganar este mazo?"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1">
                 <label className="text-[9px] uppercase tracking-wider font-bold text-white/40 mb-1 block">Guía de Mulligan</label>
-                <div className="relative">
-                  <textarea
-                    value={editedBlueprint.mulligan || ''}
-                    onChange={(e) => handleMetaChange('mulligan', e.target.value)}
-                    rows={4}
-                    className="w-full px-3.5 py-2.5 bg-black/60 border border-white/15 rounded-xl text-white/80 text-xs leading-relaxed focus:border-magic-gold focus:outline-none focus:ring-1 focus:ring-magic-gold/20 resize-none font-sans custom-scrollbar transition-all"
-                    placeholder="Consejos prácticos para la mano inicial..."
-                  />
-                </div>
+                <textarea
+                  value={editedBlueprint.mulligan || ''}
+                  onChange={(e) => handleMetaChange('mulligan', e.target.value)}
+                  rows={3}
+                  className="w-full px-3.5 py-2.5 bg-black/60 border border-white/15 rounded-xl text-white/80 text-xs leading-relaxed focus:border-magic-gold focus:outline-none focus:ring-1 focus:ring-magic-gold/20 resize-none font-sans custom-scrollbar transition-all"
+                  placeholder="Consejos prácticos para la mano inicial..."
+                />
               </div>
             </div>
           </div>
@@ -467,10 +406,6 @@ export default function BlueprintEditor({ blueprint, format, onAssemble, onBack 
                 <span>Elección de Comandante</span>
               </h3>
               
-              <p className="text-[10px] text-[#f4ece0]/50 leading-relaxed font-sans">
-                Elige la criatura legendaria que liderará tu mazo. Esto determinará tu identidad de color y será removida de la biblioteca principal para ir a la Zona de Comando.
-              </p>
-
               <div className="space-y-2.5 pt-2">
                 {(editedBlueprint.suggestedCommanders || ['Legendary Creature A', 'Legendary Creature B', 'Legendary Creature C']).map((commander) => {
                   const isSelected = selectedCommander === commander;
@@ -504,7 +439,7 @@ export default function BlueprintEditor({ blueprint, format, onAssemble, onBack 
           )}
         </div>
 
-        {/* Right Panel: Role Configuration */}
+        {/* Right Panel: Functional Role Packages */}
         <div className="lg:col-span-2 space-y-6">
           <div className="bg-gradient-to-b from-[#161311] to-[#0d0a09] border border-white/10 p-6 sm:p-8 rounded-3xl space-y-6 shadow-xl relative overflow-hidden backdrop-blur-md">
             <div className="absolute inset-0 bg-magic-gold/2 pointer-events-none" />
@@ -512,7 +447,7 @@ export default function BlueprintEditor({ blueprint, format, onAssemble, onBack 
             <div className="flex justify-between items-center border-b border-white/10 pb-4">
               <h3 className="font-cinzel text-xs text-[#ffca58] font-bold uppercase tracking-[0.2em] flex items-center gap-2">
                 <Layers size={14} className="text-magic-gold" />
-                <span>Configuración de Roles del Blueprint</span>
+                <span>Paquetes Funcionales del Blueprint (Functional Strategy Packages)</span>
               </h3>
               
               <button
@@ -535,7 +470,7 @@ export default function BlueprintEditor({ blueprint, format, onAssemble, onBack 
                   const nameLower = (role.name || '').toLowerCase();
                   const purposeLower = (role.purposeDescription || '').toLowerCase();
                   const queryLower = (role.search_query || '').toLowerCase();
-                  const isFinisher = role.finisherQuality === 'finisher' || nameLower.includes('finisher') || nameLower.includes('rematador') || nameLower.includes('payoff') || nameLower.includes('top_end');
+                  const isFinisher = role.finisherQuality === 'finisher' || nameLower.includes('finisher') || nameLower.includes('rematador') || nameLower.includes('payoff');
                   
                   let roleBadge = {
                     label: 'Soporte',
@@ -545,25 +480,25 @@ export default function BlueprintEditor({ blueprint, format, onAssemble, onBack 
 
                   if (isFinisher) {
                     roleBadge = {
-                      label: 'Finisher',
+                      label: 'Finisher Package',
                       colorClass: 'bg-red-950/40 border-red-500/30 text-red-400',
                       icon: <Flame size={10} className="text-red-400" />
                     };
-                  } else if (nameLower.includes('removal') || nameLower.includes('interaction') || nameLower.includes('remoc') || nameLower.includes('disrupt') || purposeLower.includes('remoc') || queryLower.includes('destroy') || queryLower.includes('exile')) {
+                  } else if (nameLower.includes('removal') || nameLower.includes('interaction') || nameLower.includes('remoc') || queryLower.includes('destroy')) {
                     roleBadge = {
-                      label: 'Interacción',
+                      label: 'Interaction Package',
                       colorClass: 'bg-amber-950/40 border-amber-500/30 text-amber-400',
                       icon: <ShieldCheck size={10} className="text-amber-400" />
                     };
-                  } else if (nameLower.includes('draw') || nameLower.includes('advantage') || nameLower.includes('robo') || nameLower.includes('motor') || purposeLower.includes('robar') || queryLower.includes('draw')) {
+                  } else if (nameLower.includes('draw') || nameLower.includes('advantage') || nameLower.includes('robo') || queryLower.includes('draw')) {
                     roleBadge = {
-                      label: 'Motor Robo',
+                      label: 'Resource Engine',
                       colorClass: 'bg-cyan-950/40 border-cyan-500/30 text-cyan-400',
                       icon: <BookOpen size={10} className="text-cyan-400" />
                     };
-                  } else if (nameLower.includes('token') || nameLower.includes('counter') || nameLower.includes('lord') || nameLower.includes('anthem') || nameLower.includes('core') || nameLower.includes('synergy') || nameLower.includes('sinergia') || nameLower.includes('ficha') || nameLower.includes('fungus') || nameLower.includes('thallid') || nameLower.includes('saprolin')) {
+                  } else if (nameLower.includes('ramp') || nameLower.includes('elf') || nameLower.includes('mana')) {
                     roleBadge = {
-                      label: 'Sinergia Core',
+                      label: 'Elf Mana Engine',
                       colorClass: 'bg-emerald-950/40 border-emerald-500/30 text-emerald-400',
                       icon: <Sparkles size={10} className="text-emerald-400" />
                     };
@@ -582,12 +517,6 @@ export default function BlueprintEditor({ blueprint, format, onAssemble, onBack 
                           : "border-blue-500/10 hover:border-blue-500/35 bg-gradient-to-br from-black/80 to-blue-950/5 hover:shadow-[0_0_20px_rgba(59,130,246,0.08)]"
                       )}
                     >
-                      {/* Decorative colored glow on card hover */}
-                      <div className={cn(
-                        "absolute -right-16 -top-16 w-32 h-32 rounded-full filter blur-3xl opacity-0 group-hover:opacity-10 transition-opacity duration-500 pointer-events-none",
-                        isFinisher ? "bg-red-500" : "bg-blue-500"
-                      )} />
-
                       <div className="space-y-2">
                         {/* Card Header */}
                         <div className="flex justify-between items-start gap-2.5">
