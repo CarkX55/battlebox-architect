@@ -1,10 +1,11 @@
 /**
  * DeckJudgeSuite.js
- * Modular DeckJudge Verification Suite with Level 3 Monte Carlo Simulation.
+ * Modular DeckJudge Verification Suite with Level 3 Monte Carlo Simulation and Oracle Trace Logging.
  * Collection of 10 specialized independent verifiers evaluating DeckConstructionState.
  */
 
 import { StrategicSimulator } from '../simulation/StrategicSimulator.js';
+import { OracleTraceLog } from '../serving/OracleTraceLog.js';
 
 export class SizeVerifier {
   static verify(state) {
@@ -62,6 +63,13 @@ export class SimulationVerifier {
     const boundCards = state.slots.map(s => s.chosenCard).filter(Boolean);
     const simResult = StrategicSimulator.simulateDeck(boundCards, 500);
 
+    OracleTraceLog.logStep({
+      category: 'MONTE_CARLO',
+      component: 'StrategicSimulator',
+      action: 'Run 500 Iterations Level 3 Monte Carlo Simulation',
+      details: simResult
+    });
+
     const pass = simResult.manaScrewRate <= 0.30 && simResult.deadTurnRate <= 0.35;
     return {
       verifier: 'SimulationVerifier',
@@ -110,6 +118,13 @@ export class DeckJudgeSuite {
 
     const hasFail = verifications.some(v => v.status === 'FAIL');
     const overallStatus = hasFail ? 'FAIL' : 'PASS';
+
+    OracleTraceLog.logStep({
+      category: 'JUDGE_VERIFICATION',
+      component: 'DeckJudgeSuite',
+      action: `DeckJudge 10 Verifiers Evaluation -> ${overallStatus}`,
+      details: { overallStatus, verifications }
+    });
 
     return Object.freeze({
       overallStatus,

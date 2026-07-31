@@ -1,11 +1,13 @@
 /**
  * SlotCandidateRanker.js
- * Slot Candidate Search, Ranking & Binding Evaluator with Candidate Admission Gate.
+ * Slot Candidate Search, Ranking & Binding Evaluator with Candidate Admission Gate and Oracle Trace Logger.
  * Filters candidates through CandidateAdmissionGate before ranking and binding slots.
+ * Records full end-to-end traceability steps in OracleTraceLog.
  */
 
 import { SLOT_STATES } from './DeckConstructionState.js';
 import { CandidateAdmissionGate } from './CandidateAdmissionGate.js';
+import { OracleTraceLog } from '../serving/OracleTraceLog.js';
 
 export class SlotCandidateRanker {
   static rankAndBindDeck(deckState, cardPool = [], exhaustionTracker = null) {
@@ -26,6 +28,13 @@ export class SlotCandidateRanker {
       let accepted = 0;
       let searched = 0;
 
+      OracleTraceLog.logStep({
+        category: 'SLOT_RESERVATION',
+        component: 'SlotCandidateRanker',
+        action: `Reserving ${requested} Slots for Package [${packageId}]`,
+        details: { packageId, role: slots[0]?.role, totalSlots: requested }
+      });
+
       for (const slot of slots) {
         // Search candidates matching slot contract
         const matchingCards = cardPool.filter(c => {
@@ -39,6 +48,21 @@ export class SlotCandidateRanker {
 
         // Pass candidates through CandidateAdmissionGate filter pass
         const { admitted, rejected } = CandidateAdmissionGate.filterCandidates(matchingCards, slot.role);
+
+        OracleTraceLog.logStep({
+          category: 'CANDIDATE_ADMISSION',
+          component: 'CandidateAdmissionGate',
+          action: `Filter Candidates for Slot ${slot.id} (${slot.role})`,
+          details: {
+            slotId: slot.id,
+            role: slot.role,
+            searchedCount: matchingCards.length,
+            admittedCount: admitted.length,
+            rejectedCount: rejected.length,
+            admittedSample: admitted.slice(0, 3).map(c => c.name),
+            rejectedSample: rejected.slice(0, 3).map(c => ({ name: c.candidate?.name, reason: c.reason }))
+          }
+        });
 
         const chosenCard = admitted[accepted % Math.max(1, admitted.length)] || {
           name: `${slot.role} Card #${accepted + 1}`,
@@ -60,6 +84,20 @@ export class SlotCandidateRanker {
         ];
 
         currentState = currentState.bindCardToSlot(slot.id, chosenCard, { confidence: 0.95 }, proofChain);
+
+        OracleTraceLog.logStep({
+          category: 'RANKING_BINDING',
+          component: 'SlotCandidateRanker',
+          action: `Bind Card [${chosenCard.name}] to Slot ${slot.id}`,
+          details: {
+            slotId: slot.id,
+            chosenCard: chosenCard.name,
+            role: slot.role,
+            confidence: 0.95,
+            proofChainLength: proofChain.length
+          }
+        });
+
         accepted++;
       }
 

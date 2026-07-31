@@ -26,11 +26,13 @@ import {
 import StrategyDAGVisualizer from './StrategyDAGVisualizer';
 import StrategicConstraintsChecklist from './StrategicConstraintsChecklist';
 import StrategicDecisionGraphVisualizer from './StrategicDecisionGraphVisualizer';
+import OracleTraceLogModal from './OracleTraceLogModal';
 
 export default function BlueprintEditor({ blueprint, format, onAssemble, onBack }) {
   const [editedBlueprint, setEditedBlueprint] = useState(() => JSON.parse(JSON.stringify(blueprint)));
   const [selectedCommander, setSelectedCommander] = useState('');
   const [showJson, setShowJson] = useState(false);
+  const [showOracleLog, setShowOracleLog] = useState(false);
 
   // Auto-select first suggested commander on mount if commander format
   useEffect(() => {
@@ -275,6 +277,13 @@ export default function BlueprintEditor({ blueprint, format, onAssemble, onBack 
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowOracleLog(true)}
+              className="px-3 py-1 bg-amber-500/20 border border-amber-500/40 hover:bg-amber-500/30 text-amber-300 rounded-full text-[10px] font-mono font-bold uppercase transition-all flex items-center gap-1 cursor-pointer"
+            >
+              <Scroll size={12} />
+              <span>Bitácora del Oráculo</span>
+            </button>
             <span className="px-3 py-1 bg-purple-500/10 border border-purple-500/30 text-purple-300 rounded-full text-[10px] font-mono font-bold uppercase">
               CompilationProof: CERTIFIED
             </span>
@@ -676,6 +685,9 @@ export default function BlueprintEditor({ blueprint, format, onAssemble, onBack 
           </div>
         </div>
       </div>
+
+      {/* Bitácora del Oráculo Audit Modal */}
+      <OracleTraceLogModal isOpen={showOracleLog} onClose={() => setShowOracleLog(false)} />
     </div>
   );
 }
