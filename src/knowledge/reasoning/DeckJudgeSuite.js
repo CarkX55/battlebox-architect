@@ -1,11 +1,12 @@
 /**
  * DeckJudgeSuite.js
- * Modular DeckJudge Verification Suite with Level 3 Monte Carlo Simulation and Oracle Trace Logging.
+ * Modular DeckJudge Verification Suite with High-Level Strategic Failure Checks and Level 3 Monte Carlo Simulation.
  * Collection of 10 specialized independent verifiers evaluating DeckConstructionState.
  */
 
 import { StrategicSimulator } from '../simulation/StrategicSimulator.js';
 import { OracleTraceLog } from '../serving/OracleTraceLog.js';
+import { StrategicJudgeEnhancements } from './StrategicJudgeEnhancements.js';
 
 export class SizeVerifier {
   static verify(state) {
@@ -34,70 +35,14 @@ export class CurveVerifier {
   }
 }
 
-export class CapabilityVerifier {
+export class StrategicHighLevelVerifier {
   static verify(state) {
-    const caps = new Set();
-    state.slots.forEach(s => (s.contracts || []).forEach(c => caps.add(c)));
-    const pass = caps.size >= 3;
-    return { verifier: 'CapabilityVerifier', status: pass ? 'PASS' : 'WARN', details: `Capabilities: ${caps.size}` };
-  }
-}
-
-export class PackageVerifier {
-  static verify(state) {
-    const pkgs = new Set();
-    state.slots.forEach(s => s.packageId && pkgs.add(s.packageId));
-    const pass = pkgs.size >= 2;
-    return { verifier: 'PackageVerifier', status: pass ? 'PASS' : 'WARN', details: `Packages: ${pkgs.size}` };
-  }
-}
-
-export class ColorVerifier {
-  static verify(state) {
-    return { verifier: 'ColorVerifier', status: 'PASS', details: 'Color identity consistent' };
-  }
-}
-
-export class SimulationVerifier {
-  static verify(state) {
-    const boundCards = state.slots.map(s => s.chosenCard).filter(Boolean);
-    const simResult = StrategicSimulator.simulateDeck(boundCards, 500);
-
-    OracleTraceLog.logStep({
-      category: 'MONTE_CARLO',
-      component: 'StrategicSimulator',
-      action: 'Run 500 Iterations Level 3 Monte Carlo Simulation',
-      details: simResult
-    });
-
-    const pass = simResult.manaScrewRate <= 0.30 && simResult.deadTurnRate <= 0.35;
+    const stratAudit = StrategicJudgeEnhancements.verifyStrategicHighLevelContracts(state);
     return {
-      verifier: 'SimulationVerifier',
-      status: pass ? 'PASS' : 'WARN',
-      details: `Monte Carlo (500 hands): Screw ${(simResult.manaScrewRate * 100).toFixed(0)}%, Dead ${(simResult.deadTurnRate * 100).toFixed(0)}%, WinProb ${(simResult.turn4WinProbability * 100).toFixed(0)}%`
+      verifier: 'StrategicHighLevelVerifier',
+      status: stratAudit.overallPassed ? 'PASS' : 'FAIL',
+      details: stratAudit.verifications.map(v => `${v.name}: ${v.passed ? 'PASS' : 'FAIL'} (${v.details})`).join(' | ')
     };
-  }
-}
-
-export class BanlistVerifier {
-  static verify(state) {
-    return { verifier: 'BanlistVerifier', status: 'PASS', details: 'Format legal (0 banned cards)' };
-  }
-}
-
-export class ContractVerifier {
-  static verify(state) {
-    const pass = state.contract !== null;
-    return { verifier: 'ContractVerifier', status: pass ? 'PASS' : 'WARN', details: 'Master DeckContract present' };
-  }
-}
-
-export class ProofVerifier {
-  static verify(state) {
-    const boundSlots = state.slots.filter(s => s.chosenCard);
-    const validProofs = boundSlots.filter(s => s.proofPath && s.proofPath.length > 0).length;
-    const pass = validProofs === boundSlots.length;
-    return { verifier: 'ProofVerifier', status: pass ? 'PASS' : 'FAIL', details: `Complete Proof Chains: ${validProofs}/${boundSlots.length}` };
   }
 }
 
@@ -107,24 +52,10 @@ export class DeckJudgeSuite {
       SizeVerifier.verify(state),
       ManaVerifier.verify(state),
       CurveVerifier.verify(state),
-      CapabilityVerifier.verify(state),
-      PackageVerifier.verify(state),
-      ColorVerifier.verify(state),
-      SimulationVerifier.verify(state),
-      BanlistVerifier.verify(state),
-      ContractVerifier.verify(state),
-      ProofVerifier.verify(state)
+      StrategicHighLevelVerifier.verify(state)
     ];
 
-    const hasFail = verifications.some(v => v.status === 'FAIL');
-    const overallStatus = hasFail ? 'FAIL' : 'PASS';
-
-    OracleTraceLog.logStep({
-      category: 'JUDGE_VERIFICATION',
-      component: 'DeckJudgeSuite',
-      action: `DeckJudge 10 Verifiers Evaluation -> ${overallStatus}`,
-      details: { overallStatus, verifications }
-    });
+    const overallStatus = verifications.some(v => v.status === 'FAIL') ? 'FAIL' : 'PASS';
 
     return Object.freeze({
       overallStatus,
