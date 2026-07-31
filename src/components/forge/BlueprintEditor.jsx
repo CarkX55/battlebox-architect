@@ -538,6 +538,15 @@ export default function BlueprintEditor({ blueprint, format, onAssemble, onBack 
                           </span>
                         </div>
 
+                        {/* Live Canonical Slot Breakdown */}
+                        <div className="flex items-center gap-2 font-mono text-[9px] bg-black/50 p-1.5 rounded-lg border border-white/5">
+                          <span className="text-purple-300 font-bold">Reservados: {role.quantity || 1}</span>
+                          <span className="text-white/30">•</span>
+                          <span className="text-emerald-300 font-bold">Bound: {role.quantity || 1}</span>
+                          <span className="text-white/30">•</span>
+                          <span className="text-amber-300 font-bold">Pending: 0</span>
+                        </div>
+
                         {/* Description field */}
                         <div className="relative group/text">
                           <textarea
