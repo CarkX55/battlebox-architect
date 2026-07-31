@@ -45,3 +45,11 @@ __pycache__/
 .obsidian/
 */.obsidian/
 **/workspace.json
+
+# Data and Knowledge SQLite (Large files)
+data/mtgjson/*.json
+data/cache/*
+data/knowledge/*.db
+!data/mtgjson/.gitkeep
+!data/cache/.gitkeep
+!data/knowledge/.gitkeep

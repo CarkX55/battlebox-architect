@@ -8,6 +8,7 @@ import { getCardCount, clearScryfallData } from '../services/dbIngestor';
 import DataIngestor from '../components/molecules/DataIngestor';
 import AiConfigPanel from '../components/forge/AiConfigPanel';
 import MetaIngestor from '../components/forge/MetaIngestor';
+import KnowledgeUpdatePanel from '../components/knowledge/KnowledgeUpdatePanel';
 import { isHapticsEnabled, setHapticsEnabled, vibrateTouch } from '../utils/haptic';
 
 export default function AdminPanel() {
@@ -58,6 +59,7 @@ export default function AdminPanel() {
 
   const tabs = [
     { id: 'ai', name: 'Motores IA', icon: Cpu, desc: 'Configuración' },
+    { id: 'knowledge', name: 'Conocimiento SKE', icon: HardDrive, desc: 'Pipeline SKE' },
     { id: 'meta', name: 'Metajuego', icon: Globe, desc: 'Live Data' },
     { id: 'database', name: 'Grimorio', icon: Database, desc: 'Scryfall DB' },
   ];
@@ -186,6 +188,19 @@ export default function AdminPanel() {
                     </label>
                   </div>
                 </div>
+              </motion.div>
+            )}
+
+            {activeTab === 'knowledge' && (
+              <motion.div
+                key="knowledge-ske"
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -15 }}
+                transition={{ duration: 0.3 }}
+                className="frosted-panel p-6 rounded-2xl border border-magic-gold/30 bg-gradient-to-br from-amber-950/15 via-black/85 to-stone-950/90 shadow-[0_0_30px_rgba(255,202,88,0.12)] backdrop-blur-sm relative"
+              >
+                <KnowledgeUpdatePanel />
               </motion.div>
             )}
 
