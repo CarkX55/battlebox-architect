@@ -1,13 +1,13 @@
 /**
  * CompilerConvergencePipeline.js
- * Master Deterministic Compiler Pipeline & 14-Pass Observable Execution Pipeline.
+ * Master Deterministic Compiler Pipeline & 14-Pass Observable Execution Pipeline with Whole-Strategy Competition.
  * Executes end-to-end deck compilation with 100% observability:
- * PASS 1: Capability Planner
+ * PASS 1: Whole-Strategy Competition & Capability Planner
  * PASS 2: Strategy Planner & Goal DAG
  * PASS 3: Strategy IR & Contract Specification
- * PASS 4: Package Composer
- * PASS 5: Candidate Admission Gate Audit (Admitted vs Rejected with exact reasons)
- * PASS 6: Candidate 12-D Ranking (Pairwise Candidate Scores)
+ * PASS 4: Package Composer & Strategic Budget Allocation
+ * PASS 5: Candidate Admission Gate Audit
+ * PASS 6: Candidate 12-D Ranking (Pairwise Candidate Scores & Opportunity Cost)
  * PASS 7: IR Repair Loop
  * PASS 8: Land & Frank Karsten Calculation Justification
  * PASS 9: Candidate Exhaustion Diagnostic & Hard Failure Gate
@@ -26,6 +26,8 @@ import { StrategicSimulator } from '../simulation/StrategicSimulator.js';
 import { DeckJudgeSuite } from '../reasoning/DeckJudgeSuite.js';
 import { CompilationProof } from '../serving/CompilationProof.js';
 import { OracleTraceLog } from '../serving/OracleTraceLog.js';
+import { StrategyCompetitionEngine } from '../domain/StrategyCompetitionEngine.js';
+import { HierarchicalOpportunityCost } from '../domain/HierarchicalOpportunityCost.js';
 
 export class CompilerConvergencePipeline {
   static compileDeckFromScratch({
@@ -38,22 +40,24 @@ export class CompilerConvergencePipeline {
     // Reset Oracle Trace Logger
     OracleTraceLog.reset(userPrompt);
 
-    // PASS 1: Capability Planner
+    // PASS 1: Whole-Strategy Competition & Capability Planner
+    const strategyCompetition = StrategyCompetitionEngine.evaluateCompetingStrategies(userPrompt);
     const derivedCapabilities = ['cap.mana.acceleration', 'cap.card.draw', 'cap.protection', 'cap.threat.density', 'cap.mana.source'];
+
     OracleTraceLog.logPass({
       passIndex: 1,
-      passName: 'PASS 1: Capability Planner',
+      passName: 'PASS 1: Whole-Strategy Competition & Capability Planner',
       category: 'CAPABILITY_PLANNER',
-      component: 'CapabilityPlannerEngine',
+      component: 'StrategyCompetitionEngine',
       status: 'PASS',
       inputs: { userPrompt, archetype, format },
-      outputs: { derivedCapabilitiesCount: derivedCapabilities.length },
-      details: { capabilities: derivedCapabilities }
+      outputs: { winningStrategy: strategyCompetition.winningStrategy, highestWinExpectancy: strategyCompetition.highestWinExpectancy },
+      details: { strategyCompetition, capabilities: derivedCapabilities }
     });
 
     // PASS 2: Strategy Planner & Goal DAG
     const goalDAG = {
-      goal: 'Turn 4 Board Dominance',
+      goal: `Turn 4 Board Dominance (${strategyCompetition.winningStrategy})`,
       nodes: [
         { id: 'node_mana', title: 'Need Fast Mana (6 Mana by T4)' },
         { id: 'node_bodies', title: 'Need Creature Mass' },
@@ -91,7 +95,8 @@ export class CompilerConvergencePipeline {
       details: { contract }
     });
 
-    // PASS 4: Package Composer
+    // PASS 4: Package Composer & Strategic Budget Allocation
+    const budgetAllocation = HierarchicalOpportunityCost.allocateStrategicBudget(60);
     const packages = [
       { packageId: 'pkg_ramp', role: 'Ramp', count: 10 },
       { packageId: 'pkg_draw', role: 'Draw', count: 8 },
@@ -101,19 +106,18 @@ export class CompilerConvergencePipeline {
     ];
     OracleTraceLog.logPass({
       passIndex: 4,
-      passName: 'PASS 4: Package Composer',
+      passName: 'PASS 4: Package Composer & Strategic Budget Allocation',
       category: 'PACKAGE_COMPOSER',
       component: 'PackageComposerEngine',
       status: 'PASS',
       inputs: { totalPackages: packages.length },
-      outputs: { totalSlotsReserved: 60 },
-      details: { packages }
+      outputs: { totalSlotsReserved: 60, budgetAllocation: budgetAllocation.budgetAllocation },
+      details: { packages, budgetAllocation }
     });
 
-    // PASS 8: Land & Frank Karsten Mathematical Base Calculation Justification
+    // PASS 8: Land & Frank Karsten Calculation Justification
     const avgCmc = 2.4;
     const virtualManaSources = 10;
-    const karstenLandRecommendation = 24;
     OracleTraceLog.logPass({
       passIndex: 8,
       passName: 'PASS 8: Land & Frank Karsten Calculation Justification',
@@ -122,7 +126,7 @@ export class CompilerConvergencePipeline {
       status: 'PASS',
       inputs: { targetLands: 24, averageCmc: avgCmc, virtualManaSources },
       outputs: { expectedManaTurn4: 4.91, monteCarloScrewRate: '18%' },
-      details: { reason: `Average CMC is ${avgCmc}. Virtual mana dorks: ${virtualManaSources}. Karsten mathematical target: 24 lands.` }
+      details: { reason: `Average CMC is ${avgCmc}. Virtual mana dorks: ${virtualManaSources}. Karsten target: 24 lands.` }
     });
 
     // Initialize 60 Slots DeckConstructionState
@@ -131,7 +135,7 @@ export class CompilerConvergencePipeline {
       deckState = deckState.reserveSlots(pkg.packageId, pkg.role, pkg.count, `cap.${pkg.role.toLowerCase()}`, `ir_${pkg.packageId}`);
     }
 
-    // PASS 5 & PASS 6: Slot Candidate Ranker with Admission Gate and 12-D Ranking Logged inside SlotCandidateRanker
+    // PASS 5 & PASS 6: Slot Candidate Ranker with Admission Gate
     const exhaustionTracker = new CandidateExhaustionReport();
     deckState = SlotCandidateRanker.rankAndBindDeck(deckState, rawCardPool, exhaustionTracker);
 
@@ -166,7 +170,7 @@ export class CompilerConvergencePipeline {
       details: { status: 'No IR repairs needed; all contract bounds passed on Pass 1' }
     });
 
-    // PASS 10: DeckConstructionState Deterministic Slot Resolution (60 Slots)
+    // PASS 10: DeckConstructionState Slot Resolution (60 Slots)
     const stats = deckState.getSlotStats();
     if (stats.boundCount !== 60) {
       OracleTraceLog.setBuildFailed(`Deck state bound count mismatch: ${stats.boundCount}/60`, { stats });
@@ -175,7 +179,7 @@ export class CompilerConvergencePipeline {
 
     OracleTraceLog.logPass({
       passIndex: 10,
-      passName: 'PASS 10: DeckConstructionState Deterministic Slot Resolution (60 Slots)',
+      passName: 'PASS 10: DeckConstructionState Slot Resolution (60 Slots)',
       category: 'SLOT_RESOLUTION',
       component: 'DeckConstructionState',
       status: 'PASS',
@@ -202,7 +206,7 @@ export class CompilerConvergencePipeline {
       return { buildStatus: 'BUILD_FAILED', state: deckState, proof: null };
     }
 
-    // PASS 12: Level 3 Monte Carlo Game Simulation (5,000 Games)
+    // PASS 12: Level 3 Monte Carlo Simulation (5,000 Games)
     const boundCards = deckState.slots.map(s => s.chosenCard).filter(Boolean);
     const simResult = StrategicSimulator.simulateDeck(boundCards, 5000);
     OracleTraceLog.logPass({
@@ -250,7 +254,8 @@ export class CompilerConvergencePipeline {
       state: deckState,
       proof,
       judgeResults,
-      simResult
+      simResult,
+      strategyCompetition
     });
   }
 }
