@@ -1,8 +1,10 @@
 /**
  * DeckJudgeSuite.js
- * Modular DeckJudge Verification Suite.
+ * Modular DeckJudge Verification Suite with Level 3 Monte Carlo Simulation.
  * Collection of 10 specialized independent verifiers evaluating DeckConstructionState.
  */
+
+import { StrategicSimulator } from '../simulation/StrategicSimulator.js';
 
 export class SizeVerifier {
   static verify(state) {
@@ -57,7 +59,15 @@ export class ColorVerifier {
 
 export class SimulationVerifier {
   static verify(state) {
-    return { verifier: 'SimulationVerifier', status: 'PASS', details: 'Simulated turn 4 winrate: 0.85' };
+    const boundCards = state.slots.map(s => s.chosenCard).filter(Boolean);
+    const simResult = StrategicSimulator.simulateDeck(boundCards, 500);
+
+    const pass = simResult.manaScrewRate <= 0.30 && simResult.deadTurnRate <= 0.35;
+    return {
+      verifier: 'SimulationVerifier',
+      status: pass ? 'PASS' : 'WARN',
+      details: `Monte Carlo (500 hands): Screw ${(simResult.manaScrewRate * 100).toFixed(0)}%, Dead ${(simResult.deadTurnRate * 100).toFixed(0)}%, WinProb ${(simResult.turn4WinProbability * 100).toFixed(0)}%`
+    };
   }
 }
 
