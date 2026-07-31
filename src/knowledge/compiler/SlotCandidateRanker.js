@@ -31,7 +31,7 @@ export class SlotCandidateRanker {
         const matchingCards = cardPool.filter(c => {
           searched++;
           const text = (c.oracleText || c.oracle_text || c.type_line || '').toLowerCase();
-          if (slot.role === 'Ramp') return text.includes('add') || text.includes('land') || text.includes('mana');
+          if (slot.role === 'Ramp') return text.includes('add') || text.includes('mana');
           if (slot.role === 'Draw') return text.includes('draw') || text.includes('card');
           if (slot.role === 'Removal') return text.includes('destroy') || text.includes('exile') || text.includes('deal');
           return true;
@@ -42,8 +42,8 @@ export class SlotCandidateRanker {
 
         const chosenCard = admitted[accepted % Math.max(1, admitted.length)] || {
           name: `${slot.role} Card #${accepted + 1}`,
-          cmc: 2,
-          type_line: 'Spell'
+          cmc: slot.role === 'Land' ? 0 : 2,
+          type_line: slot.role === 'Land' ? 'Land' : 'Spell'
         };
 
         const proofChain = [

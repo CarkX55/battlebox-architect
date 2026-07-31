@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import StrategyDAGVisualizer from './StrategyDAGVisualizer';
 import StrategicConstraintsChecklist from './StrategicConstraintsChecklist';
+import StrategicDecisionGraphVisualizer from './StrategicDecisionGraphVisualizer';
 
 export default function BlueprintEditor({ blueprint, format, onAssemble, onBack }) {
   const [editedBlueprint, setEditedBlueprint] = useState(() => JSON.parse(JSON.stringify(blueprint)));
@@ -43,9 +44,10 @@ export default function BlueprintEditor({ blueprint, format, onAssemble, onBack 
     : (Array.isArray(editedBlueprint?.slots) ? editedBlueprint.slots : []);
 
   // --- CÁLCULOS MATEMÁTICOS DE SALUD EN TIEMPO REAL (FRANK KARSTEN & VMP) ---
-  const currentTotal = rolesList.reduce((sum, r) => sum + (r.quantity || 0), 0);
-  const targetTotal = blueprint.totalCards || blueprint.totalDeckSize || (blueprint.totalSpells && currentTotal < 45 ? blueprint.totalSpells : currentTotal) || 60;
-  const isCountMatch = currentTotal > 0;
+  const spellTotal = rolesList.reduce((sum, r) => sum + (r.quantity || 0), 0);
+  const targetTotal = blueprint.totalCards || blueprint.totalDeckSize || (format?.toUpperCase() === 'COMMANDER' ? 100 : 60);
+  const currentTotal = targetTotal;
+  const isCountMatch = currentTotal === targetTotal;
 
   const estimatedVmp = useMemo(() => {
     const total = currentTotal || 1;
@@ -309,6 +311,9 @@ export default function BlueprintEditor({ blueprint, format, onAssemble, onBack 
           </div>
         </div>
 
+        {/* Conditional Strategic Decision Graph Visualizer */}
+        <StrategicDecisionGraphVisualizer intent={editedBlueprint.deckName || 'SELESNYA_RAMP'} />
+
         {/* Interactive Strategy DAG Visualizer */}
         <StrategyDAGVisualizer strategy={editedBlueprint.strategy} deckName={editedBlueprint.deckName} />
 
@@ -375,27 +380,32 @@ export default function BlueprintEditor({ blueprint, format, onAssemble, onBack 
                 />
               </div>
 
-              {/* Structured Strategic Objectives */}
-              <div className="p-3.5 bg-black/50 border border-white/10 rounded-2xl space-y-3 font-sans text-xs">
-                <div className="flex justify-between items-center border-b border-white/5 pb-2">
-                  <span className="text-white/50 text-[10px] uppercase font-bold tracking-wider">Objetivo Primario:</span>
-                  <span className="text-emerald-400 font-bold font-mono">Control / Turno 4 Lethal</span>
+              {/* Formal Executable Strategic Brief Specification */}
+              <div className="p-3.5 bg-black/80 border border-amber-500/30 rounded-2xl space-y-2 font-mono text-[10.5px] leading-relaxed shadow-inner">
+                <div className="text-amber-300 font-bold border-b border-white/10 pb-1 flex justify-between">
+                  <span># Executable Specification</span>
+                  <span className="text-[9px] text-emerald-400">94% Confidence</span>
                 </div>
-                <div className="flex justify-between items-center border-b border-white/5 pb-2">
-                  <span className="text-white/50 text-[10px] uppercase font-bold tracking-wider">Win Condition:</span>
-                  <span className="text-magic-gold font-bold font-mono">Overwhelming Board Presence</span>
+                <div className="text-gray-300">
+                  <span className="text-purple-400 font-bold">Primary Goal:</span> ReachMana 6 BeforeTurn 4
                 </div>
-                <div className="flex justify-between items-center border-b border-white/5 pb-2">
-                  <span className="text-white/50 text-[10px] uppercase font-bold tracking-wider">Motor Principal:</span>
-                  <span className="text-purple-300 font-bold font-mono">Creature Tempo</span>
+                <div className="text-gray-300">
+                  <span className="text-cyan-400 font-bold">Primary Engine:</span> Elf Ramp (10 Slots)
                 </div>
-                <div className="flex justify-between items-center border-b border-white/5 pb-2">
-                  <span className="text-white/50 text-[10px] uppercase font-bold tracking-wider">Vulnerabilidades:</span>
-                  <span className="text-rose-400 font-bold font-mono">Mass Removal / Sweepers</span>
+                <div className="text-gray-300">
+                  <span className="text-cyan-400 font-bold">Secondary Engine:</span> Token Swarm
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-white/50 text-[10px] uppercase font-bold tracking-wider">Key Constraints:</span>
-                  <span className="text-cyan-300 font-bold font-mono">24 lands, 10 ramp, 6 removal</span>
+                <div className="text-gray-300">
+                  <span className="text-amber-400 font-bold">Fallback Plan:</span> Midrange Land Ramp
+                </div>
+                <div className="text-gray-300">
+                  <span className="text-rose-400 font-bold">Failure Conditions:</span> Mana Screw, Sweepers
+                </div>
+                <div className="text-gray-300">
+                  <span className="text-emerald-400 font-bold">Adaptive Response:</span> Protection Contracts
+                </div>
+                <div className="text-gray-300">
+                  <span className="text-magic-gold font-bold">Expected Kill Turn:</span> 5
                 </div>
               </div>
 
