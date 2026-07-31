@@ -1,6 +1,6 @@
 /**
  * CompilerConvergencePipeline.js
- * Master Deterministic Compiler Pipeline & 14-Pass Observable Execution Pipeline with Strategic Elo Rating.
+ * Master Deterministic Compiler Pipeline & 14-Pass Observable Execution Pipeline with Strategic Calibration.
  * Executes end-to-end deck compilation with 100% observability:
  * PASS 1: Whole-Strategy Competition & Capability Planner
  * PASS 2: Strategy Planner & Goal DAG
@@ -13,8 +13,8 @@
  * PASS 9: Candidate Exhaustion Diagnostic & Hard Failure Gate
  * PASS 10: DeckConstructionState Slot Resolution (60 Slots)
  * PASS 11: Modular DeckJudge 10-Verifier Evaluation
- * PASS 12: Level 3 Monte Carlo Simulation & Strategic Elo Rating
- * PASS 13: CompilationProof Causal Evidence Chain & Auto-Explanation
+ * PASS 12: Level 3 Monte Carlo Simulation & Strategic Calibration
+ * PASS 13: CompilationProof Causal Evidence Chain & Ground Truth Alignment
  * PASS 14: Raw Gemini LLM Input/Output JSON Log Capture
  */
 
@@ -31,6 +31,7 @@ import { HierarchicalOpportunityCost } from '../domain/HierarchicalOpportunityCo
 import { StrategicEloEvaluator } from '../domain/StrategicEloEvaluator.js';
 import { CompilerAutoExplainer } from '../domain/CompilerAutoExplainer.js';
 import { CompetitiveMetaBenchmark } from '../meta/CompetitiveMetaBenchmark.js';
+import { StrategicCalibrationEngine } from '../meta/StrategicCalibrationEngine.js';
 
 export class CompilerConvergencePipeline {
   static compileDeckFromScratch({
@@ -209,41 +210,42 @@ export class CompilerConvergencePipeline {
       return { buildStatus: 'BUILD_FAILED', state: deckState, proof: null };
     }
 
-    // PASS 12: Level 3 Monte Carlo Simulation & Strategic Elo Rating
+    // PASS 12: Level 3 Monte Carlo Simulation & Strategic Calibration
     const boundCards = deckState.slots.map(s => s.chosenCard).filter(Boolean);
     const simResult = StrategicSimulator.simulateDeck(boundCards, 5000);
     const metaBenchmark = CompetitiveMetaBenchmark.benchmarkDeckAgainstTournamentMeta(deckState, 'SELESNYA_RAMP_STANDARD');
     const strategicElo = StrategicEloEvaluator.evaluateDeckElo(deckState, simResult, metaBenchmark);
+    const calibrationReport = StrategicCalibrationEngine.calibrateDeckAgainstGroundTruth(deckState, 'SELESNYA_RAMP_STANDARD');
 
     OracleTraceLog.logPass({
       passIndex: 12,
-      passName: 'PASS 12: Level 3 Monte Carlo Simulation & Strategic Elo Rating',
-      category: 'MONTE_CARLO',
-      component: 'StrategicEloEvaluator',
+      passName: 'PASS 12: Level 3 Monte Carlo Simulation & Strategic Calibration',
+      category: 'STRATEGIC_CALIBRATION',
+      component: 'StrategicCalibrationEngine',
       status: 'PASS',
       inputs: { iterations: 5000 },
       outputs: {
-        strategicElo: strategicElo.strategicElo,
-        percentileRank: strategicElo.percentileRank,
-        beatsReferencePercentage: strategicElo.beatsReferencePercentage,
-        turn4WinProbability: `${(simResult.turn4WinProbability * 100).toFixed(1)}%`
+        formattedElo: calibrationReport.uncertaintyBounds.formattedElo,
+        confidenceLevel: calibrationReport.uncertaintyBounds.confidenceLevel,
+        overallDecisionAlignmentPercentage: `${calibrationReport.overallDecisionAlignmentPercentage}%`,
+        groundTruthDataset: calibrationReport.groundTruthDataset
       },
-      details: { simResult, metaBenchmark, strategicElo }
+      details: { simResult, metaBenchmark, strategicElo, calibrationReport }
     });
 
-    // PASS 13: CompilationProof Causal Evidence Chain & Auto-Explanation
+    // PASS 13: CompilationProof Causal Evidence Chain & Ground Truth Alignment
     const proof = CompilationProof.generateProof(deckState, judgeResults, exhaustionTracker);
     const autoExplanation = CompilerAutoExplainer.explainDecision('WHY_NOT_COCO');
 
     OracleTraceLog.logPass({
       passIndex: 13,
-      passName: 'PASS 13: CompilationProof Causal Evidence Chain & Auto-Explanation',
+      passName: 'PASS 13: CompilationProof Causal Evidence Chain & Ground Truth Alignment',
       category: 'COMPILATION_PROOF',
-      component: 'CompilerAutoExplainer',
+      component: 'StrategicCalibrationEngine',
       status: proof.certified ? 'PASS' : 'FAIL',
       inputs: { boundSlotsCount: stats.boundCount },
-      outputs: { certified: proof.certified, timestamp: proof.timestamp, explanationQuestion: autoExplanation.question },
-      details: { proof, autoExplanation }
+      outputs: { certified: proof.certified, timestamp: proof.timestamp, alignmentPercentage: `${calibrationReport.overallDecisionAlignmentPercentage}%` },
+      details: { proof, autoExplanation, calibrationReport }
     });
 
     // PASS 14: Log raw LLM if provided
@@ -265,6 +267,7 @@ export class CompilerConvergencePipeline {
       simResult,
       strategyCompetition,
       strategicElo,
+      calibrationReport,
       autoExplanation
     });
   }
