@@ -1,9 +1,11 @@
 /**
  * DecisionEngine.js
- * Contextual Card Ranking Decision Engine.
+ * Contextual Card Ranking Decision Engine integrated with StrategicKnowledgeBase.
  * Evaluates why Card A is strategically superior to Card B in a specific deck context.
- * Evaluates: Contextual Tempo, Legendary Synergy, Color Fixing, Sweeper Resilience, and Graveyard Hate.
+ * Evaluates: Contextual Tempo (T1 Dork > T2 Dork), Legendary Synergy, Color Fixing, Sweeper Resilience, and Graveyard Hate.
  */
+
+import { StrategicKnowledgeBase } from '../domain/StrategicKnowledgeBase.js';
 
 export class DecisionEngine {
   static scoreCandidateInContext(card, deckContext = {}) {
@@ -14,12 +16,13 @@ export class DecisionEngine {
     const name = (card.name || '').toLowerCase();
     const cmc = card.cmc || 0;
 
-    let tempoScore = 0.50;
+    // Evaluate tempo score from StrategicKnowledgeBase domain rules
+    let tempoScore = StrategicKnowledgeBase.evaluateTempoScore(card.name, deckContext.role || '');
     let synergyScore = 0.50;
     let resilienceScore = 0.50;
     let fixingScore = 0.50;
 
-    // 1. Contextual Ramp Evaluation (e.g. Delighted Halfling vs Armored Scrapgorger vs Topiary Stomper)
+    // 1. Contextual Ramp Evaluation (Delighted Halfling vs Armored Scrapgorger vs Topiary Stomper vs T2 Dork)
     if (name.includes('delighted halfling')) {
       tempoScore = 0.98;
       synergyScore = 0.92; // Uncounterable legendary spells
