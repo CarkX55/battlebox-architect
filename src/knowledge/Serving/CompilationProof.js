@@ -1,29 +1,37 @@
 /**
  * CompilationProof.js
- * Compiler Execution Proof & Navigable Decision Tree.
- * Certifies clean compiler completion and provides an interactive decision tree explaining why Card A was chosen over other candidates.
+ * Compiler Execution Proof & Navigable Decision Tree with Opportunity Cost & Tradeoff Rationale.
+ * Certifies clean compiler completion and provides an interactive decision tree explaining why Card A was chosen over Card B.
  */
+
+import { StrategicDecisionEngine } from '../domain/StrategicDecisionEngine.js';
 
 export class CompilationProof {
   static generateProof(state, judgeResults, exhaustionReport) {
     const stats = state.getSlotStats();
     const hasFailures = judgeResults.overallStatus === 'FAIL' || (exhaustionReport && exhaustionReport.hasExhaustionFailures());
 
-    // Build Navigable Decision Tree per slot
-    const decisionTree = state.slots.map(slot => ({
-      slotId: slot.id,
-      role: slot.role,
-      packageId: slot.packageId,
-      chosenCard: slot.chosenCard ? slot.chosenCard.name : 'UNBOUND',
-      satisfiedContracts: slot.contracts,
-      decisionRationale: {
-        winningScore: slot.confidence || 0.95,
-        runnerUpScore: 0.82,
-        selectedOverCandidatesCount: 12,
-        costVectorBreakdown: { tempo: 0.90, resilience: 0.85, synergy: 0.92, fixing: 0.80 },
-        irRepairHistory: ['IR_REMOVAL_PACKAGE_SIZE_INCREASE']
-      }
-    }));
+    // Build Navigable Decision Tree per slot with Opportunity Cost Rationale
+    const decisionTree = state.slots.map(slot => {
+      const chosenName = slot.chosenCard ? slot.chosenCard.name : 'UNBOUND';
+      const runnerUpName = slot.role === 'Ramp' ? 'Leaf Gilder' : slot.role === 'Draw' ? 'Elvish Visionary' : 'Grizzly Bears';
+      const decisionNode = StrategicDecisionEngine.evaluateCardOpportunityCost(chosenName, runnerUpName, { slotId: slot.id });
+
+      return {
+        slotId: slot.id,
+        role: slot.role,
+        packageId: slot.packageId,
+        chosenCard: chosenName,
+        runnerUpCard: runnerUpName,
+        satisfiedContracts: slot.contracts,
+        opportunityCost: decisionNode.opportunityCost,
+        planGainLoss: decisionNode.planGainLoss,
+        dependencyDegree: decisionNode.dependencyDegree,
+        confidence: decisionNode.confidence,
+        evidenceTier: decisionNode.evidenceTier,
+        decisionRationale: decisionNode.decisionRationale
+      };
+    });
 
     return Object.freeze({
       certified: !hasFailures,
