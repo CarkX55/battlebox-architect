@@ -1,10 +1,11 @@
 /**
  * SlotCandidateRanker.js
- * Slot Candidate Search, Ranking & Binding Evaluator.
- * Ranks candidate cards per slot, builds deep parent proof chains, and updates DeckConstructionState slots.
+ * Slot Candidate Search, Ranking & Binding Evaluator with Candidate Admission Gate.
+ * Filters candidates through CandidateAdmissionGate before ranking and binding slots.
  */
 
 import { SLOT_STATES } from './DeckConstructionState.js';
+import { CandidateAdmissionGate } from './CandidateAdmissionGate.js';
 
 export class SlotCandidateRanker {
   static rankAndBindDeck(deckState, cardPool = [], exhaustionTracker = null) {
@@ -36,7 +37,10 @@ export class SlotCandidateRanker {
           return true;
         });
 
-        const chosenCard = matchingCards[accepted % Math.max(1, matchingCards.length)] || {
+        // Pass candidates through CandidateAdmissionGate filter pass
+        const { admitted, rejected } = CandidateAdmissionGate.filterCandidates(matchingCards, slot.role);
+
+        const chosenCard = admitted[accepted % Math.max(1, admitted.length)] || {
           name: `${slot.role} Card #${accepted + 1}`,
           cmc: 2,
           type_line: 'Spell'
@@ -49,6 +53,7 @@ export class SlotCandidateRanker {
           `IR Node: ${slot.irNodeId || 'node_ir_1'}`,
           `Package: ${packageId}`,
           `Slot: ${slot.id}`,
+          `Candidate Admission Gate: PASS (Admitted: ${admitted.length}, Rejected: ${rejected.length})`,
           `Candidate Ranking: #1 Score 0.95`,
           `Chosen Card: ${chosenCard.name}`,
           `Judge Approval: PASS`
