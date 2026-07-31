@@ -1,7 +1,7 @@
 /**
  * KnowledgeGraph.js
- * Single Multi-Typed Relationship Graph for BattleBox Architect.
- * Sub-graphs (ConceptGraph, ThreatGraph, EngineGraph, ReplacementGraph) are dynamic view queries over this graph.
+ * Single Multi-Typed Relationship Graph with Temporal Causal State Nodes.
+ * Sub-graphs (ConceptGraph, ThreatGraph, EngineGraph, ReplacementGraph, CausalGraph) are dynamic view queries over this graph.
  */
 
 export class KnowledgeGraph {
@@ -24,6 +24,11 @@ export class KnowledgeGraph {
 
   getNode(id) {
     return this.nodes.get(id) || null;
+  }
+
+  // Filter View Query: Temporal Causal State Graph View
+  getCausalGraphView() {
+    return this.relationships.filter(r => r.type === 'CAUSES' || r.type === 'ENABLES');
   }
 
   // Filter View Query: ConceptGraph View
