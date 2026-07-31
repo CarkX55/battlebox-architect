@@ -1,60 +1,59 @@
 /**
  * DecisionEngine.js
- * Contextual Card Ranking Decision Engine integrated with StrategicKnowledgeBase.
+ * Contextual Card Ranking Decision Engine integrated with CardRoleIntelligence.
  * Evaluates why Card A is strategically superior to Card B in a specific deck context.
- * Evaluates: Contextual Tempo (T1 Dork > T2 Dork), Legendary Synergy, Color Fixing, Sweeper Resilience, and Graveyard Hate.
+ * Evaluates: Primary Card Role, Criticality (0.0 to 1.0), Plan Support, Tempo, Synergy, Resilience, and Mana Fixing.
  */
 
 import { StrategicKnowledgeBase } from '../domain/StrategicKnowledgeBase.js';
+import { CardRoleIntelligence } from '../domain/CardRoleIntelligence.js';
 
 export class DecisionEngine {
   static scoreCandidateInContext(card, deckContext = {}) {
     if (!card) return { score: 0, breakdown: {} };
 
-    const text = (card.oracleText || card.oracle_text || card.text || '').toLowerCase();
-    const typeLine = (card.type_line || card.type || '').toLowerCase();
-    const name = (card.name || '').toLowerCase();
-    const cmc = card.cmc || 0;
+    const name = card.name || '';
+    const cardRole = CardRoleIntelligence.getCardRole(name);
+    const criticality = cardRole ? cardRole.criticality : 0.70;
 
-    // Evaluate tempo score from StrategicKnowledgeBase domain rules
-    let tempoScore = StrategicKnowledgeBase.evaluateTempoScore(card.name, deckContext.role || '');
+    let tempoScore = StrategicKnowledgeBase.evaluateTempoScore(name, deckContext.role || '');
     let synergyScore = 0.50;
     let resilienceScore = 0.50;
     let fixingScore = 0.50;
 
     // 1. Contextual Ramp Evaluation (Delighted Halfling vs Armored Scrapgorger vs Topiary Stomper vs T2 Dork)
-    if (name.includes('delighted halfling')) {
+    const lowerName = name.toLowerCase();
+    if (lowerName.includes('delighted halfling')) {
       tempoScore = 0.98;
-      synergyScore = 0.92; // Uncounterable legendary spells
+      synergyScore = 0.92;
       resilienceScore = 0.65;
       fixingScore = 0.85;
-    } else if (name.includes('armored scrapgorger')) {
+    } else if (lowerName.includes('armored scrapgorger')) {
       tempoScore = 0.80;
       synergyScore = 0.70;
-      resilienceScore = 0.85; // Graveyard hate
+      resilienceScore = 0.85;
       fixingScore = 0.90;
-    } else if (name.includes('topiary stomper')) {
-      tempoScore = 0.70; // 3 CMC land tutor
+    } else if (lowerName.includes('topiary stomper')) {
+      tempoScore = 0.70;
       synergyScore = 0.85;
-      resilienceScore = 0.95; // Land ramp survives board sweepers
+      resilienceScore = 0.95;
       fixingScore = 0.95;
-    } else if (name.includes('llanowar elves') || name.includes('elvish mystic')) {
+    } else if (lowerName.includes('llanowar elves') || lowerName.includes('elvish mystic')) {
       tempoScore = 0.95;
       synergyScore = 0.80;
       resilienceScore = 0.50;
       fixingScore = 0.50;
-    } else {
-      if (cmc === 1) tempoScore += 0.20;
-      if (text.includes('land') && text.includes('search')) resilienceScore += 0.25;
-      if (text.includes('any color')) fixingScore += 0.30;
     }
 
-    const totalScore = Number(((tempoScore * 0.35) + (synergyScore * 0.25) + (resilienceScore * 0.25) + (fixingScore * 0.15)).toFixed(3));
+    const totalScore = Number(((criticality * 0.30) + (tempoScore * 0.30) + (synergyScore * 0.20) + (resilienceScore * 0.10) + (fixingScore * 0.10)).toFixed(3));
 
     return Object.freeze({
-      cardName: card.name,
+      cardName: name,
+      primaryRole: cardRole ? cardRole.primaryRole : 'General Filler',
+      criticality,
       totalScore,
       breakdown: Object.freeze({
+        criticalityScore: criticality,
         tempoScore,
         synergyScore,
         resilienceScore,
