@@ -1,0 +1,12 @@
+{
+  "profileName": "yawgmoth",
+  "archetype": "Golgari Yawgmoth",
+  "weights": {
+    "alpha_coverage": 0.30,
+    "beta_synergy": 0.30,
+    "gamma_consistency": 0.20,
+    "delta_redundancy": 0.10,
+    "epsilon_curvePenalty": 0.05,
+    "zeta_colorPenalty": 0.05
+  }
+}

@@ -27,9 +27,19 @@ export function createDeckIntent(formData = {}) {
     budget: 'unlimited',
     mustInclude: Object.freeze([...(formData.mustInclude || [])]),
     excludedCards: Object.freeze([...(formData.excludedNames || formData.excludedCards || [])]),
-    customInstructions: promptVal
+    customInstructions: promptVal,
+
+    // Capa de Intención Humana v16.1
+    goal: formData.goal || 'BALANCED',
+    playStyle: formData.playStyle || 'BALANCED',
+    explosiveness: formData.explosiveness || 'BALANCED',
+    complexity: formData.complexity || 'MEDIUM',
+    innovation: formData.innovation || 'SLIGHT_INNOVATION',
+    themePriority: formData.themePriority || 'STRICT_THEME_FIDELITY',
+    excludedMechanics: Object.freeze([...(formData.excludedMechanics || [])])
   });
 }
+
 
 // ─── 2. StrategicConstraints ──────────────────────────────────────────────
 export function createStrategicConstraints(intent, engineGraph = null) {
@@ -332,3 +342,21 @@ function computeMetaSimilarity(metaA, metaB) {
   if (!metaA || !metaB) return 1.0;
   return metaA.format === metaB.format ? 0.9 : 0.4;
 }
+
+// ─── 14. DeckConstructionState — Estado de Slots de Mazo SSOT ─────────────
+export function createDeckConstructionState(formData = {}) {
+  const size = formData.deckSize || 60;
+  return {
+    format: formData.formato || formData.format || 'Legacy BattleBox',
+    archetype: formData.arquetipo || formData.archetype || 'Aggro',
+    colors: Array.isArray(formData.colores) ? [...formData.colores] : ['R'],
+    targetSize: size,
+    slots: new Array(size).fill(null),
+    sideboard: [],
+    metadata: {
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    }
+  };
+}
+

@@ -1,0 +1,12 @@
+{
+  "profileName": "merfolk",
+  "archetype": "Merfolk Tempo",
+  "weights": {
+    "alpha_coverage": 0.35,
+    "beta_synergy": 0.25,
+    "gamma_consistency": 0.20,
+    "delta_redundancy": 0.10,
+    "epsilon_curvePenalty": 0.05,
+    "zeta_colorPenalty": 0.05
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "benchmarkId": "BENCH_MODERN_ELVES_v13",
+  "archetype": "Golgari Elves",
+  "format": "Modern",
+  "expectedMacroGoal": "Explosive Ramp into Overrun Finisher",
+  "expectedCapabilities": [
+    { "capabilityId": "cap.mana.acceleration.t1.v1", "minUnits": 8, "targetProbability": 0.88 },
+    { "capabilityId": "cap.engine.coco.v1", "minUnits": 4, "targetProbability": 0.80 },
+    { "capabilityId": "cap.finisher.lethal.v1", "minUnits": 2, "targetProbability": 0.70 }
+  ],
+  "minExpectedKillTurn": 4.5,
+  "minExpectedUtilityScore": 85.0
+}

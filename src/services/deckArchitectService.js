@@ -42,6 +42,8 @@ import {
 } from './deckContractEngine.js';
 import { runV6AutonomousPipeline } from './autonomousStrategicPipeline.js';
 import { normalizeForgeInput, countCopies, countWhere, consolidateDeckCards } from '../models/strategicState.js';
+import { CopyAllocationAuditor } from './compiler/core/copyAllocationAuditor.js';
+import { DeckTelemetry } from './compiler/core/deckTelemetry.js';
 
 
 
@@ -4997,27 +4999,46 @@ export async function assembleDeckFromBlueprint(blueprint, formData, aiConfig, o
 
   const cleanFinalDeck = finalDeckList.filter(c => c.quantity > 0);
 
+  // Sprint 23: Architectural Invariant Audit on the assembled deck
+  const copyAllocationState = v6Result.convergenceResult?.copyAllocationState || v6Result.blueprint?.copyAllocationState || null;
+  const assemblerAudit = CopyAllocationAuditor.audit(
+    copyAllocationState,
+    cleanFinalDeck,
+    null // MutationLog — will be wired in Sprint 24
+  );
+  const assemblerTelemetry = DeckTelemetry.capture(
+    cleanFinalDeck,
+    copyAllocationState,
+    assemblerAudit
+  );
+
+  console.log('[Sprint 23] Assembler Audit:', assemblerAudit.status);
+  console.log(DeckTelemetry.format(assemblerTelemetry));
+
   return {
     deckName: `${usedColors.join('')} ${normInput.archetype ? normInput.archetype.charAt(0).toUpperCase() + normInput.archetype.slice(1) : 'Ramp'} v8.0`,
     archetype: normInput.archetype || 'Ramp',
     cards: cleanFinalDeck,
     sideboard: v6Result.sideboard || [],
     sideboard_strategy: 'Estrategia adaptativa basada en políticas v8.0',
-    lore: `Mazo compilado deterministamente con BattleBox Architect v8.0 (14-Pass Observable Pipeline). Elo Estratégico: ${v6Result.strategicElo?.strategicElo || 2509} (${v6Result.strategicElo?.percentileRank || '87%'} Percentil).`,
+    lore: `Mazo compilado deterministamente con BattleBox Architect v8.0 (15-Pass Observable Pipeline). Elo Estratégico: ${v6Result.strategicElo?.strategicElo || 2509} (${v6Result.strategicElo?.percentileRank || '87%'} Percentil).`,
     strategy: `Plan de Victoria Causal (Goal: ${v6Result.convergenceResult?.strategyCompetition?.winningStrategy || 'Turn 4 Lethal Overrun'}).`,
     mulligan: 'Mano con aceleración T1 y presencia en mesa T2.',
     v6Result,
+    architecturalAudit: assemblerAudit,
+    deckTelemetry: assemblerTelemetry,
     generationLogs: {
       logs: [
-        '[14-Pass Observable Execution Pipeline] Mazo compilado deterministamente.',
+        '[15-Pass Observable Execution Pipeline] Mazo compilado deterministamente.',
         `Calibración Estratégica: ${v6Result.calibrationReport?.uncertaintyBounds?.formattedElo || '2509 ± 180 Elo'}`,
-        `Base de Maná Karsten: 24 tierras calculadas para curva promedio 2.4 y 10 dorks virtuales.`
+        `Base de Maná Karsten: 24 tierras calculadas para curva promedio 2.4 y 10 dorks virtuales.`,
+        `Architectural Audit: ${assemblerAudit.status} — ${assemblerAudit.violations.length} violations`
       ],
-      systemPrompt: '14-Pass Observable Compiler Execution Pipeline System',
-      contextPrompt: 'Whole-Strategy Competition -> Goal Graph -> 12-D Ranking -> Karsten 24 Lands -> 10-Verifier Judge -> 5,000 Monte Carlo',
+      systemPrompt: '15-Pass Observable Compiler Execution Pipeline System',
+      contextPrompt: 'Whole-Strategy Competition -> Goal Graph -> 12-D Ranking -> Karsten 24 Lands -> 10-Verifier Judge -> 5,000 Monte Carlo -> Architectural Invariant Audit',
       rawResponse: null,
       compiledDeck: cleanFinalDeck,
-      generationMode: '14_PASS_OBSERVABLE_PIPELINE_V8',
+      generationMode: '15_PASS_OBSERVABLE_PIPELINE_V8',
       error: null
     }
   };

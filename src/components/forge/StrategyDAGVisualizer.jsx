@@ -1,97 +1,133 @@
 import { useState } from 'react';
 import { Target, CheckCircle2, ShieldCheck, Zap, ArrowRight, Layers, Sparkles } from 'lucide-react';
 
-export default function StrategyDAGVisualizer({ strategy = '', deckName = '' }) {
+export default function StrategyDAGVisualizer({ strategy = '', deckName = '', roles = [], blueprint = {}, dagNodes: propDagNodes = null }) {
   const [selectedNode, setSelectedNode] = useState('node_t1');
 
-  const text = `${deckName} ${strategy}`.toLowerCase();
-  const isControl = text.includes('control') || text.includes('draw') || text.includes('removal');
+  // Single Source of Truth: Consume dagNodes directly from CanonicalBlueprintModel / prop if provided
+  let dagNodes = Array.isArray(propDagNodes) && propDagNodes.length > 0 ? propDagNodes : (Array.isArray(blueprint?.dagNodes) && blueprint.dagNodes.length > 0 ? blueprint.dagNodes : []);
 
-  const dagNodes = isControl ? [
-    {
-      id: 'node_t1',
-      turn: 'T1',
-      title: 'Mana Acceleration & Cantrips',
-      capability: 'cap.mana.acceleration',
-      status: 'SATISFIED',
-      cardsCount: 10,
-      produces: ['+ Mana Advantage', '+ Library Velocity'],
-      dependsOn: [],
-      cardBindings: ['Llanowar Elves', 'Birds of Paradise', 'Utopia Sprawl', 'Ponder']
-    },
-    {
-      id: 'node_t2',
-      title: 'Resource Engine & Draw',
-      capability: 'cap.card.draw',
-      status: 'SATISFIED',
-      cardsCount: 8,
-      produces: ['+ Card Advantage', '+ Selection'],
-      dependsOn: ['node_t1'],
-      cardBindings: ['Night\'s Whisper', 'Sylvan Library', 'Expressive Iteration']
-    },
-    {
-      id: 'node_t3',
-      title: 'Interaction & Removal Package',
-      capability: 'cap.removal.single_target',
-      status: 'SATISFIED',
-      cardsCount: 6,
-      produces: ['+ Board Control', '- Threat Density'],
-      dependsOn: ['node_t2'],
-      cardBindings: ['Swords to Plowshares', 'Lightning Bolt', 'Counterspell']
-    },
-    {
-      id: 'node_t4',
-      title: 'Finisher & Board Overlord',
-      capability: 'cap.threat.density',
-      status: 'SATISFIED',
-      cardsCount: 4,
-      produces: ['+ Lethal Win Condition', '+ Game Closing'],
-      dependsOn: ['node_t3'],
-      cardBindings: ['Primeval Titan', 'Craterhoof Behemoth', 'Sheoldred']
+  if (dagNodes.length === 0) {
+    const text = `${deckName} ${strategy} ${blueprint?.prompt || ''} ${blueprint?.archetype || ''} ${blueprint?.tribe || ''}`.toLowerCase();
+    const isGiants = text.includes('giant') || text.includes('stomp');
+    const isHumans = text.includes('human');
+    const isControl = text.includes('control');
+
+    const extractCardsForRole = (roleKeywords, fallbackCards) => {
+      if (!Array.isArray(roles) || roles.length === 0) return fallbackCards;
+      const matchingRoles = roles.filter(r => {
+        const name = (r.name || r.role || '').toLowerCase();
+        const desc = (r.purposeDescription || r.description || '').toLowerCase();
+        return roleKeywords.some(kw => name.includes(kw) || desc.includes(kw));
+      });
+      const foundCards = [];
+      for (const r of matchingRoles) {
+        if (r.cardName && r.cardName !== 'Forest') foundCards.push(r.cardName);
+        if (Array.isArray(r.cards)) {
+          for (const c of r.cards) {
+            if (c && c.name && c.name !== 'Forest') foundCards.push(c.name);
+          }
+        }
+      }
+      return foundCards.length > 0 ? Array.from(new Set(foundCards)).slice(0, 4) : fallbackCards;
+    };
+
+    if (isGiants) {
+      dagNodes = [
+        {
+          id: 'node_t1',
+          turn: 'T1-T2',
+          title: 'Giant Mana Ramp & Stomp Opener',
+          capability: 'cap.mana.acceleration',
+          status: 'SATISFIED',
+          cardsCount: 12,
+          produces: ['+ Early Mana Ramp', '+ Stomp Removal', '+ Board Setup'],
+          dependsOn: [],
+          cardBindings: extractCardsForRole(['ramp', 'mana', 'acceleration', 'turn1'], ['Giant Ramp Spell', 'Stomp Removal', 'Early Acceleration'])
+        },
+        {
+          id: 'node_t2',
+          turn: 'T2-T3',
+          title: 'Stomp Interaction & Midgame Beats',
+          capability: 'cap.stomp.interaction',
+          status: 'SATISFIED',
+          cardsCount: 10,
+          produces: ['+ Targeted Damage', '+ Midgame Giant Presence'],
+          dependsOn: ['node_t1'],
+          cardBindings: extractCardsForRole(['removal', 'stomp', 'cheap'], ['Giantfall', "Anzrag's Rampage", 'Stomp Damage'])
+        },
+        {
+          id: 'node_t3',
+          turn: 'T3-T4',
+          title: 'Giant Creature Mass & Threat Engine',
+          capability: 'cap.threat.density',
+          status: 'SATISFIED',
+          cardsCount: 12,
+          produces: ['+ High-P/T Giant Bodies', '+ Combat Dominance'],
+          dependsOn: ['node_t2'],
+          cardBindings: extractCardsForRole(['tribal', 'presence', 'threat', 'board'], ['Giant Cindermaw', 'Brambleback Brute', 'Dalkovan Packbeasts'])
+        },
+        {
+          id: 'node_t4',
+          turn: 'T4-T5',
+          title: 'Lethal Giant Overwhelm Finisher',
+          capability: 'cap.threat.lethal',
+          status: 'SATISFIED',
+          cardsCount: 6,
+          produces: ['+ Trample Lethal Damage', '+ Game Closing'],
+          dependsOn: ['node_t3'],
+          cardBindings: extractCardsForRole(['finisher', 'lethal', 'overwhelm'], ['Giant Overwhelm', 'High Curve Giant', 'Combat Lethal'])
+        }
+      ];
+    } else {
+      dagNodes = [
+        {
+          id: 'node_t1',
+          turn: 'T1-T2',
+          title: `${blueprint?.tribe || 'Strategy'} Opener & Setup`,
+          capability: 'cap.mana.acceleration',
+          status: 'SATISFIED',
+          cardsCount: 12,
+          produces: ['+ Early Mana Setup', '+ Board Development'],
+          dependsOn: [],
+          cardBindings: extractCardsForRole(['mana', 'pressure'], ['Early Play', 'Mana Acceleration', 'Land Search'])
+        },
+        {
+          id: 'node_t2',
+          turn: 'T2-T3',
+          title: 'Midgame Synergy & Interaction Engine',
+          capability: 'cap.synergy',
+          status: 'SATISFIED',
+          cardsCount: 10,
+          produces: ['+ Board Control', '+ Synergistic Value'],
+          dependsOn: ['node_t1'],
+          cardBindings: extractCardsForRole(['removal', 'density'], ['Cheap Removal', 'Midgame Synergy'])
+        },
+        {
+          id: 'node_t3',
+          turn: 'T3-T4',
+          title: 'Core Strategy Threat Engine',
+          capability: 'cap.threat.density',
+          status: 'SATISFIED',
+          cardsCount: 10,
+          produces: ['+ High Threat Density', '+ Board Dominance'],
+          dependsOn: ['node_t2'],
+          cardBindings: extractCardsForRole(['threat', 'presence'], ['Core Threat', 'Archetype Finisher'])
+        },
+        {
+          id: 'node_t4',
+          turn: 'T4-T5',
+          title: 'Lethal Win Condition',
+          capability: 'cap.threat.lethal',
+          status: 'SATISFIED',
+          cardsCount: 4,
+          produces: ['+ Lethal Game Close'],
+          dependsOn: ['node_t3'],
+          cardBindings: extractCardsForRole(['finisher', 'lethal'], ['Lethal Finisher', 'Overwhelm'])
+        }
+      ];
     }
-  ] : [
-    {
-      id: 'node_t1',
-      turn: 'T1',
-      title: 'Elf Mana Engine',
-      capability: 'cap.mana.acceleration',
-      status: 'SATISFIED',
-      cardsCount: 12,
-      produces: ['+ Mana', '+ Tempo', '+ Bodies', '+ Sac Fodder'],
-      dependsOn: [],
-      cardBindings: ['Llanowar Elves', 'Elvish Mystic', 'Birds of Paradise', 'Utopia Sprawl']
-    },
-    {
-      id: 'node_t2',
-      title: 'Creature Mass & Synergy Engine',
-      capability: 'cap.synergy.token',
-      status: 'SATISFIED',
-      cardsCount: 10,
-      produces: ['+ Board Presence', '+ Token Swarm'],
-      dependsOn: ['node_t1'],
-      cardBindings: ['Elvish Archdruid', 'Imperious Perfect', 'Rishkar']
-    },
-    {
-      id: 'node_t3',
-      title: 'Protection & Anthem Package',
-      capability: 'cap.protection',
-      status: 'SATISFIED',
-      cardsCount: 4,
-      produces: ['+ Hexproof Resilience', '+ Stat Buffs'],
-      dependsOn: ['node_t2'],
-      cardBindings: ['Heroic Intervention', 'Teferi\'s Protection', 'Coat of Arms']
-    },
-    {
-      id: 'node_t4',
-      title: 'Lethal Overwhelm Finisher',
-      capability: 'cap.threat.density',
-      status: 'SATISFIED',
-      cardsCount: 4,
-      produces: ['+ Trample Overwhelm', '+ Lethal Turn 4'],
-      dependsOn: ['node_t3'],
-      cardBindings: ['Craterhoof Behemoth', 'Triumph of the Hordes', 'Overwhelming Stampede']
-    }
-  ];
+  }
 
   const activeNode = dagNodes.find(n => n.id === selectedNode) || dagNodes[0];
 
@@ -99,7 +135,7 @@ export default function StrategyDAGVisualizer({ strategy = '', deckName = '' }) 
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h4 className="text-xs font-bold uppercase tracking-widest text-purple-300 flex items-center gap-1.5 font-cinzel">
-          <Target size={14} className="text-purple-400" />
+          <Layers size={14} className="text-purple-400" />
           <span>Grafo Interactivo de Compilación Estratégica (Executable Strategy DAG)</span>
         </h4>
         <span className="text-[10px] font-mono text-purple-300 bg-purple-950/60 px-2.5 py-0.5 rounded border border-purple-500/30">
@@ -107,57 +143,55 @@ export default function StrategyDAGVisualizer({ strategy = '', deckName = '' }) 
         </span>
       </div>
 
-      {/* DAG Graph Flow */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-3 relative">
-        {dagNodes.map((node, idx) => {
+      {/* DAG Level Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+        {dagNodes.map((node) => {
           const isSelected = selectedNode === node.id;
           return (
             <div
               key={node.id}
               onClick={() => setSelectedNode(node.id)}
-              className={`p-4 rounded-2xl border transition-all cursor-pointer relative group ${
+              className={`p-3.5 rounded-2xl border transition-all cursor-pointer relative group ${
                 isSelected
-                  ? 'border-magic-gold bg-gradient-to-b from-purple-950/60 to-black text-white shadow-[0_0_20px_rgba(255,202,88,0.2)] scale-[1.02]'
+                  ? 'border-purple-400 bg-gradient-to-b from-purple-950/60 to-black text-white shadow-[0_0_20px_rgba(168,85,247,0.25)] scale-[1.02]'
                   : 'border-white/10 bg-black/40 text-white/70 hover:bg-black/60 hover:border-white/20'
               }`}
             >
-              <div className="flex justify-between items-center text-[10px] font-mono font-bold mb-2">
-                <span className="text-magic-gold font-cinzel">{node.turn || `Paso ${idx + 1}`}</span>
-                <span className="bg-emerald-950 text-emerald-300 px-1.5 py-0.5 rounded border border-emerald-500/30 text-[9px]">
+              <div className="flex justify-between items-center text-[10px] font-mono font-bold mb-1.5">
+                <span className="text-purple-300 font-cinzel">{node.turn}</span>
+                <span className="bg-emerald-950 text-emerald-300 px-2 py-0.5 rounded border border-emerald-500/30 text-[9px]">
                   {node.status}
                 </span>
               </div>
-              <h5 className="font-cinzel text-xs font-bold text-white mb-1 leading-tight">{node.title}</h5>
-              <span className="text-[10px] font-mono text-purple-300 block mb-2">{node.capability}</span>
-              
-              <div className="flex items-center justify-between text-[10px] text-white/50 border-t border-white/10 pt-2 font-mono">
+
+              <h5 className="font-cinzel text-xs font-bold text-white mb-1.5 leading-tight">{node.title}</h5>
+              <span className="text-[9px] font-mono text-purple-300/70 block mb-2">{node.capability}</span>
+
+              <div className="text-[10px] font-mono text-white/50 border-t border-white/10 pt-1.5">
                 <span>{node.cardsCount} cartas</span>
-                {idx < dagNodes.length - 1 && <ArrowRight size={12} className="text-magic-gold/60" />}
               </div>
             </div>
           );
         })}
       </div>
 
-      {/* Node Inspector Detail Panel */}
+      {/* Active Node Detail Inspector */}
       {activeNode && (
-        <div className="p-4 bg-black/80 border border-purple-500/40 rounded-2xl space-y-3 shadow-xl backdrop-blur-md">
+        <div className="p-4 bg-black/90 border border-purple-500/40 rounded-2xl space-y-3 backdrop-blur-md shadow-2xl">
           <div className="flex items-center justify-between border-b border-white/10 pb-2">
-            <div className="flex items-center gap-2">
-              <Sparkles size={14} className="text-magic-gold" />
-              <span className="font-cinzel font-bold text-xs text-magic-gold uppercase tracking-wider">
-                Detalle de Nodo DAG: {activeNode.title}
-              </span>
-            </div>
-            <span className="text-[10px] font-mono text-purple-300">{activeNode.capability}</span>
+            <h5 className="font-cinzel text-xs font-bold text-purple-200 uppercase tracking-wider flex items-center gap-2">
+              <Sparkles size={14} className="text-purple-400" />
+              <span>Detalle de Nodo DAG: {activeNode.title}</span>
+            </h5>
+            <span className="text-[10px] font-mono text-gray-400">{activeNode.capability}</span>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-mono">
             <div>
-              <span className="text-white/50 block font-cinzel text-[10px] uppercase mb-1">Efectos & Capacidades Producidas</span>
+              <span className="text-[10px] text-white/40 block mb-1 uppercase font-bold tracking-wider">Efectos & Capacidades Producidas</span>
               <div className="flex flex-wrap gap-1.5">
-                {activeNode.produces.map((p, i) => (
-                  <span key={i} className="bg-purple-950/80 text-purple-300 px-2 py-0.5 rounded border border-purple-500/30 font-mono text-[10px]">
+                {(activeNode.produces || []).map((p, idx) => (
+                  <span key={idx} className="px-2 py-0.5 bg-purple-950/80 border border-purple-500/30 text-purple-200 rounded text-[10px]">
                     {p}
                   </span>
                 ))}
@@ -165,11 +199,12 @@ export default function StrategyDAGVisualizer({ strategy = '', deckName = '' }) 
             </div>
 
             <div>
-              <span className="text-white/50 block font-cinzel text-[10px] uppercase mb-1">Cartas que Satisfacen este Nodo</span>
+              <span className="text-[10px] text-white/40 block mb-1 uppercase font-bold tracking-wider">Cartas que Satisfacen este Nodo</span>
               <div className="flex flex-wrap gap-1.5">
-                {activeNode.cardBindings.map((c, i) => (
-                  <span key={i} className="bg-emerald-950/80 text-emerald-300 px-2 py-0.5 rounded border border-emerald-500/30 font-mono text-[10px]">
-                    ✓ {c}
+                {(activeNode.cardBindings || []).map((card, idx) => (
+                  <span key={idx} className="px-2 py-0.5 bg-emerald-950/80 border border-emerald-500/30 text-emerald-300 rounded text-[10px] flex items-center gap-1">
+                    <CheckCircle2 size={10} />
+                    <span>{card}</span>
                   </span>
                 ))}
               </div>

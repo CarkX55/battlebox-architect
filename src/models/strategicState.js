@@ -302,6 +302,28 @@ export function normalizeForgeInput(formData = {}) {
 
   const deckSize = Number(formData.deckSize || formData.size || 60);
 
+  // Intent Spectrum de Intención Humana v16.1
+  const goal = (formData.goal || formData.objetivo || 'BALANCED').toUpperCase().trim();
+  const playStyle = (formData.playStyle || formData.estilo || 'BALANCED').toUpperCase().trim();
+  const explosiveness = (formData.explosiveness || formData.explosividad || 'BALANCED').toUpperCase().trim();
+  const complexity = (formData.complexity || formData.complejidad || 'MEDIUM').toUpperCase().trim();
+  const innovation = (formData.innovation || formData.innovacion || 'SLIGHT_INNOVATION').toUpperCase().trim();
+  const themePriority = (formData.themePriority || formData.fidelidadTema || 'STRICT_THEME_FIDELITY').toUpperCase().trim();
+
+  let excludedMechanics = formData.excludedMechanics || formData.mecanicasExcluidas || [];
+  if (typeof excludedMechanics === 'string') {
+    excludedMechanics = excludedMechanics.split(/[,\n]/).map(s => s.trim().toUpperCase()).filter(Boolean);
+  } else if (Array.isArray(excludedMechanics)) {
+    excludedMechanics = excludedMechanics.map(s => String(s).trim().toUpperCase()).filter(Boolean);
+  }
+
+  let excludedCards = formData.excludedCards || formData.cartasExcluidas || [];
+  if (typeof excludedCards === 'string') {
+    excludedCards = excludedCards.split(/[,\n]/).map(s => s.trim()).filter(Boolean);
+  } else if (Array.isArray(excludedCards)) {
+    excludedCards = excludedCards.map(s => typeof s === 'string' ? s.trim() : (s?.name || '')).filter(Boolean);
+  }
+
   return {
     ...formData,
     format,
@@ -318,6 +340,15 @@ export function normalizeForgeInput(formData = {}) {
     mustInclude,
     vetoedCards,
     vetoedKeywords,
-    deckSize
+    deckSize,
+    goal,
+    playStyle,
+    explosiveness,
+    complexity,
+    innovation,
+    themePriority,
+    excludedMechanics,
+    excludedCards
   };
 }
+

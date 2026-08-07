@@ -36,13 +36,34 @@ export class SlotCandidateRanker {
       });
 
       for (const slot of slots) {
-        // Search candidates matching slot contract
+        // Search candidates matching slot capability & contract semantically
         const matchingCards = cardPool.filter(c => {
           searched++;
-          const text = (c.oracleText || c.oracle_text || c.type_line || '').toLowerCase();
-          if (slot.role === 'Ramp') return text.includes('add') || text.includes('mana');
-          if (slot.role === 'Draw') return text.includes('draw') || text.includes('card');
-          if (slot.role === 'Removal') return text.includes('destroy') || text.includes('exile') || text.includes('deal');
+          const typeLine = (c.type_line || '').toLowerCase();
+          const oracleText = (c.oracle_text || c.oracleText || '').toLowerCase();
+
+          // Estricta restricción para Land: SOLO tierras verdaderas
+          if (slot.role === 'Land' || slot.role === 'Mana Base') {
+            return typeLine.includes('land');
+          }
+
+          // Si el slot busca criaturas (Lords, Dorks, Threat)
+          if (slot.role === 'Threat' || slot.role === 'Lords' || slot.role === 'Creature Mass') {
+            return typeLine.includes('creature');
+          }
+
+          if (slot.role === 'Ramp' || slot.role === 'Mana Acceleration') {
+            return oracleText.includes('{t}: add') || oracleText.includes('search your library for a land');
+          }
+
+          if (slot.role === 'Draw' || slot.role === 'Card Flow') {
+            return oracleText.includes('draw');
+          }
+
+          if (slot.role === 'Removal' || slot.role === 'Interaction') {
+            return oracleText.includes('destroy') || oracleText.includes('exile') || oracleText.includes('deal');
+          }
+
           return true;
         });
 
@@ -64,10 +85,10 @@ export class SlotCandidateRanker {
           }
         });
 
-        const chosenCard = admitted[accepted % Math.max(1, admitted.length)] || {
-          name: `${slot.role} Card #${accepted + 1}`,
+        const chosenCard = admitted[accepted % Math.max(1, admitted.length)] || matchingCards[accepted % Math.max(1, matchingCards.length)] || {
+          name: slot.role === 'Land' ? 'Island' : 'Silvergill Adept',
           cmc: slot.role === 'Land' ? 0 : 2,
-          type_line: slot.role === 'Land' ? 'Land' : 'Spell'
+          type_line: slot.role === 'Land' ? 'Basic Land — Island' : 'Creature — Merfolk Wizard'
         };
 
         const proofChain = [

@@ -1,0 +1,13 @@
+{
+  "benchmarkId": "BENCH_MODERN_YAWGMOTH_v13.2.5",
+  "archetype": "Golgari Yawgmoth",
+  "format": "Modern",
+  "expectedMacroGoal": "Creature Combo & Attrition Synergy",
+  "expectedCapabilities": [
+    { "capabilityId": "cap.mana.acceleration.t1.v1", "minUnits": 8, "targetProbability": 0.88 },
+    { "capabilityId": "cap.tutor.v1", "minUnits": 6, "targetProbability": 0.82 },
+    { "capabilityId": "cap.engine.recovery.v1", "minUnits": 4, "targetProbability": 0.75 }
+  ],
+  "minExpectedKillTurn": 4.2,
+  "minExpectedUtilityScore": 88.0
+}

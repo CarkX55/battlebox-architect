@@ -53,3 +53,7 @@ data/knowledge/*.db
 !data/mtgjson/.gitkeep
 !data/cache/.gitkeep
 !data/knowledge/.gitkeep
+
+# Archive files
+*.zip
+

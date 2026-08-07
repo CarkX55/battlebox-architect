@@ -1,0 +1,11 @@
+{
+  "benchmarkId": "BENCH_MODERN_TRON_v13.2.5",
+  "archetype": "Mono Green Tron",
+  "format": "Modern",
+  "expectedMacroGoal": "Tron Lands Assembly into Colorless Eldrazi Payoffs",
+  "expectedCapabilities": [
+    { "capabilityId": "cap.mana.multiplier.v1", "minUnits": 12, "targetProbability": 0.92 }
+  ],
+  "minExpectedKillTurn": 4.0,
+  "minExpectedUtilityScore": 85.0
+}

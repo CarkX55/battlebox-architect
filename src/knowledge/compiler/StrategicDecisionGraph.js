@@ -35,59 +35,91 @@ export class DecisionNode {
 }
 
 export class StrategicDecisionGraph {
-  static buildDecisionGraph(intent = 'SELESNYA_RAMP') {
+  /**
+   * Generates a dynamic read-only visual decision graph based on user intent/deck state.
+   * Pure visual projection view — ZERO decision authority.
+   * 
+   * @param {string|Object} intentInput - Intent prompt or IntentPackage
+   * @returns {Object} Read-only visual graph structure
+   */
+  static buildDecisionGraph(intentInput = 'Custom Intent') {
+    const promptStr = typeof intentInput === 'string' ? intentInput : (intentInput.prompt || intentInput.archetype || 'Custom Deck');
+    const promptLower = promptStr.toLowerCase();
+
+    let primaryEngine = 'Early Pressure & Board Swarm';
+    let secondaryEngine = 'Tribal Synergy & Stat Buffs';
+    let primaryGoal = 'Establish early board dominance and win by Turn 4-5';
+    let fallbackPlan = 'Pivot to midgame card flow and instant interaction';
+
+    if (promptLower.includes('human') || promptLower.includes('boros')) {
+      primaryEngine = 'Human Aggro & Low-CMC Pressure';
+      secondaryEngine = 'Lord Buffs & Token Swarm';
+      primaryGoal = 'Deploy 1-2 CMC Humans T1-T3 and overwhelm opponent before Turn 5';
+      fallbackPlan = 'Use cheap removal to clear blockers and maintain tempo';
+    } else if (promptLower.includes('control')) {
+      primaryEngine = 'Counter-Tempo & Sweeper Control';
+      secondaryEngine = 'Card Advantage & Planeswalker Finishers';
+      primaryGoal = 'Neutralize early threats and dominate late game';
+      fallbackPlan = 'Grind card advantage via ETB draw engines';
+    } else if (promptLower.includes('ramp') || promptLower.includes('devotion')) {
+      primaryEngine = 'Mana Acceleration Engine';
+      secondaryEngine = 'High-CMC Payoff Threats';
+      primaryGoal = 'Accelerate mana to cast 5+ CMC threats by Turn 4';
+      fallbackPlan = 'Pivot to Midrange Land Ramp';
+    }
+
     const nodes = [
       new DecisionNode({
-        id: 'node_mana_acceleration',
-        title: 'Need Fast Mana (6 Mana by T4)',
-        importance: 0.98,
-        failureImpact: 'VERY_HIGH',
+        id: 'node_engine_deployment',
+        title: `Primary Engine Deployment (${primaryEngine})`,
+        importance: 0.95,
+        failureImpact: 'HIGH',
         replacementDifficulty: 'LOW',
         requiredBeforeTurn: 'T1',
         satisfiedPercentage: 96,
-        conditionIf: 'Acceleration < 8',
-        thenAction: 'Increase Ramp Package Size (+2 Slots)',
-        elseAction: 'Maintain Current Threat Density',
-        fallbackPlan: 'Pivot to Midrange Land Ramp (Topiary Stomper)'
+        conditionIf: 'Engine Density < 10',
+        thenAction: 'Increase Core Package Size (+2 Slots)',
+        elseAction: 'Maintain Current Threat Curve',
+        fallbackPlan
       }),
       new DecisionNode({
-        id: 'node_sweeper_resilience',
-        title: 'Sweeper & Removal Resilience',
+        id: 'node_interaction_coverage',
+        title: 'Interaction & Removal Coverage',
         importance: 0.88,
-        failureImpact: 'HIGH',
+        failureImpact: 'MEDIUM',
         replacementDifficulty: 'MEDIUM',
-        requiredBeforeTurn: 'T3',
-        satisfiedPercentage: 90,
-        conditionIf: 'Meta Removal > 35%',
-        thenAction: 'Inject Protection Package (Heroic Intervention / Teferi\'s Protection)',
-        elseAction: 'Inject Aggressive Finishers',
-        fallbackPlan: 'Graveyard Recursion & Card Draw Engines'
+        requiredBeforeTurn: 'T2',
+        satisfiedPercentage: 92,
+        conditionIf: 'Opposing Threat Resolved',
+        thenAction: 'Cast Cheap Removal / Counterspell',
+        elseAction: 'Continue Board Swarm',
+        fallbackPlan: 'Pivot to Instant-Speed Removal'
       }),
       new DecisionNode({
-        id: 'node_lethal_overwhelm',
-        title: 'Turn 4-5 Lethal Overwhelm Finisher',
-        importance: 0.95,
+        id: 'node_win_condition',
+        title: 'Win Condition Execution',
+        importance: 0.98,
         failureImpact: 'CRITICAL',
         replacementDifficulty: 'HIGH',
         requiredBeforeTurn: 'T4',
-        satisfiedPercentage: 94,
-        conditionIf: 'Board Presence Established',
-        thenAction: 'Cast Craterhoof Behemoth / Triumph of the Hordes',
-        elseAction: 'Cast Card Advantage Engine (Harmonize / Deluge)',
-        fallbackPlan: 'Grind Value with Midrange Threats'
+        satisfiedPercentage: 95,
+        conditionIf: 'Board Advantage Established',
+        thenAction: 'Execute Finisher / Full Attack',
+        elseAction: 'Maintain Resource Flow & Card Advantage',
+        fallbackPlan
       })
     ];
 
     return Object.freeze({
-      intent,
-      primaryGoal: 'Reach 6 Mana before Turn 4 & Cast Lethal Finisher',
-      primaryEngine: 'Elf Ramp & Creature Mass',
-      secondaryEngine: 'Token Swarm & Stat Buffs',
-      fallbackPlan: 'Midrange Land Ramp & Value Recovery',
-      failureConditions: ['Early Board Sweeper (Farewell / Wrath)', 'Mana Screw (< 2 Lands)'],
-      adaptiveResponse: 'Increase Land Ramp & Protection Contracts',
+      intent: promptStr,
+      primaryGoal,
+      primaryEngine,
+      secondaryEngine,
+      fallbackPlan,
+      failureConditions: ['Opposing Sweeper', 'Mana Screw (< 2 Lands)'],
+      adaptiveResponse: 'Adjust interaction density and curve bounds',
       expectedKillTurn: 5,
-      confidence: 0.94,
+      confidence: 0.95,
       nodes: Object.freeze(nodes)
     });
   }

@@ -1,0 +1,12 @@
+{
+  "benchmarkId": "BENCH_MODERN_LIVING_END_v13.2.5",
+  "archetype": "Living End",
+  "format": "Modern",
+  "expectedMacroGoal": "Cycling into Cascade Living End Wipe",
+  "expectedCapabilities": [
+    { "capabilityId": "cap.engine.living_end.v1", "minUnits": 1, "targetProbability": 0.85 },
+    { "capabilityId": "cap.tutor.v1", "minUnits": 8, "targetProbability": 0.90 }
+  ],
+  "minExpectedKillTurn": 4.0,
+  "minExpectedUtilityScore": 89.0
+}

@@ -1,0 +1,12 @@
+{
+  "profileName": "tron",
+  "archetype": "Mono Green Tron",
+  "weights": {
+    "alpha_coverage": 0.30,
+    "beta_synergy": 0.20,
+    "gamma_consistency": 0.30,
+    "delta_redundancy": 0.10,
+    "epsilon_curvePenalty": 0.05,
+    "zeta_colorPenalty": 0.05
+  }
+}

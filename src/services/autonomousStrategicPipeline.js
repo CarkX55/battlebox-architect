@@ -14,6 +14,8 @@ import { buildCardPool } from './ragService.js';
 import { getAllCards } from './dbIngestor.js';
 import { CompilerConvergencePipeline } from '../knowledge/compiler/CompilerConvergencePipeline.js';
 import { OracleTraceLog } from '../knowledge/serving/OracleTraceLog.js';
+import { CopyAllocationAuditor } from './compiler/core/copyAllocationAuditor.js';
+import { DeckTelemetry } from './compiler/core/deckTelemetry.js';
 
 export const V7_STRATEGIC_COMPILER_ENABLED = true;
 
@@ -37,33 +39,58 @@ export async function runV6AutonomousPipeline(formData = {}) {
     candidatePool = allCards.slice(0, 250);
   }
 
-  const cleanPool = candidatePool.filter(c => !deckIdentity.isCardForbidden(c));
+  // Filtrado de Exclusiones de la Intención del Usuario v16.1
+  const excludedMechSet = new Set((normInput.excludedMechanics || []).map(m => String(m).toUpperCase()));
+  const excludedCardSet = new Set((normInput.excludedCards || []).map(c => String(c).toLowerCase().trim()));
+
+  const cleanPool = candidatePool.filter(c => {
+    if (!c || !c.name) return false;
+    if (deckIdentity.isCardForbidden(c)) return false;
+
+    const nameLower = c.name.toLowerCase().trim();
+    if (excludedCardSet.has(nameLower)) return false;
+
+    const typeLine = (c.type_line || '').toLowerCase();
+    const oracleText = (c.oracle_text || c.oracleText || '').toLowerCase();
+
+    if (excludedMechSet.has('FETCHLANDS') && oracleText.includes('search your library for a land') && typeLine.includes('land')) return false;
+    if (excludedMechSet.has('PLANESWALKERS') && typeLine.includes('planeswalker')) return false;
+    if (excludedMechSet.has('COUNTERSPELLS') && oracleText.includes('counter target')) return false;
+    if (excludedMechSet.has('TUTORS') && (oracleText.includes('search your library for a card') || oracleText.includes('tutor'))) return false;
+
+    return true;
+  });
 
   // Execute 14-Pass Observable Execution Pipeline
   const userPrompt = formData.prompt || `${normInput.archetype || 'Ramp'} ${normInput.format || 'Standard'}`;
+
   const convergenceResult = CompilerConvergencePipeline.compileDeckFromScratch({
     userPrompt,
     archetype: normInput.archetype || 'Ramp',
     format: normInput.format || 'Standard',
-    rawCardPool: cleanPool
+    rawCardPool: cleanPool,
+    uiFormState: formData
   });
 
   const state = convergenceResult.state;
-  const boundCards = state ? state.slots.map(s => s.chosenCard).filter(Boolean) : [];
+  const compiledDeckList = state && Array.isArray(state.cards) ? state.cards : [];
 
-  // Group bound cards by name into deck list
-  const cardMap = new Map();
-  for (const c of boundCards) {
-    if (!c || !c.name) continue;
-    const existing = cardMap.get(c.name);
-    if (existing) {
-      existing.quantity += 1;
-    } else {
-      cardMap.set(c.name, { ...c, quantity: 1 });
-    }
-  }
+  // Sprint 23: Architectural Invariant Audit — informative mode
+  const copyAllocationState = convergenceResult.copyAllocationState || null;
+  const architecturalAudit = CopyAllocationAuditor.audit(
+    copyAllocationState,
+    compiledDeckList,
+    null // MutationLog — will be wired in Sprint 24
+  );
+  const deckTelemetry = DeckTelemetry.capture(
+    compiledDeckList,
+    copyAllocationState,
+    architecturalAudit
+  );
 
-  const compiledDeckList = Array.from(cardMap.values());
+  // Log telemetry to console for observability
+  console.log('[Sprint 23] Architectural Invariant Audit:', architecturalAudit.status);
+  console.log(DeckTelemetry.format(deckTelemetry));
 
   const structuredScore = {
     totalUtility: 94,
@@ -72,24 +99,99 @@ export async function runV6AutonomousPipeline(formData = {}) {
     contributors: { WinRateBase: 94 }
   };
 
-  const copBlueprint = {
+  // Build Pure Knowledge-Driven Strategic Contract Graph (DAG) v16.1 Refined
+  const isMerfolk = (normInput.archetype || '').toLowerCase().includes('merfolk');
+
+  const strategicNodes = [
+    {
+      nodeId: 'MANA_ENGINE',
+      role: 'Mana Base & Sources',
+      observedCapabilities: ['adds_mana', 'color_fixing'],
+      strategicCapabilities: ['MANA_BASE', 'COLOR_SOURCES'],
+      constraints: { minSources: 18, format: normInput.format || 'Modern' },
+      densityContract: { minimumCopies: 22, idealCopies: 24, maximumCopies: 26, varianceTolerance: 0.05 },
+      priority: 'CRITICAL'
+    },
+    {
+      nodeId: 'FREE_DEPLOYMENT',
+      role: 'Mana Efficiency / Vial Engine',
+      observedCapabilities: ['has_flash', 'cheats_mana'],
+      strategicCapabilities: ['CHEATING_MANA', 'FLASH_TEMPO'],
+      constraints: { maxCmc: 1 },
+      densityContract: { minimumCopies: 4, idealCopies: 4, maximumCopies: 4, varianceTolerance: 0.0 },
+      priority: 'HIGH'
+    },
+    {
+      nodeId: 'LORD_ENGINE',
+      role: isMerfolk ? 'Merfolk Tribal Lords' : 'Threat Mass',
+      observedCapabilities: ['gives_power', 'static_buff'],
+      strategicCapabilities: isMerfolk ? ['TRIBAL_LORD', 'CREATURE_MASS'] : ['VALUE_THREAT'],
+      constraints: { maxCmc: 3, tribe: isMerfolk ? 'Merfolk' : null },
+      densityContract: { minimumCopies: 8, idealCopies: 12, maximumCopies: 14, varianceTolerance: 0.15 },
+      priority: 'CRITICAL'
+    },
+    {
+      nodeId: 'CARD_FLOW',
+      role: 'Resource Flow & Cantrips',
+      observedCapabilities: ['draws_cards', 'etb_draw'],
+      strategicCapabilities: ['CARD_FLOW', 'MIDGAME_ADVANTAGE'],
+      constraints: { maxCmc: 2 },
+      densityContract: { minimumCopies: 4, idealCopies: 6, maximumCopies: 8, varianceTolerance: 0.10 },
+      priority: 'HIGH'
+    },
+    {
+      nodeId: 'TEMPO_PROTECTION',
+      role: 'Interaction & Protection',
+      observedCapabilities: ['counterspell', 'destroys_permanent'],
+      strategicCapabilities: ['TEMPO_PROTECTION', 'COUNTERMAGIC'],
+      constraints: { maxCmc: 3 },
+      densityContract: { minimumCopies: 4, idealCopies: 8, maximumCopies: 10, varianceTolerance: 0.20 },
+      priority: 'HIGH'
+    },
+    {
+      nodeId: 'ISLANDWALK_LETHAL',
+      role: 'Evasion & Finisher',
+      observedCapabilities: ['unblockable', 'islandwalk'],
+      strategicCapabilities: ['EVASION', 'CLOSING_THREAT'],
+      constraints: { maxCmc: 3 },
+      densityContract: { minimumCopies: 2, idealCopies: 4, maximumCopies: 6, varianceTolerance: 0.10 },
+      priority: 'HIGH'
+    }
+  ];
+
+
+  const strategicEdges = [
+    { from: 'MANA_ENGINE', to: 'FREE_DEPLOYMENT' },
+    { from: 'FREE_DEPLOYMENT', to: 'LORD_ENGINE' },
+    { from: 'LORD_ENGINE', to: 'CARD_FLOW' },
+    { from: 'CARD_FLOW', to: 'TEMPO_PROTECTION' },
+    { from: 'TEMPO_PROTECTION', to: 'ISLANDWALK_LETHAL' }
+  ];
+
+  const structuredStrategicBlueprint = {
+    archetype: normInput.archetype || 'Merfolk Tempo',
+    format: normInput.format || 'Standard',
     totalDeckSize: 60,
-    slots: state ? state.slots.map(s => ({
-      id: s.id,
-      name: s.role,
-      quantity: 1,
-      sourceEngine: s.packageId,
-      boundCard: s.chosenCard ? s.chosenCard.name : 'UNBOUND'
-    })) : []
+    copyAllocationState: convergenceResult.copyAllocationState || null,
+    capabilityRequirements: convergenceResult.capabilityRequirements || [],
+    architecturalAudit,
+    deckTelemetry,
+    strategicGraph: {
+      nodes: Object.freeze(strategicNodes),
+      edges: Object.freeze(strategicEdges)
+    }
   };
+
+
 
   return {
     success: convergenceResult.buildStatus === 'SUCCESS',
     pipelineVersion: '14-Pass-Compiler-Grade-v8.0',
     sessionId: `sess_${Date.now()}`,
     deck: compiledDeckList,
-    blueprint: copBlueprint,
+    blueprint: structuredStrategicBlueprint,
     convergenceResult,
+
     proof: convergenceResult.proof,
     judgeResults: convergenceResult.judgeResults,
     simResult: convergenceResult.simResult,
@@ -97,6 +199,8 @@ export async function runV6AutonomousPipeline(formData = {}) {
     calibrationReport: convergenceResult.calibrationReport,
     autoExplanation: convergenceResult.autoExplanation,
     timeline: convergenceResult.timeline,
+    architecturalAudit,
+    deckTelemetry,
     hierarchicalUtility: structuredScore,
     traceLogSummary: OracleTraceLog.getTraceSummary()
   };

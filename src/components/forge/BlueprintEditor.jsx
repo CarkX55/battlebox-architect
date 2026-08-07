@@ -21,7 +21,13 @@ import {
   HelpCircle,
   Activity,
   ShieldCheck,
-  Target
+  Target,
+  Lock,
+  Unlock,
+  ChevronDown,
+  CheckCircle2,
+  XCircle,
+  AlertCircle
 } from 'lucide-react';
 import StrategyDAGVisualizer from './StrategyDAGVisualizer';
 import StrategicConstraintsChecklist from './StrategicConstraintsChecklist';
@@ -33,6 +39,8 @@ export default function BlueprintEditor({ blueprint, format, onAssemble, onBack 
   const [selectedCommander, setSelectedCommander] = useState('');
   const [showJson, setShowJson] = useState(false);
   const [showOracleLog, setShowOracleLog] = useState(false);
+  const [showCopyAllocation, setShowCopyAllocation] = useState(true);
+  const [showArchAudit, setShowArchAudit] = useState(true);
 
   // Auto-select first suggested commander on mount if commander format
   useEffect(() => {
@@ -321,10 +329,19 @@ export default function BlueprintEditor({ blueprint, format, onAssemble, onBack 
         </div>
 
         {/* Conditional Strategic Decision Graph Visualizer */}
-        <StrategicDecisionGraphVisualizer intent={editedBlueprint.deckName || 'SELESNYA_RAMP'} />
+        <StrategicDecisionGraphVisualizer 
+          intent={editedBlueprint.deckName || editedBlueprint.archetype || 'GIANTS_STOMP'} 
+          archetype={editedBlueprint.archetype} 
+          tribe={editedBlueprint.tribe} 
+        />
 
         {/* Interactive Strategy DAG Visualizer */}
-        <StrategyDAGVisualizer strategy={editedBlueprint.strategy} deckName={editedBlueprint.deckName} />
+        <StrategyDAGVisualizer 
+          strategy={editedBlueprint.strategy} 
+          deckName={editedBlueprint.deckName} 
+          roles={rolesList} 
+          blueprint={editedBlueprint} 
+        />
 
         {/* Quantifiable Strategic Constraints Checklist */}
         <StrategicConstraintsChecklist />
@@ -390,33 +407,85 @@ export default function BlueprintEditor({ blueprint, format, onAssemble, onBack 
               </div>
 
               {/* Formal Executable Strategic Brief Specification */}
-              <div className="p-3.5 bg-black/80 border border-amber-500/30 rounded-2xl space-y-2 font-mono text-[10.5px] leading-relaxed shadow-inner">
-                <div className="text-amber-300 font-bold border-b border-white/10 pb-1 flex justify-between">
-                  <span># Executable Specification</span>
-                  <span className="text-[9px] text-emerald-400">94% Confidence</span>
-                </div>
-                <div className="text-gray-300">
-                  <span className="text-purple-400 font-bold">Primary Goal:</span> ReachMana 6 BeforeTurn 4
-                </div>
-                <div className="text-gray-300">
-                  <span className="text-cyan-400 font-bold">Primary Engine:</span> Elf Ramp (10 Slots)
-                </div>
-                <div className="text-gray-300">
-                  <span className="text-cyan-400 font-bold">Secondary Engine:</span> Token Swarm
-                </div>
-                <div className="text-gray-300">
-                  <span className="text-amber-400 font-bold">Fallback Plan:</span> Midrange Land Ramp
-                </div>
-                <div className="text-gray-300">
-                  <span className="text-rose-400 font-bold">Failure Conditions:</span> Mana Screw, Sweepers
-                </div>
-                <div className="text-gray-300">
-                  <span className="text-emerald-400 font-bold">Adaptive Response:</span> Protection Contracts
-                </div>
-                <div className="text-gray-300">
-                  <span className="text-magic-gold font-bold">Expected Kill Turn:</span> 5
-                </div>
-              </div>
+              {(() => {
+                const text = `${editedBlueprint.deckName || ''} ${editedBlueprint.archetype || ''} ${editedBlueprint.tribe || ''} ${editedBlueprint.prompt || ''}`.toLowerCase();
+                const isGiants = text.includes('giant') || text.includes('stomp');
+                const isHumans = text.includes('human');
+                const isControl = text.includes('control');
+                const isAggro = text.includes('aggro') || editedBlueprint.archetype === 'Aggro';
+
+                let spec = {
+                  primaryGoal: editedBlueprint.archetype ? `${editedBlueprint.archetype} Strategic Dominance` : 'Dominar la Curva de Presión',
+                  primaryEngine: editedBlueprint.tribe ? `Motor Tribal de ${editedBlueprint.tribe}` : 'Motor Principal de Estrategia',
+                  secondaryEngine: 'Aceleración de Maná & Sinergia de Mesa',
+                  fallbackPlan: 'Presión Midrange Resiliente',
+                  failureConditions: 'Mana Screw, Sweepers',
+                  adaptiveResponse: 'Contratos Adaptativos de Protección',
+                  expectedKillTurn: isAggro ? 5 : 6
+                };
+
+                if (isGiants) {
+                  spec = {
+                    primaryGoal: 'Dominar Combate con Gigantes & Stomp',
+                    primaryEngine: 'Motor Tribal de Gigantes & Remoción Stomp',
+                    secondaryEngine: 'Aceleración de Maná Temprana (Curva 4 en T3)',
+                    fallbackPlan: 'Presión Midrange de Gigantes (Giant Cindermaw / Brambleback Brute)',
+                    failureConditions: 'Falta de Aceleración, Mana Screw',
+                    adaptiveResponse: 'Remoción Stomp & Gigantes Resilientes',
+                    expectedKillTurn: 5
+                  };
+                } else if (isHumans) {
+                  spec = {
+                    primaryGoal: 'Presión Agresiva de Enjambre Humano',
+                    primaryEngine: 'Motor de Enjambre Humano & Himno',
+                    secondaryEngine: 'Disrupción & Protecciones Baratas',
+                    fallbackPlan: 'Presión Continuada de Enjambre',
+                    failureConditions: 'Limpiezas Masivas (Sweepers), Remoción Rápida',
+                    adaptiveResponse: 'Contratos de Protección Instantánea',
+                    expectedKillTurn: 4
+                  };
+                } else if (isControl) {
+                  spec = {
+                    primaryGoal: 'Controlar Mesa & Estabilizar Partida',
+                    primaryEngine: 'Motor de Ventaja de Cartas & Robo',
+                    secondaryEngine: 'Remoción Masiva & Contrahechizos',
+                    fallbackPlan: 'Estabilización & Ventaja de Cartas',
+                    failureConditions: 'Presión Hiper-Agresiva Temprana',
+                    adaptiveResponse: 'Remoción Barata e Interacción Instantánea',
+                    expectedKillTurn: 7
+                  };
+                }
+
+                return (
+                  <div className="p-3.5 bg-black/80 border border-amber-500/30 rounded-2xl space-y-2 font-mono text-[10.5px] leading-relaxed shadow-inner">
+                    <div className="text-amber-300 font-bold border-b border-white/10 pb-1 flex justify-between">
+                      <span># Executable Specification</span>
+                      <span className="text-[9px] text-emerald-400">94% Confidence</span>
+                    </div>
+                    <div className="text-gray-300">
+                      <span className="text-purple-400 font-bold">Primary Goal:</span> {spec.primaryGoal}
+                    </div>
+                    <div className="text-gray-300">
+                      <span className="text-cyan-400 font-bold">Primary Engine:</span> {spec.primaryEngine}
+                    </div>
+                    <div className="text-gray-300">
+                      <span className="text-cyan-400 font-bold">Secondary Engine:</span> {spec.secondaryEngine}
+                    </div>
+                    <div className="text-gray-300">
+                      <span className="text-amber-400 font-bold">Fallback Plan:</span> {spec.fallbackPlan}
+                    </div>
+                    <div className="text-gray-300">
+                      <span className="text-rose-400 font-bold">Failure Conditions:</span> {spec.failureConditions}
+                    </div>
+                    <div className="text-gray-300">
+                      <span className="text-emerald-400 font-bold">Adaptive Response:</span> {spec.adaptiveResponse}
+                    </div>
+                    <div className="text-gray-300">
+                      <span className="text-magic-gold font-bold">Expected Kill Turn:</span> {spec.expectedKillTurn}
+                    </div>
+                  </div>
+                );
+              })()}
 
               <div className="space-y-1">
                 <label className="text-[9px] uppercase tracking-wider font-bold text-white/40 mb-1 block">Lore / Historia Narrative</label>
@@ -685,6 +754,402 @@ export default function BlueprintEditor({ blueprint, format, onAssemble, onBack 
           </div>
         </div>
       </div>
+
+      {/* ═══════════════════════════════════════════════════════════════════
+          COPY ALLOCATION STATE PANEL
+          Shows REAL data from CopyAllocationManager proving the system
+          is governing, not just describing architecture.
+          Position: Right before FORJAR — last verification step.
+       ═══════════════════════════════════════════════════════════════════ */}
+      {blueprint?.copyAllocationState && (
+        <div className="bg-gradient-to-b from-[#0f1a0f] to-[#0d0a09] border border-emerald-500/25 rounded-3xl overflow-hidden shadow-xl relative">
+          {/* Subtle glow effect */}
+          <div className="absolute top-0 left-1/3 w-72 h-72 bg-emerald-500/5 rounded-full filter blur-[80px] pointer-events-none" />
+          
+          {/* Header */}
+          <button
+            type="button"
+            onClick={() => setShowCopyAllocation(!showCopyAllocation)}
+            className="w-full flex items-center justify-between p-6 cursor-pointer group relative z-10"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-300 font-bold shadow-md">
+                <Lock size={18} />
+              </div>
+              <div>
+                <h3 className="font-cinzel text-sm text-emerald-200 font-bold uppercase tracking-wider">
+                  Estado de Asignación de Copias (CopyAllocationState)
+                </h3>
+                <p className="text-[10px] text-gray-400 font-mono">
+                  CopyAllocationManager v23.0 — Single Authority · Modo: {blueprint.copyAllocationState.mode} ({blueprint.copyAllocationState.modeSource})
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              {blueprint.copyAllocationState.allVerified ? (
+                <span className="px-3 py-1 bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 rounded-full text-[10px] font-mono font-bold uppercase flex items-center gap-1">
+                  <CheckCircle2 size={12} />
+                  ALL VERIFIED
+                </span>
+              ) : (
+                <span className="px-3 py-1 bg-amber-500/15 border border-amber-500/40 text-amber-300 rounded-full text-[10px] font-mono font-bold uppercase flex items-center gap-1 animate-pulse">
+                  <AlertCircle size={12} />
+                  PARTIAL
+                </span>
+              )}
+              <span className="px-2 py-1 bg-black/40 border border-white/10 text-white/50 rounded-lg text-[9px] font-mono">
+                {blueprint.copyAllocationState.totalAllocatedDensity} density · {blueprint.copyAllocationState.totalDesiredCopies} copies
+              </span>
+              <ChevronDown size={16} className={cn(
+                "text-gray-400 transition-transform duration-300",
+                showCopyAllocation ? "rotate-180" : ""
+              )} />
+            </div>
+          </button>
+
+          {/* Expanded Package Cards */}
+          {showCopyAllocation && (
+            <div className="px-6 pb-6 space-y-3 relative z-10">
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                {blueprint.copyAllocationState.getPackageSummaries().map((pkg, idx) => {
+                  const isVerified = pkg.status === 'VERIFIED';
+                  const isPartial = pkg.status === 'PARTIAL';
+                  const isFailed = pkg.status === 'FAILED';
+                  const isLand = pkg.role === 'Land' || pkg.role === 'LAND_BASE';
+
+                  const borderColor = isVerified
+                    ? 'border-emerald-500/30 hover:border-emerald-500/50'
+                    : isPartial
+                      ? 'border-amber-500/30 hover:border-amber-500/50'
+                      : 'border-red-500/30 hover:border-red-500/50';
+
+                  const statusIcon = isVerified
+                    ? <CheckCircle2 size={14} className="text-emerald-400" />
+                    : isPartial
+                      ? <AlertCircle size={14} className="text-amber-400" />
+                      : <XCircle size={14} className="text-red-400" />;
+
+                  const statusLabel = isVerified ? 'VERIFIED' : isPartial ? 'PARTIAL' : 'FAILED';
+                  const statusColor = isVerified
+                    ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30'
+                    : isPartial
+                      ? 'text-amber-400 bg-amber-500/10 border-amber-500/30'
+                      : 'text-red-400 bg-red-500/10 border-red-500/30';
+
+                  const lockIcon = pkg.lockLevel === 'LOCK_HARD'
+                    ? <Lock size={10} className="text-emerald-400" />
+                    : pkg.lockLevel === 'LOCK_SOFT'
+                      ? <Lock size={10} className="text-amber-400" />
+                      : <Unlock size={10} className="text-gray-400" />;
+
+                  const lockLabel = pkg.lockLevel === 'LOCK_HARD' ? 'HARD'
+                    : pkg.lockLevel === 'LOCK_SOFT' ? 'SOFT' : 'FLEX';
+
+                  const priorityLabel = pkg.priority === 'PRIORITY_1_CORE' ? '⭐ CORE'
+                    : pkg.priority === 'PRIORITY_2_SUPPORT' ? '🔹 SUPPORT'
+                      : pkg.priority === 'PRIORITY_3_SILVER_BULLET' ? '🎯 SILVER BULLET'
+                        : '🔧 TUTOR TARGET';
+
+                  return (
+                    <div
+                      key={idx}
+                      className={cn(
+                        "p-4 rounded-2xl border bg-black/50 backdrop-blur-sm transition-all duration-300 space-y-3 relative overflow-hidden group",
+                        borderColor
+                      )}
+                    >
+                      {/* Package Role Header */}
+                      <div className="flex items-center justify-between">
+                        <span className="font-cinzel text-[11px] font-bold text-white uppercase tracking-wider truncate max-w-[180px]">
+                          {pkg.role}
+                        </span>
+                        <span className={cn(
+                          "px-2 py-0.5 rounded-full text-[8px] font-mono font-bold uppercase border flex items-center gap-1",
+                          statusColor
+                        )}>
+                          {statusIcon}
+                          {statusLabel}
+                        </span>
+                      </div>
+
+                      {/* Winner Card */}
+                      <div className="space-y-0.5">
+                        <span className="text-[8px] uppercase tracking-widest text-white/30 font-bold block">Winner</span>
+                        <span className={cn(
+                          "text-xs font-mono font-bold block truncate",
+                          isLand ? "text-amber-300" : "text-cyan-300"
+                        )}>
+                          {pkg.winnerCard}
+                        </span>
+                      </div>
+
+                      {/* Density & Copies Grid */}
+                      <div className="grid grid-cols-2 gap-2 text-[10px] font-mono">
+                        <div className="bg-black/60 p-2 rounded-xl border border-white/5 space-y-0.5">
+                          <span className="text-white/30 text-[8px] uppercase font-bold block">Required Density</span>
+                          <span className="text-white font-bold">{pkg.requiredDensity}</span>
+                        </div>
+                        <div className="bg-black/60 p-2 rounded-xl border border-white/5 space-y-0.5">
+                          <span className="text-white/30 text-[8px] uppercase font-bold block">Allocated Density</span>
+                          <span className={cn(
+                            "font-bold",
+                            isVerified ? "text-emerald-400" : isPartial ? "text-amber-400" : "text-red-400"
+                          )}>
+                            {pkg.allocatedDensity}
+                            {pkg.densityGap !== 0 && (
+                              <span className="text-[8px] text-red-400 ml-1">
+                                ({pkg.densityGap > 0 ? `-${pkg.densityGap}` : `+${Math.abs(pkg.densityGap)}`})
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                        <div className="bg-black/60 p-2 rounded-xl border border-white/5 space-y-0.5">
+                          <span className="text-white/30 text-[8px] uppercase font-bold block">Desired Copies</span>
+                          <span className="text-magic-gold font-bold">{pkg.desiredCopies}</span>
+                        </div>
+                        <div className="bg-black/60 p-2 rounded-xl border border-white/5 space-y-0.5">
+                          <span className="text-white/30 text-[8px] uppercase font-bold block">Lock Level</span>
+                          <span className="font-bold flex items-center gap-1">
+                            {lockIcon}
+                            <span className={cn(
+                              pkg.lockLevel === 'LOCK_HARD' ? "text-emerald-400" :
+                              pkg.lockLevel === 'LOCK_SOFT' ? "text-amber-400" : "text-gray-400"
+                            )}>
+                              {lockLabel}
+                            </span>
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Priority Badge */}
+                      <div className="flex items-center justify-between pt-1 border-t border-white/5">
+                        <span className="text-[9px] text-white/40 font-mono">{priorityLabel}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Summary Footer */}
+              <div className="flex flex-wrap items-center justify-between p-3 bg-black/60 border border-white/10 rounded-2xl text-[10px] font-mono">
+                <div className="flex items-center gap-4">
+                  <span className="text-emerald-300">
+                    <strong>Densidad Total:</strong> {blueprint.copyAllocationState.totalAllocatedDensity}
+                  </span>
+                  <span className="text-cyan-300">
+                    <strong>Copias Totales:</strong> {blueprint.copyAllocationState.totalDesiredCopies}
+                  </span>
+                  <span className="text-purple-300">
+                    <strong>Modo:</strong> {blueprint.copyAllocationState.mode}
+                  </span>
+                </div>
+                <span className="text-white/30 text-[9px]">
+                  {blueprint.copyAllocationState.timestamp}
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════
+          PASS 15: ARCHITECTURAL INVARIANT AUDIT PANEL (Sprint 23)
+          Compares CopyAllocationState against final deck.
+          Shows Expected vs Actual distribution, violations, and telemetry.
+       ═══════════════════════════════════════════════════════════════════ */}
+      {blueprint?.architecturalAudit && (
+        <div className="bg-gradient-to-b from-[#0d0f1a] to-[#0d0a09] border border-cyan-500/25 rounded-3xl overflow-hidden shadow-xl relative">
+          {/* Glow */}
+          <div className="absolute top-0 right-1/4 w-72 h-72 bg-cyan-500/5 rounded-full filter blur-[80px] pointer-events-none" />
+
+          {/* Header */}
+          <button
+            type="button"
+            onClick={() => setShowArchAudit(!showArchAudit)}
+            className="w-full flex items-center justify-between p-6 cursor-pointer group relative z-10"
+          >
+            <div className="flex items-center gap-3">
+              <div className={cn(
+                "w-10 h-10 rounded-xl border flex items-center justify-center font-bold shadow-md",
+                blueprint.architecturalAudit.status === 'PASS'
+                  ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
+                  : 'bg-red-500/20 border-red-500/40 text-red-300'
+              )}>
+                <ShieldCheck size={18} />
+              </div>
+              <div>
+                <h3 className="font-cinzel text-sm text-cyan-200 font-bold uppercase tracking-wider">
+                  PASS 15: Architectural Invariant Audit
+                </h3>
+                <p className="text-[10px] text-gray-400 font-mono">
+                  CopyAllocationAuditor v23.0 — CopyAllocationState vs Deck Final
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              {blueprint.architecturalAudit.status === 'PASS' ? (
+                <span className="px-3 py-1 bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 rounded-full text-[10px] font-mono font-bold uppercase flex items-center gap-1">
+                  <CheckCircle2 size={12} />
+                  PASS
+                </span>
+              ) : blueprint.architecturalAudit.status === 'SKIPPED' ? (
+                <span className="px-3 py-1 bg-gray-500/15 border border-gray-500/40 text-gray-300 rounded-full text-[10px] font-mono font-bold uppercase flex items-center gap-1">
+                  <AlertCircle size={12} />
+                  SKIPPED
+                </span>
+              ) : (
+                <span className="px-3 py-1 bg-red-500/15 border border-red-500/40 text-red-300 rounded-full text-[10px] font-mono font-bold uppercase flex items-center gap-1 animate-pulse">
+                  <XCircle size={12} />
+                  FAIL — {blueprint.architecturalAudit.violations.length} violation{blueprint.architecturalAudit.violations.length !== 1 ? 's' : ''}
+                </span>
+              )}
+              <span className="px-2 py-1 bg-black/40 border border-white/10 text-white/50 rounded-lg text-[9px] font-mono">
+                {blueprint.architecturalAudit.respectedPackages}/{blueprint.architecturalAudit.totalPackages} packages
+              </span>
+              <ChevronDown size={16} className={cn(
+                "text-gray-400 transition-transform duration-300",
+                showArchAudit ? "rotate-180" : ""
+              )} />
+            </div>
+          </button>
+
+          {/* Expanded Audit Details */}
+          {showArchAudit && (
+            <div className="px-6 pb-6 space-y-4 relative z-10">
+
+              {/* Telemetry Grid */}
+              {blueprint.deckTelemetry && (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {/* Copy Distribution — Expected vs Actual */}
+                  {['4x', '3x', '2x', '1x'].map(tier => {
+                    const actual = blueprint.deckTelemetry.copyDistribution?.[tier] ?? 0;
+                    const expected = blueprint.deckTelemetry.expectedDistribution?.[tier];
+                    const delta = blueprint.deckTelemetry.distributionDelta?.[tier];
+                    const deltaOk = delta === 0 || delta === null || delta === undefined;
+
+                    return (
+                      <div key={tier} className={cn(
+                        "bg-black/60 p-3 rounded-2xl border space-y-1",
+                        deltaOk ? 'border-white/10' : 'border-amber-500/30'
+                      )}>
+                        <span className="text-white/30 text-[8px] uppercase font-bold block">{tier} Cards</span>
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-white font-bold text-lg">{actual}</span>
+                          {expected !== null && expected !== undefined && (
+                            <span className="text-white/40 text-[10px] font-mono">/ {expected} expected</span>
+                          )}
+                        </div>
+                        {delta !== null && delta !== undefined && delta !== 0 && (
+                          <span className={cn(
+                            "text-[9px] font-mono",
+                            delta > 0 ? 'text-amber-400' : 'text-red-400'
+                          )}>
+                            {delta > 0 ? '+' : ''}{delta}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Compliance Metrics */}
+              {blueprint.deckTelemetry && (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="bg-black/60 p-3 rounded-2xl border border-white/10 space-y-1">
+                    <span className="text-white/30 text-[8px] uppercase font-bold block">Singleton Ratio</span>
+                    <span className={cn(
+                      "font-bold text-lg",
+                      blueprint.deckTelemetry.singletonRatio > 0.2 ? 'text-red-400' :
+                      blueprint.deckTelemetry.singletonRatio > 0.1 ? 'text-amber-400' : 'text-emerald-400'
+                    )}>
+                      {Math.round(blueprint.deckTelemetry.singletonRatio * 100)}%
+                    </span>
+                  </div>
+                  <div className="bg-black/60 p-3 rounded-2xl border border-white/10 space-y-1">
+                    <span className="text-white/30 text-[8px] uppercase font-bold block">Package Compliance</span>
+                    <span className={cn(
+                      "font-bold text-lg",
+                      blueprint.deckTelemetry.packageCompliance >= 1.0 ? 'text-emerald-400' :
+                      blueprint.deckTelemetry.packageCompliance >= 0.75 ? 'text-amber-400' : 'text-red-400'
+                    )}>
+                      {Math.round((blueprint.deckTelemetry.packageCompliance ?? 0) * 100)}%
+                    </span>
+                  </div>
+                  <div className="bg-black/60 p-3 rounded-2xl border border-white/10 space-y-1">
+                    <span className="text-white/30 text-[8px] uppercase font-bold block">Unexpected Splits</span>
+                    <span className={cn(
+                      "font-bold text-lg",
+                      blueprint.deckTelemetry.unexpectedSplits > 0 ? 'text-red-400' : 'text-emerald-400'
+                    )}>
+                      {blueprint.deckTelemetry.unexpectedSplits}
+                    </span>
+                  </div>
+                  <div className="bg-black/60 p-3 rounded-2xl border border-white/10 space-y-1">
+                    <span className="text-white/30 text-[8px] uppercase font-bold block">Copy Violations</span>
+                    <span className={cn(
+                      "font-bold text-lg",
+                      blueprint.deckTelemetry.copyAllocationViolations > 0 ? 'text-red-400' : 'text-emerald-400'
+                    )}>
+                      {blueprint.deckTelemetry.copyAllocationViolations}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Violations Detail */}
+              {blueprint.architecturalAudit.violations.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="text-[10px] font-mono text-red-300 uppercase font-bold">Violations Detected</h4>
+                  {blueprint.architecturalAudit.violations.map((v, idx) => (
+                    <div key={idx} className="bg-red-500/5 border border-red-500/20 rounded-xl p-3 space-y-1">
+                      <div className="flex items-center gap-2">
+                        <XCircle size={12} className="text-red-400" />
+                        <span className="text-red-300 font-mono text-[11px] font-bold">
+                          {v.type}: {v.package}
+                        </span>
+                      </div>
+                      <p className="text-white/60 text-[10px] font-mono pl-5">{v.detail}</p>
+                      <div className="flex items-center gap-4 pl-5 text-[9px] font-mono">
+                        <span className="text-white/40">Expected: <strong className="text-cyan-300">{v.expected}</strong></span>
+                        <span className="text-white/40">Actual: <strong className="text-red-300">{v.actual}</strong></span>
+                        {v.introducedBy && (
+                          <span className="text-amber-300">Introduced by: {v.introducedBy.phase} ({v.introducedBy.action})</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Footer */}
+              <div className="flex flex-wrap items-center justify-between p-3 bg-black/60 border border-white/10 rounded-2xl text-[10px] font-mono">
+                <div className="flex items-center gap-4">
+                  <span className="text-cyan-300">
+                    <strong>Total Cards:</strong> {blueprint.architecturalAudit.totalCardsInDeck}
+                  </span>
+                  <span className="text-purple-300">
+                    <strong>Distinct:</strong> {blueprint.architecturalAudit.distinctCards}
+                  </span>
+                  <span className="text-emerald-300">
+                    <strong>Playset Ratio:</strong> {Math.round((blueprint.deckTelemetry?.playsetRatio ?? 0) * 100)}%
+                  </span>
+                  {blueprint.architecturalAudit.mutationCount > 0 && (
+                    <span className="text-amber-300">
+                      <strong>Mutations Tracked:</strong> {blueprint.architecturalAudit.mutationCount}
+                    </span>
+                  )}
+                </div>
+                <span className="text-white/30 text-[9px]">
+                  {blueprint.architecturalAudit.timestamp}
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Bitácora del Oráculo Audit Modal */}
       <OracleTraceLogModal isOpen={showOracleLog} onClose={() => setShowOracleLog(false)} />

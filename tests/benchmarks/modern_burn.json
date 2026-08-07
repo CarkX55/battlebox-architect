@@ -1,0 +1,11 @@
+{
+  "benchmarkId": "BENCH_MODERN_BURN_v13.2.5",
+  "archetype": "Burn",
+  "format": "Modern",
+  "expectedMacroGoal": "Direct Damage Rush & Blitz Clock",
+  "expectedCapabilities": [
+    { "capabilityId": "cap.removal.early.v1", "minUnits": 12, "targetProbability": 0.94 }
+  ],
+  "minExpectedKillTurn": 3.6,
+  "minExpectedUtilityScore": 80.0
+}
