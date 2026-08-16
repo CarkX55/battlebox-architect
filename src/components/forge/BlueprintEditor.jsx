@@ -611,9 +611,12 @@ export default function BlueprintEditor({ blueprint, format, onAssemble, onBack 
                       colorClass: 'bg-cyan-950/40 border-cyan-500/30 text-cyan-400',
                       icon: <BookOpen size={10} className="text-cyan-400" />
                     };
-                  } else if (nameLower.includes('ramp') || nameLower.includes('elf') || nameLower.includes('mana')) {
+                  } else if (nameLower.includes('ramp') || nameLower.includes('mana')) {
+                    const tribeName = (editedBlueprint.tribe && editedBlueprint.tribe !== 'Universal' && editedBlueprint.tribe !== 'none') ? editedBlueprint.tribe : '';
+                    const colors = Array.isArray(editedBlueprint.colors) ? editedBlueprint.colors.join(',').toLowerCase() : '';
+                    const labelText = tribeName ? `${tribeName} Acceleration` : (colors.includes('g') ? 'Land Ramp Engine' : 'Treasure & Mana Engine');
                     roleBadge = {
-                      label: 'Elf Mana Engine',
+                      label: labelText,
                       colorClass: 'bg-emerald-950/40 border-emerald-500/30 text-emerald-400',
                       icon: <Sparkles size={10} className="text-emerald-400" />
                     };
@@ -741,7 +744,7 @@ export default function BlueprintEditor({ blueprint, format, onAssemble, onBack 
                               onChange={(e) => handleQueryChange(idx, e.target.value)}
                               title={role.search_query}
                               className="w-full pl-6 pr-3 py-2 bg-black/85 border border-white/10 rounded-xl text-[10px] text-[#ffdf91] font-mono focus:border-magic-gold focus:ring-1 focus:ring-magic-gold/25 focus:outline-none transition-all shadow-inner overflow-x-auto"
-                              placeholder="c:w type:creature oracle:flying..."
+                              placeholder="c:g,w type:creature or type:spell..."
                             />
                           </div>
                         </div>
@@ -1152,7 +1155,7 @@ export default function BlueprintEditor({ blueprint, format, onAssemble, onBack 
       )}
 
       {/* Bitácora del Oráculo Audit Modal */}
-      <OracleTraceLogModal isOpen={showOracleLog} onClose={() => setShowOracleLog(false)} />
+      <OracleTraceLogModal isOpen={showOracleLog} onClose={() => setShowOracleLog(false)} traceLog={blueprint?.oracleTraceLog} />
     </div>
   );
 }

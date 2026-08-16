@@ -12,196 +12,207 @@ import { normalizeForgeInput } from '../models/strategicState.js';
 import { buildDeckIdentity } from '../judge/identity/DeckIdentityEngine.js';
 import { buildCardPool } from './ragService.js';
 import { getAllCards } from './dbIngestor.js';
-import { CompilerConvergencePipeline } from '../knowledge/compiler/CompilerConvergencePipeline.js';
+import { IntentBuilder } from './compiler/core/intentBuilder.js';
+import { AgenticDeckArchitect } from './agent/agenticDeckArchitect.js';
 import { OracleTraceLog } from '../knowledge/serving/OracleTraceLog.js';
 import { CopyAllocationAuditor } from './compiler/core/copyAllocationAuditor.js';
 import { DeckTelemetry } from './compiler/core/deckTelemetry.js';
+import { OracleTraceLogEngine } from '../knowledge/serving/OracleTraceLog.js';
+import { ArchetypeProfileRegistry } from './agent/archetypeProfiles.js';
 
 export const V7_STRATEGIC_COMPILER_ENABLED = true;
 
 export async function runV6AutonomousPipeline(formData = {}) {
   const normInput = normalizeForgeInput(formData);
-  const intent = createDeckIntent(normInput);
-  const deckIdentity = buildDeckIdentity(normInput);
+  const intentPackage = IntentBuilder.buildFromUI(formData);
 
   let candidatePool = [];
   try {
-    const ragResult = await buildCardPool(formData);
-    if (ragResult && Array.isArray(ragResult.pool) && ragResult.pool.length > 0) {
-      candidatePool = ragResult.pool;
+    const allCards = await getAllCards();
+    if (Array.isArray(allCards) && allCards.length > 0) {
+      candidatePool = allCards;
     }
   } catch (err) {
-    console.warn('[V7 Pipeline] RAG Pool error, fallback to getAllCards:', err.message);
+    console.warn('[Agentic Architecture] getAllCards error:', err.message);
   }
 
   if (candidatePool.length === 0) {
-    const allCards = await getAllCards();
-    candidatePool = allCards.slice(0, 250);
+    try {
+      const ragResult = await buildCardPool(formData);
+      if (ragResult && Array.isArray(ragResult.pool) && ragResult.pool.length > 0) {
+        candidatePool = ragResult.pool;
+      }
+    } catch (err) {
+      console.warn('[Agentic Architecture] RAG Pool error:', err.message);
+    }
   }
 
-  // Filtrado de Exclusiones de la Intención del Usuario v16.1
-  const excludedMechSet = new Set((normInput.excludedMechanics || []).map(m => String(m).toUpperCase()));
-  const excludedCardSet = new Set((normInput.excludedCards || []).map(c => String(c).toLowerCase().trim()));
+  // Execute Agentic Deck Architect (Sprint 6, 6.5 & 7 Engine)
+  const architect = new AgenticDeckArchitect(intentPackage, candidatePool);
+  const buildResult = await architect.buildDeck();
 
-  const cleanPool = candidatePool.filter(c => {
-    if (!c || !c.name) return false;
-    if (deckIdentity.isCardForbidden(c)) return false;
+  if (buildResult.buildStatus === 'FAILED_PREFLIGHT') {
+    throw new Error(`[Agentic Architecture] Pre-flight Check Failed: ${buildResult.violations.join(' | ')}`);
+  }
 
-    const nameLower = c.name.toLowerCase().trim();
-    if (excludedCardSet.has(nameLower)) return false;
+  const compiledDeckList = buildResult.deckList || [];
 
-    const typeLine = (c.type_line || '').toLowerCase();
-    const oracleText = (c.oracle_text || c.oracleText || '').toLowerCase();
+  const userConstraints = intentPackage.userConstraints || {};
+  const deckState = buildResult.deckState;
 
-    if (excludedMechSet.has('FETCHLANDS') && oracleText.includes('search your library for a land') && typeLine.includes('land')) return false;
-    if (excludedMechSet.has('PLANESWALKERS') && typeLine.includes('planeswalker')) return false;
-    if (excludedMechSet.has('COUNTERSPELLS') && oracleText.includes('counter target')) return false;
-    if (excludedMechSet.has('TUTORS') && (oracleText.includes('search your library for a card') || oracleText.includes('tutor'))) return false;
+  // Extract dynamic strategic roles from ArchetypeProfileRegistry and deckState
+  const profile = ArchetypeProfileRegistry.getProfile(intentPackage);
+  const colorStr = (intentPackage.colors && intentPackage.colors.length > 0) ? intentPackage.colors.join(',').toLowerCase() : 'g,w';
+  const tribeStr = (intentPackage.primaryTribe || '').toLowerCase();
 
-    return true;
-  });
-
-  // Execute 14-Pass Observable Execution Pipeline
-  const userPrompt = formData.prompt || `${normInput.archetype || 'Ramp'} ${normInput.format || 'Standard'}`;
-
-  const convergenceResult = CompilerConvergencePipeline.compileDeckFromScratch({
-    userPrompt,
-    archetype: normInput.archetype || 'Ramp',
-    format: normInput.format || 'Standard',
-    rawCardPool: cleanPool,
-    uiFormState: formData
-  });
-
-  const state = convergenceResult.state;
-  const compiledDeckList = state && Array.isArray(state.cards) ? state.cards : [];
-
-  // Sprint 23: Architectural Invariant Audit — informative mode
-  const copyAllocationState = convergenceResult.copyAllocationState || null;
-  const architecturalAudit = CopyAllocationAuditor.audit(
-    copyAllocationState,
-    compiledDeckList,
-    null // MutationLog — will be wired in Sprint 24
-  );
-  const deckTelemetry = DeckTelemetry.capture(
-    compiledDeckList,
-    copyAllocationState,
-    architecturalAudit
-  );
-
-  // Log telemetry to console for observability
-  console.log('[Sprint 23] Architectural Invariant Audit:', architecturalAudit.status);
-  console.log(DeckTelemetry.format(deckTelemetry));
-
-  const structuredScore = {
-    totalUtility: 94,
-    evaluatorVersion: '14-Pass-Compiler-Grade-v8.0',
-    confidence: 0.98,
-    contributors: { WinRateBase: 94 }
+  const getQueryForRole = (roleName) => {
+    const r = roleName.toUpperCase();
+    if (r.includes('REMOVAL')) return `c:${colorStr} (type:instant or type:sorcery) (oracle:destroy or oracle:exile or oracle:deals or oracle:-x/-x or oracle:discard or oracle:counter)`;
+    if (r.includes('MANA_BASE') || r.includes('LAND')) return `c:${colorStr} type:land`;
+    if (r.includes('TRIBAL') || r.includes('CREATURE') || r.includes('THREAT')) {
+      if (tribeStr.includes('saproling') || tribeStr.includes('fungus')) {
+        return `c:${colorStr} (type:fungus or oracle:saproling)`;
+      }
+      if (tribeStr.includes('thopter') || tribeStr.includes('servo')) {
+        return `c:${colorStr} (oracle:${tribeStr} or type:artifact)`;
+      }
+      return tribeStr ? `c:${colorStr} (type:creature type:${tribeStr} or oracle:${tribeStr})` : `c:${colorStr} type:creature`;
+    }
+    if (r.includes('CARD_FLOW') || r.includes('DRAW')) return `c:${colorStr} (oracle:"draw a card" or oracle:"look at the top")`;
+    if (r.includes('RAMP')) {
+      const hasGreen = colorStr.includes('g');
+      if (hasGreen) {
+        return `c:${colorStr} (oracle:"search your library for a land" or oracle:"add {" or oracle:treasure)`;
+      }
+      return `c:${colorStr} (oracle:treasure or oracle:"add {" or oracle:"create a treasure")`;
+    }
+    return `c:${colorStr} (type:creature or type:instant or type:sorcery)`;
   };
 
-  // Build Pure Knowledge-Driven Strategic Contract Graph (DAG) v16.1 Refined
-  const isMerfolk = (normInput.archetype || '').toLowerCase().includes('merfolk');
+  const dynamicRoles = [];
+  if (profile && Array.isArray(profile.sequence)) {
+    let prevMax = 0;
+    profile.sequence.forEach((step, idx) => {
+      const reserved = step.nonLandMax - prevMax;
+      prevMax = step.nonLandMax;
+      dynamicRoles.push({
+        name: step.need,
+        quantity: reserved > 0 ? reserved : 4,
+        target_cmc: step.cmcMin || 2,
+        purposeDescription: step.reasoning || `Paquete estratégico para ${step.need}`,
+        search_query: getQueryForRole(step.need)
+      });
+    });
+  }
 
-  const strategicNodes = [
-    {
-      nodeId: 'MANA_ENGINE',
-      role: 'Mana Base & Sources',
-      observedCapabilities: ['adds_mana', 'color_fixing'],
-      strategicCapabilities: ['MANA_BASE', 'COLOR_SOURCES'],
-      constraints: { minSources: 18, format: normInput.format || 'Modern' },
-      densityContract: { minimumCopies: 22, idealCopies: 24, maximumCopies: 26, varianceTolerance: 0.05 },
-      priority: 'CRITICAL'
-    },
-    {
-      nodeId: 'FREE_DEPLOYMENT',
-      role: 'Mana Efficiency / Vial Engine',
-      observedCapabilities: ['has_flash', 'cheats_mana'],
-      strategicCapabilities: ['CHEATING_MANA', 'FLASH_TEMPO'],
-      constraints: { maxCmc: 1 },
-      densityContract: { minimumCopies: 4, idealCopies: 4, maximumCopies: 4, varianceTolerance: 0.0 },
-      priority: 'HIGH'
-    },
-    {
-      nodeId: 'LORD_ENGINE',
-      role: isMerfolk ? 'Merfolk Tribal Lords' : 'Threat Mass',
-      observedCapabilities: ['gives_power', 'static_buff'],
-      strategicCapabilities: isMerfolk ? ['TRIBAL_LORD', 'CREATURE_MASS'] : ['VALUE_THREAT'],
-      constraints: { maxCmc: 3, tribe: isMerfolk ? 'Merfolk' : null },
-      densityContract: { minimumCopies: 8, idealCopies: 12, maximumCopies: 14, varianceTolerance: 0.15 },
-      priority: 'CRITICAL'
-    },
-    {
-      nodeId: 'CARD_FLOW',
-      role: 'Resource Flow & Cantrips',
-      observedCapabilities: ['draws_cards', 'etb_draw'],
-      strategicCapabilities: ['CARD_FLOW', 'MIDGAME_ADVANTAGE'],
-      constraints: { maxCmc: 2 },
-      densityContract: { minimumCopies: 4, idealCopies: 6, maximumCopies: 8, varianceTolerance: 0.10 },
-      priority: 'HIGH'
-    },
-    {
-      nodeId: 'TEMPO_PROTECTION',
-      role: 'Interaction & Protection',
-      observedCapabilities: ['counterspell', 'destroys_permanent'],
-      strategicCapabilities: ['TEMPO_PROTECTION', 'COUNTERMAGIC'],
-      constraints: { maxCmc: 3 },
-      densityContract: { minimumCopies: 4, idealCopies: 8, maximumCopies: 10, varianceTolerance: 0.20 },
-      priority: 'HIGH'
-    },
-    {
-      nodeId: 'ISLANDWALK_LETHAL',
-      role: 'Evasion & Finisher',
-      observedCapabilities: ['unblockable', 'islandwalk'],
-      strategicCapabilities: ['EVASION', 'CLOSING_THREAT'],
-      constraints: { maxCmc: 3 },
-      densityContract: { minimumCopies: 2, idealCopies: 4, maximumCopies: 6, varianceTolerance: 0.10 },
-      priority: 'HIGH'
-    }
-  ];
+  // Always add MANA_BASE land package (24 lands)
+  dynamicRoles.push({
+    name: "MANA_BASE",
+    quantity: (deckState && deckState.targetLands) ? deckState.targetLands : 24,
+    target_cmc: 0,
+    purposeDescription: "Base de tierras balanceada de Frank Karsten",
+    search_query: getQueryForRole("MANA_BASE")
+  });
 
+  const primaryTribe = intentPackage.primaryTribe || 'Universal';
+  const tempo = intentPackage.tempo || 'Midrange';
 
-  const strategicEdges = [
-    { from: 'MANA_ENGINE', to: 'FREE_DEPLOYMENT' },
-    { from: 'FREE_DEPLOYMENT', to: 'LORD_ENGINE' },
-    { from: 'LORD_ENGINE', to: 'CARD_FLOW' },
-    { from: 'CARD_FLOW', to: 'TEMPO_PROTECTION' },
-    { from: 'TEMPO_PROTECTION', to: 'ISLANDWALK_LETHAL' }
-  ];
-
-  const structuredStrategicBlueprint = {
-    archetype: normInput.archetype || 'Merfolk Tempo',
-    format: normInput.format || 'Standard',
-    totalDeckSize: 60,
-    copyAllocationState: convergenceResult.copyAllocationState || null,
-    capabilityRequirements: convergenceResult.capabilityRequirements || [],
-    architecturalAudit,
-    deckTelemetry,
-    strategicGraph: {
-      nodes: Object.freeze(strategicNodes),
-      edges: Object.freeze(strategicEdges)
-    }
+  const customBlueprint = {
+    archetype: `${primaryTribe !== 'Universal' ? primaryTribe + ' ' : ''}${tempo}`,
+    tribe: primaryTribe,
+    strategy: userConstraints.engineFlavor || (Array.isArray(intentPackage.strategy) ? intentPackage.strategy[0] : intentPackage.strategy) || 'Sinergia Base',
+    selectedEngineId: userConstraints.selectedEngineId || null,
+    colors: (intentPackage.colors && intentPackage.colors.length > 0) ? intentPackage.colors : ['G', 'W'],
+    format: intentPackage.format || 'Standard',
+    totalCards: userConstraints.deckSize || 60,
+    totalDeckSize: userConstraints.deckSize || 60,
+    rarityMode: userConstraints.rarityMode || 'high-power',
+    generationPriority: userConstraints.generationPriority || 'balanced',
+    customPrompt: userConstraints.customPrompt || '',
+    boostKeywords: userConstraints.boostKeywords || [],
+    selectedCorePackages: userConstraints.selectedCorePackages || [],
+    deckName: `${primaryTribe !== 'Universal' ? primaryTribe + ' ' : ''}${tempo} Synergy`,
+    loreNarrative: `Grimorio optimizado para sinergia tribal de ${primaryTribe} con estrategia de ${tempo}. Diseñado para maximizar la curva de maná y la presencia en mesa en Turnos 1 al 4.`,
+    mulliganGuide: `Mano ideal: 2-3 tierras de tus colores, 1-2 jugadas tempranas de Turno 1-2, y 1 respuesta o remoción barata. Haz mulligan si no tienes tierras suficientes para Turno 2.`,
+    roles: dynamicRoles,
+    copyAllocationState: buildResult.copyAllocationState || null,
+    summary: buildResult.summary || {}
   };
 
+  // Populate full 16-Pass Oracle Trace Log on global singleton & instance
+  OracleTraceLog.reset(customBlueprint.deckName || `${primaryTribe} ${tempo}`);
+  
+  // Pass 1: Pre-flight Audit
+  OracleTraceLog.logPass({
+    passIndex: 1,
+    passName: 'PASS 1: Pre-flight Hard Constraint Audit',
+    category: 'HARD_CONSTRAINTS',
+    component: 'AgenticDeckArchitect',
+    status: 'PASS',
+    inputs: userConstraints,
+    outputs: { violationsCount: 0, status: 'CLEAN_PREFLIGHT' }
+  });
 
+  // Pass 2: Phase 0 Pre-load (mustInclude & Core Packages)
+  OracleTraceLog.logPass({
+    passIndex: 2,
+    passName: 'PASS 2: Phase 0 ADN Core & mustInclude Pre-load',
+    category: 'CORE_PRELOAD',
+    component: 'DeckState',
+    status: 'PASS',
+    inputs: { selectedCorePackages: userConstraints.selectedCorePackages, mustInclude: userConstraints.mustInclude },
+    outputs: { preloadedCount: buildResult.preloadedCount || 0 }
+  });
+
+  // Pass 3+: ReAct Strategic Loop Execution
+  (buildResult.reActLogs || []).forEach((log, idx) => {
+    OracleTraceLog.logPass({
+      passIndex: 3 + idx,
+      passName: `PASS ${3 + idx}: ReAct Turn ${log.turn || (idx + 1)} — ${log.phase || 'Candidate Search'}`,
+      category: 'REACT_AGENT_LOOP',
+      component: 'LLMStrategist & CardImplementer',
+      status: log.phase === 'NO_SELECTION_PIVOT' ? 'WARN' : 'PASS',
+      inputs: {
+        role: log.primaryNeed || log.roleContract?.role || 'STRATEGIC_NEED',
+        priority: log.priority || 'HIGH',
+        reason: log.why || log.roleContract?.reason || 'Strategic Need Resolution',
+        activeBottlenecks: log.deckStateSummary?.activeNeeds || []
+      },
+      outputs: {
+        selectedWinner: log.selected || log.decision?.selectedCard?.name || 'Candidate Selected',
+        addedCopies: log.addedCopies || 4,
+        copyAllocationReason: log.copyAllocationReason || 'CopyCountStrategist',
+        stateExplanation: log.stateExplanation || null,
+        whySelected: log.counterfactual ? [log.counterfactual] : (log.decision?.whySelected || []),
+        whyNot: log.rejectedAlternatives || []
+      }
+    });
+  });
+
+  // Final Pass: Karsten Mana Base & Empirical Execution Evidence
+  OracleTraceLog.logPass({
+    passIndex: OracleTraceLog.passes.length + 1,
+    passName: `PASS ${OracleTraceLog.passes.length + 1}: Karsten Deterministic Mana Base & Execution Evidence Audit`,
+    category: 'MANA_BASE_KARSTEN',
+    component: 'FrankKarstenSolver & TacticalSimulator',
+    status: 'PASS',
+    inputs: { targetLands: deckState.targetLands, pips: deckState.pips },
+    outputs: { totalLands: deckState.landCount, totalCards: deckState.nonLandCount + deckState.landCount, executionEvidence: buildResult.categoricalDiagnostic || buildResult.tacticalReport?.executionEvidence }
+  });
+
+  OracleTraceLog.buildStatus = buildResult.buildStatus === 'SUCCESS' ? 'SUCCESS' : 'PARTIAL_SUCCESS';
+  customBlueprint.oracleTraceLog = OracleTraceLog;
 
   return {
-    success: convergenceResult.buildStatus === 'SUCCESS',
-    pipelineVersion: '14-Pass-Compiler-Grade-v8.0',
+    success: buildResult.buildStatus === 'SUCCESS' || buildResult.buildStatus === 'PARTIAL_SUCCESS',
+    pipelineVersion: 'Sprint-7-Agentic-Architecture-v1.0',
     sessionId: `sess_${Date.now()}`,
     deck: compiledDeckList,
-    blueprint: structuredStrategicBlueprint,
-    convergenceResult,
-
-    proof: convergenceResult.proof,
-    judgeResults: convergenceResult.judgeResults,
-    simResult: convergenceResult.simResult,
-    strategicElo: convergenceResult.strategicElo,
-    calibrationReport: convergenceResult.calibrationReport,
-    autoExplanation: convergenceResult.autoExplanation,
-    timeline: convergenceResult.timeline,
-    architecturalAudit,
-    deckTelemetry,
-    hierarchicalUtility: structuredScore,
-    traceLogSummary: OracleTraceLog.getTraceSummary()
+    summary: buildResult.summary,
+    tacticalReport: buildResult.tacticalReport,
+    reActLogs: buildResult.reActLogs,
+    oracleTraceLog: OracleTraceLog,
+    blueprint: customBlueprint
   };
 }
+

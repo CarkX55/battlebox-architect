@@ -8,10 +8,19 @@ export default function StrategyDAGVisualizer({ strategy = '', deckName = '', ro
   let dagNodes = Array.isArray(propDagNodes) && propDagNodes.length > 0 ? propDagNodes : (Array.isArray(blueprint?.dagNodes) && blueprint.dagNodes.length > 0 ? blueprint.dagNodes : []);
 
   if (dagNodes.length === 0) {
-    const text = `${deckName} ${strategy} ${blueprint?.prompt || ''} ${blueprint?.archetype || ''} ${blueprint?.tribe || ''}`.toLowerCase();
-    const isGiants = text.includes('giant') || text.includes('stomp');
-    const isHumans = text.includes('human');
-    const isControl = text.includes('control');
+    const rawTribe = (blueprint?.tribe || '').trim();
+    const rawArchetype = (blueprint?.archetype || '').trim();
+    const rawStrategy = (blueprint?.strategy || strategy || '').trim();
+    const tribeLabel = rawTribe && rawTribe.toLowerCase() !== 'universal' ? rawTribe : '';
+    const stratLabel = rawStrategy || rawArchetype || 'Estrategia';
+
+    const archLower = `${rawArchetype} ${rawStrategy} ${deckName} ${rawTribe}`.toLowerCase();
+    const isTokenSwarm = archLower.includes('token') || archLower.includes('saproling') || archLower.includes('fungus') || archLower.includes('swarm');
+    const isTempo = archLower.includes('tempo') || archLower.includes('ninjutsu') || archLower.includes('merfolk') || archLower.includes('pirate');
+    const isAggro = archLower.includes('aggro') || archLower.includes('burn') || isTokenSwarm;
+    const isControl = archLower.includes('control');
+    const isCombo = archLower.includes('combo') || archLower.includes('reanimat') || archLower.includes('aristocrat') || archLower.includes('blink');
+    const isRamp = archLower.includes('ramp') || archLower.includes('tron') || archLower.includes('big mana') || archLower.includes('eldrazi');
 
     const extractCardsForRole = (roleKeywords, fallbackCards) => {
       if (!Array.isArray(roles) || roles.length === 0) return fallbackCards;
@@ -32,101 +41,94 @@ export default function StrategyDAGVisualizer({ strategy = '', deckName = '', ro
       return foundCards.length > 0 ? Array.from(new Set(foundCards)).slice(0, 4) : fallbackCards;
     };
 
-    if (isGiants) {
-      dagNodes = [
-        {
-          id: 'node_t1',
-          turn: 'T1-T2',
-          title: 'Giant Mana Ramp & Stomp Opener',
-          capability: 'cap.mana.acceleration',
-          status: 'SATISFIED',
-          cardsCount: 12,
-          produces: ['+ Early Mana Ramp', '+ Stomp Removal', '+ Board Setup'],
-          dependsOn: [],
-          cardBindings: extractCardsForRole(['ramp', 'mana', 'acceleration', 'turn1'], ['Giant Ramp Spell', 'Stomp Removal', 'Early Acceleration'])
-        },
-        {
-          id: 'node_t2',
-          turn: 'T2-T3',
-          title: 'Stomp Interaction & Midgame Beats',
-          capability: 'cap.stomp.interaction',
-          status: 'SATISFIED',
-          cardsCount: 10,
-          produces: ['+ Targeted Damage', '+ Midgame Giant Presence'],
-          dependsOn: ['node_t1'],
-          cardBindings: extractCardsForRole(['removal', 'stomp', 'cheap'], ['Giantfall', "Anzrag's Rampage", 'Stomp Damage'])
-        },
-        {
-          id: 'node_t3',
-          turn: 'T3-T4',
-          title: 'Giant Creature Mass & Threat Engine',
-          capability: 'cap.threat.density',
-          status: 'SATISFIED',
-          cardsCount: 12,
-          produces: ['+ High-P/T Giant Bodies', '+ Combat Dominance'],
-          dependsOn: ['node_t2'],
-          cardBindings: extractCardsForRole(['tribal', 'presence', 'threat', 'board'], ['Giant Cindermaw', 'Brambleback Brute', 'Dalkovan Packbeasts'])
-        },
-        {
-          id: 'node_t4',
-          turn: 'T4-T5',
-          title: 'Lethal Giant Overwhelm Finisher',
-          capability: 'cap.threat.lethal',
-          status: 'SATISFIED',
-          cardsCount: 6,
-          produces: ['+ Trample Lethal Damage', '+ Game Closing'],
-          dependsOn: ['node_t3'],
-          cardBindings: extractCardsForRole(['finisher', 'lethal', 'overwhelm'], ['Giant Overwhelm', 'High Curve Giant', 'Combat Lethal'])
-        }
-      ];
-    } else {
-      dagNodes = [
-        {
-          id: 'node_t1',
-          turn: 'T1-T2',
-          title: `${blueprint?.tribe || 'Strategy'} Opener & Setup`,
-          capability: 'cap.mana.acceleration',
-          status: 'SATISFIED',
-          cardsCount: 12,
-          produces: ['+ Early Mana Setup', '+ Board Development'],
-          dependsOn: [],
-          cardBindings: extractCardsForRole(['mana', 'pressure'], ['Early Play', 'Mana Acceleration', 'Land Search'])
-        },
-        {
-          id: 'node_t2',
-          turn: 'T2-T3',
-          title: 'Midgame Synergy & Interaction Engine',
-          capability: 'cap.synergy',
-          status: 'SATISFIED',
-          cardsCount: 10,
-          produces: ['+ Board Control', '+ Synergistic Value'],
-          dependsOn: ['node_t1'],
-          cardBindings: extractCardsForRole(['removal', 'density'], ['Cheap Removal', 'Midgame Synergy'])
-        },
-        {
-          id: 'node_t3',
-          turn: 'T3-T4',
-          title: 'Core Strategy Threat Engine',
-          capability: 'cap.threat.density',
-          status: 'SATISFIED',
-          cardsCount: 10,
-          produces: ['+ High Threat Density', '+ Board Dominance'],
-          dependsOn: ['node_t2'],
-          cardBindings: extractCardsForRole(['threat', 'presence'], ['Core Threat', 'Archetype Finisher'])
-        },
-        {
-          id: 'node_t4',
-          turn: 'T4-T5',
-          title: 'Lethal Win Condition',
-          capability: 'cap.threat.lethal',
-          status: 'SATISFIED',
-          cardsCount: 4,
-          produces: ['+ Lethal Game Close'],
-          dependsOn: ['node_t3'],
-          cardBindings: extractCardsForRole(['finisher', 'lethal'], ['Lethal Finisher', 'Overwhelm'])
-        }
-      ];
+    let node1Capability = 'cap.mana.acceleration';
+    let node1Title = `${tribeLabel ? tribeLabel + ' ' : ''}Opener & Setup`;
+    let node1Produces = ['+ Early Mana Setup', '+ Board Development'];
+
+    if (isTokenSwarm) {
+      node1Capability = 'cap.tokens.swarm';
+      node1Title = `${tribeLabel ? tribeLabel + ' ' : ''}Token Swarm & Early Opener`;
+      node1Produces = [`+ Early ${tribeLabel || 'Token'} Generators`, '+ Early Board Swarm', '+ Engine Enablers'];
+    } else if (isTempo) {
+      node1Capability = 'cap.tempo.pressure';
+      node1Title = `${tribeLabel ? tribeLabel + ' ' : ''}Early Tempo & Pressure`;
+      node1Produces = [`+ Early ${tribeLabel || 'Threat'} Drops`, '+ Instant Disruption / Removal', '+ Board Tempo Setup'];
+    } else if (isAggro) {
+      node1Capability = 'cap.aggro.opener';
+      node1Title = `${tribeLabel ? tribeLabel + ' ' : ''}Aggressive Opener`;
+      node1Produces = [`+ Fast ${tribeLabel || 'Creature'} Swarm`, '+ Early Combat Damage', '+ Pressure'];
+    } else if (isControl) {
+      node1Capability = 'cap.early.disruption';
+      node1Title = `${stratLabel} Control Opener`;
+      node1Produces = ['+ Cheap Counterspells / Removal', '+ Mana Base Stabilization', '+ Early Cantrip Flow'];
+    } else if (isCombo) {
+      node1Capability = 'cap.combo.setup';
+      node1Title = `${stratLabel} Engine Setup`;
+      node1Produces = [`+ ${tribeLabel || 'Engine'} Enablers`, '+ Graveyard / Token Prep', '+ Card Filtering'];
+    } else if (isRamp) {
+      node1Capability = 'cap.mana.acceleration';
+      node1Title = `${tribeLabel ? tribeLabel + ' ' : ''}Big Mana & Ramp Opener`;
+      node1Produces = ['+ Fast Mana Acceleration', '+ Land Development', '+ Big Mana Setup'];
     }
+
+    let node2Title = `${tribeLabel ? tribeLabel + ' ' : ''}${stratLabel} Synergy Engine`;
+    let node2Capability = 'cap.synergy';
+    let node2Produces = [`+ ${tribeLabel || 'Synergy'} Value Engine`, '+ Midgame Interaction'];
+
+    let node3Title = `${tribeLabel ? tribeLabel + ' ' : ''}Core Threat Engine`;
+    let node3Capability = 'cap.threat.density';
+    let node3Produces = [`+ ${tribeLabel || 'Core'} Threat Presence`, '+ Board Dominance'];
+
+    let node4Title = `Lethal ${stratLabel} Finisher`;
+    let node4Capability = 'cap.threat.lethal';
+    let node4Produces = [`+ Lethal Game Close`, `+ Overwhelming ${tribeLabel || 'Combat'} Damage`];
+
+    dagNodes = [
+      {
+        id: 'node_t1',
+        turn: 'T1-T2',
+        title: node1Title,
+        capability: node1Capability,
+        status: 'SATISFIED',
+        cardsCount: 12,
+        produces: node1Produces,
+        dependsOn: [],
+        cardBindings: extractCardsForRole(['mana', 'pressure', 'opener', 'drop', 'ramp'], [`Early ${tribeLabel || 'Play'}`, 'Cheap Interaction', 'Opener Setup'])
+      },
+      {
+        id: 'node_t2',
+        turn: 'T2-T3',
+        title: node2Title,
+        capability: node2Capability,
+        status: 'SATISFIED',
+        cardsCount: 10,
+        produces: node2Produces,
+        dependsOn: ['node_t1'],
+        cardBindings: extractCardsForRole(['synergy', 'interaction', 'removal', 'engine'], ['Midgame Engine', 'Core Synergy', 'Removal Interaction'])
+      },
+      {
+        id: 'node_t3',
+        turn: 'T3-T4',
+        title: node3Title,
+        capability: node3Capability,
+        status: 'SATISFIED',
+        cardsCount: 10,
+        produces: node3Produces,
+        dependsOn: ['node_t2'],
+        cardBindings: extractCardsForRole(['threat', 'density', 'presence', 'tribal'], [`${tribeLabel || 'Core'} Threat`, 'Board Density'])
+      },
+      {
+        id: 'node_t4',
+        turn: 'T4-T5',
+        title: node4Title,
+        capability: node4Capability,
+        status: 'SATISFIED',
+        cardsCount: 4,
+        produces: node4Produces,
+        dependsOn: ['node_t3'],
+        cardBindings: extractCardsForRole(['finisher', 'lethal', 'overwhelm'], ['Lethal Finisher', 'Game Overwhelm'])
+      }
+    ];
   }
 
   const activeNode = dagNodes.find(n => n.id === selectedNode) || dagNodes[0];

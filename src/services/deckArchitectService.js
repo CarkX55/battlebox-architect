@@ -4938,6 +4938,7 @@ export async function generateBlueprintFromAI(formData, aiConfig, onProgress = (
   return {
     blueprint: v6Result.blueprint,
     v6Result,
+    oracleTraceLog: v6Result.oracleTraceLog,
     logs: ['[v6.0 AUTONOMOUS STRATEGIC PLANNER] Blueprint generado con éxito mediante razonamiento causal y Goal Graph.'],
     STRICT_INSTRUCTIONS_PROMPT: 'v6.0 Autonomous Strategic Pipeline System',
     contextGen_Prompt: 'Goal Graph & Dynamic Blueprint Reasoning'
@@ -4977,7 +4978,7 @@ export async function assembleDeckFromBlueprint(blueprint, formData, aiConfig, o
   // Combine spells and dynamic lands cleanly
   const finalDeckList = consolidateDeckCards([...consolidatedSpells, ...dynamicLands]);
 
-  // Ensure exact target deck size
+  // Ensure exact target deck size (Fill missing slots with spell playsets, NEVER dump extra lands)
   let currentTotal = countCopies(finalDeckList);
   if (currentTotal > targetDeckSize) {
     let excess = currentTotal - targetDeckSize;
@@ -4991,13 +4992,24 @@ export async function assembleDeckFromBlueprint(blueprint, formData, aiConfig, o
     }
   } else if (currentTotal < targetDeckSize) {
     const missing = targetDeckSize - currentTotal;
-    const firstBasic = finalDeckList.find(c => isBasicLand(c.name));
-    if (firstBasic) {
-      firstBasic.quantity += missing;
+    // Fill missing slots with top non-land spells (e.g. cheap removal / cantrips)
+    const spellList = finalDeckList.filter(c => !isLand(c));
+    if (spellList.length > 0) {
+      let remaining = missing;
+      for (const spell of spellList) {
+        if (remaining <= 0) break;
+        const add = Math.min(remaining, 4 - (spell.quantity || 1));
+        if (add > 0) {
+          spell.quantity += add;
+          remaining -= add;
+        }
+      }
     }
   }
 
   const cleanFinalDeck = finalDeckList.filter(c => c.quantity > 0);
+
+
 
   // Sprint 23: Architectural Invariant Audit on the assembled deck
   const copyAllocationState = v6Result.convergenceResult?.copyAllocationState || v6Result.blueprint?.copyAllocationState || null;

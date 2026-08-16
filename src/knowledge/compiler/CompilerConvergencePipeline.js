@@ -607,13 +607,68 @@ export class CompilerConvergencePipeline {
       details: { simulationFidelityTrace, evidencePyramidTrace, validatedLearningTrace, backtestReport, cardOntologyTrace, functionalPackageTrace, knowledgePartitionTrace, diversityIndexReport, strategicInferenceTrace, functionalRoleTrace, dependencyGraphTrace, archetypeDNATrace, packageEvolutionTrace, strategicExecutionPlan, failureAnalysisTrace, turnDecisionSimulatorTrace, strategicCoherenceReport, identityLeakageAudit, deckGenBenchmark, playabilityBenchmark, strategicReasoningBenchmark, ablationTestReport, regressionBenchmarkReport, modelCompletenessAudit, reversePresentationAudit, goldDatasetReport, humanExpertReport, errorTaxonomyReport, statisticalCalibrationReport, longitudinalMetaReport, compilerValidationReport, confidenceCard, capabilityCard, proResourceEconomy, proBeatdownRole, proCardSemantics, proDecisionTree, proPhaseSimulation, deliberativeMetaResearch, deliberativeHypothesis, deliberativePackageComparison, deliberativeOptimization, deliberativeCouncilVote }
     });
 
-    OracleTraceLog.buildStatus = 'SUCCESS';
+    // Safety Invariant Audits for Build Certification
+    const finalCards = deckState.cards || [];
+    let creatureCount = 0;
+    let tribeMatchCount = 0;
+    let cheapRemovalCount = 0;
+    let cheapRemovalCmcSum = 0;
+    const primaryTribe = (intentPackage.primaryTribe || '').toLowerCase();
+
+    for (const entry of finalCards) {
+      const cardObj = entry.card || entry;
+      const count = Number(entry.quantity || entry.count || 1);
+      const typeLine = (cardObj.type_line || cardObj.typeLine || entry.type_line || '').toLowerCase();
+      const oracleText = (cardObj.oracle_text || cardObj.oracleText || entry.oracle_text || '').toLowerCase();
+      const cmc = cardObj.cmc || cardObj.mana_value || entry.cmc || 0;
+
+
+      if (typeLine.includes('creature') || oracleText.includes('creature token')) {
+        creatureCount += count;
+      }
+
+      if (primaryTribe && typeLine.includes(primaryTribe)) {
+        tribeMatchCount += count;
+      }
+
+      if (entry.rationale && entry.rationale.includes('CHEAP_REMOVAL')) {
+        cheapRemovalCount += count;
+        cheapRemovalCmcSum += cmc * count;
+      }
+    }
+
+    const avgCheapRemovalCMC = cheapRemovalCount > 0 ? (cheapRemovalCmcSum / cheapRemovalCount) : 0;
+    const safetyViolations = [];
+
+    if (intentPackage.primaryTribe && creatureCount < 12) {
+      safetyViolations.push(`Insuficiente densidad de criaturas para mazo tribal: ${creatureCount} criaturas encontradas (Mínimo requerido: 12)`);
+    }
+
+    if (intentPackage.primaryTribe && tribeMatchCount < 8) {
+      safetyViolations.push(`Insuficiente densidad de criaturas de la tribu [${intentPackage.primaryTribe}]: ${tribeMatchCount} encontradas (Mínimo requerido: 8)`);
+    }
+
+    if (cheapRemovalCount > 0 && avgCheapRemovalCMC > 3.5) {
+      safetyViolations.push(`Promedio CMC para remoción barata desproporcionado: ${avgCheapRemovalCMC.toFixed(1)} (Máximo permitido: 3.0)`);
+    }
+
+    const buildStatus = safetyViolations.length === 0 ? 'SUCCESS' : 'FAILED';
+
+    OracleTraceLog.buildStatus = buildStatus;
+    if (buildStatus === 'FAILED') {
+      OracleTraceLog.setBuildFailed(safetyViolations.join('; '), { safetyViolations });
+    }
 
     return Object.freeze({
-      buildStatus: 'SUCCESS',
+      buildStatus,
+      safetyViolations,
+      creatureCount,
+      tribeMatchCount,
+      avgCheapRemovalCMC,
       state: deckState,
       compilerInput,
       intentPackage,
+
       deckIdentity,
       strategicExecutionPlan,
       failureAnalysisTrace,

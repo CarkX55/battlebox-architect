@@ -4,6 +4,7 @@ import { analyzeFunctionalPillars, buildPillarSummaryText } from './deckAuditorS
 import { isLand } from './deckCalculator.js';
 import { runMonteCarloSimulation } from './monteCarloEngine.js';
 import { auditCardRequirementsAndOrphans } from './cardRequirementEngine.js';
+import { runStrategicDeckAutopsy } from './strategicDeckOptimizer.js';
 
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -19,12 +20,13 @@ const normalizeCardName = (name = '') => {
 // ─────────────────────────────────────────────────────────────────────────────
 // Helper: Determina si una carta es cromáticamente compatible con el mazo
 // ─────────────────────────────────────────────────────────────────────────────
-function isColorCompatible(dbCard, allowedColors) {
+export function isColorCompatible(dbCard, allowedColors) {
   if (!allowedColors || allowedColors.length === 0) return true;
   const cardColors = dbCard.color_identity || dbCard.colors || [];
   if (cardColors.length === 0) return true; // Incolora = siempre compatible
   return cardColors.every(c => allowedColors.includes(c));
 }
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // VALIDACIÓN POST-IA: verifica cada sugerencia contra la BD local
@@ -40,12 +42,31 @@ function isColorCompatible(dbCard, allowedColors) {
  * @param {Array} allowedColors - Colores permitidos del formData
  * @returns {Array} suggestions anotadas
  */
-function validateSuggestionsAgainstDB(suggestions, allCards, currentDeck, allowedColors, formatKey = 'modern', rarityMode = 'high-power') {
+function validateSuggestionsAgainstDB(suggestions, allCards, currentDeck, allowedColors, formatKey = 'modern', rarityMode = 'high-power', formData = {}) {
   if (!suggestions || !Array.isArray(suggestions)) return [];
 
   const allowedRarities = rarityMode === 'pauper' ? ['common'] 
     : rarityMode === 'artisan' ? ['common', 'uncommon']
+    : rarityMode === 'standard' ? ['common', 'uncommon', 'rare']
     : ['common', 'uncommon', 'rare', 'mythic'];
+
+  const userTribeRaw = formData?.tribe || formData?.primaryTribe || formData?.aiMetadata?.tribe || '';
+  let canonicalTribe = '';
+  if (userTribeRaw) {
+    const rawTribeStr = String(userTribeRaw).toLowerCase();
+    if (rawTribeStr.includes('merfolk') || rawTribeStr.includes('sirena')) canonicalTribe = 'merfolk';
+    else if (rawTribeStr.includes('giant') || rawTribeStr.includes('gigante')) canonicalTribe = 'giant';
+    else if (rawTribeStr.includes('demon') || rawTribeStr.includes('demonio')) canonicalTribe = 'demon';
+    else if (rawTribeStr.includes('elf') || rawTribeStr.includes('elfo')) canonicalTribe = 'elf';
+    else if (rawTribeStr.includes('goblin')) canonicalTribe = 'goblin';
+    else if (rawTribeStr.includes('ooze') || rawTribeStr.includes('limo') || rawTribeStr.includes('gelatina')) canonicalTribe = 'ooze';
+    else if (rawTribeStr.includes('vampire') || rawTribeStr.includes('vampiro')) canonicalTribe = 'vampire';
+    else if (rawTribeStr.includes('zombie')) canonicalTribe = 'zombie';
+    else if (rawTribeStr.includes('dragon') || rawTribeStr.includes('dragón')) canonicalTribe = 'dragon';
+    else {
+      canonicalTribe = rawTribeStr.split(' ')[0].replace(/[^a-z]/g, '');
+    }
+  }
 
   return suggestions.map(sug => {
     const invalidReasons = [];
@@ -68,6 +89,15 @@ function validateSuggestionsAgainstDB(suggestions, allCards, currentDeck, allowe
             `"${addItem.name}" tiene colores [${cardColorStr}] incompatibles con la identidad del mazo [${allowedColors.join(',')}].`
           );
           return { ...addItem, _colorInvalid: true };
+        }
+
+        // Verificar compatibilidad de tribu si el mazo es tribal
+        if (canonicalTribe && (dbCard.type_line || '').toLowerCase().includes('creature')) {
+          const isTribeCreature = (dbCard.type_line || '').toLowerCase().includes(canonicalTribe) || (dbCard.oracle_text || '').toLowerCase().includes(canonicalTribe);
+          if (!isTribeCreature) {
+            invalidReasons.push(`"${addItem.name}" no pertenece a la tribu configurada por el usuario (${userTribeRaw}).`);
+            return { ...addItem, _tribeInvalid: true };
+          }
         }
 
         // Verificar legalidad de formato
@@ -103,21 +133,18 @@ function validateSuggestionsAgainstDB(suggestions, allCards, currentDeck, allowe
       ? sug.addOptions.map(optGroup => validateAddList(optGroup))
       : sug.addOptions;
 
-    // Verificar si el cambio encarece la curva de maná (diferencia de CMC ≥ 1.0 sin ser Curve Fix)
-    if (sug.changeType !== 'Curve Fix' && sug.removes && sug.removes.length > 0 && sug.adds && sug.adds.length > 0) {
-      const removeCards = sug.removes.map(r => allCards.find(c => normalizeCardName(c.name) === normalizeCardName(r.name))).filter(Boolean);
-      const addCards = sug.adds.map(a => allCards.find(c => normalizeCardName(c.name) === normalizeCardName(a.name))).filter(Boolean);
+    // Guard: si la sugerencia elimina tierras pero añade hechizos de no-tierra
+    const removesLands = sug.removes && sug.removes.some(r => {
+      const dbC = allCards.find(c => normalizeCardName(c.name) === normalizeCardName(r.name));
+      return dbC && (dbC.type_line || '').toLowerCase().includes('land');
+    });
+    const addsNonLands = sug.adds && sug.adds.some(a => {
+      const dbC = allCards.find(c => normalizeCardName(c.name) === normalizeCardName(a.name));
+      return dbC && !(dbC.type_line || '').toLowerCase().includes('land');
+    });
 
-      if (removeCards.length > 0 && addCards.length > 0) {
-        const avgRemoveCMC = removeCards.reduce((acc, c) => acc + (c.cmc ?? c.mana_value ?? 0), 0) / removeCards.length;
-        const avgAddCMC = addCards.reduce((acc, c) => acc + (c.cmc ?? c.mana_value ?? 0), 0) / addCards.length;
-
-        if (avgAddCMC - avgRemoveCMC >= 1.0) {
-          invalidReasons.push(
-            `El cambio empeora la curva de maná: elimina cartas de coste medio ${avgRemoveCMC.toFixed(1)} y añade cartas de coste medio ${avgAddCMC.toFixed(1)}.`
-          );
-        }
-      }
+    if (removesLands && addsNonLands) {
+      invalidReasons.push('La sugerencia mezcla eliminación de tierras con adición de hechizos.');
     }
 
     const hasAnyInvalid = invalidReasons.length > 0;
@@ -133,6 +160,7 @@ function validateSuggestionsAgainstDB(suggestions, allCards, currentDeck, allowe
     };
   });
 }
+
 
 // SYSTEM PROMPT DEL JUEZ SUPREMO
 // ─────────────────────────────────────────────────────────────────────────────
@@ -175,13 +203,16 @@ Tu objetivo es dar una calificación justa, constructiva y precisa sobre la comp
    - NUNCA sugieras un removal de coste 3 o más para reemplazar una interacción o jugada de coste 1.
 13. DEFINICIÓN ESTRICTA DE "PROTECTION FIX":
    - Las cartas de "Protection Fix" DEBEN ser hechizos de defensa activa o respuesta (contrahechizos/counterspells, dar hexproof, indestructible, protección o ward).
-   - NUNCA clasifiques un hechizo de daño o removal de criaturas (como Heated Argument) bajo la etiqueta "Protection Fix". NUNCA sugieras eliminar un artefacto de alta calidad como Lost Jitte para meter un removal de coste elevado.n las palabras vetadas ("vetoedKeywords") o cartas vetadas ("vetoedCards").
-10. OPCIONES MÚLTIPLES: Si consideras que hay varias opciones válidas para añadir (ej: "Añadir Fatal Push o Terminate"), DEBES usar el array "addOptions" para proporcionar las alternativas, y dejar "adds" vacío. Si solo hay una opción clara, usa "adds".
-11. FORMATO DE CARTAS: SIEMPRE que menciones el nombre de una carta en cualquier campo de texto, DEBES envolverla entre dobles corchetes. Ejemplo: "Necesitas más [[Lightning Bolt]]".
-12. PRESERVACIÓN ESTRICTA DE LA CURVA DE MANÁ (INVIOLABLE):
-   - Queda TOTALMENTE PROHIBIDO reemplazar cartas tempranas de coste bajo (CMC 1 o 2) por cartas lentas de alto coste (CMC 3, 4 o 5) en sugerencias de "Strict Upgrade" o "Synergy Upgrade".
-   - La diferencia de coste entre las cartas eliminadas ("removes") y las cartas añadidas ("adds") DEBE ser como máximo de 1 punto de maná (|CMC_remove - CMC_add| <= 1), salvo que la sugerencia sea explícitamente de tipo "Curve Fix" para solucionar un atasco de curva demostrado.
-   - NUNCA sugieras un removal de coste 3 o más para reemplazar una interacción o jugada de coste 1.
+   - NUNCA clasifiques un hechizo de daño o removal de criaturas (como Heated Argument) bajo la etiqueta "Protection Fix". NUNCA sugieras eliminar un artefacto de alta calidad como Lost Jitte para meter un removal de coste elevado.
+14. PRESERVACIÓN ESTRICTA DE TIERRAS DE TRIBU Y TIERRAS ESPECIALES (INVIOLABLE):
+   - Queda TOTALMENTE PROHIBIDO sugerir eliminar tierras especiales de tribu (como Cavern of Souls, Unclaimed Territory, Secluded Courtyard) o tierras duales/fetchlands competitivas para cambiarlas por tierras básicas (como Island o Forest) en mazos de tribu o multicontexto. Las tierras de fijación de tribu y duales son fundamentales para la estabilidad del maná.
+15. ALINEACIÓN ABSOLUTA CON LA CONFIGURACIÓN DEL USUARIO:
+   - DEBES respetar estrictamente el formato elegido por el usuario, el presupuesto configurado (maxBudget), las cartas vetadas (vetoedCards / customBanlist) y la identidad de color exacta (colores). NUNCA recomiendes una carta que exceda el presupuesto o viole los vetos del usuario.
+16. PRESERVACIÓN ABSOLUTA DE LA TRIBU Y MECÁNICA ELEGIDA (INVIOLABLE):
+   - Si el mazo tiene una Tribu elegida (ej: Saproling, Fungus, Merfolk, Giants, Demons, Elves, Goblins, Oozes), QUEDA ABSOLUTAMENTE PROHIBIDO recomendar criaturas o artefactos de otras tribus no relacionadas (ej. NO recomiendes Hangarback Walker, Walking Ballista, conejos o ranas en un mazo de Saprolines, Hongos, Tritones o Demonios).
+   - TODA criatura o permanente sugerido DEBE pertenecer estrictamente a la Tribu o apoyar directamente su mecánico de fichas (ej: Sporecrown Thallid, Slimefoot, Parallel Lives, Intangible Virtue, Tendershoot Dryad, Mycoloth). Queda TOTALMENTE PROHIBIDO eliminar la bomba principal del mazo para inyectar artefactos fuera de tema.
+17. PROHIBICIÓN DE ELIMINAR TIERRAS PARA AÑADIR HECHIZOS:
+   - Las sugerencias de "Mana Base & Pillar Fix" DEBEN ser EXCLUSIVAMENTE intercambios de tierras por tierras (ej: cambiar tierras básicas por tierras duales o tierras de tribu como Cavern of Souls). QUEDA TOTALMENTE PROHIBIDO incluir criaturas o hechizos dentro de una sugerencia de tierras o reducir la cuenta de tierras del mazo.
 
 Debes responder ÚNICAMENTE con un JSON válido usando este esquema exacto:
 {
@@ -201,21 +232,41 @@ Debes responder ÚNICAMENTE con un JSON válido usando este esquema exacto:
        ]
     }
   ]
-}`;
+}
+`;
 
-// Helper: Extrae candidatas RAG de la BD local para pilares necesitados y estrategia activa
-export function getPillarCandidatesFromDB(pillarName, allCards, allowedColors, formatKey, rarityMode, vetoedKeywords = [], vetoedCards = [], activeStrategy = '') {
+export function getPillarCandidatesFromDB(pillarName, allCards, allowedColors, formatKey, rarityMode, vetoedKeywords = [], vetoedCards = [], activeStrategy = '', primaryTribe = '') {
   const allowedRarities = rarityMode === 'pauper' ? ['common'] 
     : rarityMode === 'artisan' ? ['common', 'uncommon']
+    : rarityMode === 'standard' ? ['common', 'uncommon', 'rare']
     : ['common', 'uncommon', 'rare', 'mythic'];
 
   const rawVetoCards = Array.isArray(vetoedCards) ? vetoedCards : typeof vetoedCards === 'string' ? vetoedCards.split(',') : [];
+
   const rawVetoKws = Array.isArray(vetoedKeywords) ? vetoedKeywords : typeof vetoedKeywords === 'string' ? vetoedKeywords.split(',') : [];
 
   const normalizedVetoedCards = rawVetoCards.map(v => typeof v === 'string' ? v.toLowerCase().trim() : (v?.name || '').toLowerCase().trim()).filter(Boolean);
   const normalizedVetoedKws = rawVetoKws.map(k => typeof k === 'string' ? k.toLowerCase().trim() : '').filter(Boolean);
 
   const stratLower = (activeStrategy || '').toLowerCase();
+
+  // Extraer subtipo canónico de la tribu si fue especificada por el usuario
+  let canonicalTribe = '';
+  if (primaryTribe) {
+    const rawTribeStr = String(primaryTribe).toLowerCase();
+    if (rawTribeStr.includes('merfolk') || rawTribeStr.includes('sirena')) canonicalTribe = 'merfolk';
+    else if (rawTribeStr.includes('giant') || rawTribeStr.includes('gigante')) canonicalTribe = 'giant';
+    else if (rawTribeStr.includes('demon') || rawTribeStr.includes('demonio')) canonicalTribe = 'demon';
+    else if (rawTribeStr.includes('elf') || rawTribeStr.includes('elfo')) canonicalTribe = 'elf';
+    else if (rawTribeStr.includes('goblin')) canonicalTribe = 'goblin';
+    else if (rawTribeStr.includes('ooze') || rawTribeStr.includes('limo') || rawTribeStr.includes('gelatina')) canonicalTribe = 'ooze';
+    else if (rawTribeStr.includes('vampire') || rawTribeStr.includes('vampiro')) canonicalTribe = 'vampire';
+    else if (rawTribeStr.includes('zombie')) canonicalTribe = 'zombie';
+    else if (rawTribeStr.includes('dragon') || rawTribeStr.includes('dragón')) canonicalTribe = 'dragon';
+    else {
+      canonicalTribe = rawTribeStr.split(' ')[0].replace(/[^a-z]/g, '');
+    }
+  }
 
   const candidates = allCards
     .filter(c => c && c.name)
@@ -228,6 +279,12 @@ export function getPillarCandidatesFromDB(pillarName, allCards, allowedColors, f
       const typeLine = (c.type_line || '').toLowerCase();
       const cmc = c.cmc ?? c.mana_value ?? 0;
       if (normalizedVetoedKws.some(kw => kw && (oracle.includes(kw) || typeLine.includes(kw)))) return false;
+
+      // Si el usuario eligió una tribu, CUALQUIER criatura propuesta DEBE pertenecer a esa tribu
+      if (canonicalTribe && typeLine.includes('creature')) {
+        const isTribeMatch = typeLine.includes(canonicalTribe) || oracle.includes(canonicalTribe);
+        if (!isTribeMatch) return false;
+      }
       
       // Exigir máxima eficiencia de maná para interacción, protección y robo (CMC ≤ 3)
       if (pillarName === 'protection' || pillarName === 'removal' || pillarName === 'draw') {
@@ -249,7 +306,7 @@ export function getPillarCandidatesFromDB(pillarName, allCards, allowedColors, f
         return oracle.includes('draw') || oracle.includes('investigate') || oracle.includes('scry');
       } else if (pillarName === 'threats') {
         const power = parseInt(c.power || '0', 10);
-        return typeLine.includes('planeswalker') || (typeLine.includes('creature') && (power >= 3 || c.rarity === 'rare' || c.rarity === 'mythic'));
+        return typeLine.includes('planeswalker') || (typeLine.includes('creature') && (power >= 2 || c.rarity === 'rare' || c.rarity === 'mythic' || c.rarity === 'uncommon'));
       }
       return false;
     })
@@ -263,6 +320,7 @@ export function getPillarCandidatesFromDB(pillarName, allCards, allowedColors, f
 
   return candidates.map(c => c.name);
 }
+
 
 /**
  * Sintetiza un texto de veredicto fluido, profesional y humano de nivel Juez Pro Tour MTG
@@ -705,20 +763,36 @@ ${orphans ? 'CARTAS HUÉRFANAS DETECTADAS:\n' + orphans : ''}
         }
       });
 
+      const primaryTribe = formData?.tribe || formData?.primaryTribe || formData?.aiMetadata?.tribe || '';
+
       // Fallback 1: Si Karsten reporta deficiencia y el mapa no cambió, inyectar el intercambio de duales/básicas respetando la identidad de color activa
       if (exactAdds.length === 0 && exactRemoves.length === 0 && karstenNeedsFix) {
-        const deficient = karstenAnalysis?.devotions?.find(d => d.status === 'critical' || d.status === 'warning');
+        const deficientList = karstenAnalysis?.devotions?.filter(d => d.status === 'critical' || d.status === 'warning') || [];
         const activeColors = updatedFormData?.colores || [];
-        if (deficient && (activeColors.length === 0 || activeColors.includes(deficient.color))) {
-          const colorToLand = { W: 'Plains', U: 'Island', B: 'Swamp', R: 'Mountain', G: 'Forest' };
-          const neededBasic = colorToLand[deficient.color] || 'Island';
+        
+        for (const deficient of deficientList) {
+          if (activeColors.length > 0 && !activeColors.includes(deficient.color)) continue;
           
-          // Encontrar una tierra abundante en el mazo actual para recortar
-          const landEntries = hydratedDeckCards.filter(c => isLand(c) && (c.quantity || 1) > 1);
-          if (landEntries.length > 0) {
-            const reduceLand = landEntries[0];
-            exactRemoves.push({ name: reduceLand.name, quantity: 2 });
-            exactAdds.push({ name: neededBasic, quantity: 2 });
+          const missingColor = deficient.color;
+          const deficitQty = Math.min(3, Math.max(1, (deficient.recommendedSources || 14) - (deficient.actualSources || 10)));
+          
+          // Buscar tierra dual competitiva en allCards que aporte el color faltante y sea legal
+          const dualLandMatch = allCards.find(c => {
+            if (!isLand(c)) return false;
+            const cId = c.color_identity || c.colors || [];
+            return cId.includes(missingColor) && cId.length >= 2 && isColorCompatible(c, activeColors) && (c.legalities && c.legalities[selectedFormat] === 'legal');
+          });
+
+          const colorToBasic = { W: 'Plains', U: 'Island', B: 'Swamp', R: 'Mountain', G: 'Forest' };
+          const landNameToAdd = dualLandMatch ? dualLandMatch.name : (colorToBasic[missingColor] || 'Swamp');
+
+          // Encontrar una tierra básica abundante en el mazo de otro color para recortar
+          const basicLandsToTrim = hydratedDeckCards.filter(c => isLand(c) && (c.quantity || 1) >= deficitQty && c.name !== landNameToAdd);
+          if (basicLandsToTrim.length > 0) {
+            const trimLand = basicLandsToTrim[0];
+            exactRemoves.push({ name: trimLand.name, quantity: deficitQty });
+            exactAdds.push({ name: landNameToAdd, quantity: deficitQty });
+            break; // Resolver 1 déficit primario por sugerencia
           }
         }
       }
@@ -740,11 +814,11 @@ ${orphans ? 'CARTAS HUÉRFANAS DETECTADAS:\n' + orphans : ''}
             exactRemoves.push({ name: trimTarget.name, quantity: qtyToTrim });
 
             if (drawDeficit) {
-              const drawCandidates = getPillarCandidatesFromDB('draw', allCards, allowedColors, selectedFormat, formData?.rarityMode || 'high-power', [], [], activeStrategy);
+              const drawCandidates = getPillarCandidatesFromDB('draw', allCards, allowedColors, selectedFormat, formData?.rarityMode || 'high-power', [], [], activeStrategy, primaryTribe);
               const topDraw = drawCandidates[0] || (allowedColors.includes('B') ? 'Read the Bones' : allowedColors.includes('U') ? 'Brainstorm' : allowedColors.includes('G') ? 'Harmonize' : 'Night\'s Whisper');
               exactAdds.push({ name: topDraw, quantity: qtyToTrim });
             } else if (threatDeficit) {
-              const threatCandidates = getPillarCandidatesFromDB('threats', allCards, allowedColors, selectedFormat, formData?.rarityMode || 'high-power', [], [], activeStrategy);
+              const threatCandidates = getPillarCandidatesFromDB('threats', allCards, allowedColors, selectedFormat, formData?.rarityMode || 'high-power', [], [], activeStrategy, primaryTribe);
               const topThreat = threatCandidates[0] || (allowedColors.includes('G') ? 'Elder Gargaroth' : allowedColors.includes('B') ? 'Grave Titan' : 'Questing Beast');
               exactAdds.push({ name: topThreat, quantity: qtyToTrim });
             }
@@ -752,24 +826,43 @@ ${orphans ? 'CARTAS HUÉRFANAS DETECTADAS:\n' + orphans : ''}
         }
       }
 
-      if (exactAdds.length > 0 || exactRemoves.length > 0) {
-        let title = 'Reequilibrio Estructural Pro Tour (Pilares y Base de Maná)';
-        if (totalCards < targetCards) {
-          title = `Rellenar ${targetCards - totalCards} cartas faltantes y equilibrar base de maná Karsten`;
-        } else if (karstenNeedsFix) {
-          title = 'Equilibrar fuentes de maná Karsten con tierras duales y básicas';
-        } else if (hasPillarDeficits) {
-          title = 'Reequilibrar pilares funcionales: inyectar motor de robo / amenazas e igualar curva';
-        }
+      // Separar sugerencias de tierras (Land Fix) de sugerencias de hechizos (Pillar Fix)
+      const landAdds = exactAdds.filter(a => {
+        const dbC = allCards.find(c => normalizeCardName(c.name) === normalizeCardName(a.name));
+        return isLand(a) || (dbC && (dbC.type_line || '').toLowerCase().includes('land'));
+      });
+      const landRemoves = exactRemoves.filter(r => {
+        const dbC = allCards.find(c => normalizeCardName(c.name) === normalizeCardName(r.name));
+        return isLand(r) || (dbC && (dbC.type_line || '').toLowerCase().includes('land'));
+      });
 
+      const spellAdds = exactAdds.filter(a => !landAdds.includes(a));
+      const spellRemoves = exactRemoves.filter(r => !landRemoves.includes(r));
+
+      if (landAdds.length > 0 && landRemoves.length > 0) {
+        const totalAddsQty = landAdds.reduce((sum, c) => sum + (c.quantity || 1), 0);
+        const totalRemQty = landRemoves.reduce((sum, c) => sum + (c.quantity || 1), 0);
+        if (Math.abs(totalAddsQty - totalRemQty) <= 2) {
+          suggestions.unshift({
+            text: 'Equilibrar fuentes de maná Karsten con tierras duales y básicas',
+            changeType: 'Mana Base Fix',
+            adds: landAdds,
+            removes: landRemoves,
+            _simulated: true
+          });
+        }
+      }
+
+      if (spellAdds.length > 0 && spellRemoves.length > 0) {
         suggestions.unshift({
-          text: title,
-          changeType: 'Mana Base & Pillar Fix',
-          adds: exactAdds,
-          removes: exactRemoves,
+          text: 'Reequilibrar pilares funcionales de hechizos',
+          changeType: 'Pillar Fix',
+          adds: spellAdds,
+          removes: spellRemoves,
           _simulated: true
         });
       }
+
     } catch (simErr) {
       console.warn("Fallo al pre-calcular sustituciones exactas de tierras/cartas:", simErr);
     }
@@ -813,6 +906,17 @@ ${orphans ? 'CARTAS HUÉRFANAS DETECTADAS:\n' + orphans : ''}
     console.warn("Fallo al ejecutar auditoría v7 de Supreme Judge:", jErr);
   }
 
+  let strategicAutopsy = null;
+  try {
+    strategicAutopsy = await runStrategicDeckAutopsy(hydratedDeckCards, formData, {
+      auditId: `AUD-${Date.now()}`,
+      deckVersion: formData?.deckVersion || 1,
+      allCards
+    });
+  } catch (sErr) {
+    console.warn("Fallo al ejecutar Autopsia Estratégica v2 del Juez Supremo:", sErr);
+  }
+
   return {
     ...jsonResult,
     verdict: finalVerdict,
@@ -825,7 +929,8 @@ ${orphans ? 'CARTAS HUÉRFANAS DETECTADAS:\n' + orphans : ''}
     _karstenAnalysis: karstenAnalysis,
     _monteCarlo: monteCarlo,
     _cardRequirements: cardReqs,
-    _supremeJudgeReport: supremeJudgeReport
+    _supremeJudgeReport: supremeJudgeReport,
+    _strategicAutopsy: strategicAutopsy
   };
 }
 

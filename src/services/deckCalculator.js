@@ -726,8 +726,55 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
     injectTronSuite = true;
   }
 
-  // A. TIERRAS TEMÁTICAS TRIBALES/ARQUETÍPICAS DINÁMICAS (SOMMELIER DE TIERRAS)
+  // A. TIERRAS TEMÁTICAS TRIBALES/ARQUETÍPICAS DINÁMICAS (SOMMELIER DE TIERRAS & CREATURE LANDS)
   const THEMATIC_LANDS_MAP = {
+    merfolk: [
+      { name: "Cavern of Souls", qty: 2, type: "Land — Tribal", color_identity: [] },
+      { name: "Mutavault", qty: 2, type: "Land", color_identity: [] },
+      { name: "Otawara, Soaring City", qty: 1, type: "Legendary Land", color_identity: ["U"] },
+      { name: "Minamo, School at Water's Edge", qty: 1, type: "Legendary Land", color_identity: ["U"] }
+    ],
+    saprolings: [
+      { name: "Boseiju, Who Endures", qty: 1, type: "Legendary Land", color_identity: ["G"] },
+      { name: "Westvale Abbey", qty: 1, type: "Land", color_identity: [] },
+      { name: "Castle Garenbrig", qty: 2, type: "Land", color_identity: ["G"] }
+    ],
+    goblins: [
+      { name: "Cavern of Souls", qty: 2, type: "Land — Tribal", color_identity: [] },
+      { name: "Den of the Bugbear", qty: 2, type: "Land", color_identity: ["R"] },
+      { name: "Sokenzan, Crucible of Defiance", qty: 1, type: "Legendary Land", color_identity: ["R"] }
+    ],
+    zombies: [
+      { name: "Cavern of Souls", qty: 2, type: "Land — Tribal", color_identity: [] },
+      { name: "Unholy Grotto", qty: 2, type: "Land", color_identity: [] },
+      { name: "Takenuma, Abandoned Mire", qty: 1, type: "Legendary Land", color_identity: ["B"] },
+      { name: "Hive of the Eye Tyrant", qty: 1, type: "Land", color_identity: ["B"] }
+    ],
+    vampires: [
+      { name: "Cavern of Souls", qty: 2, type: "Land — Tribal", color_identity: [] },
+      { name: "Castle Locthwain", qty: 2, type: "Land", color_identity: ["B"] },
+      { name: "Hive of the Eye Tyrant", qty: 1, type: "Land", color_identity: ["B"] }
+    ],
+    demons: [
+      { name: "Cavern of Souls", qty: 2, type: "Land — Tribal", color_identity: [] },
+      { name: "Castle Locthwain", qty: 2, type: "Land", color_identity: ["B"] },
+      { name: "Takenuma, Abandoned Mire", qty: 1, type: "Legendary Land", color_identity: ["B"] }
+    ],
+    giants: [
+      { name: "Cavern of Souls", qty: 2, type: "Land — Tribal", color_identity: [] },
+      { name: "Den of the Bugbear", qty: 2, type: "Land", color_identity: ["R"] },
+      { name: "Sokenzan, Crucible of Defiance", qty: 1, type: "Legendary Land", color_identity: ["R"] }
+    ],
+    angels: [
+      { name: "Cavern of Souls", qty: 2, type: "Land — Tribal", color_identity: [] },
+      { name: "Castle Ardenvale", qty: 2, type: "Land", color_identity: ["W"] },
+      { name: "Eiganjo, Seat of the Empire", qty: 1, type: "Legendary Land", color_identity: ["W"] }
+    ],
+    slivers: [
+      { name: "Sliver Hive", qty: 4, type: "Land", color_identity: [] },
+      { name: "Cavern of Souls", qty: 2, type: "Land — Tribal", color_identity: [] },
+      { name: "Secluded Courtyard", qty: 2, type: "Land — Tribal", color_identity: [] }
+    ],
     sea_monsters: [
       { name: "Hall of Storm Giants", qty: 2, type: "Land — Cave", color_identity: ["U"] },
       { name: "Minamo, School at Water's Edge", qty: 1, type: "Legendary Land", color_identity: ["U"] },
@@ -754,6 +801,19 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
   };
 
   let detectedTheme = null;
+  const merfolkCount = nonLandSpells.filter(c => (c.type_line || '').toLowerCase().includes('merfolk')).reduce((sum, c) => sum + (c.quantity || 1), 0);
+  const saprolingCount = nonLandSpells.filter(c => {
+    const t = (c.type_line || '').toLowerCase();
+    const o = (c.oracle_text || '').toLowerCase();
+    return t.includes('saproling') || t.includes('fungus') || o.includes('saproling');
+  }).reduce((sum, c) => sum + (c.quantity || 1), 0);
+  const goblinCount = nonLandSpells.filter(c => (c.type_line || '').toLowerCase().includes('goblin')).reduce((sum, c) => sum + (c.quantity || 1), 0);
+  const zombieCount = nonLandSpells.filter(c => (c.type_line || '').toLowerCase().includes('zombie')).reduce((sum, c) => sum + (c.quantity || 1), 0);
+  const vampireCount = nonLandSpells.filter(c => (c.type_line || '').toLowerCase().includes('vampire')).reduce((sum, c) => sum + (c.quantity || 1), 0);
+  const demonCount = nonLandSpells.filter(c => (c.type_line || '').toLowerCase().includes('demon')).reduce((sum, c) => sum + (c.quantity || 1), 0);
+  const giantCount = nonLandSpells.filter(c => (c.type_line || '').toLowerCase().includes('giant')).reduce((sum, c) => sum + (c.quantity || 1), 0);
+  const angelCount = nonLandSpells.filter(c => (c.type_line || '').toLowerCase().includes('angel')).reduce((sum, c) => sum + (c.quantity || 1), 0);
+  const sliverCount = nonLandSpells.filter(c => (c.type_line || '').toLowerCase().includes('sliver')).reduce((sum, c) => sum + (c.quantity || 1), 0);
   const seaMonsterCount = nonLandSpells.filter(c => {
     const type = (c.type_line || '').toLowerCase();
     return type.includes('kraken') || type.includes('leviathan') || type.includes('serpent') || type.includes('octopus');
@@ -766,15 +826,33 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
   const dinoCount = nonLandSpells.filter(c => (c.type_line || '').toLowerCase().includes('dinosaur')).reduce((sum, c) => sum + (c.quantity || 1), 0);
   const artifactCount = nonLandSpells.filter(c => (c.type_line || '').toLowerCase().includes('artifact')).reduce((sum, c) => sum + (c.quantity || 1), 0);
 
-  if (seaMonsterCount >= 6 || tribe === 'sea_monsters' || archetype.includes('sea_monsters') || archetype.includes('sea monsters')) {
+  if (merfolkCount >= 6 || tribe === 'merfolk' || archetype.includes('merfolk')) {
+    detectedTheme = 'merfolk';
+  } else if (saprolingCount >= 6 || tribe.includes('saproling') || tribe.includes('fungus')) {
+    detectedTheme = 'saprolings';
+  } else if (goblinCount >= 6 || tribe === 'goblin' || tribe === 'goblins') {
+    detectedTheme = 'goblins';
+  } else if (zombieCount >= 6 || tribe === 'zombie' || tribe === 'zombies') {
+    detectedTheme = 'zombies';
+  } else if (vampireCount >= 6 || tribe === 'vampire' || tribe === 'vampires') {
+    detectedTheme = 'vampires';
+  } else if (demonCount >= 6 || tribe === 'demon' || tribe === 'demons') {
+    detectedTheme = 'demons';
+  } else if (giantCount >= 6 || tribe === 'giant' || tribe === 'giants') {
+    detectedTheme = 'giants';
+  } else if (angelCount >= 6 || tribe === 'angel' || tribe === 'angels') {
+    detectedTheme = 'angels';
+  } else if (sliverCount >= 6 || tribe === 'sliver' || tribe === 'slivers') {
+    detectedTheme = 'slivers';
+  } else if (seaMonsterCount >= 6 || tribe === 'sea_monsters' || archetype.includes('sea_monsters')) {
     detectedTheme = 'sea_monsters';
-  } else if (dragonCount >= 6 || tribe === 'dragons' || archetype.includes('dragons') || archetype.includes('dragon')) {
+  } else if (dragonCount >= 6 || tribe === 'dragons' || archetype.includes('dragons')) {
     detectedTheme = 'dragons';
-  } else if (elfCount >= 8 || tribe === 'elves' || archetype.includes('elves') || archetype.includes('elf')) {
+  } else if (elfCount >= 8 || tribe === 'elves' || archetype.includes('elves')) {
     detectedTheme = 'elves';
-  } else if (dinoCount >= 6 || tribe === 'dinosaurs' || archetype.includes('dinosaurs') || archetype.includes('dino')) {
+  } else if (dinoCount >= 6 || tribe === 'dinosaurs' || archetype.includes('dino')) {
     detectedTheme = 'dinosaurs';
-  } else if (artifactCount >= 12 || strategy === 'affinity' || archetype.includes('affinity') || strategy === 'vehicles') {
+  } else if (artifactCount >= 12 || strategy === 'affinity' || archetype.includes('affinity')) {
     detectedTheme = 'artifacts';
   }
 

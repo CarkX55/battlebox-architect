@@ -1299,14 +1299,10 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
     setHasUserClearedStrategy(false);
     setErrors(prev => ({ ...prev, colores: null }));
     
-    // Auto-avance místico inteligente (Piloto Automático)
+    // Auto-avance místico inteligente hacia el Paso 2
     setTimeout(() => {
-      if (isDynamic) {
-        setCurrentStep(4); // Si es un mazo Meta/Dinámico, salta directo al final con todo rellenado
-      } else {
-        setCurrentStep(2); // Flujo normal para arquetipos genéricos
-      }
-    }, 450);
+      setCurrentStep(2);
+    }, 350);
   };
 
   const toggleColor = (colorId) => {

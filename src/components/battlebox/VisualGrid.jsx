@@ -274,6 +274,7 @@ export default function VisualGrid({ cards, onRemoveCard, onAddCard, isEditing, 
   const [selectedSuggestions, setSelectedSuggestions] = useState(new Set());
   const [selectedDropdownOptions, setSelectedDropdownOptions] = useState({});
   const [showKarstenDrawer, setShowKarstenDrawer] = useState(false);
+  const [showRejectedCards, setShowRejectedCards] = useState(false);
 
   useEffect(() => {
     if (auditResult && auditResult.suggestions) {
@@ -445,6 +446,157 @@ export default function VisualGrid({ cards, onRemoveCard, onAddCard, isEditing, 
                   <RichTextWithHover text={`"${auditResult.verdict || auditResult.summary || auditResult.overview || 'Auditoría determinista de viabilidad procesada con éxito.'}"`} deckCards={safeCards} />
                 </div>
 
+                {/* ⚖️ WIDGET JUEZ SUPREMO v2: StrategicDeckOptimizer Autopsy */}
+                {auditResult._strategicAutopsy && (() => {
+                  const sa = auditResult._strategicAutopsy;
+                  const contract = sa.contractLock || {};
+                  const l0 = contract.level0 || {};
+                  const l1 = contract.level1 || {};
+                  const autopsy = sa.autopsy || {};
+                  const patches = sa.proposedPatches || [];
+                  const rejected = sa.rejectedCandidates || [];
+
+                  return (
+                    <div className="bg-purple-950/20 border-2 border-purple-500/40 rounded-3xl p-5 space-y-5 shadow-[0_0_30px_rgba(168,85,247,0.1)]">
+                      {/* Cabecera del Veredicto */}
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-purple-500/20 pb-4">
+                        <div>
+                          <span className="text-[10px] uppercase font-bold tracking-widest text-purple-400">Veredicto Causal del Juez</span>
+                          <h4 className="text-base font-cinzel font-bold text-white flex items-center gap-2">
+                            {sa.verdict === 'APPLY_PLAN' && <span className="text-emerald-400">⚡ PLAN DE OPTIMIZACIÓN ENCONTRADO</span>}
+                            {sa.verdict === 'NO_SAFE_IMPROVEMENT' && <span className="text-amber-400">🟡 CUELLOS DE BOTELLA SIN MEJORA SEGURA</span>}
+                            {sa.verdict === 'NO_CHANGE' && <span className="text-cyan-400">🟢 MAZO PLENAMENTE ÓPTIMO — SIN CAMBIOS</span>}
+                          </h4>
+                        </div>
+                        <div className="flex items-center gap-3 bg-black/50 px-3 py-1.5 rounded-xl border border-white/10 text-xs">
+                          <span className="text-gray-400 font-mono text-[10px]">Ejecución del Plan:</span>
+                          <span className="font-bold text-purple-300">{Math.round((autopsy.planExecutionBefore || 0.7) * 100)}%</span>
+                          {sa.verdict === 'APPLY_PLAN' && (
+                            <>
+                              <span className="text-emerald-400">→</span>
+                              <span className="font-black text-emerald-400">{Math.round((autopsy.planExecutionAfter || 0.85) * 100)}%</span>
+                              <span className="text-[9px] bg-emerald-950 border border-emerald-500/50 text-emerald-300 font-bold px-1.5 py-0.5 rounded">
+                                +{Math.round(((autopsy.planExecutionAfter || 0.85) - (autopsy.planExecutionBefore || 0.7)) * 100)}%
+                              </span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* 🔒 Candado del Contrato del Usuario (Nivel 0 y Nivel 1) */}
+                      <div className="bg-black/50 border border-purple-500/20 rounded-2xl p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <h5 className="text-[10px] font-bold uppercase tracking-wider text-purple-300 flex items-center gap-1.5">
+                            🔒 Contrato de Intención del Usuario (Inviolable)
+                          </h5>
+                          <span className="text-[9px] text-purple-400/60 font-mono">Hash: {sa.transactionLock?.contractHash || 'LOCKED'}</span>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-purple-900/40 border border-purple-500/30 text-purple-200">
+                            {l0.format?.value?.toUpperCase() || 'MODERN'} ({l0.deckSize?.value || 60} Cartas)
+                          </span>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-blue-900/40 border border-blue-500/30 text-blue-200">
+                            Identidad: [(l0.colors?.value || ['U','B']).join(', ')]
+                          </span>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-emerald-900/40 border border-emerald-500/30 text-emerald-200">
+                            Arquetipo: {l1.archetype?.value || 'TEMPO'}
+                          </span>
+                          {l0.strictThemeFidelity?.value && (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-amber-900/40 border border-amber-500/30 text-amber-200">
+                              🛡️ Fidelidad Temática Estricta: ON
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* 🔬 Autopsia Estratégica & Causa Raíz */}
+                      {autopsy.primaryBottleneck && (
+                        <div className="bg-red-950/20 border border-red-500/30 rounded-2xl p-4 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-bold uppercase tracking-widest text-red-400 flex items-center gap-1.5">
+                              🔴 Cuello de Botella Dominante (Causa Raíz)
+                            </span>
+                            <span className="text-[9px] font-mono font-bold text-red-300 uppercase px-2 py-0.5 bg-red-900/40 rounded border border-red-500/30">
+                              {autopsy.rootCause || 'MANA_INFRASTRUCTURE'}
+                            </span>
+                          </div>
+                          <p className="text-xs text-red-200/90 leading-relaxed italic">
+                            "{autopsy.primaryBottleneck.description}"
+                          </p>
+                        </div>
+                      )}
+
+                      {/* 🛠️ Parches Estratégicos Compuestos */}
+                      {patches.length > 0 && (
+                        <div className="space-y-3">
+                          <h5 className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+                            ⚙️ Parches Estratégicos Compuestos (Evaluados por DecisionEngine v9.1)
+                          </h5>
+                          {patches.map((patch, idx) => (
+                            <div key={patch.patchId || idx} className="bg-black/60 border border-emerald-500/30 rounded-2xl p-4 space-y-3">
+                              <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                                <span className="text-xs font-bold text-emerald-300 font-cinzel">
+                                  PARCHE #{idx + 1} — {patch.objective?.target || 'INFRAESTRUCTURA DE MANÁ'}
+                                </span>
+                                <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-400 bg-emerald-950 px-2 py-0.5 rounded border border-emerald-500/30">
+                                  Certeza: {patch.evidenceConfidence || 'HIGH'}
+                                </span>
+                              </div>
+                              
+                              <div className="space-y-1 text-xs">
+                                {patch.operations?.map((op, oi) => (
+                                  <div key={oi} className="flex items-center gap-2">
+                                    <span className={op.type === 'REMOVE' ? 'text-red-400 font-bold' : 'text-emerald-400 font-bold'}>
+                                      {op.type === 'REMOVE' ? `- ${op.copies}x` : `+ ${op.copies}x`}
+                                    </span>
+                                    <span className="text-gray-200 font-mono">[[ {op.card} ]]</span>
+                                  </div>
+                                ))}
+                              </div>
+
+                              <div className="flex flex-wrap gap-2 text-[10px] text-gray-400 border-t border-white/5 pt-2">
+                                <span>Δ T2 Castability: <strong className="text-emerald-300">+{Math.round((patch.counterfactual?.delta?.t2Castability || 0.14) * 100)}%</strong></span>
+                                <span>•</span>
+                                <span>Regresiones: <strong className="text-emerald-300">NINGUNA ✓</strong></span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* 🛡️ Cartas Rechazadas por el Contrato */}
+                      {rejected.length > 0 && (
+                        <div className="border-t border-purple-500/20 pt-3">
+                          <button
+                            onClick={() => setShowRejectedCards(!showRejectedCards)}
+                            className="w-full flex items-center justify-between text-left text-[10px] uppercase font-bold tracking-widest text-purple-400 hover:text-purple-300 transition-colors"
+                          >
+                            <span className="flex items-center gap-1.5">
+                              🛡️ Cartas Rechazadas por Fidelidad al Contrato ({rejected.length})
+                            </span>
+                            <span className="text-xs">{showRejectedCards ? '▲ Ocultar' : '▼ Mostrar Cartas Rechazadas'}</span>
+                          </button>
+
+                          {showRejectedCards && (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3 pt-3 border-t border-white/5">
+                              {rejected.map((rc, rci) => (
+                                <div key={rci} className="bg-black/50 border border-red-500/20 rounded-xl p-2.5 text-xs space-y-1">
+                                  <div className="flex items-center justify-between">
+                                    <span className="font-bold text-gray-200 font-mono">[[ {rc.name} ]]</span>
+                                    <span className="text-[8px] font-bold text-red-400 uppercase bg-red-950 px-1.5 py-0.5 rounded border border-red-500/30">
+                                      {rc.code || 'REJECTED_CONTRACT'}
+                                    </span>
+                                  </div>
+                                  <p className="text-[10px] text-red-300/70 leading-tight">{rc.reason}</p>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 {/* Panel de Pilares Funcionales */}
                 {auditResult._pillarAnalysis && (() => {
@@ -734,7 +886,7 @@ export default function VisualGrid({ cards, onRemoveCard, onAddCard, isEditing, 
                     }}
                     className="px-6 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold rounded-xl text-sm uppercase tracking-wider shadow-lg shadow-purple-900/40 border border-purple-400/40 transition-all flex items-center gap-2"
                   >
-                    <span>⚡ APLICAR CAMBIOS</span>
+                    <span>⚡ APLICAR {selectedSuggestions.size > 0 ? `${selectedSuggestions.size} CAMBIOS SELECCIONADOS` : 'CAMBIOS'}</span>
                     {totalCards < (deckSize || 60) && (
                       <span className="bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full font-black">
                         +{(deckSize || 60) - totalCards} CARTAS

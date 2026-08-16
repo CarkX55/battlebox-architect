@@ -1,19 +1,22 @@
 import { useState } from 'react';
 import { OracleTraceLog } from '../../knowledge/serving/OracleTraceLog.js';
-import { Scroll, ShieldAlert, CheckCircle2, ChevronRight, Download, Search, Zap, Code, AlertTriangle } from 'lucide-react';
+import { Scroll, ShieldAlert, CheckCircle2, ChevronRight, Download, Search, Zap, Code, AlertTriangle, Copy, Check } from 'lucide-react';
 import { cn } from '../../utils/cn';
 
-export default function OracleTraceLogModal({ isOpen, onClose }) {
+export default function OracleTraceLogModal({ isOpen, onClose, traceLog: propTraceLog }) {
   const [activeCategory, setActiveCategory] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedPass, setExpandedPass] = useState(null);
   const [showRawLLMModal, setShowRawLLMModal] = useState(false);
+  const [copiedTraceJSON, setCopiedTraceJSON] = useState(false);
+  const [copiedRawLLM, setCopiedRawLLM] = useState(false);
 
   if (!isOpen) return null;
 
-  const traceSummary = OracleTraceLog.getTraceSummary();
-  const allPasses = OracleTraceLog.passes || [];
-  const rawLLMData = OracleTraceLog.rawGeminiLLMLogs;
+  const activeLog = propTraceLog || OracleTraceLog;
+  const traceSummary = typeof activeLog.getTraceSummary === 'function' ? activeLog.getTraceSummary() : OracleTraceLog.getTraceSummary();
+  const allPasses = activeLog.passes || OracleTraceLog.passes || [];
+  const rawLLMData = activeLog.rawGeminiLLMLogs || OracleTraceLog.rawGeminiLLMLogs;
 
   const filteredPasses = allPasses.filter(pass => {
     const matchesCategory = activeCategory === 'ALL' || pass.category === activeCategory;
@@ -63,6 +66,51 @@ export default function OracleTraceLogModal({ isOpen, onClose }) {
     a.click();
   };
 
+  const copyToClipboard = async (text) => {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      try {
+        await navigator.clipboard.writeText(text);
+        return true;
+      } catch (err) {
+        console.warn('Clipboard API error, trying fallback', err);
+      }
+    }
+    try {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      const success = document.execCommand('copy');
+      document.body.removeChild(textarea);
+      return success;
+    } catch (err) {
+      console.error('Fallback copy failed', err);
+      return false;
+    }
+  };
+
+  const handleCopyTraceJSON = async () => {
+    const jsonStr = OracleTraceLog.exportTraceJSON();
+    const success = await copyToClipboard(jsonStr);
+    if (success) {
+      setCopiedTraceJSON(true);
+      setTimeout(() => setCopiedTraceJSON(false), 2000);
+    }
+  };
+
+  const handleCopyRawLLM = async () => {
+    if (!rawLLMData) return;
+    const content = rawLLMData.rawResponse || JSON.stringify(rawLLMData.parsedJSON, null, 2);
+    const success = await copyToClipboard(content);
+    if (success) {
+      setCopiedRawLLM(true);
+      setTimeout(() => setCopiedRawLLM(false), 2000);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-md p-4">
       <div className="w-full max-w-6xl h-[90vh] bg-[#0a0807] border-2 border-[#D4AF37]/50 rounded-3xl p-6 text-white flex flex-col gap-4 shadow-[0_0_60px_rgba(212,175,55,0.25)] relative overflow-hidden">
@@ -94,7 +142,7 @@ export default function OracleTraceLogModal({ isOpen, onClose }) {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {rawLLMData && (
               <button
                 onClick={() => setShowRawLLMModal(true)}
@@ -105,11 +153,25 @@ export default function OracleTraceLogModal({ isOpen, onClose }) {
               </button>
             )}
             <button
+              onClick={handleCopyTraceJSON}
+              className={cn(
+                "px-3 py-1.5 border rounded-xl text-xs font-mono font-bold flex items-center gap-1.5 transition-all shadow-sm",
+                copiedTraceJSON
+                  ? "bg-emerald-500/25 border-emerald-500/50 text-emerald-300"
+                  : "bg-emerald-500/15 hover:bg-emerald-500/25 border-emerald-500/40 text-emerald-300"
+              )}
+              title="Copiar toda la bitácora JSON al portapapeles sin descargar"
+            >
+              {copiedTraceJSON ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
+              <span>{copiedTraceJSON ? '¡Bitácora Copiada!' : 'Copiar Bitácora'}</span>
+            </button>
+            <button
               onClick={handleDownload}
               className="px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 rounded-xl text-xs font-mono font-bold flex items-center gap-1.5 transition-all"
+              title="Descargar archivo .json"
             >
               <Download size={14} />
-              <span>Exportar JSON</span>
+              <span>Descargar JSON</span>
             </button>
             <button
               onClick={onClose}
@@ -222,9 +284,24 @@ export default function OracleTraceLogModal({ isOpen, onClose }) {
                 <Code size={16} />
                 <span>Respuesta JSON Cruda de Gemini LLM (Raw Capture)</span>
               </h4>
-              <button onClick={() => setShowRawLLMModal(false)} className="text-gray-400 hover:text-white text-xs font-mono">
-                Cerrar
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleCopyRawLLM}
+                  className={cn(
+                    "px-3 py-1.5 border rounded-xl text-xs font-mono font-bold flex items-center gap-1.5 transition-all",
+                    copiedRawLLM
+                      ? "bg-emerald-500/25 border-emerald-500/50 text-emerald-300"
+                      : "bg-purple-500/20 hover:bg-purple-500/30 border-purple-500/40 text-purple-300"
+                  )}
+                  title="Copiar el JSON crudo al portapapeles"
+                >
+                  {copiedRawLLM ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
+                  <span>{copiedRawLLM ? '¡Copiado!' : 'Copiar JSON Crudo'}</span>
+                </button>
+                <button onClick={() => setShowRawLLMModal(false)} className="text-gray-400 hover:text-white text-xs font-mono px-2 py-1">
+                  Cerrar
+                </button>
+              </div>
             </div>
             <div className="flex-1 overflow-y-auto bg-black p-4 rounded-2xl border border-white/10 text-[10.5px] font-mono text-emerald-300 whitespace-pre-wrap">
               {rawLLMData.rawResponse || JSON.stringify(rawLLMData.parsedJSON, null, 2)}
@@ -235,3 +312,4 @@ export default function OracleTraceLogModal({ isOpen, onClose }) {
     </div>
   );
 }
+

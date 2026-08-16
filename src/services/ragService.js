@@ -288,59 +288,18 @@ Devuelve la información estrictamente estructurada según el JSON Schema requer
 };
 
 function selectHybridWeighted(candidates, targetCount) {
-  if (candidates.length <= targetCount) {
-    return [...candidates];
+  if (!candidates || candidates.length <= targetCount) {
+    return [...(candidates || [])];
   }
   if (targetCount <= 0) {
     return [];
   }
-  // 1. Staples (65%): El 65% de la capacidad de targetCount se asigna directamente a los de mayor score.
-  const stapleCount = Math.max(1, Math.round(targetCount * 0.65));
-  const selected = candidates.slice(0, stapleCount);
-  
-  // El restante es para variabilidad
-  const varCount = targetCount - stapleCount;
-  if (varCount <= 0) {
-    return selected;
-  }
-  
-  // 2. Variabilidad (35%): Elegir probabilísticamente mediante selección ponderada (ruleta) sobre los siguientes 15 candidatos.
-  const poolForVar = candidates.slice(stapleCount, stapleCount + 15);
-  if (poolForVar.length === 0) {
-    return selected;
-  }
-  
-  if (poolForVar.length <= varCount) {
-    selected.push(...poolForVar);
-    return selected;
-  }
-  
-  const tempPool = poolForVar.map(c => {
-    const weight = Math.max(1, c.score || 0);
-    return { card: c, weight };
-  });
-  
-  const chosen = [];
-  const tempPoolCopy = [...tempPool];
-  for (let i = 0; i < varCount; i++) {
-    if (tempPoolCopy.length === 0) break;
-    const totalWeight = tempPoolCopy.reduce((sum, item) => sum + item.weight, 0);
-    let r = Math.random() * totalWeight;
-    let selectedIndex = 0;
-    for (let j = 0; j < tempPoolCopy.length; j++) {
-      r -= tempPoolCopy[j].weight;
-      if (r <= 0) {
-        selectedIndex = j;
-        break;
-      }
-    }
-    chosen.push(tempPoolCopy[selectedIndex].card);
-    tempPoolCopy.splice(selectedIndex, 1);
-  }
-  
-  selected.push(...chosen);
-  return selected;
+  // Pure Deterministic Top-Score Selection (Guarantees highest synergy cards for ANY user query)
+  const sorted = [...candidates].sort((a, b) => (b.score || 0) - (a.score || 0));
+  return sorted.slice(0, targetCount);
 }
+  
+
 
 export const buildCardPool = async (formData) => {
   const allCards = await getAllCards();
@@ -353,25 +312,30 @@ export const buildCardPool = async (formData) => {
   const blueprintRoles = formData.blueprintRoles || blueprint?.roles || [];
   const allowCustomCards = !!formData.allowCustomCards;
   
-  const priority = formData.generationPriority || 'hybrid';
+  const rawPriority = String(formData.generationPriority || formData.prioridadSeleccion || 'balanced').toLowerCase();
+  const priority = (rawPriority === 'hybrid' || rawPriority === 'equilibrado') ? 'balanced' : rawPriority;
   
   // Multiplicadores según la prioridad de generación
   let synergyMultiplier = 1.0;
   let competitiveMultiplier = 1.0;
   let thematicMultiplier = 1.0;
 
-  if (priority === 'synergy') {
-    synergyMultiplier = 2.0;
+  if (priority === 'synergy' || priority === 'sinergia') {
+    synergyMultiplier = 2.5;
     competitiveMultiplier = 0.5;
-    thematicMultiplier = 1.0;
-  } else if (priority === 'competitive') {
+    thematicMultiplier = 1.2;
+  } else if (priority === 'competitive' || priority === 'competitivo') {
     synergyMultiplier = 0.7;
     competitiveMultiplier = 2.5;
     thematicMultiplier = 0.5;
-  } else if (priority === 'thematic') {
-    synergyMultiplier = 1.0;
+  } else if (priority === 'thematic' || priority === 'temático' || priority === 'tematico') {
+    synergyMultiplier = 1.2;
     competitiveMultiplier = 0.4;
-    thematicMultiplier = 2.5;
+    thematicMultiplier = 3.0;
+  } else {
+    synergyMultiplier = 1.2;
+    competitiveMultiplier = 1.2;
+    thematicMultiplier = 1.2;
   }
   
   // Cargar Grafo Semántico pre-compilado de Obsidian, Índice de Oracle Tags e Índice de Feedback Boosts
@@ -483,22 +447,23 @@ export const buildCardPool = async (formData) => {
 
   // Buscar sabor (flavor) de la tribu si aplica
   let activeFlavor = null;
+  const targetEngineId = formData.selectedEngineId || formData.engineFlavor || formData.strategy || strategyId;
   if (tribeData && tribeData.flavors) {
     activeFlavor = tribeData.flavors.find(f => 
+      f.id === targetEngineId || 
+      f.label === targetEngineId ||
       f.id === formData.strategy || 
-      f.id === strategyId || 
-      f.label === formData.strategy || 
-      f.label === strategyId
+      f.label === formData.strategy
     );
   }
   if (!activeFlavor) {
     for (const t of MTG_TRIBES) {
       if (t.flavors) {
         const found = t.flavors.find(f => 
+          f.id === targetEngineId || 
+          f.label === targetEngineId ||
           f.id === formData.strategy || 
-          f.id === strategyId || 
-          f.label === formData.strategy || 
-          f.label === strategyId
+          f.label === formData.strategy
         );
         if (found) {
           activeFlavor = found;
@@ -508,7 +473,11 @@ export const buildCardPool = async (formData) => {
     }
   }
 
-  const flavorKeywordsLower = (activeFlavor?.boostKeywords || []).map(k => k.toLowerCase());
+  const userBoostKws = Array.isArray(formData.boostKeywords) ? formData.boostKeywords : (typeof formData.boostKeywords === 'string' ? formData.boostKeywords.split(',').map(k => k.trim()) : []);
+  const flavorKeywordsLower = Array.from(new Set([
+    ...(activeFlavor?.boostKeywords || []).map(k => k.toLowerCase()),
+    ...userBoostKws.map(k => String(k).toLowerCase().trim())
+  ])).filter(Boolean);
   const flavorVetoedKeywordsLower = (activeFlavor?.vetoedKeywords || []).map(k => k.toLowerCase());
   
   const mustIncludeArr = Array.isArray(formData.mustInclude) 
@@ -526,6 +495,20 @@ export const buildCardPool = async (formData) => {
   const allowedColors = (formData.colores && formData.colores.length > 0) 
     ? formData.colores 
     : (tribeData ? tribeData.colors : ['W','U','B','R','G']);
+  
+  const rarityMode = formData.rarityMode || 'high-power';
+  let allowedRarities = [];
+  if (Array.isArray(formData.allowedRarities) && formData.allowedRarities.length > 0) {
+    allowedRarities = formData.allowedRarities.map(r => String(r).toLowerCase());
+  } else if (rarityMode === 'pauper') {
+    allowedRarities = ['common'];
+  } else if (rarityMode === 'artisan') {
+    allowedRarities = ['common', 'uncommon'];
+  } else if (rarityMode === 'standard') {
+    allowedRarities = ['common', 'uncommon', 'rare'];
+  } else {
+    allowedRarities = ['common', 'uncommon', 'rare', 'mythic'];
+  }
   
   console.log(`[RAG] Iniciando filtrado para ${formData.archetype} con estrategia ${strategyId} en formato ${selectedFormat}... Total DB: ${allCards.length}`);
  
@@ -578,13 +561,14 @@ export const buildCardPool = async (formData) => {
     }
     const card = allCards[i];
  
-    // 1. FILTROS ESTRICTOS (HARD FILTERS)
-    if (['token', 'vanguard', 'plane', 'scheme', 'phenomenon', 'art_series'].includes(card.layout)) continue;
+    // 0. FILTRO ESTRICTO DE RAREZA (Pauper / Artisan / Standard / Legacy)
+    const cardRarity = (card.rarity || 'common').toLowerCase();
+    if (allowedRarities.length > 0 && !allowedRarities.includes(cardRarity)) {
+      continue;
+    }
 
-    // Filtro estricto de rareza (Pauper / Artisan)
-    const activeRarityMode = formData.rarityMode || 'high-power';
-    if (activeRarityMode === 'pauper' && card.rarity !== 'common') continue;
-    if (activeRarityMode === 'artisan' && card.rarity !== 'common' && card.rarity !== 'uncommon') continue;
+    // 1. FILTRADO DE LEGALIDAD POR FORMATO
+    if (['token', 'vanguard', 'plane', 'scheme', 'phenomenon', 'art_series'].includes(card.layout)) continue;
     
     // Excluir cartas que ya están en el Core o en Must-Include
     if (card.name && typeof card.name === 'string' && excludedNames.includes(card.name.toLowerCase())) continue;
@@ -732,8 +716,7 @@ export const buildCardPool = async (formData) => {
               oracleText.includes('discard') || 
               oracleText.includes('mill') || 
               oracleText.includes('surveil') ||
-              oracleText.includes('graveyard') ||
-              ['grief', 'stitcher\'s supplier', 'putrid imp', 'bloodtithe harvester', 'seasoned pyromancer', 'kroxa, titan of death\'s hunger', 'priest of fell rites'].includes(cardNameLower)
+              oracleText.includes('graveyard')
             );
 
             if (hasKeywordMatch || isGraveyardSynergy) {
@@ -744,10 +727,13 @@ export const buildCardPool = async (formData) => {
           // Staples interactivos de coste <= 3 para arquetipos interactivos (Midrange / Control / Tempo)
           let isInteractiveStaple = false;
           if (['midrange', 'control', 'tempo'].includes(formData.archetype) && cmc <= 3) {
-            const activeStaples = FORMAT_STAPLES[selectedFormat] || FORMAT_STAPLES.MODERN;
             if (
-              activeStaples.has(cardNameLower) || 
-              ['orcish bowmasters', 'dauthi voidwalker', 'grief', 'ragavan, nimble pilferer', 'kroxa, titan of death\'s hunger', 'bloodtithe harvester', 'deep-cavern bat', 'preacher of the schism', 'dark confidant'].includes(cardNameLower)
+              oracleText.includes('destroy') || 
+              oracleText.includes('exile') || 
+              oracleText.includes('counter') || 
+              oracleText.includes('discard') || 
+              oracleText.includes('deals ') ||
+              oracleText.includes('draw')
             ) {
               isInteractiveStaple = true;
             }
@@ -827,6 +813,16 @@ export const buildCardPool = async (formData) => {
         }
       }
     });
+
+    // A.0.2) Puntuación por Sabor y Sub-estrategia de Oracle Tuner (Flavor Boost)
+    if (flavorKeywordsLower.length > 0) {
+      const combinedText = `${cardNameLower} ${typeLine} ${oracleText}`;
+      flavorKeywordsLower.forEach(kw => {
+        if (kw && combinedText.includes(kw)) {
+          score += Math.round(150 * thematicMultiplier);
+        }
+      });
+    }
 
     // A.0) Puntuación por Oracle Tags de Scryfall (Mejora 1)
     if (oracleTagsIndex && oracleTagsIndex[cardNameLower]) {
@@ -960,8 +956,8 @@ export const buildCardPool = async (formData) => {
       }
 
       // Recomendación de Arquetipo (Escalado de Sinergias)
-      if (obsidianGraph.archetypes) {
-        const archKey = formData.archetype.toLowerCase();
+      if (obsidianGraph.archetypes && (formData.archetype || formData.arquetipo)) {
+        const archKey = String(formData.archetype || formData.arquetipo || 'midrange').toLowerCase();
         if (obsidianGraph.archetypes[archKey]) {
           const archInfo = obsidianGraph.archetypes[archKey];
           const recCard = archInfo.cards.find(c => c.name.toLowerCase() === cardNameLower);
@@ -1665,86 +1661,32 @@ export const buildCardPool = async (formData) => {
         score += 120 + (textMatches * 25); // (subido de 40 + matches * 15)
       }
 
-      // Calibraciones específicas de alta fidelidad por estrategia para complementar el impulso genérico:
+      // Calibraciones específicas de alta fidelidad por capacidad de estrategia:
       if (strategyId === 'reanimator') {
-        const isReanimatorEnabler = ['faithless looting', 'entomb', 'careful study', 'cathartic reunion', 'thrill of possibility', 'bitter reunion', 'collector\'s vault', 'stitcher\'s supplier', 'putrid imp', 'bloodtithe harvester', 'seasoned pyromancer', 'kroxa, titan of death\'s hunger', 'grief', 'troll of khazad-dum', 'olivia\'s dragoon', 'rakdos headliner'].includes(cardNameLower);
-        if (isReanimatorEnabler) {
-          score += 150; // Gran empuje para enablers esenciales
+        if (oracleText.includes('discard') || oracleText.includes('mill') || oracleText.includes('surveil') || oracleText.includes('graveyard')) {
+          score += 50;
         }
         if (isCreature && card.mana_value >= 6) {
-          score += 65; // Empuje adicional a payoffs gigantescos para reanimar
+          score += 50;
         }
       } else if (strategyId === 'aristocrats') {
-        const isAristocratsCore = ['blood artist', 'zulaport cutthroat', 'cruel celebrant', 'bastion of remembrance', 'viscera seer', 'yawgmoth, thran physician', 'yawgmoth', 'woe strider', 'goblin bombardment', 'carrion feeder', 'plumb the forbidden', 'bloodghast', 'reassembling skeleton', 'young wolf'].includes(cardNameLower);
-        if (isAristocratsCore) {
-          score += 130;
+        if (oracleText.includes('sacrifice') || oracleText.includes('dies') || oracleText.includes('whenever a creature')) {
+          score += 50;
         }
       } else if (strategyId === 'spellslinger') {
-        const isSpellslingerCore = ['murktide regent', 'arclight phoenix', 'young pyromancer', 'third path iconoclast', 'ledger shredder', 'dragon\'s rage channeler', 'monastery swiftspear', 'slickshot show-off', 'brainstorm', 'ponder', 'preordain', 'consider', 'opt'].includes(cardNameLower);
-        if (isSpellslingerCore) {
-          score += 130;
+        if (typeLine.includes('instant') || typeLine.includes('sorcery') || oracleText.includes('prowess') || oracleText.includes('magecraft')) {
+          score += 50;
         }
       } else if (strategyId === 'tron') {
-        const isTronCore = ["urza's tower", "urza's power plant", "urza's mine", "expedition map", "sylvan scrying", "ancient stirrings", "wurmcoil engine", "karn liberated", "sundering titan", "chromatic star", "chromatic sphere"].includes(cardNameLower);
-        if (isTronCore) {
-          score += 180; // Impulso máximo para asegurar Tron
+        if (typeLine.includes('urza') || oracleText.includes('search your library for a land') || card.mana_value >= 6) {
+          score += 50;
         }
-      } else if (strategyId === 'ramp') {
-        const isRampCore = ["cultivate", "kodama's reach", "farseek", "rampant growth", "birds of paradise", "utopia sprawl", "wild growth", "sakura-tribe elder", "explore", "three visits", "nature's lore", "wood elves", "delighted halfling", "llanowar elves", "elvish mystic", "fyndhorn elves", "analyze the pollen"].includes(cardNameLower);
-        if (isRampCore) {
-          score += 180; // Boost to ensure they appear in green/colored ramp
-        }
-      } else if (strategyId === 'enchantress' || strategyId === 'voltron') {
-        const isBoglesCore = ['slippery bogle', 'gladecover scout', 'ethereal armor', 'all that glitters', 'sythis, harvest\'s hand', 'rancor', 'spider umbra', 'hyena umbra', 'sigarda\'s aid', 'puresteel paladin', 'colossus hammer'].includes(cardNameLower);
-        if (isBoglesCore) {
-          score += 140;
-        }
-      } else if (cardNameLower.includes('stoneforge mystic') || ['sword of fire and ice', 'shadowspear', 'batterskull', 'kaldra compleat', 'sword of feast and famine'].includes(cardNameLower)) {
-        score += 160; // Gran empuje para habilitadores y equipos premium de Stoneforge
-      } else if (strategyId === 'graveyard' || strategyId === 'delirium') {
-        const isDeliriumCore = ['mishra\'s bauble', 'dragon\'s rage channeler', 'tarmogoyf', 'unholy heat', 'consider', 'bauble'].includes(cardNameLower);
-        if (isDeliriumCore) {
-          score += 150;
-        }
-      } else if (strategyId === 'affinity') {
-        const isAffinityCore = ['steel overseer', 'cranial plating', 'memnite', 'ornithopter', 'frogmite', 'thought monitor', 'patchwork automaton', 'sojourner\'s companion', 'welder', 'springleaf drum', 'esper sentinel', 'skitterbeam kavu', 'stonecoil serpent'].includes(cardNameLower);
-        if (isAffinityCore) {
-          score += 220;
-        }
-      } else if (strategyId === 'blink') {
-        const isBlinkCore = ['ephemerate', 'soulherder', 'charming prince', 'thassa, deep-dwelling', 'flickerwisp', 'mulldrifter', 'solitude', 'aether channeler', 'wall of blossoms', 'coiling oracle', 'skyclave apparition'].includes(cardNameLower);
-        if (isBlinkCore) {
-          score += 220;
-        }
-      } else if (strategyId === 'landfall') {
-        const isLandfallCore = ['valakut exploration', 'dryad of the ilysian grove', 'omnath, locus of creation', 'scute swarm', 'lotus cobra', 'tireless tracker', 'wrenn and six', 'primeval titan', 'azusa, lost but seeking'].includes(cardNameLower);
-        if (isLandfallCore) {
-          score += 220;
-        }
-      } else if (strategyId === 'lifegain') {
-        const isLifegainCore = ['soul warden', 'ajani\'s pridemate', 'speaker of the heavens', 'heliod, sun-crowned', 'cruel celebrant', 'blood artist', 'daxos, blessed by the sun'].includes(cardNameLower);
-        if (isLifegainCore) {
-          score += 220;
-        }
-      } else if (strategyId === 'prison') {
-        const isPrisonCore = ['thalia, guardian of thraben', 'ghostly prison', 'ensnaring bridge', 'damping sphere', 'archon of emeria', 'esper sentinel', 'magus of the moon', 'blood moon'].includes(cardNameLower);
-        if (isPrisonCore) {
-          score += 220;
-        }
-      } else if (strategyId === 'vehicles') {
-        const isVehiclesCore = ['smuggler\'s copter', 'heart of kiran', 'esika\'s chariot', 'skysovereign, consul flagship', 'mox amber', 'depala, pilot exemplar', 'relic seeker'].includes(cardNameLower);
-        if (isVehiclesCore) {
-          score += 220;
-        }
-      } else if (strategyId === 'cascade') {
-        const isCascadeCore = ['shardless agent', 'ardent plea', 'crashing footfalls', 'living end', 'ancestral vision', 'violent outburst', 'bloodbraid elf'].includes(cardNameLower);
-        if (isCascadeCore) {
-          score += 220;
-        }
-      } else if (strategyId === 'storm') {
-        const isStormCore = ['grapeshot', 'empty the warrens', 'desperate ritual', 'pyretic ritual', 'manamorphose', 'ral, monsoon mage', 'past in flames', 'baral, chief of compliance', 'goblin electromancer', 'ruby medallion', 'seething song'].includes(cardNameLower);
-        if (isStormCore) {
-          score += 220;
+      }
+
+      // RAMP DE MANÁ VERDE BASADO EN TEXTO ORACLE (Sin listas de nombres)
+      if (userColors.includes('G') || userColors.includes('g')) {
+        if (oracleText.includes('add {') || oracleText.includes('search your library for a land') || oracleText.includes('target land produces')) {
+          score += 40;
         }
       }
     } else if (strategyData) {
@@ -1790,7 +1732,7 @@ export const buildCardPool = async (formData) => {
     score += Math.round(blueprintMatchBoost * synergyMultiplier);
 
     // Sinergia/Impulso extra de rareza si se selecciona alta potencia sin límites
-    if (activeRarityMode === 'high-power') {
+    if (rarityMode === 'high-power') {
       if (card.rarity === 'mythic') {
         score += Math.round(85 * competitiveMultiplier);
       } else if (card.rarity === 'rare') {
@@ -1833,7 +1775,13 @@ export const buildCardPool = async (formData) => {
     tribal: 0
   };
 
-  const activeTribalSubtypes = tribeData && tribeData.subtypes ? tribeData.subtypes.map(s => s.toLowerCase()) : [];
+  const userBoostKeywords = Array.isArray(formData.boostKeywords) ? formData.boostKeywords.map(k => String(k).toLowerCase()) : [];
+  const rawTribeStr = (formData.tribe || formData.primaryTribe || '').toLowerCase();
+  const activeTribalSubtypes = Array.from(new Set([
+    ...(tribeData && tribeData.subtypes ? tribeData.subtypes.map(s => s.toLowerCase()) : []),
+    ...(rawTribeStr ? [rawTribeStr] : []),
+    ...userBoostKeywords
+  ])).filter(Boolean);
 
   allCandidates.forEach(c => {
     const typeLine = c.type_line ? c.type_line.toLowerCase() : '';
@@ -2101,19 +2049,19 @@ export const buildCardPool = async (formData) => {
   // Configurar las curvas estratégicas
   const strategyCurveMap = {
     reanimator:   { cmc1: 0.20, cmc2: 0.25, cmc3: 0.15, cmc4: 0.10, cmc5Plus: 0.30 },
-    aristocrats:  { cmc1: 0.35, cmc2: 0.40, cmc3: 0.15, cmc4: 0.10, cmc5Plus: 0.00 },
-    tokens:       { cmc1: 0.30, cmc2: 0.40, cmc3: 0.20, cmc4: 0.10, cmc5Plus: 0.00 },
+    aristocrats:  { cmc1: 0.30, cmc2: 0.35, cmc3: 0.15, cmc4: 0.10, cmc5Plus: 0.10 },
+    tokens:       { cmc1: 0.25, cmc2: 0.35, cmc3: 0.20, cmc4: 0.10, cmc5Plus: 0.10 },
     spellslinger: { cmc1: 0.45, cmc2: 0.35, cmc3: 0.10, cmc4: 0.00, cmc5Plus: 0.10 },
     blink:        { cmc1: 0.15, cmc2: 0.35, cmc3: 0.35, cmc4: 0.10, cmc5Plus: 0.05 },
-    enchantress:  { cmc1: 0.35, cmc2: 0.45, cmc3: 0.15, cmc4: 0.05, cmc5Plus: 0.00 },
+    enchantress:  { cmc1: 0.30, cmc2: 0.40, cmc3: 0.15, cmc4: 0.05, cmc5Plus: 0.10 },
     landfall:     { cmc1: 0.15, cmc2: 0.35, cmc3: 0.25, cmc4: 0.10, cmc5Plus: 0.15 },
-    graveyard:    { cmc1: 0.30, cmc2: 0.40, cmc3: 0.20, cmc4: 0.10, cmc5Plus: 0.00 },
-    lifegain:     { cmc1: 0.35, cmc2: 0.40, cmc3: 0.20, cmc4: 0.05, cmc5Plus: 0.00 },
-    prison:       { cmc1: 0.15, cmc2: 0.45, cmc3: 0.30, cmc4: 0.10, cmc5Plus: 0.00 },
-    voltron:      { cmc1: 0.45, cmc2: 0.40, cmc3: 0.10, cmc4: 0.05, cmc5Plus: 0.00 },
-    vehicles:     { cmc1: 0.30, cmc2: 0.40, cmc3: 0.20, cmc4: 0.10, cmc5Plus: 0.00 },
+    graveyard:    { cmc1: 0.25, cmc2: 0.35, cmc3: 0.20, cmc4: 0.10, cmc5Plus: 0.10 },
+    lifegain:     { cmc1: 0.30, cmc2: 0.35, cmc3: 0.20, cmc4: 0.05, cmc5Plus: 0.10 },
+    prison:       { cmc1: 0.15, cmc2: 0.40, cmc3: 0.30, cmc4: 0.10, cmc5Plus: 0.05 },
+    voltron:      { cmc1: 0.40, cmc2: 0.35, cmc3: 0.10, cmc4: 0.05, cmc5Plus: 0.10 },
+    vehicles:     { cmc1: 0.25, cmc2: 0.35, cmc3: 0.20, cmc4: 0.10, cmc5Plus: 0.10 },
     sea_monsters: { cmc1: 0.25, cmc2: 0.30, cmc3: 0.15, cmc4: 0.10, cmc5Plus: 0.20 },
-    storm:        { cmc1: 0.40, cmc2: 0.40, cmc3: 0.15, cmc4: 0.05, cmc5Plus: 0.00 },
+    storm:        { cmc1: 0.40, cmc2: 0.40, cmc3: 0.10, cmc4: 0.05, cmc5Plus: 0.05 },
     tron:         { cmc1: 0.15, cmc2: 0.25, cmc3: 0.20, cmc4: 0.15, cmc5Plus: 0.25 },
     ramp:         { cmc1: 0.20, cmc2: 0.30, cmc3: 0.25, cmc4: 0.10, cmc5Plus: 0.15 }
   };

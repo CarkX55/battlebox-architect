@@ -31,21 +31,42 @@ export class CandidateConstraintEngine {
 
     for (const slot of capabilityPlan.slots) {
       if (slot.role === 'Land') {
+        const colors = intentPackage.colors || ['G'];
+        let mainLand = 'Forest';
+        let altLands = ['Temple Garden', 'Windswept Heath'];
+
+        if (colors.includes('U')) {
+          mainLand = 'Island';
+          altLands = ['Misty Rainforest', 'Scalding Tarn'];
+        } else if (colors.includes('R')) {
+          mainLand = 'Mountain';
+          altLands = ['Wooded Foothills', 'Stomping Ground'];
+        } else if (colors.includes('W')) {
+          mainLand = 'Plains';
+          altLands = ['Windswept Heath', 'Temple Garden'];
+        } else if (colors.includes('B')) {
+          mainLand = 'Swamp';
+          altLands = ['Bloodstained Mire', 'Overgrown Tomb'];
+        } else if (colors.includes('G')) {
+          mainLand = 'Forest';
+          altLands = ['Windswept Heath', 'Temple Garden'];
+        }
+
         const slotFilled = slot.withFilledData({
-          winnerCard: 'Forest',
-          alternatives: ['Temple Garden', 'Windswept Heath'],
+          winnerCard: mainLand,
+          alternatives: altLands,
           confidenceScore: 1.0,
-          allocationReason: 'Mana base allocation for required land count'
+          allocationReason: `Mana base allocation (${mainLand}) matching deck color identity`
         });
         filledSlots.push(slotFilled);
         ledger.recordEntry({
           step: 'LAND_ALLOCATION',
           slotId: slot.slotId,
           role: slot.role,
-          winnerCard: 'Forest',
+          winnerCard: mainLand,
           winnerScore: 100,
-          alternatives: ['Temple Garden', 'Windswept Heath'],
-          reason: 'Mana base allocation for required land count'
+          alternatives: altLands,
+          reason: `Mana base allocation (${mainLand}) matching deck color identity`
         });
         continue;
       }
@@ -167,26 +188,60 @@ export class CandidateConstraintEngine {
 
     return filteredPool.map(card => {
       const profile = this.metricsDb.getOrExtractProfile(card);
-      const typeLine = (card.type_line || '').toLowerCase();
+      const typeLine = (card.type_line || card.typeLine || '').toLowerCase();
+      const oracleText = (card.oracle_text || card.oracleText || '').toLowerCase();
+      const cmc = card.cmc || card.mana_value || 0;
 
       let score = 0;
 
       // Contribution score
       score += profile.getContributionAmount(slot.role);
 
-      // Primary tribe bonus
-      if (intentPackage.primaryTribe && typeLine.includes(intentPackage.primaryTribe.toLowerCase())) {
-        score += 15;
+      // Primary tribe bonus: Must match exact normalized tribe or creature subtype
+      if (intentPackage.primaryTribe) {
+        const tribeLower = intentPackage.primaryTribe.toLowerCase();
+        if (typeLine.includes(tribeLower)) {
+          score += 25;
+        }
       }
 
-      // Role matching heuristics
-      if (role.includes('pressure') && typeLine.includes('creature')) score += 10;
-      if (role.includes('removal') && (card.oracle_text || '').toLowerCase().includes('destroy')) score += 10;
-      if (role.includes('flow') && (card.oracle_text || '').toLowerCase().includes('draw')) score += 10;
+      // Hard Type Enforcement for Density & Presence Roles:
+      // TRIBAL_DENSITY, BOARD_PRESENCE, TURN1_PRESSURE, TURN2_PRESSURE MUST be creatures or token creators!
+      if (role.includes('tribal_density') || role.includes('board_presence') || role.includes('pressure')) {
+        if (typeLine.includes('creature')) {
+          score += 30;
+        } else if (oracleText.includes('creature token') || oracleText.includes('token creature')) {
+          score += 15;
+        } else {
+          // Penalize non-creature Kindred spells (Sorceries, Enchantments, Instant)
+          score -= 100;
+        }
+      }
+
+      // Role matching heuristics & CMC penalties for CHEAP_REMOVAL
+      if (role.includes('cheap_removal') || role.includes('cheap removal')) {
+        if (oracleText.includes('destroy') || oracleText.includes('exile') || oracleText.includes('deals ') || oracleText.includes('damage')) {
+          score += 15;
+        }
+        if (cmc <= 2) {
+          score += 20; // Optimal cheap removal
+        } else if (cmc === 3) {
+          score += 5;
+        } else {
+          // Heavy penalty for high-CMC "cheap removal" e.g. Elspeth CMC 6
+          score -= (cmc - 2) * 25;
+        }
+      }
+
+      if (role.includes('flow') && oracleText.includes('draw')) {
+        score += 10;
+        if (cmc <= 3) score += 10;
+      }
 
       return { card, score };
     }).sort((a, b) => b.score - a.score);
   }
+
 
   /**
    * WinnerSelector: Selects the winning card and top alternatives for a slot.

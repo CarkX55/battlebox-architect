@@ -1,3 +1,6 @@
+import { IntentBuilder } from './compiler/core/intentBuilder.js';
+import { DeckState } from './agent/deckState.js';
+import { TacticalSimulator } from './agent/tacticalSimulator.js';
 import { aplicarJuezFinal, getMaxAllowedCopies, cleanAndParseJSON } from './deckArchitectService.js';
 import { buildCardPool } from './ragService.js';
 import { BATTLEBOX_VETOS } from '../constants/legacyBattleBox.js';
@@ -7,6 +10,7 @@ import { callAI, DECK_SCHEMA } from './aiFactory.js';
 import { getAllCards } from './dbIngestor.js';
 import { evaluateConsistencyRadar, analyzeFunctionalPillars, buildPillarSummaryText } from './deckAuditorService.js';
 import { scoreCardForDeckDNA } from './cardScoringEngine.js';
+
 
 
 const cleanCardNameForMatching = (name) => {
@@ -26,275 +30,58 @@ const cleanCardNameForMatching = (name) => {
  * Soporta detecciÃ³n por tipo e inspecciÃ³n de patrones de nombres comunes.
  */
 const isLandCard = (c) => {
+  if (!c) return false;
   if (isLand(c)) return true;
   if (c.category?.toLowerCase() === 'land') return true;
   
+  const typeLine = (c.type_line || c.typeLine || "").toLowerCase();
+  if (typeLine.includes("land") || typeLine.includes("tierra")) return true;
+
   const nameLower = (c.name || "").toLowerCase().trim();
-  
-  // Tierras básicas
   if (isBasicLand(nameLower)) return true;
   
-  // Patrones de tierras no bÃ¡sicas comunes (ej: shocklands, fetchlands, triomas, slow/fastlands)
-  const landPatterns = [
-    "grave", "vents", "tomb", "garden", "fountain", "crypt", "ground", "foundry", "shrine", "pool",
-    "strand", "delta", "mire", "foothills", "heath", "flats", "tarn", "catacombs", "mesa", "rainforest",
-    "shores", "canal", "marsh", "thicket", "coast", "cliffs", "gorge", "vantage", "courtyard", "sanctum",
-    "tower", "power plant", "mine", "temple", "wastes", "nexus", "fair", "canopy", "canyon", "islet", "clearing", "peatland", "grove",
-    "castle", "hall", "hive", "den", "cave", "vale", "crag", "harbor", "sanctuary", "beach", "ridge", "farmland",
-    "verge", "glade", "bayou", "savannah", "tundra", "badlands", "taiga", "scrubland", "plateau", "tropical", "sea",
-    "passage", "wilds", "orchard", "confluence", "city", "quarry", "waste", "steppes", "depths", "stage", "karst",
-    "veta", "canal", "tumba", "jardÃ­n", "fuente", "cripta", "terreno", "fundiciÃ³n", "santuario", "estanque",
-    "playa", "cueva", "colina", "bosque", "ruinas", "pÃ¡ramo", "ciÃ©naga", "brezal", "catacumbas", "estepa",
-    "pasaje", "huerto", "acantilado", "valle", "fortaleza", "guarida", "picos", "rÃ­o", "lago", "mar", "isla",
-    "bosquecillo", "pradera", "matorral", "cumbres"
-  ];
+  const KNOWN_LAND_NAMES = new Set([
+    "watery grave", "blood crypt", "overgrown tomb", "temple garden", "godless shrine",
+    "sacred foundry", "stomping ground", "steam vents", "hallowed fountain", "breeding pool",
+    "darkslick shores", "seachrome coast", "blackcleave cliffs", "copperline gorge", "razorverge thicket",
+    "concealed courtyard", "spirebluff canal", "blooming marsh", "inspiring vantage", "botanical sanctum",
+    "shipwreck marsh", "undercity sewers", "shadowy backstreet", "thundering falls", "gloomy backstage",
+    "underground sea", "volcanic island", "tropical island", "tundra", "savannah",
+    "scrubland", "badlands", "taiga", "bayou", "plateau",
+    "polluted delta", "flooded strand", "bloodstained mire", "wooded foothills", "windswept heath",
+    "marsh flats", "scalding tarn", "verdant catacombs", "arid mesa", "misty rainforest"
+  ]);
   
-  if (landPatterns.some(pat => nameLower.includes(pat))) {
-    return true;
-  }
-  
-  const typeLine = (c.type_line || "").toLowerCase();
-  if (typeLine.includes("land") || typeLine.includes("tierra")) return true;
-  
-  return false;
+  return KNOWN_LAND_NAMES.has(nameLower);
 };
 
 /**
  * Corrige el Tamaño de la baraja principal y regenera/rebalancea la base de tierras
  * para asegurar que sume exactamente targetDeckSize (60 u 80).
  */
-export async function corregirTamañoYBaseDeMana(cards, targetDeckSize, formData, ragPool, preserveLands = false) {
-  // Asegurar normalización de cantidades antes de procesar
-  const normalizedCards = cards.map(c => ({
-    ...c,
-    quantity: Number(c.quantity || c.count || c.qty || 1)
-  }));
+export async function corregirTamañoYBaseDeMana(cards, targetDeckSize = 60, formData = {}, ragPool = [], preserveLands = false) {
+  const intentPackage = IntentBuilder.buildFromUI(formData);
+  const deckState = new DeckState(intentPackage);
 
-  // 1. Separar hechizos y tierras
-  const spells = normalizedCards.filter(c => !isLandCard(c));
-  const lands = normalizedCards.filter(c => isLandCard(c));
-
-  // 2. Calcular objetivos matemáticos perfectos
-  const targetLandCount = preserveLands 
-    ? lands.reduce((sum, c) => sum + c.quantity, 0)
-    : calculatePerfectLandCount(spells, formData, targetDeckSize === 80);
-  const targetSpellCount = targetDeckSize - targetLandCount;
-
-  // 3. Ajustar cantidad de Hechizos a targetSpellCount
-  let currentSpellCount = spells.reduce((sum, c) => sum + c.quantity, 0);
-  let needed = targetSpellCount - currentSpellCount;
-
-  if (needed > 0) {
-    // Faltan hechizos: rellenar
-    // A. Subir cantidades de hechizos existentes hasta su cap
-    for (let spell of spells) {
-      if (needed <= 0) break;
-      const maxLimit = getMaxAllowedCopies(spell.name, spell.category, spell.cmc, ragPool);
-      if (spell.quantity < maxLimit) {
-        const add = Math.min(maxLimit - spell.quantity, needed);
-        spell.quantity += add;
-        needed -= add;
-      }
-    }
-
-    // B. Inyectar hechizos sinérgicos nuevos del RAG pool si están en la base de datos real
-    const colorsSet = new Set(formData?.colores || []);
-    const ragSpells = (ragPool || []).filter(c => {
-      if (!c || !c.name) return false;
-      const type = (c.type_line || c.category || '').toLowerCase();
-      if (type.includes('land')) return false;
-      const cardColors = c.colors || [];
-      const matchesColor = cardColors.length === 0 || cardColors.some(col => colorsSet.has(col));
-      const alreadyInDeck = spells.some(s => cleanCardNameForMatching(s.name) === cleanCardNameForMatching(c.name));
-      return matchesColor && !alreadyInDeck;
-    });
-
-    for (let rs of ragSpells) {
-      if (needed <= 0) break;
-      const maxLimit = getMaxAllowedCopies(rs.name, rs.category || 'Creature', rs.mana_value || rs.cmc || 2, ragPool);
-      const qty = Math.min(needed, maxLimit);
-      if (qty > 0) {
-        spells.push({
-          ...rs,
-          quantity: qty,
-          category: rs.category || (rs.type_line?.toLowerCase().includes('creature') ? 'Creature' : 'Instant'),
-          cmc: rs.mana_value || rs.cmc || 2,
-          role: rs.role || 'utility',
-          mana_cost: rs.mana_cost || '',
-          type_line: rs.type_line || ''
-        });
-        needed -= qty;
-      }
-    }
-
-    // D. Caso de emergencia absoluto: rellenar copias distribuidas en vez de inyectar a una sola carta
-    if (needed > 0 && spells.length > 0) {
-      let progress = true;
-      while (needed > 0 && progress) {
-        progress = false;
-        for (let spell of spells) {
-          if (needed <= 0) break;
-          const isLegendary = (spell.type_line || '').toLowerCase().includes('legendary') || spell.role?.includes('legend');
-          const maxLimit = isLegendary ? 1 : 4;
-          if (spell.quantity < maxLimit) {
-            spell.quantity += 1;
-            needed -= 1;
-            progress = true;
-          }
-        }
-      }
-
-      // Si aÃºn falta (caso extremo de mazo con poquÃ­simos hechizos Ãºnicos), forzar en los de menor coste
-      if (needed > 0) {
-        spells.sort((a, b) => (a.cmc || 2) - (b.cmc || 2));
-        let idx = 0;
-        while (needed > 0) {
-          spells[idx % spells.length].quantity += 1;
-          needed -= 1;
-          idx++;
-        }
-      }
-    }
-  } else if (needed < 0) {
-    // Sobran hechizos: recortar de forma quirÃºrgica
-    let excess = -needed;
-    const isProtected = (s) => {
-      const roleLower = (s.role || '').toLowerCase();
-      return roleLower.includes('must-include') || 
-             roleLower.includes('combo_piece') || 
-             roleLower.includes('combo_enabler') || 
-             roleLower.includes('finisher') ||
-             roleLower.includes('win_cond') ||
-             roleLower.includes('boss');
-    };
-    
-    // FunciÃ³n auxiliar para obtener score RAG y priorizar conservaciÃ³n
-    const getRagScore = (cardName) => {
-      const nameLower = cardName.toLowerCase().trim();
-      const match = (ragPool || []).find(c => c.name.toLowerCase().trim() === nameLower);
-      return match ? (match.score || 0) : -100;
-    };
-
-    // Paso 1: Prunar copias redundantes de hechizos no protegidos (manteniendo mÃ­nimo 1 copia para preservar su existencia)
-    const candidates = spells.filter(s => !isProtected(s));
-    candidates.sort((a, b) => {
-      const scoreA = getRagScore(a.name);
-      const scoreB = getRagScore(b.name);
-      if (scoreA !== scoreB) {
-        return scoreA - scoreB; // Menor score RAG (menos sinergia) se pruna primero
-      }
-      return b.cmc - a.cmc; // A igual score, prunar de mayor coste primero
-    });
-
-    for (let s of candidates) {
-      if (excess <= 0) break;
-      if (s.quantity > 1) {
-        const canRemove = s.quantity - 1;
-        const remove = Math.min(canRemove, excess);
-        s.quantity -= remove;
-        excess -= remove;
-      }
-    }
-
-    // Paso 2: Si aÃºn sobra, permitir borrar cartas completas no protegidas (las de menor sinergia primero)
-    if (excess > 0) {
-      for (let s of candidates) {
-        if (excess <= 0) break;
-        if (s.quantity > 0) {
-          const remove = Math.min(s.quantity, excess);
-          s.quantity -= remove;
-          excess -= remove;
-        }
-      }
-    }
-
-    // Paso 3: Si aÃºn sobra (caso extremo), prunar copias de cartas protegidas
-    if (excess > 0) {
-      const protectedSpells = spells.filter(s => isProtected(s));
-      protectedSpells.sort((a, b) => b.cmc - a.cmc);
-      for (let s of protectedSpells) {
-        if (excess <= 0) break;
-        if (s.quantity > 0) {
-          const remove = Math.min(s.quantity, excess);
-          s.quantity -= remove;
-          excess -= remove;
-        }
-      }
+  const spells = (cards || []).filter(c => c && !isLandCard(c));
+  for (const s of spells) {
+    if (s && (s.quantity || 1) > 0) {
+      deckState.addCard(s, s.quantity || 1, 'Spell', s.role || 'FLEX');
     }
   }
 
-  // 4. Regenerar la base de tierras matemÃ¡ticamente segÃºn Karsten
-  let finalLands = [];
-  if (preserveLands) {
-    finalLands = lands;
+  if (!preserveLands) {
+    deckState.autoResolveManaBase();
   } else {
-    try {
-      const colorsArray = Array.from(new Set(formData?.colores || []));
-      const pips = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 };
-      spells.forEach(s => {
-        const cost = (s.mana_cost || '').toUpperCase();
-        if (cost.includes('W')) pips.W += s.quantity || 1;
-        if (cost.includes('U')) pips.U += s.quantity || 1;
-        if (cost.includes('B')) pips.B += s.quantity || 1;
-        if (cost.includes('R')) pips.R += s.quantity || 1;
-        if (cost.includes('G')) pips.G += s.quantity || 1;
-      });
-
-      finalLands = await generateManaBase(pips, targetLandCount, colorsArray, formData, spells, []);
-    } catch (err) {
-    console.error("Fallo al regenerar base de tierras en optimizador:", err);
-    // Fallback: simple ajuste proporcional de tierras existentes
-    let currentLandCount = lands.reduce((sum, c) => sum + (c.quantity || 1), 0);
-    let neededLands = targetLandCount - currentLandCount;
-    if (neededLands > 0) {
-      if (lands.length > 0) {
-        lands[0].quantity += neededLands;
-      } else {
-        const colorsArray = Array.from(new Set(formData?.colores || []));
-        const needsSnow = deckNeedsSnowLands(spells);
-        const formatKey = (formData?.format || 'MODERN').toLowerCase();
-        
-        const allCards = await getAllCards();
-        const canUseSnow = needsSnow && allCards.some(ac => ac && ac.name === "Snow-Covered Island" && ac.legalities && ac.legalities[formatKey] === 'legal');
-
-        let landName = "Wastes";
-        if (colorsArray.includes("W")) landName = canUseSnow ? "Snow-Covered Plains" : "Plains";
-        else if (colorsArray.includes("U")) landName = canUseSnow ? "Snow-Covered Island" : "Island";
-        else if (colorsArray.includes("B")) landName = canUseSnow ? "Snow-Covered Swamp" : "Swamp";
-        else if (colorsArray.includes("R")) landName = canUseSnow ? "Snow-Covered Mountain" : "Mountain";
-        else if (colorsArray.includes("G")) landName = canUseSnow ? "Snow-Covered Forest" : "Forest";
-        
-        lands.push({
-          name: landName,
-          quantity: neededLands,
-          category: "Land",
-          type_line: canUseSnow && landName !== "Wastes" ? `Basic Snow Land — ${landName.replace('Snow-Covered ', '')}` : `Basic Land — ${landName}`,
-          cmc: 0
-        });
+    const lands = (cards || []).filter(c => c && isLandCard(c));
+    for (const l of lands) {
+      if (l && (l.quantity || 1) > 0) {
+        deckState.addCard(l, l.quantity || 1, 'Land', 'MANA_BASE');
       }
-    } else if (neededLands < 0) {
-      let excessLands = -neededLands;
-      for (let l of lands) {
-        if (excessLands <= 0) break;
-        if (l.quantity > 1) {
-          const remove = Math.min(l.quantity - 1, excessLands);
-          l.quantity -= remove;
-          excessLands -= remove;
-        }
-      }
-      if (excessLands > 0 && lands.length > 0) {
-        lands[0].quantity = Math.max(1, lands[0].quantity - excessLands);
-      }
-      finalLands = lands;
     }
   }
-}
 
-  // Filtrar cartas de cantidad vacÃ­a
-  const cleanSpells = spells.filter(s => s.quantity > 0);
-  const cleanLands = finalLands.filter(l => l.quantity > 0);
-  
-  return [...cleanSpells, ...cleanLands];
+  return deckState.exportDeckList();
 }
 
 /**
@@ -506,7 +293,7 @@ export async function applyAuditChangesProgrammatically(deckList, suggestions = 
 
   if (Array.isArray(suggestions)) {
     suggestions.forEach(sug => {
-      if (sug && sug._invalid) return; // Guard clause to ignore invalid suggestions
+      if (!sug || sug._invalid) return; // Guard clause to ignore invalid suggestions
       
       if (sug.removes && Array.isArray(sug.removes)) {
         sug.removes.forEach(remove => {
@@ -556,29 +343,37 @@ export async function applyAuditChangesProgrammatically(deckList, suggestions = 
     });
   }
 
-  const isYorion = newDeck.some(c => c.name.toLowerCase().includes("yorion, sky nomad"));
-  const targetDeckSize = isYorion ? 80 : 60;
-  
-  let currentTotal = newDeck.reduce((sum, c) => sum + c.quantity, 0);
+  // Check if explicit land suggestions were applied
+  const hasExplicitLandChanges = Array.isArray(suggestions) && suggestions.some(sug => {
+    if (!sug || sug._invalid) return false;
+    const hasLandAdd = (sug.adds || []).some(a => a.name && (isLandCard(a) || a.type_line?.toLowerCase().includes('land')));
+    const hasLandRemove = (sug.removes || []).some(r => r.name && (isLandCard(r) || r.type_line?.toLowerCase().includes('land')));
+    return hasLandAdd || hasLandRemove;
+  });
 
-  const karstenNeedsFix = auditReport?._karstenAnalysis?.devotions?.some(d => d.status === 'critical' || d.status === 'warning');
+  if (!hasExplicitLandChanges) {
+    // Build IntentPackage and DeckState to enforce user constraints and Karsten land resolution
+    const intentPackage = IntentBuilder.buildFromUI(formData);
+    const deckState = new DeckState(intentPackage);
 
-  // PARACAÍDAS INTELIGENTE:
-  // Se activa si el mazo no suma targetDeckSize (ej. el usuario eliminó tierras) o si Karsten detectó escasez de fuentes de maná
-  if (currentTotal !== targetDeckSize || karstenNeedsFix || (suggestions && suggestions.length > 0)) {
-    let ragPool = [];
-    try {
-      const ragResult = await buildCardPool(formData);
-      ragPool = ragResult.pool || [];
-    } catch (e) {
-      console.warn("Fallo al obtener RAG pool en optimizador programático", e);
+    const nonLandSpells = newDeck.filter(c => !isLandCard(c));
+    for (const spell of nonLandSpells) {
+      deckState.addCard(
+        spell,
+        spell.quantity || 1,
+        'Supreme Judge Audit Suggestion Applied',
+        spell.role || 'FLEX'
+      );
     }
-    
-    newDeck = await corregirTamañoYBaseDeMana(newDeck, targetDeckSize, formData, ragPool, false);
+
+    // Auto-resolve Karsten land base matching current non-land spell suite
+    deckState.autoResolveManaBase();
+    newDeck = deckState.exportDeckList();
   }
 
   return newDeck;
 }
+
 
 /**
  * Ejecuta el Bucle de Optimización Iterativa del Juez (Máximo 3 pases).

@@ -6,7 +6,9 @@ export const UNIVERSES_BEYOND_AND_CUSTOM_SETS = new Set([
   'fin', 'afic', 'afin', 'fic', 'tfin', 'tfic',
   'tmt', 'atmt', 'tmc', 'ftmc', 'ttmc', 'ttmt',
   'spm', 'aspm', 'spe', 'tspm', 'sfc', 'clu', 'psdg', 'pspl',
-  'und', 'unh', 'ung', 'ust', 'unf', 'h1r', 'h0r'
+  'und', 'unh', 'ung', 'ust', 'unf', 'h1r', 'h0r',
+  'unk', 'cmb1', 'cmb2', 'htr', 'ph17', 'ph18', 'ph19', 'ph20', 'ph21', 'ph22', 'pund', 'ptg',
+  'j21', 'y22', 'y23', 'y24', 'y25', 'y26', 'ea1', 'ea2'
 ]);
 
 export function isUniversesBeyondOrCustom(card = {}) {
@@ -19,9 +21,17 @@ export function isUniversesBeyondOrCustom(card = {}) {
     return true;
   }
   if (card.security_stamp === 'triangle') return true;
-  if (card.set_type === 'universes_beyond' || card.set_type === 'funny' || card.set_type === 'memorabilia') {
+  if (card.set_type === 'universes_beyond' || card.set_type === 'funny' || card.set_type === 'memorabilia' || card.set_type === 'token') {
     return true;
   }
+  if (card.is_playtest || card.isPlaytest) return true;
+  
+  const typeLine = (card.type_line || card.typeLine || '').toLowerCase();
+  const oracleText = (card.oracle_text || card.oracleText || '').toLowerCase();
+  if (typeLine.includes('playtest') || typeLine.includes('gamer') || oracleText.includes('playtest')) {
+    return true;
+  }
+
   if (card.id && (String(card.id).startsWith('custom-') || String(card.id).includes('custom'))) {
     return true;
   }
@@ -48,12 +58,18 @@ export function isCardLegalForBattleBox(card, format = 'MODERN', allowCustomCard
     return false;
   }
   
-  // 2. Vetos casuales propios del Battle Box
+  // 2. Exclusión de cartas digitales/Alchemy en formatos de mesa (Modern, Standard, Pioneer, Legacy)
+  const isPaperFormat = !formatKey.includes('alchemy') && !formatKey.includes('historic');
+  if (isPaperFormat && card.digital) {
+    return false;
+  }
+
+  // 3. Vetos casuales propios del Battle Box
   if (BATTLEBOX_VETOS.includes(card.name)) {
     return false;
   }
 
-  // 3. Exclusión estricta de Universes Beyond y Custom Cards
+  // 4. Exclusión estricta de Universes Beyond, Playtest y Custom Cards
   if (!allowCustomCards && isUniversesBeyondOrCustom(card)) {
     return false;
   }

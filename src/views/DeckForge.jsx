@@ -1350,7 +1350,7 @@ export default function DeckForge() {
     const overLimit = [...safeDeck, ...safeSideboard].filter(c => c.name && !isBasicLand(c.name) && (c.quantity || 0) > maxCopiesAllowed);
     
     const isMainValid = mainCount === targetMain;
-    const isSideValid = sideCount === targetSide;
+    const isSideValid = isCommander ? sideCount === 0 : sideCount <= targetSide;
     
     return {
       mainCount,
@@ -1791,10 +1791,18 @@ export default function DeckForge() {
           }
         } else if (currentCount < targetSize) {
           const missing = targetSize - currentCount;
-          const lands = finalDeck.filter(isLandCard).sort((a, b) => b.quantity - a.quantity);
-          if (lands.length > 0) {
-            const index = finalDeck.findIndex(c => c.name === lands[0].name);
-            finalDeck[index].quantity += missing;
+          const nonLands = finalDeck.filter(c => !isLandCard(c));
+          if (nonLands.length > 0) {
+            let remaining = missing;
+            for (let card of nonLands) {
+              if (remaining <= 0) break;
+              const index = finalDeck.findIndex(c => c.name === card.name);
+              const add = Math.min(remaining, 4 - (finalDeck[index].quantity || 1));
+              if (add > 0) {
+                finalDeck[index].quantity += add;
+                remaining -= add;
+              }
+            }
           }
         }
       }
@@ -1826,6 +1834,17 @@ export default function DeckForge() {
         console.warn("Auto-refinamiento inicial omitido:", autoErr);
       }
       
+      // Ensure exact 60 cards total (36 non-lands + 24 lands)
+      const currentDeckTotal = finalDeck.reduce((sum, c) => sum + (c.quantity || 1), 0);
+      if (currentDeckTotal < 60) {
+        const delta = 60 - currentDeckTotal;
+        const basicLandIndex = finalDeck.findIndex(c => isLandCard(c) && isBasicLand((c.name || '').toLowerCase()));
+        const landIdxToBoost = basicLandIndex >= 0 ? basicLandIndex : finalDeck.findIndex(c => isLandCard(c));
+        if (landIdxToBoost >= 0) {
+          finalDeck[landIdxToBoost].quantity = (finalDeck[landIdxToBoost].quantity || 1) + delta;
+        }
+      }
+
       setRenderDeck(finalDeck);
       setRenderSideboard(hydratedSideboard); 
       setSideboardStrategy(aiResult.sideboard_strategy || '');

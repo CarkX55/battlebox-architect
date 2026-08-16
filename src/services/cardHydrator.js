@@ -20,9 +20,11 @@ const STORE_TAGS = 'oracle_tags';
 let db = null;
 
 async function openDB() {
+  if (typeof indexedDB === 'undefined') return null;
   if (db) return db;
   
   return new Promise((resolve, reject) => {
+
     const request = indexedDB.open(DB_NAME, DB_VERSION);
 
     
@@ -63,7 +65,9 @@ export async function saveCardToDB(card) {
 
 export async function getCardFromDB(name) {
   const database = await openDB();
+  if (!database) return null;
   return new Promise((resolve, reject) => {
+
     const tx = database.transaction(STORE_NAME, 'readonly');
     const store = tx.objectStore(STORE_NAME);
     const index = store.index('cardIndex');
@@ -86,7 +90,9 @@ export async function getCardFromDB(name) {
 
 export async function getAllCardNamesFromDB() {
   const database = await openDB();
+  if (!database) return [];
   return new Promise((resolve, reject) => {
+
     const tx = database.transaction(STORE_NAME, 'readonly');
     const store = tx.objectStore(STORE_NAME);
     const index = store.index('cardIndex');

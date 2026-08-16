@@ -1197,7 +1197,8 @@ export const GOLDEN_CORE_PACKAGES = {
     { name: "Mycoloth", quantity: 2, role: "fungus_saproling_finishers", tier: 1 },
     // Tier 2: Synergy Multipliers & Support (Craterhoof, Caretaker's Talent, Heroic Intervention)
     { name: "Craterhoof Behemoth", quantity: 2, role: "go_wide_finishers", tier: 2 },
-    { name: "Caretaker's Talent", quantity: 3, role: "card_advantage_draw", tier: 2 },
+    { name: "Fungal Plots", quantity: 3, role: "card_advantage_draw", tier: 2 },
+    { name: "Moldervine Reclamation", quantity: 2, role: "card_advantage_draw", tier: 2 },
     { name: "Heroic Intervention", quantity: 2, role: "interaction_spells", tier: 2 }
   ],
   elf: [
@@ -1269,6 +1270,152 @@ export const GOLDEN_CORE_PACKAGES = {
     { name: "Tovolar's Huntmaster", quantity: 3, role: "apex_finishers" },
     { name: "Kessig Naturalist", quantity: 4, role: "early_mana_dorks" },
     { name: "Mayor of Avabruck", quantity: 4, role: "lords_and_anthems" }
+  ],
+  merfolk: [
+    { name: "Lord of Atlantis", quantity: 4, role: "lords_and_anthems" },
+    { name: "Master of the Pearl Trident", quantity: 4, role: "lords_and_anthems" },
+    { name: "Svyelun of Sea and Sky", quantity: 3, role: "card_advantage_engines" },
+    { name: "Tidebinder", quantity: 3, role: "interaction_spells" },
+    { name: "Silvergill Adept", quantity: 4, role: "card_advantage_draw" }
+  ],
+  spirit: [
+    { name: "Supreme Phantom", quantity: 4, role: "lords_and_anthems" },
+    { name: "Empyrean Eagle", quantity: 4, role: "lords_and_anthems" },
+    { name: "Spell Queller", quantity: 4, role: "interaction_spells" },
+    { name: "Mausoleum Wanderer", quantity: 4, role: "evasive_cheap_threats" },
+    { name: "Rattlechains", quantity: 4, role: "tribal_core_creatures" }
+  ],
+  dragon: [
+    { name: "Dragonlord Atarka", quantity: 2, role: "apex_finishers" },
+    { name: "Thunderbreak Regent", quantity: 4, role: "tribal_core_creatures" },
+    { name: "Sarkhan, Fireblood", quantity: 3, role: "card_advantage_engines" },
+    { name: "Goldspan Dragon", quantity: 3, role: "apex_finishers" },
+    { name: "Dragon's Hoard", quantity: 4, role: "mana_acceleration" }
+  ],
+  angel: [
+    { name: "Giada, Font of Hope", quantity: 4, role: "early_mana_dorks" },
+    { name: "Righteous Valkyrie", quantity: 4, role: "lords_and_anthems" },
+    { name: "Angel of Vitality", quantity: 4, role: "tribal_core_creatures" },
+    { name: "Resplendent Angel", quantity: 3, role: "card_advantage_engines" },
+    { name: "Lyra Dawnbringer", quantity: 2, role: "apex_finishers" }
+  ],
+  demon: [
+    { name: "Archfiend of the Dross", quantity: 4, role: "tribal_core_creatures" },
+    { name: "Shadowborn Apostle", quantity: 6, role: "tribal_core_creatures" },
+    { name: "Razaketh, the Foulblooded", quantity: 2, role: "apex_finishers" },
+    { name: "Liliana's Contract", quantity: 2, role: "card_advantage_engines" },
+    { name: "Demon of Dark Schemes", quantity: 2, role: "apex_finishers" }
+  ],
+  dinosaur: [
+    { name: "Gishath, Sun's Avatar", quantity: 2, role: "apex_finishers" },
+    { name: "Marauding Raptor", quantity: 4, role: "early_mana_dorks" },
+    { name: "Carnage Tyrant", quantity: 2, role: "apex_finishers" },
+    { name: "Ripjaw Raptor", quantity: 4, role: "card_advantage_draw" },
+    { name: "Regisaur Alpha", quantity: 3, role: "lords_and_anthems" }
+  ],
+  beast: [
+    { name: "Questing Beast", quantity: 4, role: "apex_finishers" },
+    { name: "Leatherback Baloth", quantity: 4, role: "tribal_core_creatures" },
+    { name: "Ravenous Baloth", quantity: 4, role: "tribal_core_creatures" },
+    { name: "Garruk Wildspeaker", quantity: 3, role: "mana_acceleration" }
+  ],
+  faerie: [
+    { name: "Spellstutter Sprite", quantity: 4, role: "interaction_spells" },
+    { name: "Bitterblossom", quantity: 4, role: "card_advantage_engines" },
+    { name: "Mistbind Clique", quantity: 3, role: "apex_finishers" },
+    { name: "Scion of Oona", quantity: 4, role: "lords_and_anthems" },
+    { name: "Faerie Mastermind", quantity: 4, role: "card_advantage_draw" }
+  ],
+  rat: [
+    { name: "Pack Rat", quantity: 4, role: "card_advantage_engines" },
+    { name: "Lord Skitter, Sewer King", quantity: 4, role: "lords_and_anthems" },
+    { name: "Marrow-Gnawer", quantity: 3, role: "lords_and_anthems" },
+    { name: "Rat Colony", quantity: 6, role: "tribal_core_creatures" },
+    { name: "Karumonix, the Rat King", quantity: 3, role: "lords_and_anthems" }
+  ],
+  squirrel: [
+    { name: "Chatterfang, Squirrel General", quantity: 4, role: "lords_and_anthems" },
+    { name: "Squirrel Sovereign", quantity: 4, role: "lords_and_anthems" },
+    { name: "Deep Forest Hermit", quantity: 3, role: "apex_finishers" },
+    { name: "Chatterstorm", quantity: 4, role: "go_wide_finishers" },
+    { name: "Chitterspitter", quantity: 3, role: "card_advantage_engines" }
+  ],
+  cat: [
+    { name: "Fleecemane Lion", quantity: 4, role: "tribal_core_creatures" },
+    { name: "Feline Sovereign", quantity: 4, role: "lords_and_anthems" },
+    { name: "King Darien XLVIII", quantity: 3, role: "lords_and_anthems" },
+    { name: "Leonin Arbiter", quantity: 4, role: "interaction_spells" }
+  ],
+  ooze: [
+    { name: "Scavenging Ooze", quantity: 4, role: "early_value_creatures" },
+    { name: "Biogenic Ooze", quantity: 3, role: "card_advantage_engines" },
+    { name: "Experiment One", quantity: 4, role: "evasive_cheap_threats" },
+    { name: "Mitotic Slime", quantity: 3, role: "tribal_core_creatures" }
+  ],
+  gorgon: [
+    { name: "Vraska, Golgari Queen", quantity: 3, role: "card_advantage_engines" },
+    { name: "Reaper of the Wilds", quantity: 4, role: "tribal_core_creatures" },
+    { name: "Hythonia the Cruel", quantity: 2, role: "apex_finishers" },
+    { name: "Pharika, God of Affliction", quantity: 3, role: "card_advantage_engines" }
+  ],
+  skeleton: [
+    { name: "Reassembling Skeleton", quantity: 4, role: "tribal_core_creatures" },
+    { name: "Corpses of the Lost", quantity: 4, role: "lords_and_anthems" },
+    { name: "Skeleton Crew", quantity: 4, role: "lords_and_anthems" }
+  ],
+  dog: [
+    { name: "Pack Leader", quantity: 4, role: "lords_and_anthems" },
+    { name: "Resolute Watchdog", quantity: 4, role: "early_value_creatures" },
+    { name: "Selfless Savior", quantity: 4, role: "early_value_creatures" },
+    { name: "Bolt Hound", quantity: 4, role: "tribal_core_creatures" }
+  ],
+  warlock: [
+    { name: "Sedgemoor Witch", quantity: 4, role: "card_advantage_engines" },
+    { name: "Wicked Visitor", quantity: 4, role: "two_drop_synergies" },
+    { name: "Braids, Arisen Nightmare", quantity: 4, role: "card_advantage_engines" },
+    { name: "Witch's Oven", quantity: 4, role: "early_value_creatures" }
+  ],
+  aristocrats: [
+    { name: "Blood Artist", quantity: 4, role: "two_drop_synergies" },
+    { name: "Zulaport Cutthroat", quantity: 4, role: "two_drop_synergies" },
+    { name: "Carrion Feeder", quantity: 4, role: "evasive_cheap_threats" },
+    { name: "Viscera Seer", quantity: 4, role: "evasive_cheap_threats" },
+    { name: "Mayhem Devil", quantity: 4, role: "lords_and_anthems" }
+  ],
+  reanimator: [
+    { name: "Archon of Cruelty", quantity: 3, role: "apex_finishers" },
+    { name: "Persist", quantity: 4, role: "two_drop_synergies" },
+    { name: "Goryo's Vengeance", quantity: 4, role: "two_drop_synergies" },
+    { name: "Unburial Rites", quantity: 3, role: "card_advantage_engines" },
+    { name: "Priest of Fell Rites", quantity: 4, role: "early_value_creatures" }
+  ],
+  spellslinger: [
+    { name: "Monastery Swiftspear", quantity: 4, role: "evasive_cheap_threats" },
+    { name: "Sprite Dragon", quantity: 4, role: "two_drop_synergies" },
+    { name: "Soul-Scar Mage", quantity: 4, role: "evasive_cheap_threats" },
+    { name: "Expressive Iteration", quantity: 4, role: "card_advantage_draw" },
+    { name: "Lightning Bolt", quantity: 4, role: "interaction_spells" }
+  ],
+  blink: [
+    { name: "Ephemerate", quantity: 4, role: "interaction_spells" },
+    { name: "Soulherder", quantity: 4, role: "card_advantage_engines" },
+    { name: "Charming Prince", quantity: 4, role: "early_value_creatures" },
+    { name: "Restoration Angel", quantity: 3, role: "apex_finishers" },
+    { name: "Wall of Omens", quantity: 4, role: "card_advantage_draw" }
+  ],
+  voltron: [
+    { name: "Colossus Hammer", quantity: 4, role: "early_value_creatures" },
+    { name: "Sigarda's Aid", quantity: 4, role: "two_drop_synergies" },
+    { name: "Puresteel Paladin", quantity: 4, role: "card_advantage_engines" },
+    { name: "Stoneforge Mystic", quantity: 4, role: "card_advantage_engines" },
+    { name: "Hammer of Nazahn", quantity: 2, role: "apex_finishers" }
+  ],
+  tron: [
+    { name: "Expedition Map", quantity: 4, role: "colorless_sol_lands_and_map" },
+    { name: "Sylvan Scrying", quantity: 4, role: "colorless_sol_lands_and_map" },
+    { name: "Ancient Stirrings", quantity: 4, role: "card_advantage_draw" },
+    { name: "Wurmcoil Engine", quantity: 3, role: "eldrazi_titans_and_smashers" },
+    { name: "Karn Liberated", quantity: 2, role: "apex_finishers" }
   ]
 };
 
