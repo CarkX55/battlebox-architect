@@ -28,6 +28,32 @@ export class IdentityFirewall {
       return { isAllowed: true, vetoReason: null };
     }
 
+    // HARD CONSTRAINT 0: Format Legality Enforcement
+    if (intentPackage && intentPackage.format) {
+      const formatKey = intentPackage.format.toLowerCase();
+      if (card.legalities && card.legalities[formatKey] && card.legalities[formatKey] !== 'legal') {
+        return {
+          isAllowed: false,
+          vetoReason: `Hard Constraint Veto: Card "${cardName}" is NOT legal in format "${intentPackage.format}" (status: ${card.legalities[formatKey]})`
+        };
+      }
+    }
+
+    // HARD CONSTRAINT 0b: Color Identity Enforcement
+    if (intentPackage && Array.isArray(intentPackage.colors) && intentPackage.colors.length > 0) {
+      const allowedColors = new Set(intentPackage.colors.map(c => String(c).toUpperCase()));
+      const cardColors = (card.colors || []).map(c => String(c).toUpperCase());
+      const colorIdentity = (card.color_identity || []).map(c => String(c).toUpperCase());
+      const isColorAllowed = cardColors.every(c => allowedColors.has(c)) &&
+                             colorIdentity.every(c => allowedColors.has(c));
+      if (!isColorAllowed) {
+        return {
+          isAllowed: false,
+          vetoReason: `Hard Constraint Veto: Card "${cardName}" colors [${cardColors.join(',')}] / identity [${colorIdentity.join(',')}] not allowed in deck colors [${intentPackage.colors.join(',')}]`
+        };
+      }
+    }
+
     const primaryTribe = (intentPackage ? intentPackage.primaryTribe : '') || '';
     const tribeLower = primaryTribe.toLowerCase();
 

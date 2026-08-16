@@ -39,12 +39,21 @@ export class CapabilityPlanner {
    */
   static plan(intentPackage, capabilityVector) {
     const rawAxes = capabilityVector.axes;
+    const targetDeckSize = (intentPackage.userConstraints && intentPackage.userConstraints.deckSize) || 60;
 
     // Step 1: CapabilityNormalizer — Canonical IDs & Stable Ordering
     const normalizedAxes = CapabilityPlanner._normalizeAndOrderAxes(rawAxes);
 
-    // Step 2: CapabilityConsolidator — Grouping by (role, priority, mandatory, timing) with MAX_PLAYSET cap
-    const consolidatedSlots = CapabilityPlanner._consolidateSlots(normalizedAxes, intentPackage.format);
+    const manaAxis = normalizedAxes.find(a => a.id === 'MANA_BASE');
+    const targetLandCount = manaAxis ? Math.max(1, manaAxis.target) : 24;
+
+    // Step 2: CapabilityConsolidator — Grouping by (role, priority, mandatory, timing) budgeted to targetDeckSize
+    const consolidatedSlots = CapabilityPlanner._consolidateSlots(
+      normalizedAxes,
+      intentPackage.format,
+      targetDeckSize,
+      targetLandCount
+    );
 
     const plan = new CapabilityPlan(consolidatedSlots, {
       format: intentPackage.format,
@@ -110,53 +119,106 @@ export class CapabilityPlanner {
   }
 
   /**
-   * CapabilityConsolidator: Groups by (role, priority, mandatory, timing) respecting max playset cap.
+   * CapabilityConsolidator: Groups by (role, priority, mandatory, timing) respecting max playset cap
+   * and budgeted strictly to (totalDeckSize - targetLandCount).
    * @private
    */
-  static _consolidateSlots(normalizedAxes = [], format = 'STANDARD') {
+  static _consolidateSlots(normalizedAxes = [], format = 'STANDARD', totalDeckSize = 60, targetLandCount = 24) {
     const isSingletonFormat = format.toUpperCase() === 'COMMANDER';
     const maxPlayset = isSingletonFormat ? 1 : 4;
     const slots = [];
 
     let slotCounter = 1;
+    const spellBudget = Math.max(1, totalDeckSize - targetLandCount);
 
-    for (const axis of normalizedAxes) {
+    // 1. Allocate Mana Base (Land slot)
+    slots.push(new AllocationSlot({
+      slotId: `slot_${slotCounter++}_MANA_BASE`,
+      role: 'Land',
+      requiredDensity: targetLandCount,
+      priority: 100,
+      timing: 'MANA',
+      mandatory: true,
+      origin: { field: 'mana', value: 'Karsten' },
+      strength: 'MANDATORY'
+    }));
+
+    // 2. Filter non-land spell axes (sorted by priority / weight descending)
+    const spellAxes = normalizedAxes.filter(a => a.id !== 'MANA_BASE');
+    let remainingBudget = spellBudget;
+
+    // First pass: Allocate mandatory or top-priority core chunks (at least 1 playset per axis, up to its target)
+    for (const axis of spellAxes) {
+      if (remainingBudget <= 0) break;
       const role = axis.id;
-      const targetDensity = Math.max(1, axis.target || 4);
+      const targetDensity = Math.max(1, axis.target || maxPlayset);
       const priority = Math.round((axis.weight || 1) * 10);
       const mandatory = axis.mandatory || false;
       const timing = (role.includes('1') || role.includes('2')) ? 'EARLY' : 'MID';
       const origin = axis.origin || { field: 'tempo', value: 'Aggro' };
       const strength = axis.strength || 'PREFERRED';
 
-      if (role === 'MANA_BASE') {
+      const allocation = Math.min(remainingBudget, Math.min(targetDensity, maxPlayset));
+      if (allocation > 0) {
         slots.push(new AllocationSlot({
           slotId: `slot_${slotCounter++}_${role}`,
-          role: 'Land',
-          requiredDensity: targetDensity,
-          priority: 100,
-          timing: 'MANA',
-          mandatory: true,
+          role,
+          requiredDensity: allocation,
+          priority,
+          timing,
+          mandatory,
           origin,
-          strength: 'MANDATORY'
+          strength
         }));
-      } else {
-        // Split targetDensity into playset chunks of at most maxPlayset
-        let remaining = targetDensity;
-        while (remaining > 0) {
-          const chunkSize = Math.min(remaining, maxPlayset);
-          slots.push(new AllocationSlot({
-            slotId: `slot_${slotCounter++}_${role}`,
-            role,
-            requiredDensity: chunkSize,
-            priority,
-            timing,
-            mandatory,
-            origin,
-            strength
-          }));
-          remaining -= chunkSize;
+        remainingBudget -= allocation;
+      }
+    }
+
+    // Second pass: Distribute any remaining spell budget to high-priority axes with unsatisfied target density
+    while (remainingBudget > 0) {
+      let allocatedInCycle = false;
+      for (const axis of spellAxes) {
+        if (remainingBudget <= 0) break;
+        const role = axis.id;
+        const targetDensity = Math.max(1, axis.target || maxPlayset);
+        const currentAllocated = slots
+          .filter(s => s.role === role)
+          .reduce((sum, s) => sum + s.requiredDensity, 0);
+
+        if (currentAllocated < targetDensity) {
+          const needed = targetDensity - currentAllocated;
+          const chunkSize = Math.min(remainingBudget, Math.min(needed, maxPlayset));
+          if (chunkSize > 0) {
+            slots.push(new AllocationSlot({
+              slotId: `slot_${slotCounter++}_${role}`,
+              role,
+              requiredDensity: chunkSize,
+              priority: Math.round((axis.weight || 1) * 10),
+              timing: (role.includes('1') || role.includes('2')) ? 'EARLY' : 'MID',
+              mandatory: axis.mandatory || false,
+              origin: axis.origin || { field: 'tempo', value: 'Aggro' },
+              strength: axis.strength || 'PREFERRED'
+            }));
+            remainingBudget -= chunkSize;
+            allocatedInCycle = true;
+          }
         }
+      }
+      // If all targets are filled but budget remains, allocate additional support slots to highest-weight axis
+      if (!allocatedInCycle && remainingBudget > 0) {
+        const topAxis = spellAxes[0] || { id: 'CARD_FLOW', weight: 8 };
+        const chunkSize = Math.min(remainingBudget, maxPlayset);
+        slots.push(new AllocationSlot({
+          slotId: `slot_${slotCounter++}_${topAxis.id}`,
+          role: topAxis.id,
+          requiredDensity: chunkSize,
+          priority: Math.round((topAxis.weight || 1) * 10),
+          timing: 'MID',
+          mandatory: false,
+          origin: { field: 'budget', value: 'Fill' },
+          strength: 'OPTIONAL'
+        }));
+        remainingBudget -= chunkSize;
       }
     }
 

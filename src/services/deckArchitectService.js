@@ -5066,18 +5066,14 @@ export async function assembleDeckFromBlueprint(blueprint, formData, aiConfig, o
       let currentSpells = countCopies(spells);
       if (currentSpells > spellBudget) {
         let excess = currentSpells - spellBudget;
-        for (let i = spells.length - 1; i >= 0 && excess > 0; i--) {
-          const cut = Math.min(excess, spells[i].quantity - 1);
-          if (cut > 0) {
-            spells[i].quantity -= cut;
-            excess -= cut;
-          }
-        }
-        if (excess > 0) {
-          for (let i = spells.length - 1; i >= 0 && excess > 0; i--) {
-            const cut = Math.min(excess, spells[i].quantity);
-            spells[i].quantity -= cut;
-            excess -= cut;
+        while (excess > 0 && spells.length > 0) {
+          const lastSpell = spells[spells.length - 1];
+          if (lastSpell.quantity <= excess) {
+            excess -= lastSpell.quantity;
+            spells.pop();
+          } else {
+            lastSpell.quantity -= excess;
+            excess = 0;
           }
         }
       }

@@ -83,8 +83,17 @@ export function getManaValue(card) {
 }
 
 export function isLand(card) {
-  const typeLine = card.type_line?.toLowerCase() ?? '';
-  return typeLine.includes('land') || card.type_line === 'Land';
+  if (!card) return false;
+  const typeLine = (card.type_line || card.typeLine || '').toLowerCase();
+  const name = (card.name || '').toLowerCase();
+  const role = (card.role || '').toLowerCase();
+  const BASIC_LAND_NAMES = ['plains', 'island', 'swamp', 'mountain', 'forest', 'wastes', 'llanura', 'isla', 'pantano', 'montaña', 'bosque', 'yermo'];
+  
+  return typeLine.includes('land') ||
+         role === 'land' ||
+         role === 'mana_base' ||
+         BASIC_LAND_NAMES.includes(name) ||
+         BASIC_LAND_NAMES.some(b => name.startsWith(b));
 }
 
 export function hasRampEffect(card) {
