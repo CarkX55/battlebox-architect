@@ -15,28 +15,32 @@ export class TurnByTurnDecisionSimulator {
    * @returns {{ turnDecisionTree: Array<Object>, disruptionPivots: Array<Object>, simulationSummary: string }}
    */
   static simulateDecisionTree(deckState, turnPlan = {}) {
+    const t1 = turnPlan?.turn1 || 'Bajar Tierra / Desarrollar Apertura';
+    const t2 = turnPlan?.turn2 || 'Desplegar Presión de Curva 2 / Interacción';
+    const t3 = turnPlan?.turn3 || 'Desplegar Amenaza Central / Motor de Sinergia';
+
     const turnDecisionTree = Object.freeze([
       {
         turn: 1,
-        optimalPlay: 'Bajar Tierra / Preparar Aceleración',
-        alternativeLine: 'Guardar remoción instantánea si el oponente abre agresivo'
+        optimalPlay: t1,
+        alternativeLine: 'Guardar interacción instantánea si el oponente abre agresivo'
       },
       {
         turn: 2,
-        optimalPlay: 'Jugar Hechizo Stomp o Aceleración de Maná',
-        alternativeLine: 'Pivotar a Remoción si el oponente coloca amenaza clave'
+        optimalPlay: t2,
+        alternativeLine: 'Pivotar a Remoción si el oponente coloca amenaza prioritaria'
       },
       {
         turn: 3,
-        optimalPlay: 'Desplegar Primer Gigante (Giant Cindermaw / Brambleback Brute)',
-        alternativeLine: 'Si el Ramp fue contrarrestado, jugar Stomp de Turno 2 + Tierra'
+        optimalPlay: t3,
+        alternativeLine: 'Mantener maná abierto para interacción / protección si hay peligro'
       }
     ]);
 
     const disruptionPivots = Object.freeze([
       {
-        disruptionEvent: 'Ramp de Turno 2 Contrarrestado o Destruido',
-        pivotStrategy: 'Activar Línea de Victoria B (Stomp Tempo Beats) sin perder curva de presión',
+        disruptionEvent: 'Jugada clave de Turno 2 contrarrestada o destruida',
+        pivotStrategy: 'Activar Línea de Presión Secundaria sin perder curva de mesa',
         recoverySuccessRate: '84%'
       }
     ]);

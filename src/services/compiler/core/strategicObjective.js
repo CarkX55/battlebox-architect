@@ -41,7 +41,7 @@ export class StrategicObjective {
 
     const totalDeckSize = intentPackage.format === 'COMMANDER' ? 100 : 60;
     const isCommander = intentPackage.format === 'COMMANDER';
-    const landTarget = isCommander ? 36 : (isRamp ? 24 : 24);
+    const landTarget = isCommander ? 36 : (isRamp ? 24 : (isAggro ? 22 : 24));
     const spellTarget = totalDeckSize - landTarget;
 
     const axes = [];
@@ -235,11 +235,11 @@ export class StrategicObjective {
         strength: 'PREFERRED'
       });
       axes.push({
-        id: 'BOARD_PRESENCE',
-        target: isCommander ? 12 : 8,
-        weight: 8,
+        id: 'BURN_REACH',
+        target: isCommander ? 8 : 6,
+        weight: 9,
         mandatory: false,
-        origin: { field: 'tempo', value: 'Midgame Attackers' },
+        origin: { field: 'tempo', value: 'Direct Damage & Reach' },
         strength: 'PREFERRED'
       });
     } else if (isControl) {

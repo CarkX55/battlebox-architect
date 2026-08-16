@@ -13,20 +13,49 @@ export class StrategicDependencyGraph {
    * @param {string} capabilityId 
    * @returns {{ capabilityId: string, dependencyTree: Array<Object>, failureModes: Array<string>, reasoningSummary: string }}
    */
-  static traceDependencies(capabilityId = 'LARGE_THREATS') {
-    const dependencyTree = Object.freeze([
-      { order: 1, requirement: 'Ramp Acceleration', status: 'SATISFIED' },
-      { order: 2, requirement: 'Mana Base Density', status: 'SATISFIED' },
-      { order: 3, requirement: 'Early Survival & Cheap Removal', status: 'SATISFIED' },
-      { order: 3, requirement: 'Color Fix Dual Lands', status: 'SATISFIED' }
-    ]);
+  static traceDependencies(capabilityId = 'CORE_STRATEGY') {
+    const cleanId = String(capabilityId).toLowerCase();
+    const isAggro = cleanId.includes('aggro') || cleanId.includes('pressure') || cleanId.includes('burn');
+    const isControl = cleanId.includes('control') || cleanId.includes('removal');
 
-    const failureModes = Object.freeze([
-      'Falta de Ramp genera amenazas tardías e ineficaces',
-      'Sin Remoción Temprana el mazo cae ante Aggro antes de estabilizar'
-    ]);
+    let dependencyTree;
+    let failureModes;
+    let reasoningSummary;
 
-    const reasoningSummary = `Grafo de Dependencias (3er Nivel): Amenazas Grandes ──► Necesita Ramp ──► Necesita Densidad de Maná ──► Necesita Remoción Temprana ──► Necesita Tierras Dobles.`;
+    if (isAggro) {
+      dependencyTree = Object.freeze([
+        { order: 1, requirement: 'Turn 1-2 Attackers & Haste', status: 'SATISFIED' },
+        { order: 2, requirement: 'Mana Base Efficiency & Untapped Lands', status: 'SATISFIED' },
+        { order: 3, requirement: 'Direct Burn Reach to Close Match', status: 'SATISFIED' }
+      ]);
+      failureModes = Object.freeze([
+        'Falta de presión en Turnos 1-2 permite al rival estabilizar',
+        'Tierras giradas frenan el tempo de combate'
+      ]);
+      reasoningSummary = `Grafo de Dependencias (3er Nivel): Ataque Rápido ──► Necesita Salidas T1-T2 ──► Necesita Tierras Desgiradas ──► Necesita Daño Directo / Burn.`;
+    } else if (isControl) {
+      dependencyTree = Object.freeze([
+        { order: 1, requirement: 'Early Spot Removal & Interaction', status: 'SATISFIED' },
+        { order: 2, requirement: 'Stable Mana Base (24+ Lands)', status: 'SATISFIED' },
+        { order: 3, requirement: 'Card Advantage & Board Wipes', status: 'SATISFIED' }
+      ]);
+      failureModes = Object.freeze([
+        'Sin interacción en turno 2 el mazo sucumbe ante salidas rápidas',
+        'Falta de robo agota las respuestas'
+      ]);
+      reasoningSummary = `Grafo de Dependencias (3er Nivel): Control Reactivo ──► Necesita Remoción Barata ──► Necesita Estabilidad de Maná ──► Necesita Ventaja de Cartas.`;
+    } else {
+      dependencyTree = Object.freeze([
+        { order: 1, requirement: 'Mana Acceleration & Fixing', status: 'SATISFIED' },
+        { order: 2, requirement: 'Mana Base Density', status: 'SATISFIED' },
+        { order: 3, requirement: 'Mid-to-High Curve Threat Chain', status: 'SATISFIED' }
+      ]);
+      failureModes = Object.freeze([
+        'Falta de aceleración genera amenazas tardías',
+        'Sin interacción temprana el mazo pierde el tempo'
+      ]);
+      reasoningSummary = `Grafo de Dependencias (3er Nivel): Curva Estratégica ──► Necesita Aceleración ──► Necesita Densidad de Maná ──► Necesita Amenazas Resilientes.`;
+    }
 
     return {
       capabilityId,

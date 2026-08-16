@@ -30,30 +30,30 @@ export class ProStrategicReasoningEngine {
    * 2. Mike Flores' "Who's the Beatdown?" Aggressor Assignment & Inevitability.
    */
   static evaluateWhosTheBeatdown(deckIdentity, opponentArchetype = 'AZORIUS_CONTROL') {
-    const isAggro = (deckIdentity.archetypeKey || '').includes('AGGRO') || deckIdentity.primaryTribe === 'Giant';
+    const isAggro = (deckIdentity?.expectedKillTurn || 5) <= 4 || (deckIdentity?.archetypeKey || '').toLowerCase().includes('aggro');
     
     return Object.freeze({
       assignedRole: isAggro ? 'THE_BEATDOWN (Aggressor)' : 'THE_CONTROL',
       opponentRole: isAggro ? 'THE_CONTROL' : 'THE_BEATDOWN (Aggressor)',
       inevitabilityOwner: opponentArchetype.includes('CONTROL') ? 'Opponent' : 'Player',
-      inevitabilityShiftTurn: 6,
-      overextensionThreshold: 'Max 2 threats on board before Turn 5 sweeper',
-      beatdownSummary: `Asignación de Roles ("Who's the Beatdown?"): BattleBox es THE_BEATDOWN. La inevitabilidad cambia en Turno 6.`
+      inevitabilityShiftTurn: deckIdentity?.expectedKillTurn || 5,
+      overextensionThreshold: 'Max 2-3 threats on board before opponent sweeper turns',
+      beatdownSummary: `Asignación de Roles ("Who's the Beatdown?"): BattleBox es ${isAggro ? 'THE_BEATDOWN' : 'THE_CONTROL'}. La inevitabilidad cambia en Turno ${deckIdentity?.expectedKillTurn || 5}.`
     });
   }
 
   /**
    * 3. Card Micro-Semantics & Contextual Utility Analyzer.
    */
-  static analyzeCardMicroSemantics(cardName = 'Bonecrusher Giant') {
+  static analyzeCardMicroSemantics(cardName = 'Core Card') {
     return Object.freeze({
       cardName,
       isVirtualTwoForOne: true,
-      tempoImpactOnTurn2: 'HIGH (Kills opponent T2 threat, sets up T3 body)',
-      aheadUtility: 'EXCELLENT (Pushes lethal pressure)',
-      behindUtility: 'MEDIOCRE (Provides single blocker)',
-      sweeperVulnerability: 'HIGH (Die to Sunfall/Wipe)',
-      contextualSemanticsSummary: `${cardName}: 2-por-1 virtual, alta ventaja de tempo en T2, excelente cuando vamos por delante.`
+      tempoImpactOnTurn2: 'HIGH (Establece presencia temprana o interacción clave)',
+      aheadUtility: 'EXCELLENT (Acelera la línea de victoria)',
+      behindUtility: 'GOOD (Aporta presencia / estabilización)',
+      sweeperVulnerability: 'MEDIUM',
+      contextualSemanticsSummary: `${cardName}: Alta eficiencia de maná y sinergia directa con el plan de juego.`
     });
   }
 
@@ -61,22 +61,23 @@ export class ProStrategicReasoningEngine {
    * 4. Pro-Level State-Aware Conditional Decision Tree Simulator.
    */
   static simulateProDecisionTree(deckState, executionPlan = {}) {
+    const turnPlan = executionPlan?.turnPlan || {};
     return Object.freeze({
       rootNode: 'Opening Hand Evaluation',
       decisionBranches: Object.freeze([
         {
-          condition: 'If Turn 2 Ramp Spell Countered or Destroyed',
-          proAction: 'Pivot to Win Line B (Stomp Tempo Beats)',
+          condition: 'Si la jugada de Turno 2 es interrumpida por remoción o contrahechizo',
+          proAction: 'Pivotar a amenaza de reserva o lanzar daño directo sin perder tempo',
           recoveryProbability: '84%'
         },
         {
-          condition: 'If Opponent Represents Sunfall / Sweeper (Mana Open T4)',
-          proAction: 'Hold back 2nd Giant in hand; Attack with existing threat',
+          condition: 'Si el oponente representa limpia de mesa (Sweeper con maná abierto T4)',
+          proAction: 'Retener la 2ª amenaza en mano; atacar con la presencia ya establecida',
           overextensionPrevention: 'SUCCESS'
         },
         {
-          condition: 'If Opponent Plays Cheap Spot Removal',
-          proAction: 'Cast Adventure Stomp spell for 2-for-1 card advantage reload',
+          condition: 'Si el oponente juega remoción puntual 1-por-1',
+          proAction: 'Desplegar motor de flujo de cartas o recargar atacantes con prisa',
           cardAdvantageRecovery: 'EXCELLENT'
         }
       ]),

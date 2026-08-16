@@ -100,8 +100,22 @@ export class ReverseIdentityExtractor {
         predictedArchetypeKey = 'HUMANS_ANTHEM_TAXES';
         confidenceScore = Math.min(1.0, 0.90 + (maxTribeCount * 0.01));
       } else if (dominantTribe === 'goblin') {
-        predictedArchetypeKey = 'MONO_RED_GOBLINS';
-        confidenceScore = Math.min(1.0, 0.90 + (maxTribeCount * 0.01));
+        const hasWhite = cards.some(c => (c.colors || []).includes('W') || (c.mana_cost || '').includes('{W}') || (c.type_line || '').includes('Plains'));
+        const hasBlack = cards.some(c => (c.colors || []).includes('B') || (c.mana_cost || '').includes('{B}') || (c.type_line || '').includes('Swamp'));
+        const hasGreen = cards.some(c => (c.colors || []).includes('G') || (c.mana_cost || '').includes('{G}') || (c.type_line || '').includes('Forest'));
+
+        if (hasWhite && hasBlack) {
+          predictedArchetypeKey = 'MARDU_GOBLINS_AGGRO_BURN';
+        } else if (hasBlack) {
+          predictedArchetypeKey = 'RAKDOS_GOBLINS_AGGRO';
+        } else if (hasWhite) {
+          predictedArchetypeKey = 'BOROS_GOBLINS_AGGRO';
+        } else if (hasGreen) {
+          predictedArchetypeKey = 'GRUUL_GOBLINS_AGGRO';
+        } else {
+          predictedArchetypeKey = 'MONO_RED_GOBLINS';
+        }
+        confidenceScore = Math.min(1.0, 0.92 + (maxTribeCount * 0.01));
       } else if (dominantTribe === 'elf') {
         predictedArchetypeKey = 'SELESNYA_ELVES_RAMP';
         confidenceScore = Math.min(1.0, 0.90 + (maxTribeCount * 0.01));

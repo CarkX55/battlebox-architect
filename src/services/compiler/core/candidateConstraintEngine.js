@@ -31,32 +31,61 @@ export class CandidateConstraintEngine {
 
     for (const slot of capabilityPlan.slots) {
       if (slot.role === 'Land') {
-        const colors = intentPackage.colors || ['G'];
-        let mainLand = 'Forest';
-        let altLands = ['Temple Garden', 'Windswept Heath'];
+        const colors = intentPackage.colors && intentPackage.colors.length > 0 ? intentPackage.colors : ['R'];
+        let mainLand = 'Mountain';
+        let altLands = ['Blood Crypt', 'Sacred Foundry', 'Blackcleave Cliffs', 'Inspiring Vantage'];
 
-        if (colors.includes('U')) {
-          mainLand = 'Island';
-          altLands = ['Misty Rainforest', 'Scalding Tarn'];
-        } else if (colors.includes('R')) {
-          mainLand = 'Mountain';
-          altLands = ['Wooded Foothills', 'Stomping Ground'];
-        } else if (colors.includes('W')) {
-          mainLand = 'Plains';
-          altLands = ['Windswept Heath', 'Temple Garden'];
-        } else if (colors.includes('B')) {
-          mainLand = 'Swamp';
-          altLands = ['Bloodstained Mire', 'Overgrown Tomb'];
-        } else if (colors.includes('G')) {
-          mainLand = 'Forest';
-          altLands = ['Windswept Heath', 'Temple Garden'];
+        if (colors.length >= 2) {
+          const colorSet = new Set(colors);
+          if (colorSet.has('R') && colorSet.has('W') && colorSet.has('B')) {
+            mainLand = 'Blackcleave Cliffs // Inspiring Vantage // Mountain';
+            altLands = ['Battlefield Forge', 'Sulfurous Springs', 'Caves of Koilos', 'Blood Crypt'];
+          } else if (colorSet.has('B') && colorSet.has('R')) {
+            mainLand = 'Blackcleave Cliffs // Sulfurous Springs // Mountain';
+            altLands = ['Blood Crypt', 'Swamp', 'Raucous Theater'];
+          } else if (colorSet.has('R') && colorSet.has('W')) {
+            mainLand = 'Inspiring Vantage // Battlefield Forge // Mountain';
+            altLands = ['Sacred Foundry', 'Plains', 'Elegant Parlor'];
+          } else if (colorSet.has('G') && colorSet.has('R')) {
+            mainLand = 'Copperline Gorge // Karplusan Forest // Mountain';
+            altLands = ['Stomping Ground', 'Forest', 'Commercial District'];
+          } else if (colorSet.has('U') && colorSet.has('R')) {
+            mainLand = 'Spirebluff Canal // Shivan Reef // Mountain';
+            altLands = ['Steam Vents', 'Island', 'Thundering Falls'];
+          } else if (colorSet.has('G') && colorSet.has('W')) {
+            mainLand = 'Razorverge Thicket // Brushland // Forest';
+            altLands = ['Temple Garden', 'Plains', 'Lush Portico'];
+          } else if (colorSet.has('U') && colorSet.has('B')) {
+            mainLand = 'Darkslick Shores // Underground River // Swamp';
+            altLands = ['Watery Grave', 'Island', 'Undercity Sewers'];
+          } else {
+            mainLand = `${colors.join('/')} Optimized Dual Lands & Basics`;
+            altLands = ['Fast Lands', 'Pain Lands', 'Shock Lands'];
+          }
+        } else {
+          if (colors.includes('U')) {
+            mainLand = 'Island';
+            altLands = ['Misty Rainforest', 'Scalding Tarn'];
+          } else if (colors.includes('R')) {
+            mainLand = 'Mountain';
+            altLands = ['Wooded Foothills', 'Stomping Ground'];
+          } else if (colors.includes('W')) {
+            mainLand = 'Plains';
+            altLands = ['Windswept Heath', 'Temple Garden'];
+          } else if (colors.includes('B')) {
+            mainLand = 'Swamp';
+            altLands = ['Bloodstained Mire', 'Overgrown Tomb'];
+          } else if (colors.includes('G')) {
+            mainLand = 'Forest';
+            altLands = ['Windswept Heath', 'Temple Garden'];
+          }
         }
 
         const slotFilled = slot.withFilledData({
           winnerCard: mainLand,
           alternatives: altLands,
           confidenceScore: 1.0,
-          allocationReason: `Mana base allocation (${mainLand}) matching deck color identity`
+          allocationReason: `Mana base allocation (${mainLand}) matching deck color identity [${colors.join('/')}]`
         });
         filledSlots.push(slotFilled);
         ledger.recordEntry({
@@ -66,7 +95,7 @@ export class CandidateConstraintEngine {
           winnerCard: mainLand,
           winnerScore: 100,
           alternatives: altLands,
-          reason: `Mana base allocation (${mainLand}) matching deck color identity`
+          reason: `Mana base allocation (${mainLand}) matching deck color identity [${colors.join('/')}]`
         });
         continue;
       }
@@ -411,32 +440,36 @@ export class CandidateConstraintEngine {
         }
       }
 
-      // Role matching heuristics & CMC penalties for CHEAP_REMOVAL
-      if (role.includes('cheap_removal') || role.includes('cheap removal') || role.includes('removal')) {
-        const hasRemovalAction = oracleText.includes('destroy') ||
-                                 oracleText.includes('exile target') ||
-                                 oracleText.includes('deals damage to') ||
-                                 oracleText.includes('deal damage to') ||
-                                 oracleText.includes('deals ') ||
-                                 oracleText.includes('counter target') ||
-                                 oracleText.includes('fights') ||
-                                 oracleText.includes('deals damage equal');
+      // ─── CHEAP REMOVAL & BURN REACH ROLES ─────────────────────────────────
+      if (role.includes('cheap_removal') || role.includes('cheap removal') || role.includes('removal') || role.includes('burn')) {
+        const isSpell = typeLine.includes('instant') || typeLine.includes('sorcery');
+        const hasDirectDamage = oracleText.includes('deals damage to any target') ||
+                                oracleText.includes('deal damage to any target') ||
+                                oracleText.includes('deals damage to target') ||
+                                oracleText.includes('deal damage to target') ||
+                                oracleText.includes('deals 3 damage to') ||
+                                oracleText.includes('deals 2 damage to') ||
+                                oracleText.includes('deals 4 damage to') ||
+                                oracleText.includes('deals 5 damage to') ||
+                                oracleText.includes('damage to target creature') ||
+                                oracleText.includes('target creature or planeswalker') ||
+                                oracleText.includes('damage to each opponent') ||
+                                oracleText.includes('deals damage equal');
+        const hasHardRemoval = oracleText.includes('destroy target') ||
+                               oracleText.includes('exile target') ||
+                               oracleText.includes('target creature gets -') ||
+                               oracleText.includes('counter target') ||
+                               oracleText.includes('fights');
 
-        if (hasRemovalAction) {
-          score += 25;
-          // Bonus for synergistic fight/bite or burn removal in creature-heavy decks
-          if (oracleText.includes('deals damage equal') || oracleText.includes('fights') || oracleText.includes('bite')) {
-            score += 20;
-          }
-          if (cmc <= 2) {
-            score += 25; // Optimal cheap removal
-          } else if (cmc === 3) {
-            score += 10;
-          } else {
-            score -= (cmc - 2) * 20;
-          }
+        if (hasDirectDamage || hasHardRemoval) {
+          score += 65; // Strong bonus for real removal/burn!
+          if (isSpell) score += 55; // Spells should strongly take priority in removal slots!
+          if (cmc <= 1) score += 40; // 1-mana premium (Cut Down, Shock, Torch the Tower, Fatal Push, Play with Fire)
+          else if (cmc === 2) score += 30; // 2-mana premier (Lightning Strike, Go for the Throat, Lightning Helix, Abrade)
+          else if (cmc === 3) score += 10;
+          else score -= (cmc - 2) * 25;
         } else {
-          score -= 200; // Not a removal spell!
+          score -= 300; // Strictly penalize non-removal cards in CHEAP_REMOVAL slots!
         }
       }
 
@@ -448,7 +481,7 @@ export class CandidateConstraintEngine {
                               oracleText.includes('reveal the top');
         if (hasDrawAction) {
           score += 25;
-          // Synergistic draw bonus for X-spells / High-power creatures / Counters (Up the Beanstalk, Garruk's Uprising)
+          if (typeLine.includes('instant') || typeLine.includes('sorcery')) score += 20;
           if (oracleText.includes('mana value 5 or greater') || oracleText.includes('power 4 or greater') || oracleText.includes('counter')) {
             score += 30;
           }
@@ -472,9 +505,10 @@ export class CandidateConstraintEngine {
       const cardName = item.card.name;
       const currentQty = usedWinnersCount.get(cardName) || 0;
 
-      if (currentQty + slot.requiredDensity <= maxPlayset) {
+      // Ensure distinct winner cards across packages to prevent fractional split violations
+      if (currentQty === 0 && slot.requiredDensity <= maxPlayset) {
         const altCards = rankedCandidates
-          .filter(c => c.card.name !== cardName)
+          .filter(c => c.card.name !== cardName && !usedWinnersCount.has(c.card.name))
           .slice(0, 3)
           .map(c => c.card.name);
 

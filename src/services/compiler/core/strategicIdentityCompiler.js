@@ -126,18 +126,38 @@ export class StrategicIdentityCompiler {
       });
     }
 
-    // Goblins Burn / Swarm
+    // Goblins Burn / Swarm (Multi-color & Mono Red support)
     if (tribe.includes('goblin') || strategy.includes('goblin')) {
+      const hasWhite = colors.includes('W');
+      const hasBlack = colors.includes('B');
+      const hasGreen = colors.includes('G');
+      let archKey = 'MONO_RED_GOBLINS';
+      let colorDesc = 'Mono Red';
+
+      if (hasWhite && hasBlack) {
+        archKey = 'MARDU_GOBLINS_AGGRO_BURN';
+        colorDesc = 'Mardu (R/W/B)';
+      } else if (hasBlack) {
+        archKey = 'RAKDOS_GOBLINS_AGGRO';
+        colorDesc = 'Rakdos (B/R)';
+      } else if (hasWhite) {
+        archKey = 'BOROS_GOBLINS_AGGRO';
+        colorDesc = 'Boros (R/W)';
+      } else if (hasGreen) {
+        archKey = 'GRUUL_GOBLINS_AGGRO';
+        colorDesc = 'Gruul (R/G)';
+      }
+
       return new DeckIdentity({
-        archetypeKey: 'MONO_RED_GOBLINS',
-        gameplan: 'Explosión de tokens de bajo coste con prisa, señores de ataque y remate directo de daño a la cara.',
-        requiredEngines: ['Token Generation', 'Haste Enablers', 'Goblin Lords', 'Burn Finishers'],
+        archetypeKey: archKey,
+        gameplan: `Explosión agresiva de Goblins en ${colorDesc} con atacantes de turno 1-2, sinergia tribal, remoción instantánea de bajo coste y remate directo de daño a la cara.`,
+        requiredEngines: ['Token Generation / Swarm', 'Haste Enablers', 'Goblin Lords', 'Burn Reach & Instant Removal'],
         expectedCurveRange: { min: 1, max: 3 },
-        mandatoryRoles: ['Turn 1 Play', 'Turn 2 Pressure', 'Tribal Density', 'Sacrifice Outlet', 'Cheap Removal'],
-        strengths: ['Extreme speed', 'Punishes unestablished boards', 'Goblin Grenade reach'],
-        weaknesses: ['Fragile creatures', 'Depletes hand quickly'],
-        failureModes: ['High lifegain opponent', 'Early big blockers'],
-        recoveryPlan: ['Burn to the face', 'Token swarm refill'],
+        mandatoryRoles: ['Turn 1 Play', 'Turn 2 Pressure', 'Tribal Density', 'Cheap Removal', 'Burn Finisher', 'Card Flow'],
+        strengths: ['Extreme speed', 'Punishes slow mana bases', 'Dual-threat combat & direct burn reach'],
+        weaknesses: ['Vulnerable to early sweepers', 'Demands aggressive mana consistency'],
+        failureModes: ['High lifegain opponent', 'Stalled board with heavy blockers'],
+        recoveryPlan: ['Burn to the face over blockers', 'Haste re-deployment', 'Card flow refill'],
         expectedKillTurn: 4,
         requiresManaRamp: false
       });
