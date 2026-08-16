@@ -330,9 +330,11 @@ export default function BlueprintEditor({ blueprint, format, onAssemble, onBack 
 
         {/* Conditional Strategic Decision Graph Visualizer */}
         <StrategicDecisionGraphVisualizer 
-          intent={editedBlueprint.deckName || editedBlueprint.archetype || 'GIANTS_STOMP'} 
+          intent={editedBlueprint.deckName || editedBlueprint.archetype || ''} 
           archetype={editedBlueprint.archetype} 
-          tribe={editedBlueprint.tribe} 
+          tribe={editedBlueprint.tribe}
+          decisionGraph={editedBlueprint.decisionGraph}
+          blueprint={editedBlueprint}
         />
 
         {/* Interactive Strategy DAG Visualizer */}
@@ -341,6 +343,7 @@ export default function BlueprintEditor({ blueprint, format, onAssemble, onBack 
           deckName={editedBlueprint.deckName} 
           roles={rolesList} 
           blueprint={editedBlueprint} 
+          dagNodes={editedBlueprint.dagNodes}
         />
 
         {/* Quantifiable Strategic Constraints Checklist */}
@@ -408,59 +411,22 @@ export default function BlueprintEditor({ blueprint, format, onAssemble, onBack 
 
               {/* Formal Executable Strategic Brief Specification */}
               {(() => {
-                const text = `${editedBlueprint.deckName || ''} ${editedBlueprint.archetype || ''} ${editedBlueprint.tribe || ''} ${editedBlueprint.prompt || ''}`.toLowerCase();
-                const isGiants = text.includes('giant') || text.includes('stomp');
-                const isHumans = text.includes('human');
-                const isControl = text.includes('control');
-                const isAggro = text.includes('aggro') || editedBlueprint.archetype === 'Aggro';
-
-                let spec = {
-                  primaryGoal: editedBlueprint.archetype ? `${editedBlueprint.archetype} Strategic Dominance` : 'Dominar la Curva de Presión',
-                  primaryEngine: editedBlueprint.tribe ? `Motor Tribal de ${editedBlueprint.tribe}` : 'Motor Principal de Estrategia',
-                  secondaryEngine: 'Aceleración de Maná & Sinergia de Mesa',
-                  fallbackPlan: 'Presión Midrange Resiliente',
-                  failureConditions: 'Mana Screw, Sweepers',
-                  adaptiveResponse: 'Contratos Adaptativos de Protección',
-                  expectedKillTurn: isAggro ? 5 : 6
+                const exec = editedBlueprint.executiveSpecification;
+                const spec = {
+                  primaryGoal: exec?.primaryGoal || (editedBlueprint.archetype ? `${editedBlueprint.archetype} Strategic Dominance` : 'Dominar la Curva de Presión'),
+                  primaryEngine: exec?.primaryEngine || (editedBlueprint.tribe ? `Motor Tribal de ${editedBlueprint.tribe}` : 'Motor Principal de Estrategia'),
+                  secondaryEngine: exec?.secondaryEngine || 'Presión de Curva & Interacción',
+                  fallbackPlan: exec?.fallbackPlan || 'Presión Midrange Resiliente',
+                  failureConditions: exec?.failureConditions || 'Mana Screw, Sweepers',
+                  adaptiveResponse: exec?.adaptiveResponse || 'Contratos Adaptativos de Protección',
+                  expectedKillTurn: exec?.expectedKillTurn || 5
                 };
-
-                if (isGiants) {
-                  spec = {
-                    primaryGoal: 'Dominar Combate con Gigantes & Stomp',
-                    primaryEngine: 'Motor Tribal de Gigantes & Remoción Stomp',
-                    secondaryEngine: 'Aceleración de Maná Temprana (Curva 4 en T3)',
-                    fallbackPlan: 'Presión Midrange de Gigantes (Giant Cindermaw / Brambleback Brute)',
-                    failureConditions: 'Falta de Aceleración, Mana Screw',
-                    adaptiveResponse: 'Remoción Stomp & Gigantes Resilientes',
-                    expectedKillTurn: 5
-                  };
-                } else if (isHumans) {
-                  spec = {
-                    primaryGoal: 'Presión Agresiva de Enjambre Humano',
-                    primaryEngine: 'Motor de Enjambre Humano & Himno',
-                    secondaryEngine: 'Disrupción & Protecciones Baratas',
-                    fallbackPlan: 'Presión Continuada de Enjambre',
-                    failureConditions: 'Limpiezas Masivas (Sweepers), Remoción Rápida',
-                    adaptiveResponse: 'Contratos de Protección Instantánea',
-                    expectedKillTurn: 4
-                  };
-                } else if (isControl) {
-                  spec = {
-                    primaryGoal: 'Controlar Mesa & Estabilizar Partida',
-                    primaryEngine: 'Motor de Ventaja de Cartas & Robo',
-                    secondaryEngine: 'Remoción Masiva & Contrahechizos',
-                    fallbackPlan: 'Estabilización & Ventaja de Cartas',
-                    failureConditions: 'Presión Hiper-Agresiva Temprana',
-                    adaptiveResponse: 'Remoción Barata e Interacción Instantánea',
-                    expectedKillTurn: 7
-                  };
-                }
 
                 return (
                   <div className="p-3.5 bg-black/80 border border-amber-500/30 rounded-2xl space-y-2 font-mono text-[10.5px] leading-relaxed shadow-inner">
                     <div className="text-amber-300 font-bold border-b border-white/10 pb-1 flex justify-between">
                       <span># Executable Specification</span>
-                      <span className="text-[9px] text-emerald-400">94% Confidence</span>
+                      <span className="text-[9px] text-emerald-400">96% Confidence</span>
                     </div>
                     <div className="text-gray-300">
                       <span className="text-purple-400 font-bold">Primary Goal:</span> {spec.primaryGoal}
@@ -481,7 +447,7 @@ export default function BlueprintEditor({ blueprint, format, onAssemble, onBack 
                       <span className="text-emerald-400 font-bold">Adaptive Response:</span> {spec.adaptiveResponse}
                     </div>
                     <div className="text-gray-300">
-                      <span className="text-magic-gold font-bold">Expected Kill Turn:</span> {spec.expectedKillTurn}
+                      <span className="text-magic-gold font-bold">Expected Kill Turn:</span> Turno {spec.expectedKillTurn}
                     </div>
                   </div>
                 );

@@ -48,6 +48,7 @@ import { StateCandidateRanker } from './compiler/core/stateCandidateRanker.js';
 import { MarginalCopyEvaluator } from './compiler/core/marginalCopyEvaluator.js';
 import { CompilerConvergencePipeline } from '../knowledge/compiler/CompilerConvergencePipeline.js';
 import { IntentBuilder } from './compiler/core/intentBuilder.js';
+import { CanonicalBlueprintModel } from './compiler/core/canonicalBlueprintModel.js';
 
 
 
@@ -4953,7 +4954,10 @@ export async function generateBlueprintFromAI(formData, aiConfig, onProgress = (
       ? rawTurnPlan
       : (rawTurnPlan ? Object.values(rawTurnPlan) : ['TURN_1_ENABLER', 'TURN_2_PRESSURE', 'TURN_3_ENGINE', 'TURN_4_LETHAL_REACH']);
 
+    const canonicalBlueprint = CanonicalBlueprintModel.createFromConvergenceResult(convergenceResult);
+
     const v3Blueprint = {
+      ...canonicalBlueprint,
       userIntent: normInput,
       strategicThesis: convergenceResult.strategicThesis || { archetype: normInput.archetype, colors: normInput.colors },
       winPath: winPathArray,
