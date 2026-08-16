@@ -5028,14 +5028,16 @@ export async function assembleDeckFromBlueprint(blueprint, formData, aiConfig, o
   const normInput = normalizeForgeInput(formData);
 
   try {
-    const rawCardPool = await getAllCards();
-    const convergenceResult = preCalculatedData?.convergenceResult || CompilerConvergencePipeline.compileDeckFromScratch({
-      userPrompt: formData.customPrompt || `Mazo competitivo ${normInput.archetype || 'Aggro'} ${normInput.colors.join('/')}`,
-      archetype: normInput.archetype,
-      format: normInput.format || 'Standard',
-      rawCardPool: rawCardPool || [],
-      uiFormState: normInput
-    });
+    const cachedResult = preCalculatedData?.convergenceResult;
+    const convergenceResult = (cachedResult && cachedResult.buildStatus === 'SUCCESS')
+      ? cachedResult
+      : CompilerConvergencePipeline.compileDeckFromScratch({
+          userPrompt: formData.customPrompt || `Mazo competitivo ${normInput.archetype || 'Aggro'} ${normInput.colors.join('/')}`,
+          archetype: normInput.archetype,
+          format: normInput.format || 'Standard',
+          rawCardPool: rawCardPool || [],
+          uiFormState: normInput
+        });
 
     const assembledCards = convergenceResult.state?.cards || [];
     const consolidatedSpells = consolidateDeckCards(assembledCards.filter(c => !isLand(c)));
