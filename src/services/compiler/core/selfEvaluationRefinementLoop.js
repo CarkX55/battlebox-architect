@@ -26,7 +26,7 @@ export class SelfEvaluationRefinementLoop {
       },
       {
         rank: 2,
-        action: 'Optimizar la proporción de tierras dobles en la base de maná Naya',
+        action: 'Optimizar la proporción de tierras dobles y fuentes de color en la base de maná',
         executionGain: '+1.6 Mana Stability',
         targetArea: 'Mana Stability',
         confidencePercentage: 95,

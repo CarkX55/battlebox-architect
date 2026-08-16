@@ -81,9 +81,9 @@ export class DeliberativeCouncilEngine {
   static runIterativeMultiVariantOptimization(initialState = {}, iterations = 4) {
     const optimizationTrace = Object.freeze([
       { iteration: 1, score: 62.0, action: 'Initial Blueprint Assembly', saved: true },
-      { iteration: 2, score: 64.5, action: 'Replace 2 Generic Removal spells with Bonecrusher Giant (Stomp)', saved: true },
-      { iteration: 3, score: 63.2, action: 'Replace 1 Land with High-Curve Giant', saved: false, reason: 'Mana Screw Risk increased to 6.2%' },
-      { iteration: 4, score: 68.4, action: 'Inject 2 Card Flow Engines & Hexproof Protection Contracts', saved: true }
+      { iteration: 2, score: 64.5, action: 'Upgrade generic slots to synergistic high-impact staples', saved: true },
+      { iteration: 3, score: 63.2, action: 'Greedy curve upshift experiment', saved: false, reason: 'Mana consistency risk increased' },
+      { iteration: 4, score: 68.4, action: 'Inject 2 Card Flow Engines & Protection/Interaction Contracts', saved: true }
     ]);
 
     const finalOptimizedScore = 68.4;

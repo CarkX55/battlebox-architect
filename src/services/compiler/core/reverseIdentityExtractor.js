@@ -35,7 +35,7 @@ export class ReverseIdentityExtractor {
     const KNOWN_TRIBES = [
       'hydra', 'giant', 'human', 'goblin', 'elf', 'merfolk', 'dragon', 
       'vampire', 'zombie', 'dinosaur', 'sliver', 'faerie', 'spirit', 
-      'knight', 'wizard', 'rogue', 'cleric', 'warrior', 'cat', 'angel'
+      'knight', 'wizard', 'rogue', 'cleric', 'warrior', 'cat', 'angel', 'ooze'
     ];
 
     for (const card of cards) {
@@ -57,7 +57,7 @@ export class ReverseIdentityExtractor {
         if (oracleText.includes('counter target') || name.includes('counterspell')) {
           counterspellCount += qty;
         }
-        if (oracleText.includes('destroy') || oracleText.includes('exile target') || oracleText.includes('deal damage to target')) {
+        if (oracleText.includes('destroy') || oracleText.includes('exile target') || oracleText.includes('deal damage to target') || oracleText.includes('target creature gets -')) {
           removalCount += qty;
         }
         if (oracleText.includes('deals damage to any target') || oracleText.includes('deals damage to each opponent')) {
@@ -95,6 +95,17 @@ export class ReverseIdentityExtractor {
         confidenceScore = Math.min(1.0, 0.92 + (maxTribeCount * 0.01));
       } else if (dominantTribe === 'giant') {
         predictedArchetypeKey = 'NAYA_GIANTS_STOMP';
+        confidenceScore = Math.min(1.0, 0.92 + (maxTribeCount * 0.01));
+      } else if (dominantTribe === 'ooze') {
+        const hasBlack = cards.some(c => (c.colors || []).includes('B') || (c.mana_cost || '').includes('{B}') || (c.type_line || '').includes('Swamp'));
+        const isControlHeavy = (removalCount + cardDrawCount) >= 8;
+        if (hasBlack && isControlHeavy) {
+          predictedArchetypeKey = 'GOLGARI_OOZE_CONTROL';
+        } else if (isControlHeavy) {
+          predictedArchetypeKey = 'OOZE_CONTROL';
+        } else {
+          predictedArchetypeKey = 'OOZE_COUNTERS_GROWTH';
+        }
         confidenceScore = Math.min(1.0, 0.92 + (maxTribeCount * 0.01));
       } else if (dominantTribe === 'human') {
         predictedArchetypeKey = 'HUMANS_ANTHEM_TAXES';

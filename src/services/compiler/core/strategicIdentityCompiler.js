@@ -214,6 +214,29 @@ export class StrategicIdentityCompiler {
       });
     }
 
+    // Oozes Gelatinous Mass / Counters & Control
+    if (tribe.includes('ooze') || strategy.includes('ooze') || strategy.includes('gelatina')) {
+      const isControl = tempo.includes('control') || strategy.includes('control');
+      const isGolgari = colors.includes('B') && colors.includes('G');
+      const archKey = isControl ? (isGolgari ? 'GOLGARI_OOZE_CONTROL' : 'OOZE_CONTROL') : 'OOZE_COUNTERS_GROWTH';
+      
+      return new DeckIdentity({
+        archetypeKey: archKey,
+        gameplan: isControl 
+          ? 'Controlar la mesa con remoción puntual y ventaja de cartas mientras se desarrollan limos resilientes que crecen con contadores y consumen el cementerio.'
+          : 'Hacer crecer enjambres de limos mediante contadores +1/+1, multiplicación y consumo de recursos en el cementerio para cerrar con ataques masivos.',
+        requiredEngines: ['Ooze Growth Engine', '+1/+1 Counter Synergies', 'Graveyard Scavenging', 'Targeted Removal / Disruption'],
+        expectedCurveRange: { min: 1, max: 5 },
+        mandatoryRoles: ['Turn 1 Play', 'Tribal Density', 'Counter Synergy', 'Cheap Removal', 'Card Flow', 'Finisher'],
+        strengths: ['Indestructible and growing threats (Predator Ooze, Scavenging Ooze)', 'Graveyard disruption', 'Card advantage through counters'],
+        weaknesses: ['Mass board exile effects', 'Early extreme hyper-aggro'],
+        failureModes: ['Removal of small initial oozes before counter growth', 'Mana screw on color requirements'],
+        recoveryPlan: ['Inspiring Call indestructible / draw', 'Scavenging graveyard for life and size'],
+        expectedKillTurn: isControl ? 7 : 5,
+        requiresManaRamp: false
+      });
+    }
+
     // ─── 2. MECHANICAL & STRATEGIC ENGINES ──────────────────────────────────
     // Sacrifice / Aristocrats
     if (strategy.includes('sacrifice') || strategy.includes('dies') || strategy.includes('aristocrat') || mechanics.includes('sacrifice')) {
@@ -232,8 +255,8 @@ export class StrategicIdentityCompiler {
       });
     }
 
-    // Reanimator
-    if (strategy.includes('reanimat') || strategy.includes('graveyard') || strategy.includes('discard') || mechanics.includes('reanimate')) {
+    // Reanimator (Strictly requires explicit reanimation intent)
+    if (strategy.includes('reanimat') || strategy.includes('resurrect') || strategy.includes('unburial') || mechanics.includes('reanimate')) {
       return new DeckIdentity({
         archetypeKey: 'REANIMATOR_COMBO',
         gameplan: 'Descartar o enviar amenazas colosales al cementerio en turnos 1-2 para reanimarlas inmediatamente con hechizos de resurrección de bajo coste.',

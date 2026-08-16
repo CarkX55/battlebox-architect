@@ -239,6 +239,39 @@ export class CandidateConstraintEngine {
         score -= 500;
       }
 
+      // ─── POWER LEVEL & TOURNAMENT QUALITY SCORING ─────────────────────────
+      const powerLevel = (intentPackage.powerLevel || 'Competitive').toLowerCase();
+      const rarity = (card.rarity || 'common').toLowerCase();
+      const nameLower = (card.name || '').toLowerCase();
+
+      if (powerLevel === 'competitive' || powerLevel === 'high-power') {
+        if (rarity === 'mythic') score += 25;
+        else if (rarity === 'rare') score += 20;
+        else if (rarity === 'uncommon') score += 5;
+
+        // Competitive tournament staples bonus:
+        const isTournamentStaple = [
+          'cut down', 'go for the throat', 'bitter triumph', 'tear asunder', 'fatal push', 'infernal grasp',
+          'lightning strike', 'shock', 'play with fire', 'torch the tower', 'monstrous rage', 'lightning helix',
+          'scavenging ooze', 'predator ooze', 'biogenic ooze', 'experiment one', 'slime against humanity',
+          'agatha\'s soul cauldron', 'the ozolith', 'hardened scales', 'innkeeper\'s talent',
+          'glissa sunslayer', 'mosswood dreadknight', 'preacher of the schism', 'vraska, the silencer',
+          'deadly cover-up', 'glistening deluge', 'path of peril', 'restless cottage',
+          'inspiring call', 'archdruid\'s charm', 'delighted halfling', 'llanowar elves',
+          'thoughtseize', 'duress', 'inquisition of kozilek', 'counterspell', 'mana leak'
+        ].some(staple => nameLower === staple || nameLower.includes(staple));
+
+        if (isTournamentStaple) {
+          score += 35;
+        }
+
+        // Penalize low-impact draft chaff commons with no constructed relevance
+        const isDraftChaff = ['putrid pals', 'hecteyes', 'unfortunate accident'].some(dc => nameLower === dc);
+        if (isDraftChaff) {
+          score -= 40;
+        }
+      }
+
       // ─── SYNERGY BOOST KEYWORDS SCORING ──────────────────────────────────
       const userBoostKws = intentPackage.userConstraints?.boostKeywords || intentPackage.boostKeywords || [];
       if (Array.isArray(userBoostKws) && userBoostKws.length > 0) {
@@ -443,31 +476,34 @@ export class CandidateConstraintEngine {
       // ─── CHEAP REMOVAL & BURN REACH ROLES ─────────────────────────────────
       if (role.includes('cheap_removal') || role.includes('cheap removal') || role.includes('removal') || role.includes('burn')) {
         const isSpell = typeLine.includes('instant') || typeLine.includes('sorcery');
-        const hasDirectDamage = oracleText.includes('deals damage to any target') ||
-                                oracleText.includes('deal damage to any target') ||
-                                oracleText.includes('deals damage to target') ||
-                                oracleText.includes('deal damage to target') ||
-                                oracleText.includes('deals 3 damage to') ||
-                                oracleText.includes('deals 2 damage to') ||
-                                oracleText.includes('deals 4 damage to') ||
-                                oracleText.includes('deals 5 damage to') ||
-                                oracleText.includes('damage to target creature') ||
-                                oracleText.includes('target creature or planeswalker') ||
-                                oracleText.includes('damage to each opponent') ||
-                                oracleText.includes('deals damage equal');
-        const hasHardRemoval = oracleText.includes('destroy target') ||
-                               oracleText.includes('exile target') ||
-                               oracleText.includes('target creature gets -') ||
-                               oracleText.includes('counter target') ||
-                               oracleText.includes('fights');
+        const isInstant = typeLine.includes('instant');
+        const hasUnconditionalRemoval = oracleText.includes('destroy target creature') ||
+                                        oracleText.includes('exile target creature') ||
+                                        oracleText.includes('target creature gets -') ||
+                                        oracleText.includes('destroy target nonland permanent') ||
+                                        oracleText.includes('exile target nonland permanent') ||
+                                        oracleText.includes('deals damage to any target') ||
+                                        oracleText.includes('deals 3 damage to target') ||
+                                        oracleText.includes('deals 2 damage to target') ||
+                                        oracleText.includes('deals 4 damage to target') ||
+                                        oracleText.includes('counter target');
 
-        if (hasDirectDamage || hasHardRemoval) {
-          score += 65; // Strong bonus for real removal/burn!
-          if (isSpell) score += 55; // Spells should strongly take priority in removal slots!
-          if (cmc <= 1) score += 40; // 1-mana premium (Cut Down, Shock, Torch the Tower, Fatal Push, Play with Fire)
-          else if (cmc === 2) score += 30; // 2-mana premier (Lightning Strike, Go for the Throat, Lightning Helix, Abrade)
-          else if (cmc === 3) score += 10;
+        const hasConditionalRemoval = oracleText.includes('fights') ||
+                                      oracleText.includes('deals damage equal to its power') ||
+                                      oracleText.includes('bite') ||
+                                      oracleText.includes('deals damage to target creature');
+
+        if (hasUnconditionalRemoval) {
+          score += 85; // Massive bonus for true unconditional removal!
+          if (isInstant) score += 30; // Instant speed is king in MTG removal!
+          if (cmc <= 1) score += 40; // 1-mana premium (Cut Down, Fatal Push, Shock, Torch the Tower)
+          else if (cmc === 2) score += 35; // 2-mana premier (Go for the Throat, Bitter Triumph, Lightning Strike, Infernal Grasp, Tear Asunder)
+          else if (cmc === 3) score += 15;
           else score -= (cmc - 2) * 25;
+        } else if (hasConditionalRemoval) {
+          score += 30;
+          if (cmc <= 1) score += 15;
+          else if (cmc === 2) score += 10;
         } else {
           score -= 300; // Strictly penalize non-removal cards in CHEAP_REMOVAL slots!
         }
