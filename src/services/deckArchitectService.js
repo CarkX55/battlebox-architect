@@ -5056,30 +5056,25 @@ export async function assembleDeckFromBlueprint(blueprint, formData, aiConfig, o
 
     const dynamicLands = await generateManaBase(pips, targetLandCount, usedColors, normInput, consolidatedSpells, []);
     
-    let finalDeckList = [];
-    const hasLandsInAssembled = assembledCards.some(isLand);
-    if (hasLandsInAssembled && countCopies(assembledCards) === targetDeckSize) {
-      finalDeckList = consolidateDeckCards(assembledCards);
-    } else {
-      const spellBudget = targetDeckSize - targetLandCount;
-      let spells = [...consolidatedSpells];
-      let currentSpells = countCopies(spells);
-      if (currentSpells > spellBudget) {
-        let excess = currentSpells - spellBudget;
-        while (excess > 0 && spells.length > 0) {
-          const lastSpell = spells[spells.length - 1];
-          if (lastSpell.quantity <= excess) {
-            excess -= lastSpell.quantity;
-            spells.pop();
-          } else {
-            lastSpell.quantity -= excess;
-            excess = 0;
-          }
+    // Assemble final deck: exact spells + dynamic Karsten lands
+    const spellBudget = targetDeckSize - targetLandCount;
+    let spells = [...consolidatedSpells];
+    let currentSpells = countCopies(spells);
+    if (currentSpells > spellBudget) {
+      let excess = currentSpells - spellBudget;
+      while (excess > 0 && spells.length > 0) {
+        const lastSpell = spells[spells.length - 1];
+        if (lastSpell.quantity <= excess) {
+          excess -= lastSpell.quantity;
+          spells.pop();
+        } else {
+          lastSpell.quantity -= excess;
+          excess = 0;
         }
       }
-      spells = spells.filter(s => s.quantity > 0);
-      finalDeckList = consolidateDeckCards([...spells, ...dynamicLands]);
     }
+    spells = spells.filter(s => s.quantity > 0);
+    let finalDeckList = consolidateDeckCards([...spells, ...dynamicLands]);
 
     // Final exact size assertion and cleanup
     let currentTotal = countCopies(finalDeckList);

@@ -13,8 +13,16 @@ export class DeckState {
       role: c.role || 'General',
       packagePriority: c.packagePriority || 'SUPPORT',
       lockLevel: c.lockLevel || 'LOCK_SOFT',
+      mana_cost: c.mana_cost || c.manaCost || '',
+      mana_value: c.mana_value ?? c.cmc ?? 0,
+      cmc: c.cmc ?? c.mana_value ?? 0,
       colors: Object.freeze([...(c.colors || [])]),
-      type_line: c.type_line || c.typeLine || ''
+      color_identity: Object.freeze([...(c.color_identity || c.colorIdentity || [])]),
+      type_line: c.type_line || c.typeLine || '',
+      oracle_text: c.oracle_text || c.oracleText || '',
+      rarity: c.rarity || 'common',
+      image_uris: c.image_uris || null,
+      cardObj: c.cardObj || null
     })));
 
     this.totalCardCount = this.cards.reduce((sum, c) => sum + c.quantity, 0);

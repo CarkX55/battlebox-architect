@@ -41,8 +41,17 @@ export class DeckExpansion {
           role: pkg.role,
           packagePriority: pkg.priority,
           lockLevel: pkg.lockLevel,
+          mana_cost: cardObj.mana_cost || cardObj.manaCost || '',
+          mana_value: cardObj.mana_value || cardObj.cmc || 0,
+          cmc: cardObj.cmc || cardObj.mana_value || 0,
           colors: cardObj.colors || [],
-          type_line: cardObj.type_line || cardObj.typeLine || ''
+          color_identity: cardObj.color_identity || cardObj.colorIdentity || [],
+          type_line: cardObj.type_line || cardObj.typeLine || '',
+          oracle_text: cardObj.oracle_text || cardObj.oracleText || '',
+          rarity: cardObj.rarity || 'common',
+          legalities: cardObj.legalities || {},
+          image_uris: cardObj.image_uris || null,
+          cardObj: cardObj
         });
       }
     }

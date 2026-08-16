@@ -210,6 +210,45 @@ export class CandidateConstraintEngine {
         score -= 500;
       }
 
+      // ─── CURVE & TIMING STRICT ENFORCEMENT ────────────────────────────────
+      // TURN1_PRESSURE / TURN1_PLAY: Must be CMC 1 (or X-cost scalable at 1)
+      if (role.includes('turn1') || role.includes('turn 1') || role.includes('early_play')) {
+        if (cmc === 1 || (cmc === 0 && (oracleText.includes('enters with x') || oracleText.includes('x +1/+1')))) {
+          score += 40;
+        } else {
+          score -= (cmc - 1) * 40; // Heavy penalty for CMC > 1 in Turn 1 slot
+        }
+      }
+
+      // TURN2_PRESSURE / TURN2_PLAY: Must be CMC 2
+      if (role.includes('turn2') || role.includes('turn 2')) {
+        if (cmc === 2) {
+          score += 40;
+        } else if (cmc === 1) {
+          score += 15;
+        } else {
+          score -= (cmc - 2) * 40; // Heavy penalty for CMC >= 3 in Turn 2 slot
+        }
+      }
+
+      // BOARD_PRESENCE / MID_CURVE: Optimal at CMC 3-4
+      if (role.includes('board_presence') || role.includes('mid_curve')) {
+        if (cmc >= 2 && cmc <= 4) {
+          score += 25;
+        } else if (cmc > 5) {
+          score -= (cmc - 4) * 15;
+        }
+      }
+
+      // FINISHER / TOP_CURVE: Optimal at CMC 5+
+      if (role.includes('finisher') || role.includes('top_curve') || role.includes('high_curve')) {
+        if (cmc >= 5) {
+          score += 35;
+        } else {
+          score -= (5 - cmc) * 15;
+        }
+      }
+
       // Hard Type Enforcement for Density & Presence Roles:
       // TRIBAL_DENSITY, BOARD_PRESENCE, TURN1_PRESSURE, TURN2_PRESSURE MUST be creatures or token creators!
       if (role.includes('tribal_density') || role.includes('board_presence') || role.includes('pressure')) {

@@ -394,12 +394,20 @@ const COLORED_BASIC_LAND_NAMES_SET = new Set([
 
 export function isBasicLand(name) {
   if (!name) return false;
-  return BASIC_LAND_NAMES_SET.has(name.toLowerCase().trim());
+  let cleanName = String(name).toLowerCase().trim();
+  if (cleanName.includes('//')) {
+    cleanName = cleanName.split('//')[0].trim();
+  }
+  return BASIC_LAND_NAMES_SET.has(cleanName);
 }
 
 export function isColoredBasicLand(name) {
   if (!name) return false;
-  return COLORED_BASIC_LAND_NAMES_SET.has(name.toLowerCase().trim());
+  let cleanName = String(name).toLowerCase().trim();
+  if (cleanName.includes('//')) {
+    cleanName = cleanName.split('//')[0].trim();
+  }
+  return COLORED_BASIC_LAND_NAMES_SET.has(cleanName);
 }
 
 export function deckNeedsSnowLands(nonLandSpells) {
