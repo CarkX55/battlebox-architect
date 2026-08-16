@@ -219,6 +219,7 @@ export class CandidateConstraintEngine {
       const profile = this.metricsDb.getOrExtractProfile(card);
       const typeLine = (card.type_line || card.typeLine || '').toLowerCase();
       const oracleText = (card.oracle_text || card.oracleText || '').toLowerCase();
+      const nameLower = (card.name || '').toLowerCase();
       const cmc = card.cmc || card.mana_value || 0;
 
       let score = 0;
@@ -226,11 +227,38 @@ export class CandidateConstraintEngine {
       // Contribution score
       score += profile.getContributionAmount(slot.role);
 
-      // Primary tribe bonus: Must match exact normalized tribe or creature subtype
+      // Primary tribe bonus: Handles direct subtype or token/kindred tribe aliases (e.g. Saproling <-> Fungus, Thopter <-> Artificer)
       if (intentPackage.primaryTribe) {
         const tribeLower = intentPackage.primaryTribe.toLowerCase();
-        if (typeLine.includes(tribeLower)) {
-          score += 25;
+        const isSaprolingOrFungus = tribeLower.includes('saproling') || tribeLower.includes('fungus') || tribeLower.includes('hongo');
+        const isThopterOrServo = tribeLower.includes('thopter') || tribeLower.includes('servo');
+
+        if (isSaprolingOrFungus) {
+          const isDirectMatch = typeLine.includes('fungus') || typeLine.includes('saproling') || 
+                                oracleText.includes('saproling') || oracleText.includes('fungus') ||
+                                nameLower.includes('slimefoot') || nameLower.includes('thallid');
+          if (isDirectMatch) {
+            score += 45;
+            if (oracleText.includes('create') && oracleText.includes('saproling')) score += 30; // Premier Saproling generator
+            if (oracleText.includes('fungi you control') || oracleText.includes('saprolings you control')) score += 25;
+          } else if (role.includes('tribal_density')) {
+            // Penalize completely unrelated creatures in a Saproling tribal slot
+            score -= 120;
+          }
+        } else if (isThopterOrServo) {
+          const isDirectMatch = typeLine.includes('thopter') || typeLine.includes('servo') || 
+                                oracleText.includes('thopter') || oracleText.includes('servo');
+          if (isDirectMatch) {
+            score += 45;
+          } else if (role.includes('tribal_density')) {
+            score -= 120;
+          }
+        } else {
+          if (typeLine.includes(tribeLower)) {
+            score += 35;
+          } else if (role.includes('tribal_density')) {
+            score -= 120; // Strict penalty for off-tribe creatures in tribal density slots!
+          }
         }
       }
 
@@ -242,7 +270,6 @@ export class CandidateConstraintEngine {
       // ─── POWER LEVEL & TOURNAMENT QUALITY SCORING ─────────────────────────
       const powerLevel = (intentPackage.powerLevel || 'Competitive').toLowerCase();
       const rarity = (card.rarity || 'common').toLowerCase();
-      const nameLower = (card.name || '').toLowerCase();
 
       if (powerLevel === 'competitive' || powerLevel === 'high-power') {
         if (rarity === 'mythic') score += 25;

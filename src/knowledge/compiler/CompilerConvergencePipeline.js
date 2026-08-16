@@ -634,12 +634,29 @@ export class CompilerConvergencePipeline {
       const cmc = cardObj.cmc || cardObj.mana_value || entry.cmc || 0;
 
 
-      if (typeLine.includes('creature') || oracleText.includes('creature token')) {
+      if (typeLine.includes('creature') || oracleText.includes('creature token') || oracleText.includes('create a token') || oracleText.includes('create x') || oracleText.includes('create two') || oracleText.includes('create three')) {
         creatureCount += count;
       }
 
-      if (primaryTribe && typeLine.includes(primaryTribe)) {
-        tribeMatchCount += count;
+      if (primaryTribe) {
+        const pTribeLower = primaryTribe.toLowerCase();
+        let isTribeMatch = false;
+
+        if (pTribeLower.includes('saproling') || pTribeLower.includes('fungus')) {
+          isTribeMatch = typeLine.includes('saproling') || typeLine.includes('fungus') || 
+                         oracleText.includes('saproling') || oracleText.includes('fungus') || 
+                         (cardObj.name || '').toLowerCase().includes('slimefoot') || 
+                         (cardObj.name || '').toLowerCase().includes('thallid');
+        } else if (pTribeLower.includes('thopter') || pTribeLower.includes('servo')) {
+          isTribeMatch = typeLine.includes('thopter') || typeLine.includes('servo') || 
+                         oracleText.includes('thopter') || oracleText.includes('servo');
+        } else {
+          isTribeMatch = typeLine.includes(pTribeLower);
+        }
+
+        if (isTribeMatch) {
+          tribeMatchCount += count;
+        }
       }
 
       if (entry.rationale && entry.rationale.includes('CHEAP_REMOVAL')) {

@@ -35,7 +35,7 @@ export class ReverseIdentityExtractor {
     const KNOWN_TRIBES = [
       'hydra', 'giant', 'human', 'goblin', 'elf', 'merfolk', 'dragon', 
       'vampire', 'zombie', 'dinosaur', 'sliver', 'faerie', 'spirit', 
-      'knight', 'wizard', 'rogue', 'cleric', 'warrior', 'cat', 'angel', 'ooze'
+      'knight', 'wizard', 'rogue', 'cleric', 'warrior', 'cat', 'angel', 'ooze', 'saproling', 'fungus'
     ];
 
     for (const card of cards) {
@@ -49,7 +49,7 @@ export class ReverseIdentityExtractor {
         totalNonLand += qty;
 
         for (const tribe of KNOWN_TRIBES) {
-          if (typeLine.includes(tribe) || name.includes(tribe)) {
+          if (typeLine.includes(tribe) || name.includes(tribe) || (tribe === 'saproling' && (oracleText.includes('saproling') || typeLine.includes('fungus')))) {
             tribeCounts.set(tribe, (tribeCounts.get(tribe) || 0) + qty);
           }
         }
@@ -105,6 +105,17 @@ export class ReverseIdentityExtractor {
           predictedArchetypeKey = 'OOZE_CONTROL';
         } else {
           predictedArchetypeKey = 'OOZE_COUNTERS_GROWTH';
+        }
+        confidenceScore = Math.min(1.0, 0.92 + (maxTribeCount * 0.01));
+      } else if (dominantTribe === 'saproling' || dominantTribe === 'fungus') {
+        const hasWhite = cards.some(c => (c.colors || []).includes('W') || (c.mana_cost || '').includes('{W}') || (c.type_line || '').includes('Plains'));
+        const hasBlack = cards.some(c => (c.colors || []).includes('B') || (c.mana_cost || '').includes('{B}') || (c.type_line || '').includes('Swamp'));
+        if (hasWhite && hasBlack) {
+          predictedArchetypeKey = 'ABZAN_SAPROLINGS_SWARM';
+        } else if (hasBlack) {
+          predictedArchetypeKey = 'GOLGARI_SAPROLINGS_SWARM';
+        } else {
+          predictedArchetypeKey = 'SAPROLING_TOKEN_SWARM';
         }
         confidenceScore = Math.min(1.0, 0.92 + (maxTribeCount * 0.01));
       } else if (dominantTribe === 'human') {

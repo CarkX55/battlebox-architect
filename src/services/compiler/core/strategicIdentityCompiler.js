@@ -214,6 +214,27 @@ export class StrategicIdentityCompiler {
       });
     }
 
+    // Saprolings & Fungus Token Swarm / Midrange
+    if (tribe.includes('saproling') || tribe.includes('fungus') || tribe.includes('hongo') || strategy.includes('saprolin') || strategy.includes('fungus')) {
+      const isAbzan = colors.includes('W') && colors.includes('B') && colors.includes('G');
+      const isGolgari = colors.includes('B') && colors.includes('G');
+      const archKey = isAbzan ? 'ABZAN_SAPROLINGS_SWARM' : (isGolgari ? 'GOLGARI_SAPROLINGS_SWARM' : 'SAPROLING_TOKEN_SWARM');
+
+      return new DeckIdentity({
+        archetypeKey: archKey,
+        gameplan: 'Generar un enjambre masivo de fichas de Saprolín y criaturas Hongo, escalando presencia en mesa con himnos, contadores y drenaje de vidas (Slimefoot / Aristócratas).',
+        requiredEngines: ['Saproling Spawners', 'Fungus Spore Engines', 'Swarm Anthems / Buffs', 'Synergistic Removal', 'Token Value / Draw'],
+        expectedCurveRange: { min: 1, max: 5 },
+        mandatoryRoles: ['Turn 1 Play', 'Token Generator', 'Tribal Density', 'Cheap Removal', 'Card Flow', 'Finisher'],
+        strengths: ['Go-wide board flooding', 'Resilience to spot removal through token generation', 'Aristocrat life drain triggers'],
+        weaknesses: ['Low-CMC damage sweepers (Pyroclasm, Brotherhood\'s End)'],
+        failureModes: ['Board sweep before anthem buff', 'Falta de generadores tempranos de esporas'],
+        recoveryPlan: ['Re-flood with token spells', 'Saproling sacrifice drain triggers'],
+        expectedKillTurn: 5,
+        requiresManaRamp: false
+      });
+    }
+
     // Oozes Gelatinous Mass / Counters & Control
     if (tribe.includes('ooze') || strategy.includes('ooze') || strategy.includes('gelatina')) {
       const isControl = tempo.includes('control') || strategy.includes('control');
