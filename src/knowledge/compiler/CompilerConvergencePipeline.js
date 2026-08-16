@@ -531,7 +531,13 @@ export class CompilerConvergencePipeline {
     const backtestReport = PredictionVsRealityBacktest.runBacktest(62.0, 59.0);
 
     // Representative threat & primary package dynamic extraction
-    const nonLandCards = (deckState && deckState.cards ? deckState.cards : []).filter(c => !c.type_line?.toLowerCase().includes('land'));
+    const BASIC_LANDS = new Set(['island', 'forest', 'mountain', 'plains', 'swamp', 'wastes']);
+    const isLandCard = (c) => {
+      const type = (c.type_line || c.typeLine || c.role || '').toLowerCase();
+      const name = (c.name || c.winnerCard || '').toLowerCase().trim();
+      return type.includes('land') || BASIC_LANDS.has(name);
+    };
+    const nonLandCards = (deckState && deckState.cards ? deckState.cards : []).filter(c => !isLandCard(c));
     const repCard = nonLandCards[0]?.name || (intentPackage.primaryTribe ? `${intentPackage.primaryTribe} Leader` : 'Core Threat');
     const primaryPackageName = intentPackage.primaryTribe ? `${intentPackage.primaryTribe.toUpperCase()}_CORE_PACKAGE` : `${deckIdentity.archetypeKey}_PACKAGE`;
 

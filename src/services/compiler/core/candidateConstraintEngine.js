@@ -210,6 +210,73 @@ export class CandidateConstraintEngine {
         score -= 500;
       }
 
+      // ─── SYNERGY BOOST KEYWORDS SCORING ──────────────────────────────────
+      const userBoostKws = intentPackage.userConstraints?.boostKeywords || intentPackage.boostKeywords || [];
+      if (Array.isArray(userBoostKws) && userBoostKws.length > 0) {
+        let kwMatches = 0;
+        const cardNameLower = (card.name || '').toLowerCase();
+        for (const kw of userBoostKws) {
+          const kwLower = String(kw).toLowerCase().trim();
+          if (!kwLower) continue;
+          if (oracleText.includes(kwLower) || typeLine.includes(kwLower) || cardNameLower.includes(kwLower)) {
+            kwMatches++;
+          }
+        }
+        score += Math.min(45, kwMatches * 15);
+      }
+
+      // ─── RAMP ACCELERATION ROLE ───────────────────────────────────────────
+      if (role.includes('ramp') || role.includes('acceleration') || role.includes('mana_dork')) {
+        const isTapManaDork = oracleText.includes('{t}: add') ||
+                              oracleText.includes('{t}: put') ||
+                              oracleText.includes('search your library for a basic land') ||
+                              oracleText.includes('search your library for a land card') ||
+                              oracleText.includes('search your library for up to');
+        const isTriggeredRamp = oracleText.includes('add {') || oracleText.includes('adds {') || oracleText.includes('create a treasure');
+
+        if (isTapManaDork) {
+          score += 70;
+          if (typeLine.includes('creature')) score += 30; // Premier creature dork (Delighted Halfling, Llanowar, Fanatic of Rhonas, Kami)
+          if (cmc <= 2) score += 25;
+          else if (cmc === 3) score += 15;
+          else score -= (cmc - 3) * 20;
+        } else if (isTriggeredRamp) {
+          score += 30;
+          if (cmc <= 2) score += 15;
+          if (typeLine.includes('vehicle')) score -= 40; // Penalize vehicles for ramp slots
+        } else {
+          score -= 200; // Not a ramp accelerator!
+        }
+      }
+
+      // ─── COUNTER & ENGINE SYNERGY ROLE ────────────────────────────────────
+      if (role.includes('counter_synergy') || role.includes('counter') || role.includes('engine')) {
+        const isCounterEngine = oracleText.includes('+1/+1 counter') ||
+                                oracleText.includes('double the number of') ||
+                                oracleText.includes('proliferate') ||
+                                oracleText.includes('counters on');
+        if (isCounterEngine) {
+          score += 45;
+          if (typeLine.includes('enchantment') || typeLine.includes('artifact') || typeLine.includes('creature')) {
+            score += 20; // Stable engine permanence (Innkeeper's Talent, Ozolith, Kami)
+          }
+        } else {
+          score -= 150;
+        }
+      }
+
+      // ─── FINISHER & HIGH CURVE PAYOFFS ────────────────────────────────────
+      if (role.includes('finisher') || role.includes('high_curve') || role.includes('top_curve') || role.includes('payoff')) {
+        const isThreat = typeLine.includes('creature') || oracleText.includes('enters with x') || oracleText.includes('haste');
+        if (isThreat) {
+          if (cmc >= 4 || oracleText.includes('enters with x') || oracleText.includes('x +1/+1')) {
+            score += 45;
+          } else {
+            score -= (4 - cmc) * 15;
+          }
+        }
+      }
+
       // ─── CURVE & TIMING STRICT ENFORCEMENT ────────────────────────────────
       // TURN1_PRESSURE / TURN1_PLAY: Must be CMC 1 (or X-cost scalable at 1)
       if (role.includes('turn1') || role.includes('turn 1') || role.includes('early_play')) {
@@ -240,15 +307,6 @@ export class CandidateConstraintEngine {
         }
       }
 
-      // FINISHER / TOP_CURVE: Optimal at CMC 5+
-      if (role.includes('finisher') || role.includes('top_curve') || role.includes('high_curve')) {
-        if (cmc >= 5) {
-          score += 35;
-        } else {
-          score -= (5 - cmc) * 15;
-        }
-      }
-
       // Hard Type Enforcement for Density & Presence Roles:
       // TRIBAL_DENSITY, BOARD_PRESENCE, TURN1_PRESSURE, TURN2_PRESSURE MUST be creatures or token creators!
       if (role.includes('tribal_density') || role.includes('board_presence') || role.includes('pressure')) {
@@ -275,6 +333,10 @@ export class CandidateConstraintEngine {
 
         if (hasRemovalAction) {
           score += 25;
+          // Bonus for synergistic fight/bite or burn removal in creature-heavy decks
+          if (oracleText.includes('deals damage equal') || oracleText.includes('fights') || oracleText.includes('bite')) {
+            score += 20;
+          }
           if (cmc <= 2) {
             score += 25; // Optimal cheap removal
           } else if (cmc === 3) {
@@ -294,7 +356,11 @@ export class CandidateConstraintEngine {
                               oracleText.includes('search your library') ||
                               oracleText.includes('reveal the top');
         if (hasDrawAction) {
-          score += 20;
+          score += 25;
+          // Synergistic draw bonus for X-spells / High-power creatures / Counters (Up the Beanstalk, Garruk's Uprising)
+          if (oracleText.includes('mana value 5 or greater') || oracleText.includes('power 4 or greater') || oracleText.includes('counter')) {
+            score += 30;
+          }
           if (cmc <= 3) score += 15;
         }
       }

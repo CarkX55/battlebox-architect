@@ -30,63 +30,150 @@ export class StrategicObjective {
    * Derive target CapabilityVector axes from StrategicObjective and IntentPackage.
    */
   toCapabilityAxes(intentPackage) {
-    const isAggro = intentPackage.tempo === 'Aggro' || this.speedTier === 'FAST';
+    const tempoLower = (intentPackage.tempo || '').toLowerCase();
+    const strategyLower = (intentPackage.strategy || []).join(' ').toLowerCase();
+    const isRamp = tempoLower.includes('ramp') || tempoLower.includes('big_mana');
+    const isControl = tempoLower.includes('control');
+    const isAggro = tempoLower.includes('aggro') || this.speedTier === 'FAST';
+    const isSacrifice = strategyLower.includes('sacrifice') || strategyLower.includes('dies') || strategyLower.includes('aristocrat');
+    const isCounters = strategyLower.includes('counter') || strategyLower.includes('+1/+1');
+
     const totalDeckSize = intentPackage.format === 'COMMANDER' ? 100 : 60;
     const isCommander = intentPackage.format === 'COMMANDER';
-    const landTarget = isCommander ? 36 : 24;
+    const landTarget = isCommander ? 36 : (isRamp ? 24 : 24);
     const spellTarget = totalDeckSize - landTarget;
 
-    const axes = [
-      {
-        id: 'TURN1_PRESSURE',
-        target: isAggro ? 12 : 4,
+    const axes = [];
+
+    // 1. Mana Base Axis
+    axes.push({
+      id: 'MANA_BASE',
+      target: landTarget,
+      weight: 10,
+      mandatory: true,
+      origin: { field: 'colors', value: intentPackage.colors },
+      strength: 'MANDATORY'
+    });
+
+    // 2. Archetype Core Engines
+    if (isRamp) {
+      axes.push({
+        id: 'RAMP_ACCELERATION',
+        target: isCommander ? 12 : 8,
         weight: 10,
-        mandatory: isAggro,
-        origin: { field: 'tempo', value: intentPackage.tempo },
-        strength: isAggro ? 'MANDATORY' : 'PREFERRED'
-      },
-      {
+        mandatory: true,
+        origin: { field: 'tempo', value: 'Ramp Acceleration' },
+        strength: 'MANDATORY'
+      });
+      if (isCounters) {
+        axes.push({
+          id: 'COUNTER_SYNERGY',
+          target: isCommander ? 10 : 6,
+          weight: 9,
+          mandatory: false,
+          origin: { field: 'strategy', value: '+1/+1 Counter Multipliers' },
+          strength: 'STRONG'
+        });
+      }
+      axes.push({
+        id: 'BOARD_PRESENCE',
+        target: isCommander ? 14 : 8,
+        weight: 9,
+        mandatory: false,
+        origin: { field: 'tempo', value: 'Mid-Curve Threats' },
+        strength: 'PREFERRED'
+      });
+      axes.push({
+        id: 'FINISHER',
+        target: isCommander ? 10 : 6,
+        weight: 9,
+        mandatory: false,
+        origin: { field: 'tempo', value: 'High-Curve Payoffs' },
+        strength: 'PREFERRED'
+      });
+    } else if (isAggro) {
+      axes.push({
+        id: 'TURN1_PRESSURE',
+        target: isCommander ? 10 : 8,
+        weight: 10,
+        mandatory: true,
+        origin: { field: 'tempo', value: 'Turn 1 Play' },
+        strength: 'MANDATORY'
+      });
+      axes.push({
         id: 'TURN2_PRESSURE',
-        target: isAggro ? 12 : 8,
+        target: isCommander ? 12 : 8,
+        weight: 9,
+        mandatory: false,
+        origin: { field: 'tempo', value: 'Turn 2 Pressure' },
+        strength: 'PREFERRED'
+      });
+      axes.push({
+        id: 'BOARD_PRESENCE',
+        target: isCommander ? 12 : 8,
+        weight: 8,
+        mandatory: false,
+        origin: { field: 'tempo', value: 'Midgame Attackers' },
+        strength: 'PREFERRED'
+      });
+    } else if (isControl) {
+      axes.push({
+        id: 'CHEAP_REMOVAL',
+        target: isCommander ? 12 : 8,
+        weight: 10,
+        mandatory: true,
+        origin: { field: 'tempo', value: 'Targeted Removal' },
+        strength: 'MANDATORY'
+      });
+      axes.push({
+        id: 'CARD_FLOW',
+        target: isCommander ? 14 : 10,
+        weight: 9,
+        mandatory: true,
+        origin: { field: 'tempo', value: 'Card Advantage & Draw' },
+        strength: 'MANDATORY'
+      });
+      axes.push({
+        id: 'FINISHER',
+        target: isCommander ? 6 : 4,
+        weight: 8,
+        mandatory: false,
+        origin: { field: 'tempo', value: 'Win Condition Threat' },
+        strength: 'PREFERRED'
+      });
+    } else {
+      // General Midrange
+      axes.push({
+        id: 'TURN1_PRESSURE',
+        target: 4,
         weight: 8,
         mandatory: false,
         origin: { field: 'tempo', value: intentPackage.tempo },
         strength: 'PREFERRED'
-      },
-      {
-        id: 'CHEAP_REMOVAL',
-        target: 6,
-        weight: 7,
-        mandatory: true,
-        origin: { field: 'format', value: intentPackage.format },
-        strength: 'MANDATORY'
-      },
-      {
-        id: 'CARD_FLOW',
+      });
+      axes.push({
+        id: 'TURN2_PRESSURE',
         target: 8,
-        weight: 6,
+        weight: 9,
         mandatory: false,
-        origin: { field: 'powerLevel', value: intentPackage.powerLevel },
+        origin: { field: 'tempo', value: intentPackage.tempo },
         strength: 'PREFERRED'
-      },
-      {
-        id: 'MANA_BASE',
-        target: landTarget,
-        weight: 10,
-        mandatory: true,
-        origin: { field: 'colors', value: intentPackage.colors },
-        strength: 'MANDATORY'
-      }
-    ];
+      });
+      axes.push({
+        id: 'BOARD_PRESENCE',
+        target: 8,
+        weight: 9,
+        mandatory: false,
+        origin: { field: 'tempo', value: 'Board Presence' },
+        strength: 'PREFERRED'
+      });
+    }
 
-    const strategyList = intentPackage.strategy || [];
-    const mechanicsList = intentPackage.mechanics || [];
-    const powerLevelTier = intentPackage.powerLevel || 'Competitive';
-
+    // 3. Tribal Density
     if (intentPackage.primaryTribe) {
       axes.push({
         id: 'TRIBAL_DENSITY',
-        target: Math.round(spellTarget * 0.45),
+        target: Math.round(spellTarget * 0.40),
         weight: 9,
         mandatory: true,
         origin: { field: 'primaryTribe', value: intentPackage.primaryTribe },
@@ -94,13 +181,22 @@ export class StrategicObjective {
       });
     }
 
-    if (strategyList.length > 0 || mechanicsList.length > 0) {
+    // 4. Interaction & Flow (Required by all competitive decks)
+    if (!isControl) {
       axes.push({
-        id: 'BOARD_PRESENCE',
-        target: Math.round(spellTarget * 0.35),
-        weight: powerLevelTier === 'Competitive' ? 9 : 7,
+        id: 'CHEAP_REMOVAL',
+        target: isCommander ? 8 : 4,
+        weight: 7,
+        mandatory: true,
+        origin: { field: 'format', value: intentPackage.format },
+        strength: 'MANDATORY'
+      });
+      axes.push({
+        id: 'CARD_FLOW',
+        target: isCommander ? 8 : 4,
+        weight: 7,
         mandatory: false,
-        origin: { field: mechanicsList.length > 0 ? 'mechanics' : 'strategy', value: mechanicsList[0] || strategyList[0] },
+        origin: { field: 'powerLevel', value: intentPackage.powerLevel },
         strength: 'PREFERRED'
       });
     }
