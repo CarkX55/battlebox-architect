@@ -11,6 +11,7 @@ export class DeckIdentity {
     archetypeKey = 'GENERIC_AGGRO',
     gameplan = 'Generic aggressive creature pressure',
     mandatoryEngines = [],
+    requiredEngines = [],
     optionalEngines = [],
     forbiddenEngines = [],
     expectedCurveRange = { min: 1, max: 4 },
@@ -28,9 +29,11 @@ export class DeckIdentity {
     expectedKillTurn = 5,
     requiresManaRamp = false
   } = {}) {
+    const combinedMandatory = mandatoryEngines.length > 0 ? mandatoryEngines : requiredEngines;
     this.archetypeKey = archetypeKey;
     this.gameplan = gameplan;
-    this.mandatoryEngines = Object.freeze([...mandatoryEngines]);
+    this.mandatoryEngines = Object.freeze([...combinedMandatory]);
+    this.requiredEngines = this.mandatoryEngines;
     this.optionalEngines = Object.freeze([...optionalEngines]);
     this.forbiddenEngines = Object.freeze([...forbiddenEngines]);
     this.expectedCurveRange = Object.freeze({ ...expectedCurveRange });

@@ -60,11 +60,36 @@ export class IdentityFirewall {
 
     // HARD CONSTRAINT 1: Primary Tribe Enforcement for Tribal Intent
     if (primaryTribe && primaryTribe !== 'None' && typeLine.includes('creature')) {
-      const isMatchingTribe = typeLine.includes(tribeLower);
+      let isMatchingTribe = false;
+      if (tribeLower.includes('saproling') || tribeLower.includes('fungus') || tribeLower.includes('hongo')) {
+        isMatchingTribe = typeLine.includes('saproling') || typeLine.includes('fungus') || 
+                          oracleText.includes('saproling') || oracleText.includes('fungus') ||
+                          cardName.toLowerCase().includes('slimefoot') || cardName.toLowerCase().includes('thallid');
+      } else if (tribeLower.includes('thopter') || tribeLower.includes('servo')) {
+        isMatchingTribe = typeLine.includes('thopter') || typeLine.includes('servo') || typeLine.includes('artificer') ||
+                          oracleText.includes('thopter') || oracleText.includes('servo');
+      } else {
+        isMatchingTribe = typeLine.includes(tribeLower);
+      }
+
       if (!isMatchingTribe) {
         return {
           isAllowed: false,
           vetoReason: `Hard Constraint Veto: Creature "${cardName}" type line "${typeLine}" does not match required primary tribe "${primaryTribe}"`
+        };
+      }
+    }
+
+    // HARD CONSTRAINT 1b: Prevent off-tribe token pollution in tribal decks
+    if (primaryTribe && (tribeLower.includes('saproling') || tribeLower.includes('fungus') || tribeLower.includes('hongo'))) {
+      const otherTokenTribes = ['ooze', 'goblin', 'zombie', 'skeleton', 'pilot', 'alien', 'soldier', 'cat', 'dog', 'knight', 'vampire', 'dinosaur', 'dragon', 'faerie', 'merfolk'];
+      const createsOtherSpecificToken = otherTokenTribes.some(ot => 
+        oracleText.includes(`create`) && (oracleText.includes(`${ot} creature token`) || oracleText.includes(`${ot} token`))
+      );
+      if (createsOtherSpecificToken && !oracleText.includes('saproling') && !oracleText.includes('fungus')) {
+        return {
+          isAllowed: false,
+          vetoReason: `Hard Constraint Veto: Card "${cardName}" generates off-tribe tokens in a Saproling/Fungus tribal deck`
         };
       }
     }

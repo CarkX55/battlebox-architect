@@ -30,7 +30,7 @@ export class IntentBuilder {
       colors = [input.color.toUpperCase()];
     }
 
-    const archetype = input.archetype || input.arquetipo || input.tempo || 'Aggro';
+    const archetype = input.archetype || input.arquetipo || input.tempo || null;
     const rawTribe = input.tribe || input.tribu || input.primaryTribe || null;
     let primaryTribe = rawTribe ? IntentNormalizer.normalizeTribe(rawTribe) : null;
     

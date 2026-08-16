@@ -203,7 +203,7 @@ export class StrategicIdentityCompiler {
         archetypeKey: 'NAYA_GIANTS_STOMP',
         gameplan: 'Dominar el combate mediante criaturas grandes y efectos Stomp, acelerando maná temprano para resolver amenazas de curva 4-6.',
         requiredEngines: ['Early Ramp', 'Cost Reduction', 'Stomp Engine', 'Large Threat Chain'],
-        expectedCurveRange: { min: 2, max: 6 },
+        expectedCurveRange: { min: 4, max: 6 },
         mandatoryRoles: ['Ramp Acceleration', 'Tribal Density', 'Board Presence', 'Finisher', 'Cheap Removal'],
         strengths: ['Large bodies', 'Built-in 2-for-1 adventure interaction', 'High card value'],
         weaknesses: ['Slow opening turns without ramp'],
