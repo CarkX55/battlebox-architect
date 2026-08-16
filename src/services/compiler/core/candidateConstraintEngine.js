@@ -205,6 +205,11 @@ export class CandidateConstraintEngine {
         }
       }
 
+      // Penalize pure lands or land MDFCs in non-land spell slots
+      if (role !== 'land' && typeLine.includes('land')) {
+        score -= 500;
+      }
+
       // Hard Type Enforcement for Density & Presence Roles:
       // TRIBAL_DENSITY, BOARD_PRESENCE, TURN1_PRESSURE, TURN2_PRESSURE MUST be creatures or token creators!
       if (role.includes('tribal_density') || role.includes('board_presence') || role.includes('pressure')) {
@@ -219,23 +224,40 @@ export class CandidateConstraintEngine {
       }
 
       // Role matching heuristics & CMC penalties for CHEAP_REMOVAL
-      if (role.includes('cheap_removal') || role.includes('cheap removal')) {
-        if (oracleText.includes('destroy') || oracleText.includes('exile') || oracleText.includes('deals ') || oracleText.includes('damage')) {
-          score += 15;
-        }
-        if (cmc <= 2) {
-          score += 20; // Optimal cheap removal
-        } else if (cmc === 3) {
-          score += 5;
+      if (role.includes('cheap_removal') || role.includes('cheap removal') || role.includes('removal')) {
+        const hasRemovalAction = oracleText.includes('destroy') ||
+                                 oracleText.includes('exile target') ||
+                                 oracleText.includes('deals damage to') ||
+                                 oracleText.includes('deal damage to') ||
+                                 oracleText.includes('deals ') ||
+                                 oracleText.includes('counter target') ||
+                                 oracleText.includes('fights') ||
+                                 oracleText.includes('deals damage equal');
+
+        if (hasRemovalAction) {
+          score += 25;
+          if (cmc <= 2) {
+            score += 25; // Optimal cheap removal
+          } else if (cmc === 3) {
+            score += 10;
+          } else {
+            score -= (cmc - 2) * 20;
+          }
         } else {
-          // Heavy penalty for high-CMC "cheap removal" e.g. Elspeth CMC 6
-          score -= (cmc - 2) * 25;
+          score -= 200; // Not a removal spell!
         }
       }
 
-      if (role.includes('flow') && oracleText.includes('draw')) {
-        score += 10;
-        if (cmc <= 3) score += 10;
+      if (role.includes('flow') || role.includes('card_flow')) {
+        const hasDrawAction = oracleText.includes('draw a card') ||
+                              oracleText.includes('draw cards') ||
+                              oracleText.includes('draws a card') ||
+                              oracleText.includes('search your library') ||
+                              oracleText.includes('reveal the top');
+        if (hasDrawAction) {
+          score += 20;
+          if (cmc <= 3) score += 15;
+        }
       }
 
       return { card, score };

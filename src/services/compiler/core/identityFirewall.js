@@ -21,15 +21,10 @@ export class IdentityFirewall {
     const typeLine = (card.type_line || card.typeLine || '').toLowerCase();
     const oracleText = (card.oracle_text || card.oracleText || '').toLowerCase();
     const cardName = card.name || 'Unknown';
-    const isLand = typeLine.includes('land');
+    const isBasicLand = ['plains', 'island', 'swamp', 'mountain', 'forest', 'wastes'].includes(cardName.toLowerCase());
 
-    // Lands pass color/utility validation
-    if (isLand) {
-      return { isAllowed: true, vetoReason: null };
-    }
-
-    // HARD CONSTRAINT 0: Format Legality Enforcement
-    if (intentPackage && intentPackage.format) {
+    // HARD CONSTRAINT 0: Format Legality Enforcement (All cards except standard basic lands)
+    if (intentPackage && intentPackage.format && !isBasicLand) {
       const formatKey = intentPackage.format.toLowerCase();
       if (card.legalities && card.legalities[formatKey] && card.legalities[formatKey] !== 'legal') {
         return {
@@ -39,7 +34,7 @@ export class IdentityFirewall {
       }
     }
 
-    // HARD CONSTRAINT 0b: Color Identity Enforcement
+    // HARD CONSTRAINT 0b: Color Identity Enforcement (All cards)
     if (intentPackage && Array.isArray(intentPackage.colors) && intentPackage.colors.length > 0) {
       const allowedColors = new Set(intentPackage.colors.map(c => String(c).toUpperCase()));
       const cardColors = (card.colors || []).map(c => String(c).toUpperCase());
@@ -52,6 +47,12 @@ export class IdentityFirewall {
           vetoReason: `Hard Constraint Veto: Card "${cardName}" colors [${cardColors.join(',')}] / identity [${colorIdentity.join(',')}] not allowed in deck colors [${intentPackage.colors.join(',')}]`
         };
       }
+    }
+
+    // Pure non-creature lands pass identity checks once legal and color-compliant
+    const isPureLand = typeLine.includes('land') && !typeLine.includes('creature');
+    if (isPureLand) {
+      return { isAllowed: true, vetoReason: null };
     }
 
     const primaryTribe = (intentPackage ? intentPackage.primaryTribe : '') || '';
