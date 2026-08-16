@@ -530,9 +530,14 @@ export class CompilerConvergencePipeline {
     const validatedLearningTrace = ValidatedLearningGate.validateLearning({ deckState, deckIdentity });
     const backtestReport = PredictionVsRealityBacktest.runBacktest(62.0, 59.0);
 
+    // Representative threat & primary package dynamic extraction
+    const nonLandCards = (deckState && deckState.cards ? deckState.cards : []).filter(c => !c.type_line?.toLowerCase().includes('land'));
+    const repCard = nonLandCards[0]?.name || (intentPackage.primaryTribe ? `${intentPackage.primaryTribe} Leader` : 'Core Threat');
+    const primaryPackageName = intentPackage.primaryTribe ? `${intentPackage.primaryTribe.toUpperCase()}_CORE_PACKAGE` : `${deckIdentity.archetypeKey}_PACKAGE`;
+
     // Strategic Domain Knowledge Ontology & Resilience Audit
-    const cardOntologyTrace = BattleBoxStrategicOntology.getCardSemantics('Bonecrusher Giant');
-    const functionalPackageTrace = FunctionalPackageLibrary.getPackage('GIANTS_STOMP_PACKAGE');
+    const cardOntologyTrace = BattleBoxStrategicOntology.getCardSemantics(repCard, deckIdentity.archetypeKey);
+    const functionalPackageTrace = FunctionalPackageLibrary.getPackage(primaryPackageName);
     const knowledgePartitionTrace = KnowledgePartitionManager.getKnowledgePartition();
     const diversityIndexReport = StrategicDiversityIndex.evaluateDiversity(deckState, deckIdentity);
 
@@ -544,11 +549,11 @@ export class CompilerConvergencePipeline {
     const identityLeakageAudit = IdentityLeakageAuditor.audit(deckState && deckState.cards ? deckState.cards : [], deckIdentity, intentPackage);
 
     // Strategic Knowledge v2 Inferences, Roles, Dependencies & DNA Traces
-    const strategicInferenceTrace = StrategicInferenceGraph.buildInferenceChain('Bonecrusher Giant');
-    const functionalRoleTrace = FunctionalRoleGraph.getFunctionalRoles('Bonecrusher Giant');
+    const strategicInferenceTrace = StrategicInferenceGraph.buildInferenceChain(repCard, deckIdentity.archetypeKey);
+    const functionalRoleTrace = FunctionalRoleGraph.getFunctionalRoles(repCard, deckIdentity.archetypeKey);
     const dependencyGraphTrace = StrategicDependencyGraph.traceDependencies('LARGE_THREATS');
-    const archetypeDNATrace = ArchetypeDNA.getArchetypeDNA('NAYA_GIANTS_STOMP');
-    const packageEvolutionTrace = PackageEvolutionDatabase.getPackageEvolution('GIANTS_STOMP_PACKAGE');
+    const archetypeDNATrace = ArchetypeDNA.getArchetypeDNA(deckIdentity.archetypeKey);
+    const packageEvolutionTrace = PackageEvolutionDatabase.getPackageEvolution(primaryPackageName);
 
     // Competitive Validation Protocol & Empirical Benchmarks
     const deckGenBenchmark = CompetitiveValidationEngine.runDeckGenerationBenchmark(deckState, deckIdentity);
@@ -576,14 +581,14 @@ export class CompilerConvergencePipeline {
     // Pro-Level Strategic Reasoning Engine (Resource Economy, Beatdown Role, Micro-Semantics, Phase Simulator)
     const proResourceEconomy = ProStrategicReasoningEngine.evaluateResourceEconomy(deckState, deckIdentity);
     const proBeatdownRole = ProStrategicReasoningEngine.evaluateWhosTheBeatdown(deckIdentity, 'AZORIUS_CONTROL');
-    const proCardSemantics = ProStrategicReasoningEngine.analyzeCardMicroSemantics('Bonecrusher Giant');
+    const proCardSemantics = ProStrategicReasoningEngine.analyzeCardMicroSemantics(repCard);
     const proDecisionTree = ProStrategicReasoningEngine.simulateProDecisionTree(deckState, strategicExecutionPlan);
     const proPhaseSimulation = ProStrategicReasoningEngine.simulateStepByStepGame(deckState, 1000);
 
     // Deliberative Multi-Agent Strategic Council Engine (9 Agents, Meta Research, Hypothesis Critique, Package A vs B, Multi-Variant Optimization)
     const deliberativeMetaResearch = DeliberativeCouncilEngine.conductMetaResearch(intentPackage);
     const deliberativeHypothesis = DeliberativeCouncilEngine.generateAndCritiqueHypothesis(intentPackage, deliberativeMetaResearch);
-    const deliberativePackageComparison = DeliberativeCouncilEngine.comparePackageTradeoffs('GIANTS_STOMP_PACKAGE', 'DIRECT_BURN_PACKAGE');
+    const deliberativePackageComparison = DeliberativeCouncilEngine.comparePackageTradeoffs(primaryPackageName, 'GENERIC_GOOD_STUFF');
     const deliberativeOptimization = DeliberativeCouncilEngine.runIterativeMultiVariantOptimization(deckState, 4);
     const deliberativeCouncilVote = DeliberativeCouncilEngine.executeFinalCouncilVote();
 

@@ -13,16 +13,16 @@ export class BattleBoxStrategicOntology {
    * @param {string} cardName 
    * @returns {{ primaryEngine: string, functionalPackage: string, tempoImpact: string, cardEconomy: string, pressureScore: number, recoveryScore: number, closingScore: number, replacementClass: string, isEngine: boolean }}
    */
-  static getCardSemantics(cardName = 'Bonecrusher Giant') {
+  static getCardSemantics(cardName = 'Core Threat', archetypeKey = 'Ramp') {
     const isEngine = true;
-    const primaryEngine = 'STOMP_REDUCTION_ENGINE';
-    const functionalPackage = 'GIANTS_STOMP_PACKAGE';
+    const primaryEngine = `${String(archetypeKey).toUpperCase()}_CORE_ENGINE`;
+    const functionalPackage = `${String(archetypeKey).toUpperCase()}_PACKAGE`;
     const tempoImpact = 'HIGH_TEMPO';
-    const cardEconomy = 'CARD_ADVANTAGE_2_FOR_1';
+    const cardEconomy = 'VALUE_EFFICIENT';
     const pressureScore = 88;
     const recoveryScore = 82;
     const closingScore = 90;
-    const replacementClass = 'DISRUPTIVE_STOMP_THREAT';
+    const replacementClass = 'STRATEGIC_THREAT';
 
     return {
       cardName,

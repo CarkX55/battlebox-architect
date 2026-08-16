@@ -23,13 +23,20 @@ export class ReverseIdentityExtractor {
     }
 
     const cards = deckState.cards;
-    let giantCount = 0;
-    let humanCount = 0;
-    let goblinCount = 0;
-    let elfCount = 0;
+    const tribeCounts = new Map();
+    let rampCount = 0;
     let counterspellCount = 0;
-    let stompCount = 0;
+    let removalCount = 0;
+    let burnCount = 0;
+    let sacrificeCount = 0;
+    let cardDrawCount = 0;
     let totalNonLand = 0;
+
+    const KNOWN_TRIBES = [
+      'hydra', 'giant', 'human', 'goblin', 'elf', 'merfolk', 'dragon', 
+      'vampire', 'zombie', 'dinosaur', 'sliver', 'faerie', 'spirit', 
+      'knight', 'wizard', 'rogue', 'cleric', 'warrior', 'cat', 'angel'
+    ];
 
     for (const card of cards) {
       const qty = card.quantity || 1;
@@ -41,24 +48,40 @@ export class ReverseIdentityExtractor {
       if (!isLand) {
         totalNonLand += qty;
 
-        if (typeLine.includes('giant') || name.includes('giant') || oracleText.includes('stomp')) {
-          giantCount += qty;
+        for (const tribe of KNOWN_TRIBES) {
+          if (typeLine.includes(tribe) || name.includes(tribe)) {
+            tribeCounts.set(tribe, (tribeCounts.get(tribe) || 0) + qty);
+          }
         }
-        if (typeLine.includes('human')) {
-          humanCount += qty;
-        }
-        if (typeLine.includes('goblin')) {
-          goblinCount += qty;
-        }
-        if (typeLine.includes('elf')) {
-          elfCount += qty;
-        }
+
         if (oracleText.includes('counter target') || name.includes('counterspell')) {
           counterspellCount += qty;
         }
-        if (oracleText.includes('stomp') || name.includes('stomp')) {
-          stompCount += qty;
+        if (oracleText.includes('destroy') || oracleText.includes('exile target') || oracleText.includes('deal damage to target')) {
+          removalCount += qty;
         }
+        if (oracleText.includes('deals damage to any target') || oracleText.includes('deals damage to each opponent')) {
+          burnCount += qty;
+        }
+        if (oracleText.includes('add {') || oracleText.includes('search your library for a land') || oracleText.includes('landfall') || oracleText.includes('enters with x')) {
+          rampCount += qty;
+        }
+        if (oracleText.includes('sacrifice a') || oracleText.includes('sacrifices a') || oracleText.includes('whenever another creature dies')) {
+          sacrificeCount += qty;
+        }
+        if (oracleText.includes('draw a card') || oracleText.includes('draw cards')) {
+          cardDrawCount += qty;
+        }
+      }
+    }
+
+    // Identify dominant tribe
+    let dominantTribe = null;
+    let maxTribeCount = 0;
+    for (const [tribe, count] of tribeCounts.entries()) {
+      if (count > maxTribeCount) {
+        maxTribeCount = count;
+        dominantTribe = tribe;
       }
     }
 
@@ -66,32 +89,53 @@ export class ReverseIdentityExtractor {
     let predictedArchetypeKey = 'GENERIC_AGGRO';
     let confidenceScore = 0.95;
 
-    if (giantCount > 0 || stompCount > 0) {
-      predictedArchetypeKey = 'NAYA_GIANTS_STOMP';
-      confidenceScore = Math.min(1.0, 0.90 + (giantCount * 0.02));
-    } else if (humanCount > 4) {
-      predictedArchetypeKey = 'BOROS_HUMANS_AGGRO';
-      confidenceScore = Math.min(1.0, 0.85 + (humanCount * 0.02));
-    } else if (goblinCount > 4) {
-      predictedArchetypeKey = 'MONO_RED_GOBLINS';
-      confidenceScore = Math.min(1.0, 0.85 + (goblinCount * 0.02));
-    } else if (elfCount > 4) {
-      predictedArchetypeKey = 'SELESNYA_ELVES_RAMP';
-      confidenceScore = Math.min(1.0, 0.85 + (elfCount * 0.02));
-    } else if (counterspellCount > 3) {
+    if (dominantTribe && maxTribeCount >= 8) {
+      if (dominantTribe === 'hydra') {
+        predictedArchetypeKey = rampCount >= 4 ? 'RAMP_GENERIC' : 'TEMUR_HYDRA_RAMP';
+        confidenceScore = Math.min(1.0, 0.90 + (maxTribeCount * 0.01));
+      } else if (dominantTribe === 'giant') {
+        predictedArchetypeKey = 'NAYA_GIANTS_STOMP';
+        confidenceScore = Math.min(1.0, 0.90 + (maxTribeCount * 0.01));
+      } else if (dominantTribe === 'human') {
+        predictedArchetypeKey = 'BOROS_HUMANS_AGGRO';
+        confidenceScore = Math.min(1.0, 0.85 + (maxTribeCount * 0.01));
+      } else if (dominantTribe === 'goblin') {
+        predictedArchetypeKey = 'MONO_RED_GOBLINS';
+        confidenceScore = Math.min(1.0, 0.85 + (maxTribeCount * 0.01));
+      } else if (dominantTribe === 'elf') {
+        predictedArchetypeKey = 'SELESNYA_ELVES_RAMP';
+        confidenceScore = Math.min(1.0, 0.85 + (maxTribeCount * 0.01));
+      } else if (dominantTribe === 'merfolk') {
+        predictedArchetypeKey = 'MERFOLK_TEMPO';
+        confidenceScore = Math.min(1.0, 0.90 + (maxTribeCount * 0.01));
+      } else {
+        predictedArchetypeKey = `${dominantTribe.toUpperCase()}_TRIBAL`;
+        confidenceScore = 0.92;
+      }
+    } else if (rampCount >= 8) {
+      predictedArchetypeKey = 'RAMP_GENERIC';
+      confidenceScore = Math.min(1.0, 0.85 + (rampCount * 0.02));
+    } else if (counterspellCount >= 4 && (removalCount + cardDrawCount) >= 8) {
       predictedArchetypeKey = 'AZORIUS_CONTROL';
       confidenceScore = Math.min(1.0, 0.85 + (counterspellCount * 0.03));
+    } else if (sacrificeCount >= 6) {
+      predictedArchetypeKey = 'ARISTOCRATS_SACRIFICE';
+      confidenceScore = 0.94;
+    } else if (burnCount >= 8) {
+      predictedArchetypeKey = 'MONO_RED_BURN';
+      confidenceScore = 0.95;
     }
 
     return {
       predictedArchetypeKey,
       confidenceScore: Math.round(confidenceScore * 100),
       matchDetails: Object.freeze({
-        giantCount,
-        humanCount,
-        goblinCount,
-        elfCount,
+        dominantTribe,
+        maxTribeCount,
+        rampCount,
         counterspellCount,
+        removalCount,
+        burnCount,
         totalNonLand
       })
     };
@@ -106,7 +150,19 @@ export class ReverseIdentityExtractor {
    */
   static verifyMatch(deckState, targetIdentity) {
     const extracted = ReverseIdentityExtractor.extractIdentity(deckState);
-    const isMatch = extracted.predictedArchetypeKey === targetIdentity.archetypeKey;
+    const targetKey = (targetIdentity.archetypeKey || '').toUpperCase();
+    const predictedKey = (extracted.predictedArchetypeKey || '').toUpperCase();
+
+    // Check exact or semantic archetype match
+    const isExactMatch = predictedKey === targetKey;
+    const isFamilyMatch = (targetKey.includes('RAMP') && predictedKey.includes('RAMP')) ||
+                          (targetKey.includes('CONTROL') && predictedKey.includes('CONTROL')) ||
+                          (targetKey.includes('AGGRO') && predictedKey.includes('AGGRO')) ||
+                          (targetKey.includes('TEMPO') && predictedKey.includes('TEMPO')) ||
+                          (targetKey.includes('SACRIFICE') && predictedKey.includes('SACRIFICE')) ||
+                          (targetKey.includes('COMBO') && predictedKey.includes('COMBO'));
+
+    const isMatch = isExactMatch || isFamilyMatch;
     const matchPercentage = isMatch ? Math.max(95, extracted.confidenceScore) : 40;
 
     return {

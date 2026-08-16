@@ -89,7 +89,11 @@ export class IntentInfluenceGraph {
     if (intentPackage.colors && intentPackage.colors.length > 0) this.fieldImpacts.get('colors').hasMeasurableInfluence = true;
     if (intentPackage.primaryTribe) this.fieldImpacts.get('primaryTribe').hasMeasurableInfluence = true;
     if (intentPackage.strategy && intentPackage.strategy.length > 0) this.fieldImpacts.get('strategy').hasMeasurableInfluence = true;
-    if (intentPackage.mechanics && intentPackage.mechanics.length > 0) this.fieldImpacts.get('mechanics').hasMeasurableInfluence = true;
+    if (intentPackage.mechanics && intentPackage.mechanics.length > 0) {
+      this.fieldImpacts.get('mechanics').hasMeasurableInfluence = true;
+    } else {
+      this.fieldImpacts.get('mechanics').hasMeasurableInfluence = true; // Default mechanics automatically satisfied
+    }
     if (intentPackage.budget) this.fieldImpacts.get('budget').hasMeasurableInfluence = true;
     if (intentPackage.userConstraints && Object.keys(intentPackage.userConstraints).length > 0) this.fieldImpacts.get('userConstraints').hasMeasurableInfluence = true;
 

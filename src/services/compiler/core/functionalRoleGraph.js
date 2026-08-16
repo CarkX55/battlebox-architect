@@ -13,10 +13,10 @@ export class FunctionalRoleGraph {
    * @param {string} cardName 
    * @returns {{ cardName: string, primaryRole: string, secondaryRoles: Array<string>, roleDescription: string }}
    */
-  static getFunctionalRoles(cardName = 'Bonecrusher Giant') {
-    const primaryRole = 'CURVE_BRIDGE';
-    const secondaryRoles = Object.freeze(['STABILIZER', 'CLOSER', 'PIVOT']);
-    const roleDescription = 'Funciona como puente entre curvas (Turno 2 Stomp / Turno 3 Cuerpo 4/3) y estabilizador de mesa.';
+  static getFunctionalRoles(cardName = 'Core Threat', archetypeKey = 'Ramp') {
+    const primaryRole = 'CORE_PIVOT';
+    const secondaryRoles = Object.freeze(['STABILIZER', 'CLOSER', 'PRESSURE']);
+    const roleDescription = `Actúa como amenaza central (${cardName}) y ancla sinérgica para la estrategia ${archetypeKey}.`;
 
     return {
       cardName,
