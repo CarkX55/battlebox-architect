@@ -91,32 +91,44 @@ export class ReverseIdentityExtractor {
 
     if (dominantTribe && maxTribeCount >= 8) {
       if (dominantTribe === 'hydra') {
-        predictedArchetypeKey = rampCount >= 4 ? 'RAMP_GENERIC' : 'TEMUR_HYDRA_RAMP';
-        confidenceScore = Math.min(1.0, 0.90 + (maxTribeCount * 0.01));
+        predictedArchetypeKey = 'HYDRA_COUNTERS_RAMP';
+        confidenceScore = Math.min(1.0, 0.92 + (maxTribeCount * 0.01));
       } else if (dominantTribe === 'giant') {
         predictedArchetypeKey = 'NAYA_GIANTS_STOMP';
-        confidenceScore = Math.min(1.0, 0.90 + (maxTribeCount * 0.01));
+        confidenceScore = Math.min(1.0, 0.92 + (maxTribeCount * 0.01));
       } else if (dominantTribe === 'human') {
-        predictedArchetypeKey = 'BOROS_HUMANS_AGGRO';
-        confidenceScore = Math.min(1.0, 0.85 + (maxTribeCount * 0.01));
+        predictedArchetypeKey = 'HUMANS_ANTHEM_TAXES';
+        confidenceScore = Math.min(1.0, 0.90 + (maxTribeCount * 0.01));
       } else if (dominantTribe === 'goblin') {
         predictedArchetypeKey = 'MONO_RED_GOBLINS';
-        confidenceScore = Math.min(1.0, 0.85 + (maxTribeCount * 0.01));
+        confidenceScore = Math.min(1.0, 0.90 + (maxTribeCount * 0.01));
       } else if (dominantTribe === 'elf') {
         predictedArchetypeKey = 'SELESNYA_ELVES_RAMP';
-        confidenceScore = Math.min(1.0, 0.85 + (maxTribeCount * 0.01));
+        confidenceScore = Math.min(1.0, 0.90 + (maxTribeCount * 0.01));
       } else if (dominantTribe === 'merfolk') {
         predictedArchetypeKey = 'MERFOLK_TEMPO';
+        confidenceScore = Math.min(1.0, 0.90 + (maxTribeCount * 0.01));
+      } else if (dominantTribe === 'zombie') {
+        predictedArchetypeKey = 'ZOMBIE_ARISTOCRATS';
+        confidenceScore = Math.min(1.0, 0.90 + (maxTribeCount * 0.01));
+      } else if (dominantTribe === 'vampire') {
+        predictedArchetypeKey = 'VAMPIRES_LIFEGAIN_AGGRO';
+        confidenceScore = Math.min(1.0, 0.90 + (maxTribeCount * 0.01));
+      } else if (dominantTribe === 'dragon') {
+        predictedArchetypeKey = 'DRAGONS_BIG_MANA';
+        confidenceScore = Math.min(1.0, 0.90 + (maxTribeCount * 0.01));
+      } else if (dominantTribe === 'dinosaur') {
+        predictedArchetypeKey = 'DINOSAUR_STOMPY_RAMP';
         confidenceScore = Math.min(1.0, 0.90 + (maxTribeCount * 0.01));
       } else {
         predictedArchetypeKey = `${dominantTribe.toUpperCase()}_TRIBAL`;
         confidenceScore = 0.92;
       }
     } else if (rampCount >= 8) {
-      predictedArchetypeKey = 'RAMP_GENERIC';
+      predictedArchetypeKey = 'RAMP_BIG_MANA';
       confidenceScore = Math.min(1.0, 0.85 + (rampCount * 0.02));
     } else if (counterspellCount >= 4 && (removalCount + cardDrawCount) >= 8) {
-      predictedArchetypeKey = 'AZORIUS_CONTROL';
+      predictedArchetypeKey = 'CONTROL_REACTIVE';
       confidenceScore = Math.min(1.0, 0.85 + (counterspellCount * 0.03));
     } else if (sacrificeCount >= 6) {
       predictedArchetypeKey = 'ARISTOCRATS_SACRIFICE';
@@ -159,8 +171,10 @@ export class ReverseIdentityExtractor {
                           (targetKey.includes('CONTROL') && predictedKey.includes('CONTROL')) ||
                           (targetKey.includes('AGGRO') && predictedKey.includes('AGGRO')) ||
                           (targetKey.includes('TEMPO') && predictedKey.includes('TEMPO')) ||
-                          (targetKey.includes('SACRIFICE') && predictedKey.includes('SACRIFICE')) ||
-                          (targetKey.includes('COMBO') && predictedKey.includes('COMBO'));
+                          (targetKey.includes('SACRIFICE') && (predictedKey.includes('SACRIFICE') || predictedKey.includes('ARISTOCRAT'))) ||
+                          (targetKey.includes('ARISTOCRAT') && (predictedKey.includes('SACRIFICE') || predictedKey.includes('ARISTOCRAT'))) ||
+                          (targetKey.includes('COMBO') && predictedKey.includes('COMBO')) ||
+                          (extracted.matchDetails?.dominantTribe && targetKey.includes(extracted.matchDetails.dominantTribe.toUpperCase()));
 
     const isMatch = isExactMatch || isFamilyMatch;
     const matchPercentage = isMatch ? Math.max(95, extracted.confidenceScore) : 40;

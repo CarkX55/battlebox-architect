@@ -32,6 +32,7 @@ export class StrategicObjective {
   toCapabilityAxes(intentPackage) {
     const tempoLower = (intentPackage.tempo || '').toLowerCase();
     const strategyLower = (intentPackage.strategy || []).join(' ').toLowerCase();
+    const mechanicsList = (intentPackage.mechanics || []).map(m => m.toLowerCase());
     const isRamp = tempoLower.includes('ramp') || tempoLower.includes('big_mana');
     const isControl = tempoLower.includes('control');
     const isAggro = tempoLower.includes('aggro') || this.speedTier === 'FAST';
@@ -56,7 +57,132 @@ export class StrategicObjective {
     });
 
     // 2. Archetype Core Engines
-    if (isRamp) {
+    if (isSacrifice) {
+      axes.push({
+        id: 'RECURSIVE_FODDER',
+        target: isCommander ? 12 : 8,
+        weight: 10,
+        mandatory: true,
+        origin: { field: 'strategy', value: 'Recursive Fodder & Tokens' },
+        strength: 'MANDATORY'
+      });
+      axes.push({
+        id: 'SACRIFICE_OUTLET',
+        target: isCommander ? 10 : 6,
+        weight: 10,
+        mandatory: true,
+        origin: { field: 'strategy', value: 'Sacrifice Outlets' },
+        strength: 'MANDATORY'
+      });
+      axes.push({
+        id: 'DEATH_PAYOFF',
+        target: isCommander ? 10 : 6,
+        weight: 10,
+        mandatory: true,
+        origin: { field: 'strategy', value: 'Death & Drain Payoffs' },
+        strength: 'MANDATORY'
+      });
+      axes.push({
+        id: 'CARD_FLOW',
+        target: isCommander ? 8 : 4,
+        weight: 8,
+        mandatory: false,
+        origin: { field: 'strategy', value: 'Sacrifice Draw Engines' },
+        strength: 'PREFERRED'
+      });
+    } else if (strategyLower.includes('spell') || strategyLower.includes('prowess') || strategyLower.includes('burn') || mechanicsList.includes('prowess') || mechanicsList.includes('magecraft')) {
+      axes.push({
+        id: 'TURN1_PRESSURE',
+        target: isCommander ? 10 : 6,
+        weight: 10,
+        mandatory: true,
+        origin: { field: 'strategy', value: 'Prowess / Aggro Attackers' },
+        strength: 'MANDATORY'
+      });
+      axes.push({
+        id: 'CARD_FLOW',
+        target: isCommander ? 14 : 8,
+        weight: 10,
+        mandatory: true,
+        origin: { field: 'strategy', value: 'Cheap Cantrips & Velocity' },
+        strength: 'MANDATORY'
+      });
+      axes.push({
+        id: 'CHEAP_REMOVAL',
+        target: isCommander ? 12 : 8,
+        weight: 9,
+        mandatory: true,
+        origin: { field: 'strategy', value: 'Direct Burn & Removal' },
+        strength: 'MANDATORY'
+      });
+    } else if (strategyLower.includes('artifact') || strategyLower.includes('affinity') || mechanicsList.includes('affinity') || mechanicsList.includes('metalcraft')) {
+      axes.push({
+        id: 'TURN1_PRESSURE',
+        target: isCommander ? 14 : 8,
+        weight: 10,
+        mandatory: true,
+        origin: { field: 'strategy', value: 'Cheap Artifact Enablers' },
+        strength: 'MANDATORY'
+      });
+      axes.push({
+        id: 'BOARD_PRESENCE',
+        target: isCommander ? 12 : 8,
+        weight: 10,
+        mandatory: true,
+        origin: { field: 'strategy', value: 'Affinity / Modular Payoffs' },
+        strength: 'MANDATORY'
+      });
+      axes.push({
+        id: 'CARD_FLOW',
+        target: isCommander ? 10 : 6,
+        weight: 9,
+        mandatory: false,
+        origin: { field: 'strategy', value: 'Artifact Draw Engines' },
+        strength: 'PREFERRED'
+      });
+    } else if (strategyLower.includes('enchant') || strategyLower.includes('aura') || strategyLower.includes('voltron') || mechanicsList.includes('constellation')) {
+      axes.push({
+        id: 'TURN1_PRESSURE',
+        target: isCommander ? 10 : 6,
+        weight: 10,
+        mandatory: true,
+        origin: { field: 'strategy', value: 'Voltron / Hexproof Threats' },
+        strength: 'MANDATORY'
+      });
+      axes.push({
+        id: 'BOARD_PRESENCE',
+        target: isCommander ? 14 : 8,
+        weight: 10,
+        mandatory: true,
+        origin: { field: 'strategy', value: 'Aura Buffs' },
+        strength: 'MANDATORY'
+      });
+      axes.push({
+        id: 'CARD_FLOW',
+        target: isCommander ? 10 : 6,
+        weight: 9,
+        mandatory: false,
+        origin: { field: 'strategy', value: 'Enchantress Draw Engines' },
+        strength: 'PREFERRED'
+      });
+    } else if (strategyLower.includes('life') || mechanicsList.includes('lifelink')) {
+      axes.push({
+        id: 'TURN1_PRESSURE',
+        target: isCommander ? 10 : 6,
+        weight: 10,
+        mandatory: true,
+        origin: { field: 'strategy', value: 'Lifegain Triggers' },
+        strength: 'MANDATORY'
+      });
+      axes.push({
+        id: 'BOARD_PRESENCE',
+        target: isCommander ? 12 : 8,
+        weight: 10,
+        mandatory: true,
+        origin: { field: 'strategy', value: 'Lifegain Growth Payoffs' },
+        strength: 'MANDATORY'
+      });
+    } else if (isRamp) {
       axes.push({
         id: 'RAMP_ACCELERATION',
         target: isCommander ? 12 : 8,

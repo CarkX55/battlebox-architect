@@ -265,6 +265,97 @@ export class CandidateConstraintEngine {
         }
       }
 
+      // ─── SACRIFICE OUTLET & ARISTOCRATS ROLE ─────────────────────────────
+      if (role.includes('sacrifice_outlet') || role.includes('sac_outlet')) {
+        const isSacOutlet = oracleText.includes('sacrifice a creature:') ||
+                            oracleText.includes('sacrifice another creature:') ||
+                            oracleText.includes('sacrifice a creature or') ||
+                            oracleText.includes('sacrifice an artifact or creature:');
+        if (isSacOutlet) {
+          score += 55;
+          if (cmc <= 2) score += 25; // Premier 1-2 drop sac outlet (Viscera Seer, Carrion Feeder, Yawgmoth, Bartolome)
+          if (oracleText.includes('sacrifice a creature: put') || oracleText.includes('scry')) score += 15;
+        } else {
+          score -= 150;
+        }
+      }
+
+      // ─── DEATH PAYOFF & DRAIN ROLE ─────────────────────────────────────────
+      if (role.includes('death_payoff') || role.includes('drain')) {
+        const isDeathPayoff = oracleText.includes('whenever a creature dies') ||
+                              oracleText.includes('whenever another creature you control dies') ||
+                              oracleText.includes('whenever you sacrifice a creature') ||
+                              oracleText.includes('loses 1 life and you gain 1 life') ||
+                              oracleText.includes('each opponent loses 1 life');
+        if (isDeathPayoff) {
+          score += 55;
+          if (cmc <= 3) score += 20; // Blood Artist, Zulaport, Cruel Celebrant, Bastion of Remembrance
+        } else {
+          score -= 150;
+        }
+      }
+
+      // ─── RECURSIVE FODDER & TOKEN GENERATORS ──────────────────────────────
+      if (role.includes('recursive_fodder') || role.includes('fodder')) {
+        const isFodder = oracleText.includes('return from your graveyard') ||
+                         oracleText.includes('when this creature dies, create') ||
+                         oracleText.includes('create a token') ||
+                         oracleText.includes('create two') ||
+                         oracleText.includes('afterlife') ||
+                         oracleText.includes('decayed');
+        if (isFodder) {
+          score += 45;
+          if (cmc <= 2) score += 20; // Gravecrawler, Doomed Traveler, Stitcher's Supplier, Greedy Freebooter
+        }
+      }
+
+      // ─── PROWESS & SPELLSLINGER ENGINE ────────────────────────────────────
+      if (role.includes('prowess') || role.includes('magecraft') || role.includes('spell_payoff')) {
+        const isProwess = oracleText.includes('prowess') ||
+                          oracleText.includes('magecraft') ||
+                          oracleText.includes('whenever you cast an instant or sorcery') ||
+                          oracleText.includes('whenever you cast a noncreature spell');
+        if (isProwess) {
+          score += 50;
+          if (cmc <= 2) score += 25; // Monastery Swiftspear, Soul-Scar Mage, Slickshot Show-Off, Sprite Dragon
+        } else {
+          score -= 150;
+        }
+      }
+
+      // ─── AFFINITY & ARTIFACT ENABLERS ─────────────────────────────────────
+      if (role.includes('affinity') || role.includes('artifact_payoff')) {
+        const isAffinity = oracleText.includes('affinity for artifacts') ||
+                           oracleText.includes('number of artifacts you control') ||
+                           oracleText.includes('metalcraft') ||
+                           oracleText.includes('for each artifact you control');
+        if (isAffinity) {
+          score += 50;
+        }
+      }
+
+      // ─── ENCHANTRESS & AURA ENGINE ────────────────────────────────────────
+      if (role.includes('enchantress') || role.includes('aura_buff')) {
+        const isEnchantress = oracleText.includes('whenever you cast an enchantment') ||
+                              oracleText.includes('constellation') ||
+                              oracleText.includes('enchant creature') ||
+                              oracleText.includes('enchanted creature gets');
+        if (isEnchantress) {
+          score += 50;
+        }
+      }
+
+      // ─── LIFEGAIN & GROWTH PAYOFFS ────────────────────────────────────────
+      if (role.includes('lifegain') || role.includes('growth_payoff')) {
+        const isLifegain = oracleText.includes('whenever you gain life') ||
+                           oracleText.includes('lifelink') ||
+                           oracleText.includes('whenever another creature enters the battlefield under your control, you gain 1 life');
+        if (isLifegain) {
+          score += 45;
+          if (oracleText.includes('+1/+1 counter') || oracleText.includes('create a')) score += 20; // Pridemate, Voice of the Blessed
+        }
+      }
+
       // ─── FINISHER & HIGH CURVE PAYOFFS ────────────────────────────────────
       if (role.includes('finisher') || role.includes('high_curve') || role.includes('top_curve') || role.includes('payoff')) {
         const isThreat = typeLine.includes('creature') || oracleText.includes('enters with x') || oracleText.includes('haste');
