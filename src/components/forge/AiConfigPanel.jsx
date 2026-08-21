@@ -16,6 +16,7 @@ export default function AiConfigPanel({ onConfigReady, storageKey = DEFAULT_STOR
   const [loadingModels, setLoadingModels] = useState(false);
   const [error, setError] = useState('');
   const [searchFilter, setSearchFilter] = useState('');
+  const [thinkingMode, setThinkingMode] = useState('PRO');
   
   // Mapa maestro: { openrouter: { apiKey, model }, gemini: { ... } }
   const [providerKeys, setProviderKeys] = useState({});
@@ -37,13 +38,16 @@ export default function AiConfigPanel({ onConfigReady, storageKey = DEFAULT_STOR
           // Migración de formato viejo
           setProviderKeys({ [config.provider || 'openrouter']: { apiKey: config.apiKey, model: config.selectedModel || '' } });
         }
+        if (config.thinkingMode) {
+          setThinkingMode(config.thinkingMode);
+        }
         setProvider(config.provider || 'openrouter');
       } catch (e) {}
     }
   }, [storageKey]);
 
   // Guardar en localStorage y notificar al padre
-  const persist = (newProvider, newKeys) => {
+  const persist = (newProvider, newKeys, newThinkingMode = thinkingMode) => {
     const providerInfo = PROVIDERS.find(p => p.id === newProvider);
     
     // Obtener rarityMode existente para no sobreescribirlo
@@ -56,18 +60,26 @@ export default function AiConfigPanel({ onConfigReady, storageKey = DEFAULT_STOR
       }
     } catch (e) {}
 
+    const budgetMap = { OFF: 0, BALANCED: 2048, PRO: 8192, MAX: 16384 };
     const config = {
       provider: newProvider,
       apiKey: newKeys[newProvider]?.apiKey || '',
       selectedModel: newKeys[newProvider]?.model || '',
       baseUrl: providerInfo?.baseUrl,
       rarityMode: existingRarityMode,
+      thinkingMode: newThinkingMode,
+      thinkingBudget: budgetMap[newThinkingMode] !== undefined ? budgetMap[newThinkingMode] : 8192,
       keys: newKeys
     };
     localStorage.setItem(storageKey, JSON.stringify(config));
     
     // Notificar al padre siempre
     onConfigReady?.(config);
+  };
+
+  const handleThinkingModeChange = (mode) => {
+    setThinkingMode(mode);
+    persist(provider, providerKeys, mode);
   };
 
   const updateCurrentProvider = (updates) => {
@@ -265,6 +277,46 @@ export default function AiConfigPanel({ onConfigReady, storageKey = DEFAULT_STOR
           </select>
         </div>
       )}
+
+      {/* Selector de Modo de Razonamiento Profundo (Thinking Mode) */}
+      <div className="mt-4 p-3.5 bg-black/60 border border-magic-gold/25 rounded-xl">
+        <div className="flex items-center justify-between mb-2">
+          <label className="text-[10px] text-[#ffca58] uppercase font-black tracking-[0.15em] flex items-center gap-1.5">
+            <span>🧠</span> Nivel de Razonamiento (Thinking Gateway)
+          </label>
+          <span className="text-[9px] font-mono text-white/50">
+            {thinkingMode === 'OFF' ? '0 tokens (Rápido)' :
+             thinkingMode === 'BALANCED' ? '2,048 tokens' :
+             thinkingMode === 'PRO' ? '8,192 tokens (Pro Tour)' : '16,384 tokens (Max)'}
+          </span>
+        </div>
+        <div className="grid grid-cols-4 gap-2">
+          {[
+            { id: 'OFF', label: 'Off', desc: 'Directo' },
+            { id: 'BALANCED', label: 'Medio', desc: '2k tokens' },
+            { id: 'PRO', label: 'Pro Tour', desc: '8k tokens' },
+            { id: 'MAX', label: 'Máximo', desc: '16k tokens' }
+          ].map(lvl => (
+            <button
+              key={lvl.id}
+              type="button"
+              onClick={() => handleThinkingModeChange(lvl.id)}
+              className={cn(
+                "p-2 rounded-lg border text-center transition-all flex flex-col items-center justify-center",
+                thinkingMode === lvl.id
+                  ? "bg-magic-gold/20 border-magic-gold text-magic-gold shadow-[0_0_10px_rgba(255,202,88,0.25)] font-bold scale-[1.02]"
+                  : "bg-white/5 border-white/10 text-white/60 hover:text-white hover:border-white/30"
+              )}
+            >
+              <span className="text-xs font-cinzel font-bold">{lvl.label}</span>
+              <span className="text-[8px] opacity-70 font-mono">{lvl.desc}</span>
+            </button>
+          ))}
+        </div>
+        <p className="text-[9px] text-white/40 font-serif leading-tight mt-2 italic">
+          * Aumenta la profundidad analítica del LLM para formulación de tesis y auditoría causal. La decisión final siempre es validada por el motor determinista.
+        </p>
+      </div>
     </div>
   );
 }

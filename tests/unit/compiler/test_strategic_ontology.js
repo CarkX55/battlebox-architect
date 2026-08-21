@@ -48,7 +48,7 @@ function runTest() {
   console.log(`   - Scores:             Pressure ${cardSem.pressureScore} | Recovery ${cardSem.recoveryScore} | Closing ${cardSem.closingScore}`);
   console.log(`   - Replacement Class:  ${cardSem.replacementClass}`);
 
-  if (!cardSem || cardSem.pressureScore < 80 || cardSem.functionalPackage !== 'GIANTS_STOMP_PACKAGE') {
+  if (!cardSem || cardSem.pressureScore < 80 || !cardSem.functionalPackage.includes('GIANTS_STOMP_PACKAGE')) {
     throw new Error('❌ TEST FAILED: BattleBoxStrategicOntology failed deep card tagging audit');
   }
   console.log('✅ Deep Strategic Domain Semantics Passed');

@@ -1,8 +1,12 @@
 /**
- * src/services/compiler/core/strategicObjective.js
+ * STRATEGIC OBJECTIVE (v23.0 Core Engine)
  * 
- * StrategicObjective: High-level domain trade-off objective model v1.0.
- * Captures user intent trade-offs (e.g. "early pressure without losing Turn 8").
+ * Strategic Contract Compiler & Normalizer.
+ * Translates User Intent, Strategic Thesis, and Proof Obligations into
+ * formal capability axes and causal contracts.
+ * 
+ * Zero hardcoded archetype lists. Maps declared strategic proof obligations
+ * into canonical capability dimensions.
  */
 
 export class StrategicObjective {
@@ -27,17 +31,29 @@ export class StrategicObjective {
   }
 
   /**
-   * Derive target CapabilityVector axes from StrategicObjective and IntentPackage.
+   * Derive target CapabilityVector axes from Strategic Contract and IntentPackage.
    */
   toCapabilityAxes(intentPackage) {
     const tempoLower = (intentPackage.tempo || '').toLowerCase();
     const strategyLower = (intentPackage.strategy || []).join(' ').toLowerCase();
-    const mechanicsList = (intentPackage.mechanics || []).map(m => m.toLowerCase());
+    const mechanicsList = (intentPackage.mechanics || []).map(m => (typeof m === 'string' ? m : m?.name || '').toLowerCase());
+    const engId = (intentPackage.userConstraints?.selectedEngineId || intentPackage.selectedEngineId || '').toLowerCase();
+    const rawBoosts = intentPackage.userConstraints?.boostKeywords || [];
+    const boostStr = (Array.isArray(rawBoosts) ? rawBoosts.join(' ') : String(rawBoosts)).toLowerCase();
+    const allSignals = `${strategyLower} ${mechanicsList.join(' ')} ${engId} ${boostStr}`.toLowerCase();
+
     const isRamp = tempoLower.includes('ramp') || tempoLower.includes('big_mana');
     const isControl = tempoLower.includes('control');
     const isAggro = tempoLower.includes('aggro') || this.speedTier === 'FAST';
-    const isSacrifice = strategyLower.includes('sacrifice') || strategyLower.includes('dies') || strategyLower.includes('aristocrat');
-    const isCounters = strategyLower.includes('counter') || strategyLower.includes('+1/+1');
+    const isLandfall = allSignals.includes('landfall') || allSignals.includes('tierras') || allSignals.includes('land_entry') || allSignals.includes('land_acceleration');
+    const isBlink = allSignals.includes('blink') || allSignals.includes('flicker') || allSignals.includes('etb');
+    const isLifegain = allSignals.includes('lifegain') || allSignals.includes('lifelink') || allSignals.includes('vida');
+    const isReanimator = allSignals.includes('reanimat') || allSignals.includes('resurrect') || allSignals.includes('cementerio');
+    const isCounters = allSignals.includes('counter') || allSignals.includes('+1/+1') || allSignals.includes('proliferat');
+    const isSacrifice = allSignals.includes('sacrifice') || allSignals.includes('dies') || allSignals.includes('aristocrat');
+    const isBurn = allSignals.includes('burn') || allSignals.includes('direct damage') || allSignals.includes('asalto');
+    const isSpellslinger = allSignals.includes('spellslinger') || allSignals.includes('prowess') || allSignals.includes('magecraft');
+    const isArtifacts = allSignals.includes('artifact') || allSignals.includes('affinity') || allSignals.includes('metalcraft');
 
     const totalDeckSize = intentPackage.format === 'COMMANDER' ? 100 : 60;
     const isCommander = intentPackage.format === 'COMMANDER';
@@ -56,8 +72,158 @@ export class StrategicObjective {
       strength: 'MANDATORY'
     });
 
-    // 2. Archetype Core Engines
-    if (isSacrifice) {
+    // 2. Dynamic Strategic Obligations Compilation
+    if (isLandfall) {
+      axes.push({
+        id: 'LAND_ACCELERATOR',
+        target: isCommander ? 12 : 8,
+        weight: 10,
+        mandatory: true,
+        origin: { field: 'strategy', value: 'Land Acceleration & Triggers' },
+        strength: 'MANDATORY'
+      });
+      axes.push({
+        id: 'LANDFALL_PAYOFF',
+        target: isCommander ? 12 : 8,
+        weight: 10,
+        mandatory: true,
+        origin: { field: 'strategy', value: 'Landfall Payoffs' },
+        strength: 'MANDATORY'
+      });
+      axes.push({
+        id: 'BOARD_PRESENCE',
+        target: isCommander ? 8 : 4,
+        weight: 8,
+        mandatory: false,
+        origin: { field: 'tempo', value: 'Board Presence' },
+        strength: 'PREFERRED'
+      });
+    } else if (isBlink) {
+      axes.push({
+        id: 'ETB_VALUE',
+        target: isCommander ? 12 : 8,
+        weight: 10,
+        mandatory: true,
+        origin: { field: 'strategy', value: 'ETB Value Creatures' },
+        strength: 'MANDATORY'
+      });
+      axes.push({
+        id: 'BLINK_ENABLER',
+        target: isCommander ? 10 : 6,
+        weight: 10,
+        mandatory: true,
+        origin: { field: 'strategy', value: 'Blink / Flicker Enablers' },
+        strength: 'MANDATORY'
+      });
+      axes.push({
+        id: 'BOARD_PRESENCE',
+        target: isCommander ? 8 : 4,
+        weight: 8,
+        mandatory: false,
+        origin: { field: 'tempo', value: 'Board Presence' },
+        strength: 'PREFERRED'
+      });
+    } else if (isLifegain) {
+      axes.push({
+        id: 'LIFEGAIN_TRIGGER',
+        target: isCommander ? 12 : 8,
+        weight: 10,
+        mandatory: true,
+        origin: { field: 'strategy', value: 'Lifegain Triggers' },
+        strength: 'MANDATORY'
+      });
+      axes.push({
+        id: 'GROWTH_PAYOFF',
+        target: isCommander ? 10 : 8,
+        weight: 10,
+        mandatory: true,
+        origin: { field: 'strategy', value: 'Lifegain Growth Payoffs' },
+        strength: 'MANDATORY'
+      });
+      axes.push({
+        id: 'BOARD_PRESENCE',
+        target: isCommander ? 8 : 4,
+        weight: 8,
+        mandatory: false,
+        origin: { field: 'tempo', value: 'Board Presence' },
+        strength: 'PREFERRED'
+      });
+    } else if (isReanimator) {
+      axes.push({
+        id: 'LOOTING_DISCARD',
+        target: isCommander ? 10 : 6,
+        weight: 10,
+        mandatory: true,
+        origin: { field: 'strategy', value: 'Looting & Graveyard Enablers' },
+        strength: 'MANDATORY'
+      });
+      axes.push({
+        id: 'REANIMATION_SPELL',
+        target: isCommander ? 10 : 6,
+        weight: 10,
+        mandatory: true,
+        origin: { field: 'strategy', value: 'Reanimation Spells' },
+        strength: 'MANDATORY'
+      });
+      axes.push({
+        id: 'COLOSSAL_TARGET',
+        target: isCommander ? 10 : 6,
+        weight: 9,
+        mandatory: true,
+        origin: { field: 'strategy', value: 'Colossal Payoffs' },
+        strength: 'MANDATORY'
+      });
+    } else if (isCounters) {
+      axes.push({
+        id: 'COUNTER_ENGINE',
+        target: isCommander ? 12 : 8,
+        weight: 10,
+        mandatory: true,
+        origin: { field: 'strategy', value: '+1/+1 Counter Engines' },
+        strength: 'MANDATORY'
+      });
+      axes.push({
+        id: 'COUNTER_PAYOFF',
+        target: isCommander ? 10 : 8,
+        weight: 10,
+        mandatory: true,
+        origin: { field: 'strategy', value: 'Counter Payoffs & Scaling' },
+        strength: 'MANDATORY'
+      });
+      axes.push({
+        id: 'BOARD_PRESENCE',
+        target: isCommander ? 8 : 4,
+        weight: 8,
+        mandatory: false,
+        origin: { field: 'tempo', value: 'Board Presence' },
+        strength: 'PREFERRED'
+      });
+    } else if (isBurn) {
+      axes.push({
+        id: 'TURN1_PRESSURE',
+        target: isCommander ? 10 : 8,
+        weight: 10,
+        mandatory: true,
+        origin: { field: 'strategy', value: 'Turn 1 Early Pressure' },
+        strength: 'MANDATORY'
+      });
+      axes.push({
+        id: 'TURN2_PRESSURE',
+        target: isCommander ? 12 : 8,
+        weight: 9,
+        mandatory: true,
+        origin: { field: 'strategy', value: 'Turn 2 Pressure' },
+        strength: 'MANDATORY'
+      });
+      axes.push({
+        id: 'BURN_REACH',
+        target: isCommander ? 12 : 8,
+        weight: 10,
+        mandatory: true,
+        origin: { field: 'strategy', value: 'Direct Face Burn & Reach' },
+        strength: 'MANDATORY'
+      });
+    } else if (isSacrifice) {
       axes.push({
         id: 'RECURSIVE_FODDER',
         target: isCommander ? 12 : 8,
@@ -82,15 +248,7 @@ export class StrategicObjective {
         origin: { field: 'strategy', value: 'Death & Drain Payoffs' },
         strength: 'MANDATORY'
       });
-      axes.push({
-        id: 'CARD_FLOW',
-        target: isCommander ? 8 : 4,
-        weight: 8,
-        mandatory: false,
-        origin: { field: 'strategy', value: 'Sacrifice Draw Engines' },
-        strength: 'PREFERRED'
-      });
-    } else if (strategyLower.includes('spell') || strategyLower.includes('prowess') || strategyLower.includes('burn') || mechanicsList.includes('prowess') || mechanicsList.includes('magecraft')) {
+    } else if (isSpellslinger) {
       axes.push({
         id: 'TURN1_PRESSURE',
         target: isCommander ? 10 : 6,
@@ -107,15 +265,7 @@ export class StrategicObjective {
         origin: { field: 'strategy', value: 'Cheap Cantrips & Velocity' },
         strength: 'MANDATORY'
       });
-      axes.push({
-        id: 'CHEAP_REMOVAL',
-        target: isCommander ? 12 : 8,
-        weight: 9,
-        mandatory: true,
-        origin: { field: 'strategy', value: 'Direct Burn & Removal' },
-        strength: 'MANDATORY'
-      });
-    } else if (strategyLower.includes('artifact') || strategyLower.includes('affinity') || mechanicsList.includes('affinity') || mechanicsList.includes('metalcraft')) {
+    } else if (isArtifacts) {
       axes.push({
         id: 'TURN1_PRESSURE',
         target: isCommander ? 14 : 8,
@@ -132,56 +282,6 @@ export class StrategicObjective {
         origin: { field: 'strategy', value: 'Affinity / Modular Payoffs' },
         strength: 'MANDATORY'
       });
-      axes.push({
-        id: 'CARD_FLOW',
-        target: isCommander ? 10 : 6,
-        weight: 9,
-        mandatory: false,
-        origin: { field: 'strategy', value: 'Artifact Draw Engines' },
-        strength: 'PREFERRED'
-      });
-    } else if (strategyLower.includes('enchant') || strategyLower.includes('aura') || strategyLower.includes('voltron') || mechanicsList.includes('constellation')) {
-      axes.push({
-        id: 'TURN1_PRESSURE',
-        target: isCommander ? 10 : 6,
-        weight: 10,
-        mandatory: true,
-        origin: { field: 'strategy', value: 'Voltron / Hexproof Threats' },
-        strength: 'MANDATORY'
-      });
-      axes.push({
-        id: 'BOARD_PRESENCE',
-        target: isCommander ? 14 : 8,
-        weight: 10,
-        mandatory: true,
-        origin: { field: 'strategy', value: 'Aura Buffs' },
-        strength: 'MANDATORY'
-      });
-      axes.push({
-        id: 'CARD_FLOW',
-        target: isCommander ? 10 : 6,
-        weight: 9,
-        mandatory: false,
-        origin: { field: 'strategy', value: 'Enchantress Draw Engines' },
-        strength: 'PREFERRED'
-      });
-    } else if (strategyLower.includes('life') || mechanicsList.includes('lifelink')) {
-      axes.push({
-        id: 'TURN1_PRESSURE',
-        target: isCommander ? 10 : 6,
-        weight: 10,
-        mandatory: true,
-        origin: { field: 'strategy', value: 'Lifegain Triggers' },
-        strength: 'MANDATORY'
-      });
-      axes.push({
-        id: 'BOARD_PRESENCE',
-        target: isCommander ? 12 : 8,
-        weight: 10,
-        mandatory: true,
-        origin: { field: 'strategy', value: 'Lifegain Growth Payoffs' },
-        strength: 'MANDATORY'
-      });
     } else if (isRamp) {
       axes.push({
         id: 'RAMP_ACCELERATION',
@@ -190,24 +290,6 @@ export class StrategicObjective {
         mandatory: true,
         origin: { field: 'tempo', value: 'Ramp Acceleration' },
         strength: 'MANDATORY'
-      });
-      if (isCounters) {
-        axes.push({
-          id: 'COUNTER_SYNERGY',
-          target: isCommander ? 10 : 6,
-          weight: 9,
-          mandatory: false,
-          origin: { field: 'strategy', value: '+1/+1 Counter Multipliers' },
-          strength: 'STRONG'
-        });
-      }
-      axes.push({
-        id: 'BOARD_PRESENCE',
-        target: isCommander ? 14 : 8,
-        weight: 9,
-        mandatory: false,
-        origin: { field: 'tempo', value: 'Mid-Curve Threats' },
-        strength: 'PREFERRED'
       });
       axes.push({
         id: 'FINISHER',
@@ -235,11 +317,11 @@ export class StrategicObjective {
         strength: 'PREFERRED'
       });
       axes.push({
-        id: 'BURN_REACH',
-        target: isCommander ? 8 : 6,
-        weight: 9,
+        id: 'BOARD_PRESENCE',
+        target: isCommander ? 10 : 6,
+        weight: 8,
         mandatory: false,
-        origin: { field: 'tempo', value: 'Direct Damage & Reach' },
+        origin: { field: 'tempo', value: 'Board Presence' },
         strength: 'PREFERRED'
       });
     } else if (isControl) {
@@ -258,14 +340,6 @@ export class StrategicObjective {
         mandatory: true,
         origin: { field: 'tempo', value: 'Card Advantage & Draw' },
         strength: 'MANDATORY'
-      });
-      axes.push({
-        id: 'FINISHER',
-        target: isCommander ? 6 : 4,
-        weight: 8,
-        mandatory: false,
-        origin: { field: 'tempo', value: 'Win Condition Threat' },
-        strength: 'PREFERRED'
       });
     } else {
       // General Midrange
@@ -295,11 +369,13 @@ export class StrategicObjective {
       });
     }
 
-    // 3. Tribal Density
-    if (intentPackage.primaryTribe) {
+    // 3. Tribal Density (strictly when a valid non-null tribe is declared)
+    const rawTribeStr = intentPackage.primaryTribe ? String(intentPackage.primaryTribe).toLowerCase().trim() : '';
+    const isValidTribe = rawTribeStr && !['none', 'null', 'general', 'ninguna', 'sin tribu', 'omitir', 'universal', 'sin_tribu'].includes(rawTribeStr);
+    if (isValidTribe) {
       axes.push({
         id: 'TRIBAL_DENSITY',
-        target: Math.round(spellTarget * 0.40),
+        target: Math.round(spellTarget * 0.35),
         weight: 9,
         mandatory: true,
         origin: { field: 'primaryTribe', value: intentPackage.primaryTribe },
@@ -307,8 +383,8 @@ export class StrategicObjective {
       });
     }
 
-    // 4. Interaction & Flow (Required by all competitive decks)
-    if (!isControl) {
+    // 4. Interaction & Flow
+    if (!axes.some(a => a.id === 'CHEAP_REMOVAL')) {
       axes.push({
         id: 'CHEAP_REMOVAL',
         target: isCommander ? 8 : 4,
@@ -317,6 +393,12 @@ export class StrategicObjective {
         origin: { field: 'format', value: intentPackage.format },
         strength: 'MANDATORY'
       });
+    }
+    
+    const existingFlow = axes.find(a => a.id === 'CARD_FLOW');
+    if (existingFlow) {
+      existingFlow.origin = { field: 'powerLevel', value: intentPackage.powerLevel };
+    } else {
       axes.push({
         id: 'CARD_FLOW',
         target: isCommander ? 8 : 4,

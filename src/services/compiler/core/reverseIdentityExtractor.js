@@ -33,9 +33,12 @@ export class ReverseIdentityExtractor {
     let totalNonLand = 0;
 
     const KNOWN_TRIBES = [
-      'hydra', 'giant', 'human', 'goblin', 'elf', 'merfolk', 'dragon', 
-      'vampire', 'zombie', 'dinosaur', 'sliver', 'faerie', 'spirit', 
-      'knight', 'wizard', 'rogue', 'cleric', 'warrior', 'cat', 'angel', 'ooze', 'saproling', 'fungus'
+      'ninja', 'faerie', 'spirit', 'sliver', 'rat', 'squirrel', 'cat', 'dog', 'hound',
+      'wall', 'defender', 'werewolf', 'wolf', 'knight', 'rogue', 'wizard', 'cleric', 'warrior', 'soldier',
+      'angel', 'demon', 'dragon', 'dinosaur', 'hydra', 'giant', 'beast', 'elemental', 'eldrazi',
+      'ooze', 'gorgon', 'saproling', 'fungus', 'thallid', 'skeleton', 'horror', 'zombie', 'vampire',
+      'kraken', 'leviathan', 'serpent', 'octopus', 'merfolk', 'pirate', 'assassin', 'mercenary', 'warlock',
+      'shaman', 'druid', 'mutant', 'construct', 'myr', 'golem', 'goblin', 'elf', 'human'
     ];
 
     for (const card of cards) {
@@ -63,7 +66,7 @@ export class ReverseIdentityExtractor {
         if (oracleText.includes('deals damage to any target') || oracleText.includes('deals damage to each opponent')) {
           burnCount += qty;
         }
-        if (oracleText.includes('add {') || oracleText.includes('search your library for a land') || oracleText.includes('landfall') || oracleText.includes('enters with x')) {
+        if (oracleText.includes('add {') || oracleText.includes('search your library for a land') || oracleText.includes('play an additional land') || oracleText.includes('landfall') || oracleText.includes('enters with x')) {
           rampCount += qty;
         }
         if (oracleText.includes('sacrifice a') || oracleText.includes('sacrifices a') || oracleText.includes('whenever another creature dies')) {
@@ -75,14 +78,67 @@ export class ReverseIdentityExtractor {
       }
     }
 
-    // Identify dominant tribe
+    // Identify dominant tribe (including tribal alliances with MTG race vs vocation tie-breaking)
+    const PRIMARY_RACES = new Set([
+      'elf', 'goblin', 'merfolk', 'zombie', 'vampire', 'dragon', 'dinosaur', 'sliver', 
+      'faerie', 'spirit', 'angel', 'demon', 'hydra', 'giant', 'beast', 'elemental', 
+      'eldrazi', 'werewolf', 'cat', 'dog', 'rat', 'squirrel', 'ooze', 'gorgon', 
+      'saproling', 'fungus', 'skeleton', 'horror', 'kraken', 'leviathan', 'serpent', 'octopus'
+    ]);
+
     let dominantTribe = null;
     let maxTribeCount = 0;
-    for (const [tribe, count] of tribeCounts.entries()) {
-      if (count > maxTribeCount) {
-        maxTribeCount = count;
-        dominantTribe = tribe;
-      }
+    const sortedTribes = Array.from(tribeCounts.entries()).sort(([tribeA, countA], [tribeB, countB]) => {
+      if (countB !== countA) return countB - countA;
+      // Human yields to all specific vocations and races
+      if (tribeA === 'human') return 1;
+      if (tribeB === 'human') return -1;
+      // Primary races (e.g. Elf, Goblin, Merfolk) take precedence over general classes (Druid, Warrior, Wizard)
+      const aIsPrimary = PRIMARY_RACES.has(tribeA);
+      const bIsPrimary = PRIMARY_RACES.has(tribeB);
+      if (aIsPrimary && !bIsPrimary) return -1;
+      if (!aIsPrimary && bIsPrimary) return 1;
+      return 0;
+    });
+
+    if (sortedTribes.length > 0) {
+      dominantTribe = sortedTribes[0][0];
+      maxTribeCount = sortedTribes[0][1];
+    }
+
+    // Alliance Aggregation
+    const seaMonstersCount = (tribeCounts.get('kraken') || 0) + (tribeCounts.get('leviathan') || 0) + 
+                             (tribeCounts.get('serpent') || 0) + (tribeCounts.get('octopus') || 0) + 
+                             ((rampCount >= 4) ? (tribeCounts.get('merfolk') || 0) : 0);
+    if (seaMonstersCount >= 8 && seaMonstersCount >= maxTribeCount) {
+      dominantTribe = 'sea_monsters';
+      maxTribeCount = seaMonstersCount;
+    }
+
+    const outlawsCount = (tribeCounts.get('assassin') || 0) + (tribeCounts.get('mercenary') || 0) + 
+                         (tribeCounts.get('pirate') || 0) + (tribeCounts.get('rogue') || 0) + (tribeCounts.get('warlock') || 0);
+    if (outlawsCount >= 8 && outlawsCount > maxTribeCount) {
+      dominantTribe = 'outlaws';
+      maxTribeCount = outlawsCount;
+    }
+
+    const partyCount = (tribeCounts.get('cleric') || 0) + (tribeCounts.get('rogue') || 0) + 
+                       (tribeCounts.get('warrior') || 0) + (tribeCounts.get('wizard') || 0);
+    if (partyCount >= 8 && partyCount > maxTribeCount) {
+      dominantTribe = 'party';
+      maxTribeCount = partyCount;
+    }
+
+    const apexCount = (tribeCounts.get('dinosaur') || 0) + (tribeCounts.get('beast') || 0) + (tribeCounts.get('hydra') || 0);
+    if (apexCount >= 8 && apexCount > maxTribeCount) {
+      dominantTribe = 'apex_predators';
+      maxTribeCount = apexCount;
+    }
+
+    const undeadCount = (tribeCounts.get('zombie') || 0) + (tribeCounts.get('skeleton') || 0) + (tribeCounts.get('horror') || 0);
+    if (undeadCount >= 8 && undeadCount > maxTribeCount) {
+      dominantTribe = 'undead_scourge';
+      maxTribeCount = undeadCount;
     }
 
     // Determine primary inferred archetype
@@ -141,10 +197,13 @@ export class ReverseIdentityExtractor {
       } else if (dominantTribe === 'elf') {
         predictedArchetypeKey = 'SELESNYA_ELVES_RAMP';
         confidenceScore = Math.min(1.0, 0.90 + (maxTribeCount * 0.01));
+      } else if (dominantTribe === 'sea_monsters' || dominantTribe === 'kraken' || dominantTribe === 'leviathan' || dominantTribe === 'serpent' || dominantTribe === 'octopus' || (dominantTribe === 'merfolk' && rampCount >= 6)) {
+        predictedArchetypeKey = 'SEA_MONSTERS_RAMP';
+        confidenceScore = Math.min(1.0, 0.92 + (maxTribeCount * 0.01));
       } else if (dominantTribe === 'merfolk') {
         predictedArchetypeKey = 'MERFOLK_TEMPO';
         confidenceScore = Math.min(1.0, 0.90 + (maxTribeCount * 0.01));
-      } else if (dominantTribe === 'zombie') {
+      } else if (dominantTribe === 'zombie' || dominantTribe === 'undead_scourge') {
         predictedArchetypeKey = 'ZOMBIE_ARISTOCRATS';
         confidenceScore = Math.min(1.0, 0.90 + (maxTribeCount * 0.01));
       } else if (dominantTribe === 'vampire') {
@@ -153,9 +212,75 @@ export class ReverseIdentityExtractor {
       } else if (dominantTribe === 'dragon') {
         predictedArchetypeKey = 'DRAGONS_BIG_MANA';
         confidenceScore = Math.min(1.0, 0.90 + (maxTribeCount * 0.01));
-      } else if (dominantTribe === 'dinosaur') {
+      } else if (dominantTribe === 'dinosaur' || dominantTribe === 'apex_predators') {
         predictedArchetypeKey = 'DINOSAUR_STOMPY_RAMP';
         confidenceScore = Math.min(1.0, 0.90 + (maxTribeCount * 0.01));
+      } else if (dominantTribe === 'ninja') {
+        predictedArchetypeKey = 'NINJA_NINJUTSU_TEMPO';
+        confidenceScore = Math.min(1.0, 0.90 + (maxTribeCount * 0.01));
+      } else if (dominantTribe === 'faerie' || dominantTribe === 'fairy') {
+        predictedArchetypeKey = 'FAERIES_FLASH_CONTROL';
+        confidenceScore = Math.min(1.0, 0.90 + (maxTribeCount * 0.01));
+      } else if (dominantTribe === 'angel') {
+        predictedArchetypeKey = 'ANGELS_LIFEGAIN_MIDRANGE';
+        confidenceScore = Math.min(1.0, 0.90 + (maxTribeCount * 0.01));
+      } else if (dominantTribe === 'demon') {
+        predictedArchetypeKey = 'DEMONS_REANIMATOR_BIG_MANA';
+        confidenceScore = Math.min(1.0, 0.90 + (maxTribeCount * 0.01));
+      } else if (dominantTribe === 'spirit') {
+        predictedArchetypeKey = 'SPIRITS_FLYING_TEMPO';
+        confidenceScore = Math.min(1.0, 0.90 + (maxTribeCount * 0.01));
+      } else if (dominantTribe === 'sliver') {
+        predictedArchetypeKey = 'SLIVERS_HIVE_SWARM';
+        confidenceScore = Math.min(1.0, 0.90 + (maxTribeCount * 0.01));
+      } else if (dominantTribe === 'rat') {
+        predictedArchetypeKey = 'RATS_DISCARD_SWARM';
+        confidenceScore = Math.min(1.0, 0.90 + (maxTribeCount * 0.01));
+      } else if (dominantTribe === 'squirrel') {
+        predictedArchetypeKey = 'SQUIRREL_TOKEN_SWARM';
+        confidenceScore = Math.min(1.0, 0.90 + (maxTribeCount * 0.01));
+      } else if (dominantTribe === 'cat' || dominantTribe === 'leonin') {
+        predictedArchetypeKey = 'CATS_EQUIPMENT_AGGRO';
+        confidenceScore = Math.min(1.0, 0.90 + (maxTribeCount * 0.01));
+      } else if (dominantTribe === 'wall' || dominantTribe === 'defender') {
+        predictedArchetypeKey = 'WALLS_TOUGHNESS_STOMPY';
+        confidenceScore = Math.min(1.0, 0.90 + (maxTribeCount * 0.01));
+      } else if (dominantTribe === 'werewolf' || dominantTribe === 'wolf') {
+        predictedArchetypeKey = 'WEREWOLF_DAYBOUND_MIDRANGE';
+        confidenceScore = Math.min(1.0, 0.90 + (maxTribeCount * 0.01));
+      } else if (dominantTribe === 'knight') {
+        predictedArchetypeKey = 'KNIGHTS_EQUIPMENT_AGGRO';
+        confidenceScore = Math.min(1.0, 0.90 + (maxTribeCount * 0.01));
+      } else if (dominantTribe === 'rogue') {
+        predictedArchetypeKey = 'ROGUES_MILL_TEMPO';
+        confidenceScore = Math.min(1.0, 0.90 + (maxTribeCount * 0.01));
+      } else if (dominantTribe === 'wizard') {
+        predictedArchetypeKey = 'WIZARDS_SPELLSLINGER_BURN';
+        confidenceScore = Math.min(1.0, 0.90 + (maxTribeCount * 0.01));
+      } else if (dominantTribe === 'cleric') {
+        predictedArchetypeKey = 'CLERICS_LIFEGAIN_ARISTOCRATS';
+        confidenceScore = Math.min(1.0, 0.90 + (maxTribeCount * 0.01));
+      } else if (dominantTribe === 'soldier') {
+        predictedArchetypeKey = 'SOLDIERS_ANTHEM_AGGRO';
+        confidenceScore = Math.min(1.0, 0.90 + (maxTribeCount * 0.01));
+      } else if (dominantTribe === 'eldrazi') {
+        predictedArchetypeKey = 'ELDRAZI_TRON_BIG_MANA';
+        confidenceScore = Math.min(1.0, 0.90 + (maxTribeCount * 0.01));
+      } else if (dominantTribe === 'pirate') {
+        predictedArchetypeKey = 'PIRATES_TREASURE_TEMPO';
+        confidenceScore = Math.min(1.0, 0.90 + (maxTribeCount * 0.01));
+      } else if (dominantTribe === 'beast') {
+        predictedArchetypeKey = 'BEAST_STOMPY_MIDRANGE';
+        confidenceScore = Math.min(1.0, 0.90 + (maxTribeCount * 0.01));
+      } else if (dominantTribe === 'elemental') {
+        predictedArchetypeKey = 'ELEMENTALS_LANDFALL_MIDRANGE';
+        confidenceScore = Math.min(1.0, 0.90 + (maxTribeCount * 0.01));
+      } else if (dominantTribe === 'outlaws') {
+        predictedArchetypeKey = 'OUTLAWS_CRIMES_TEMPO';
+        confidenceScore = 0.92;
+      } else if (dominantTribe === 'party') {
+        predictedArchetypeKey = 'PARTY_ADVENTURERS_MIDRANGE';
+        confidenceScore = 0.92;
       } else {
         predictedArchetypeKey = `${dominantTribe.toUpperCase()}_TRIBAL`;
         confidenceScore = 0.92;

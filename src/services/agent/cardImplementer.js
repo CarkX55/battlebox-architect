@@ -183,16 +183,19 @@ export class CardImplementer {
 
         case 'CHEAP_REMOVAL':
         case 'REMOVAL':
-          // Invariant: MUST be Instant or Sorcery that explicitly removes/damages opponent targets
-          if (typeLine.includes('instant') || typeLine.includes('sorcery')) {
+          // Invariant: MUST be Instant, Sorcery, Artifact or Enchantment that explicitly removes/damages opponent targets
+          if (typeLine.includes('instant') || typeLine.includes('sorcery') || typeLine.includes('artifact') || typeLine.includes('enchantment')) {
             const possessesRemovalCapability = cleanOracleText.includes('destroy target') || 
                                                cleanOracleText.includes('exile target') || 
                                                cleanOracleText.includes('destroy all') || 
                                                cleanOracleText.includes('exile all') || 
+                                               cleanOracleText.includes('destroy each') || 
+                                               cleanOracleText.includes('exile each') || 
                                                cleanOracleText.includes('deals ') && (cleanOracleText.includes('target creature') || cleanOracleText.includes('any target') || cleanOracleText.includes('target opponent')) || 
                                                cleanOracleText.includes('counter target') || 
                                                cleanOracleText.includes('fights target') || 
                                                cleanOracleText.includes('-x/-x') || 
+                                               cleanOracleText.includes('-5/-5') || 
                                                cleanOracleText.includes('-2/-2') || 
                                                cleanOracleText.includes('-3/-3') || 
                                                cleanOracleText.includes('-4/-4') || 
@@ -215,46 +218,18 @@ export class CardImplementer {
         case 'TRIBAL_THREAT':
           // Invariant: Creature or Token Generator matching target tribe
           if (typeLine.includes('creature') || oracleText.includes('create token') || oracleText.includes('create a')) {
-            const rawTribe = (intentPackage.primaryTribe || intentPackage.tribe || '').toLowerCase();
-            const GUILD_FACTIONS = new Set([
-              'boros_guild', 'golgari_guild', 'dimir_guild', 'rakdos_guild', 'azorius_guild',
-              'gruul_guild', 'selesnya_guild', 'orzhov_guild', 'izzet_guild', 'simic_guild',
-              'esper_shard', 'jund_shard', 'naya_shard', 'jeskai_shard', 'sultai_shard',
-              'boros', 'golgari', 'dimir', 'rakdos', 'azorius',
-              'gruul', 'selesnya', 'orzhov', 'izzet', 'simic',
-              'esper', 'grixis', 'jund', 'naya', 'bant',
-              'abzan', 'jeskai', 'sultai', 'mardu', 'temur',
-              'none', 'ninguna', 'general', 'null', 'universal'
-            ]);
-            const isGuild = GUILD_FACTIONS.has(rawTribe) || rawTribe.includes('_guild') || rawTribe.includes('_shard');
-            const effectiveTribe = isGuild ? '' : rawTribe;
-
-            if (!effectiveTribe) {
+            const rawTribe = (strategicNeedRequest.targetTribe || intentPackage.primaryTribe || intentPackage.tribe || '').toLowerCase();
+            const isTribeMatch = CardImplementer.matchesTribe(card, rawTribe);
+            if (isTribeMatch) {
               passesRoleRequirement = true;
-              score += 35;
-            } else {
-              let targetSubtypes = [effectiveTribe];
-              if (effectiveTribe === 'outlaws') targetSubtypes = ['assassin', 'mercenary', 'pirate', 'rogue', 'warlock'];
-              else if (effectiveTribe === 'party') targetSubtypes = ['cleric', 'rogue', 'warrior', 'wizard'];
-              else if (effectiveTribe === 'goblin_horde' || effectiveTribe.includes('goblin')) targetSubtypes = ['goblin', 'ogre', 'orc'];
-              else if (effectiveTribe === 'elf_druid' || effectiveTribe.includes('elf')) targetSubtypes = ['elf', 'druid'];
-              else if (effectiveTribe === 'human_army' || effectiveTribe.includes('human')) targetSubtypes = ['human', 'soldier', 'knight'];
-              else if (effectiveTribe === 'undead_scourge' || effectiveTribe.includes('zombie')) targetSubtypes = ['zombie', 'skeleton', 'vampire', 'horror'];
-              else if (effectiveTribe === 'sea_monsters') targetSubtypes = ['merfolk', 'kraken', 'leviathan', 'octopus', 'serpent'];
-              else if (effectiveTribe === 'apex_predators') targetSubtypes = ['dinosaur', 'beast', 'hydra'];
-
-              const isTribeMatch = targetSubtypes.some(sub => typeLine.includes(sub) || oracleText.includes(sub));
-              if (isTribeMatch) {
-                passesRoleRequirement = true;
-                score += targetSubtypes.some(sub => typeLine.includes(sub)) ? 60 : 35;
-              }
+              score += 60;
             }
           }
           break;
 
         case 'EARLY_RAMP':
         case 'RAMP':
-          if (oracleText.includes('add {') || oracleText.includes('search your library for a land') || oracleText.includes('target land produces')) {
+          if (oracleText.includes('add {') || oracleText.includes('search your library for a land') || oracleText.includes('target land produces') || oracleText.includes('additional land') || oracleText.includes('play an additional land') || oracleText.includes('put a land') || (typeLine.includes('creature') && (oracleText.includes('untap target land') || oracleText.includes('untap target permanent')))) {
             passesRoleRequirement = true;
             score += cmc <= 2 ? 30 : 10;
           }
@@ -270,8 +245,16 @@ export class CardImplementer {
 
         case 'EARLY_INTERACTION':
         case 'DISRUPTION':
-          if (typeLine.includes('instant') || typeLine.includes('sorcery') || typeLine.includes('creature')) {
-            if (oracleText.includes('counter') || oracleText.includes('discard') || oracleText.includes('tap target') || oracleText.includes('destroy') || oracleText.includes('exile')) {
+          if (typeLine.includes('instant') || typeLine.includes('sorcery') || oracleText.includes('flash')) {
+            const isDisruption = cleanOracleText.includes('counter target') || 
+                                 cleanOracleText.includes('return target') || 
+                                 cleanOracleText.includes('destroy target') || 
+                                 cleanOracleText.includes('exile target') || 
+                                 cleanOracleText.includes('deals ') || 
+                                 cleanOracleText.includes('-x/-x') ||
+                                 cleanOracleText.includes('target player discards');
+
+            if (isDisruption) {
               passesRoleRequirement = true;
               score += cmc <= 2 ? 25 : 10;
             }
@@ -280,8 +263,9 @@ export class CardImplementer {
 
         case 'FINISHER':
           if (typeLine.includes('creature') || typeLine.includes('planeswalker') || typeLine.includes('sorcery') || typeLine.includes('enchantment')) {
-            if (targetTribe && typeLine.includes('creature')) {
-              const isTribeMatch = typeLine.includes(targetTribe) || oracleText.includes(targetTribe);
+            const rawTribe = (strategicNeedRequest.targetTribe || intentPackage.primaryTribe || intentPackage.tribe || '').toLowerCase();
+            if (rawTribe && typeLine.includes('creature')) {
+              const isTribeMatch = CardImplementer.matchesTribe(card, rawTribe);
               if (!isTribeMatch) break;
             }
 
@@ -387,6 +371,10 @@ export class CardImplementer {
           if ((oracleText.includes('return') && oracleText.includes('graveyard')) || oracleText.includes('mill') || oracleText.includes('unburial')) {
             score += 100;
           }
+        } else if (archetype.includes('ramp') || strategy.includes('ramp') || archetype.includes('tron') || strategy.includes('tron') || strategy.includes('big mana') || (intentPackage.selectedEngineId || '').includes('tron')) {
+          if (oracleText.includes('search your library for a land') || oracleText.includes('add {') || oracleText.includes('additional land') || (typeLine.includes('creature') && cmc >= 5) || oracleText.includes('trample') || typeLine.includes('planeswalker') || oracleText.includes('without paying its mana cost') || oracleText.includes('colorless')) {
+            score += 100;
+          }
         }
 
         // === VECTOR 3: Oracle Tuner & Keyword Synergy Boost ===
@@ -483,5 +471,41 @@ export class CardImplementer {
       provenanceMap: candidatePool.map(c => ({ name: c.name, provenance: c.retrievalProvenance }))
     };
   }
-}
 
+  /**
+   * Universal helper to match tribal and alliance subtypes
+   */
+  static matchesTribe(card, rawTribe) {
+    if (!rawTribe) return true;
+    const tribeLower = (rawTribe || '').toLowerCase();
+    const typeLine = (card.type_line || card.typeLine || '').toLowerCase();
+    const oracleText = (card.oracle_text || card.oracleText || card.text || '').toLowerCase();
+
+    const GUILD_FACTIONS = new Set([
+      'boros_guild', 'golgari_guild', 'dimir_guild', 'rakdos_guild', 'azorius_guild',
+      'gruul_guild', 'selesnya_guild', 'orzhov_guild', 'izzet_guild', 'simic_guild',
+      'esper_shard', 'jund_shard', 'naya_shard', 'jeskai_shard', 'sultai_shard',
+      'boros', 'golgari', 'dimir', 'rakdos', 'azorius',
+      'gruul', 'selesnya', 'orzhov', 'izzet', 'simic',
+      'esper', 'grixis', 'jund', 'naya', 'bant',
+      'abzan', 'jeskai', 'sultai', 'mardu', 'temur',
+      'none', 'ninguna', 'general', 'null', 'universal'
+    ]);
+    if (GUILD_FACTIONS.has(tribeLower) || tribeLower.includes('_guild') || tribeLower.includes('_shard')) {
+      return true;
+    }
+
+    let targetSubtypes = [tribeLower];
+    if (tribeLower === 'outlaws') targetSubtypes = ['assassin', 'mercenary', 'pirate', 'rogue', 'warlock'];
+    else if (tribeLower === 'party') targetSubtypes = ['cleric', 'rogue', 'warrior', 'wizard'];
+    else if (tribeLower === 'goblin_horde' || tribeLower.includes('goblin')) targetSubtypes = ['goblin', 'ogre', 'orc'];
+    else if (tribeLower === 'elf_druid' || tribeLower.includes('elf')) targetSubtypes = ['elf', 'druid'];
+    else if (tribeLower === 'human_army' || tribeLower.includes('human')) targetSubtypes = ['human', 'soldier', 'knight'];
+    else if (tribeLower === 'undead_scourge' || tribeLower.includes('zombie')) targetSubtypes = ['zombie', 'skeleton', 'vampire', 'horror'];
+    else if (tribeLower === 'sea_monsters' || tribeLower.includes('sea') || tribeLower.includes('marino') || tribeLower.includes('kraken')) targetSubtypes = ['merfolk', 'kraken', 'leviathan', 'octopus', 'serpent', 'fish'];
+    else if (tribeLower === 'apex_predators' || tribeLower.includes('predator')) targetSubtypes = ['dinosaur', 'beast', 'hydra'];
+    else if (tribeLower === 'werewolves' || tribeLower.includes('werewolf')) targetSubtypes = ['werewolf', 'wolf', 'human'];
+
+    return targetSubtypes.some(sub => typeLine.includes(sub) || oracleText.includes(sub));
+  }
+}

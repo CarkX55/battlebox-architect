@@ -225,10 +225,15 @@ export function composeDynamicBlueprint(session, engineGraph) {
   });
   slots.push(landSlot);
 
-  const archetypeTitle = intent.strategicArchetype 
-    ? intent.strategicArchetype.charAt(0).toUpperCase() + intent.strategicArchetype.slice(1)
+  const rawArch = intent.strategicArchetype || intent.tempo || intent.archetype || '';
+  const archStr = typeof rawArch === 'string' ? rawArch.trim() : (Array.isArray(rawArch) && rawArch[0] ? String(rawArch[0]) : (rawArch?.name || ''));
+  const archetypeTitle = archStr 
+    ? archStr.charAt(0).toUpperCase() + archStr.slice(1)
     : 'Midrange';
-  const tribeTitle = intent.tribe && intent.tribe !== 'none' && intent.tribe !== 'ninguna' ? intent.tribe : (intent.userPrompt || 'Ecosistema');
+
+  const rawTribe = intent.tribe || intent.primaryTribe;
+  const tribeStr = typeof rawTribe === 'string' ? rawTribe.trim() : (rawTribe?.name || '');
+  const tribeTitle = tribeStr && tribeStr.toLowerCase() !== 'none' && tribeStr.toLowerCase() !== 'ninguna' ? tribeStr : (intent.userPrompt || 'Ecosistema');
 
   const deckName = `${tribeTitle} ${archetypeTitle} v6.0`;
   const lore = `Un mazo forjado en torno al motor causal de ${tribeTitle}, combinando desarrollo en curva y explosión de recursos.`;

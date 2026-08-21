@@ -33,12 +33,15 @@ export class IntentBuilder {
     const archetype = input.archetype || input.arquetipo || input.tempo || null;
     const rawTribe = input.tribe || input.tribu || input.primaryTribe || null;
     let primaryTribe = rawTribe ? IntentNormalizer.normalizeTribe(rawTribe) : null;
+    if (primaryTribe && ['none', 'null', 'general', 'ninguna', 'sin tribu', 'omitir', 'universal'].includes(primaryTribe.toLowerCase().trim())) {
+      primaryTribe = null;
+    }
     
     // Auto-detect primaryTribe from selectedEngineId or engineFlavor if tribe is unselected
     const engId = (input.selectedEngineId || input.engineId || '').toLowerCase();
     const engFlav = (input.engineFlavor || input.flavor || '').toLowerCase();
     const comb = `${engId} ${engFlav}`;
-    if (!primaryTribe || primaryTribe.toLowerCase() === 'none' || primaryTribe.toLowerCase() === 'general' || primaryTribe.toLowerCase() === 'null') {
+    if (!primaryTribe) {
       if (comb.includes('goblin')) primaryTribe = 'Goblin';
       else if (comb.includes('dragon')) primaryTribe = 'Dragon';
       else if (comb.includes('elf')) primaryTribe = 'Elf';
@@ -49,8 +52,12 @@ export class IntentBuilder {
       else if (comb.includes('demon')) primaryTribe = 'Demon';
     }
 
-    const strategy = Array.isArray(input.strategy) ? input.strategy : (input.estrategia ? [input.estrategia] : []);
-    const mechanics = Array.isArray(input.mechanics) ? input.mechanics : (input.mecanicas ? [input.mecanicas] : []);
+    const rawStrategy = Array.isArray(input.strategy) 
+      ? input.strategy 
+      : (typeof input.strategy === 'string' && input.strategy.trim() ? [input.strategy.trim()] : (input.estrategia ? [input.estrategia] : []));
+    const rawMechanics = Array.isArray(input.mechanics) 
+      ? input.mechanics 
+      : (typeof input.mechanics === 'string' && input.mechanics.trim() ? [input.mechanics.trim()] : (input.mecanicas ? [input.mecanicas] : []));
     
     const budget = input.budget || input.presupuesto || 'Unlimited';
     const powerLevel = input.powerLevel || input.nivelPoder || 'Competitive';
@@ -82,14 +89,47 @@ export class IntentBuilder {
     const vetoedKeywordsSet = new Set(Array.isArray(input.vetoedKeywords) ? input.vetoedKeywords : []);
 
     const tribeKey = primaryTribe ? primaryTribe.toLowerCase() : '';
-    const stratKey = (selectedEngineId || (strategy[0] || '')).toLowerCase();
 
-    // Inject boost keywords for RAG guidance without preloading static packages
-    const matchingEngine = UNIVERSAL_ENGINES.find(e => e.id === selectedEngineId || e.id.replace('_generic','') === stratKey);
+    // Search terms for universal engines
+    const searchTerms = [
+      selectedEngineId || '',
+      engineFlavor || '',
+      ...rawStrategy,
+      ...rawMechanics
+    ].map(t => String(t).toLowerCase().trim()).filter(Boolean);
+
+    const matchingEngine = UNIVERSAL_ENGINES.find(e => {
+      const eId = e.id.toLowerCase();
+      const eBase = eId.replace('_generic', '');
+      const eLabel = (e.label || '').toLowerCase();
+      return searchTerms.some(t => 
+        t === eId || 
+        t === eBase || 
+        t === eLabel || 
+        eLabel.includes(t) || 
+        t.includes(eBase)
+      );
+    });
+
+    let strategy = [...rawStrategy];
+    let mechanics = [...rawMechanics];
+
     if (matchingEngine) {
+      const baseName = matchingEngine.id.replace('_generic', '');
+      if (strategy.length === 0) {
+        strategy.push(baseName);
+      }
+      if (mechanics.length === 0 && matchingEngine.boostKeywords) {
+        mechanics.push(...matchingEngine.boostKeywords.slice(0, 3));
+      }
       if (matchingEngine.boostKeywords) matchingEngine.boostKeywords.forEach(kw => boostKeywordsSet.add(kw));
       if (matchingEngine.vetoedKeywords) matchingEngine.vetoedKeywords.forEach(kw => vetoedKeywordsSet.add(kw));
       if (colors.length === 0 && matchingEngine.requiredColors) colors = [...matchingEngine.requiredColors];
+    } else if (selectedEngineId) {
+      const baseName = String(selectedEngineId).replace('_generic', '').trim();
+      if (baseName && strategy.length === 0) {
+        strategy.push(baseName);
+      }
     }
 
     const matchingTribe = MTG_TRIBES.find(t => t.id === tribeKey || t.subtypes?.includes(tribeKey) || t.label.toLowerCase().includes(tribeKey));
@@ -105,7 +145,8 @@ export class IntentBuilder {
       }
     }
 
-    const matchingStrategy = MTG_STRATEGIES.find(s => s.id === stratKey || s.label.toLowerCase().includes(stratKey));
+    const stratKey = (selectedEngineId || (strategy[0] || '')).toLowerCase();
+    const matchingStrategy = MTG_STRATEGIES.find(s => s.id === stratKey || s.label.toLowerCase().includes(stratKey) || searchTerms.some(st => s.id === st || s.label.toLowerCase().includes(st)));
     if (matchingStrategy) {
       if (matchingStrategy.keywords) matchingStrategy.keywords.forEach(kw => boostKeywordsSet.add(kw));
       if (colors.length === 0 && matchingStrategy.colors) colors = [...matchingStrategy.colors];
@@ -132,7 +173,7 @@ export class IntentBuilder {
       allowedRarities,
       generationPriority,
       allowCustomCards: input.allowCustomCards !== false,
-      creativity: Number(input.creativity !== undefined ? input.creativity : 50),
+      creativity: Number(input.creativity !== undefined ? input.creativity : (input.fairPlayMode ? 40 : 50)),
       playstyle: input.playstyle || input.playStyle || 'balanced',
       stance: input.stance || 'balanced',
       goal: input.goal || 'BALANCED',
@@ -150,7 +191,12 @@ export class IntentBuilder {
       sideboardFocus: Array.isArray(input.sideboardFocus) ? [...input.sideboardFocus] : [],
       sideboardSize: Number(input.sideboardSize || 15),
       companero: input.companero || input.companion || null,
-      deckSize: Number(input.deckSize || input.tamanoMazo || 60)
+      deckSize: Number(input.deckSize || input.tamanoMazo || 60),
+      fairPlayMode: Boolean(input.fairPlayMode),
+      competitiveIntensity: input.competitiveIntensity || (input.fairPlayMode ? 'CASUAL' : 'COMPETITIVE'),
+      manaRiskTolerance: input.manaRiskTolerance || (input.fairPlayMode ? 'LOW' : 'MODERATE'),
+      interactionPreference: input.interactionPreference || (input.fairPlayMode ? 'MODERATE' : 'OPTIMAL'),
+      frustrationTolerance: input.frustrationTolerance || (input.fairPlayMode ? 'LOW' : 'HIGH')
     };
 
     const mustRules = Array.isArray(input.mustRules) ? [...input.mustRules] : [];
@@ -180,8 +226,35 @@ export class IntentBuilder {
       preferRules.push(...mechanics.map(m => `mechanic == ${m}`));
     }
 
+    const isOpenStrategy = Boolean(input.isOpenStrategy || input.estrategiaAbierta || input.archetype === 'open-strategy' || input.archetype === 'open_strategy' || input.arquetipo === 'estrategia-abierta');
+    const customizationLevel = input.customizationLevel || input.nivelPersonalizacion || 'ADVANCED';
+    const intentPriorities = {
+      competitiveVsTheme: Number(input.intentPriorities?.competitiveVsTheme ?? input.prioridadCompetitiva ?? 0.8),
+      tribeVsSynergy: Number(input.intentPriorities?.tribeVsSynergy ?? input.prioridadTribu ?? 0.8),
+      innovationVsConsistency: Number(input.intentPriorities?.innovationVsConsistency ?? input.prioridadInnovacion ?? 0.2)
+    };
+    const archetypePreferences = input.archetypePreferences || input.preferenciasArquetipo || {};
+    const tripartiteConstraints = {
+      hard: Array.isArray(input.tripartiteConstraints?.hard) ? input.tripartiteConstraints.hard : (Array.isArray(input.restriccionesDuras) ? input.restriccionesDuras : []),
+      preferred: Array.isArray(input.tripartiteConstraints?.preferred) ? input.tripartiteConstraints.preferred : (Array.isArray(input.preferenciasBlandas) ? input.preferenciasBlandas : []),
+      open: input.tripartiteConstraints?.open !== false
+    };
+    const thesisRefutationPolicy = input.thesisRefutationPolicy || input.politicaRefutacion || 'REFORMULATE_IF_BETTER';
+    const softPreferences = {
+      likedCards: Array.isArray(input.softPreferences?.likedCards) ? input.softPreferences.likedCards : (Array.isArray(input.cartasGustadas) ? input.cartasGustadas : (Array.isArray(input.likedCards) ? input.likedCards : [])),
+      avoidedCards: Array.isArray(input.softPreferences?.avoidedCards) ? input.softPreferences.avoidedCards : (Array.isArray(input.cartasEvitadas) ? input.cartasEvitadas : (Array.isArray(input.avoidedCards) ? input.avoidedCards : []))
+    };
+    const strategicFreedom = {
+      discoverSynergies: input.strategicFreedom?.discoverSynergies ?? true,
+      allowSubArchetypePivot: input.strategicFreedom?.allowSubArchetypePivot ?? true,
+      reformulateIfRefuted: input.strategicFreedom?.reformulateIfRefuted ?? (thesisRefutationPolicy !== 'MAINTAIN_SUBOPTIMAL'),
+      allowOffTribe: input.strategicFreedom?.allowOffTribe ?? Boolean(input.permitirFueraDeTribu)
+    };
+    const decisionPhilosophy = input.decisionPhilosophy || input.filosofiaDecision || 'MAX_POWER';
+    const constructionMode = input.constructionMode || input.modoConstruccion || 'PRO';
+
     return new IntentPackage({
-      prompt: input.customPrompt || input.prompt || `${archetype} ${format}`,
+      prompt: input.customPrompt || input.prompt || (archetype ? `${archetype} ${format}` : ''),
       format,
       colors,
       primaryTribe,
@@ -194,6 +267,16 @@ export class IntentBuilder {
       mustRules,
       mustNotRules,
       preferRules,
+      isOpenStrategy,
+      customizationLevel,
+      intentPriorities,
+      archetypePreferences,
+      tripartiteConstraints,
+      thesisRefutationPolicy,
+      softPreferences,
+      strategicFreedom,
+      decisionPhilosophy,
+      constructionMode,
       source: 'UI_FORM_STATE'
     });
 

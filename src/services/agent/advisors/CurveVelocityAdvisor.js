@@ -38,8 +38,9 @@ export class CurveVelocityAdvisor {
 
     // 1. High-CMC Overcrowding Check (CMC >= 5)
     if (cmc >= 5) {
-      const isRamp = (deckState.archetype || '').toLowerCase().includes('ramp');
-      const maxAllowed = isRamp ? 8 : 6;
+      const archStr = ((deckState.archetype || deckState.intentPackage?.archetype || deckState.intentPackage?.tempo || '') + ' ' + (deckState.intentPackage?.selectedEngineId || '')).toLowerCase();
+      const isRampOrTron = archStr.includes('ramp') || archStr.includes('tron') || archStr.includes('big_mana') || archStr.includes('titan');
+      const maxAllowed = isRampOrTron ? 14 : 6;
       if (cmc5Plus >= maxAllowed) {
         status = 'OVERCROWDED';
         evidence.push(`High-CMC curve (5+) is OVERCROWDED (${cmc5Plus}/${maxAllowed} slots). Rejection recommended.`);

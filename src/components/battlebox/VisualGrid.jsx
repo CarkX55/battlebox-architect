@@ -769,18 +769,44 @@ export default function VisualGrid({ cards, onRemoveCard, onAddCard, isEditing, 
                              {sug._invalid && <XCircle size={10} className="text-red-400" />}
                           </div>
                           <div className="flex-1">
-                            {/* Badge de Categoría de Cambio */}
-                            {sug.changeType && !sug._invalid && (
-                              <div className="mb-1">
-                                <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-purple-900/40 border border-purple-500/30 text-purple-300 inline-block">
+                            {/* Badges de Especialista del Consejo y Deterministic Supreme Judge */}
+                            <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
+                              {sug.specialist && (
+                                <span className={cn(
+                                  "text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded border flex items-center gap-1",
+                                  sug.specialist === 'MANA' ? "bg-emerald-950/60 border-emerald-500/40 text-emerald-300" :
+                                  sug.specialist === 'SYNERGY' ? "bg-purple-950/60 border-purple-500/40 text-purple-300" :
+                                  sug.specialist === 'CURVE' ? "bg-amber-950/60 border-amber-500/40 text-amber-300" :
+                                  "bg-blue-950/60 border-blue-500/40 text-blue-300"
+                                )}>
+                                  {sug.specialist === 'MANA' && '🌿 Mana Analyst'}
+                                  {sug.specialist === 'SYNERGY' && '🧬 Synergy Guardian'}
+                                  {sug.specialist === 'CURVE' && '⏱️ Curve Specialist'}
+                                  {sug.specialist === 'INTERACTION' && '⚔️ Interaction Specialist'}
+                                </span>
+                              )}
+
+                              {sug.changeType && !sug._invalid && (
+                                <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-black/60 border border-white/15 text-white/70">
                                   {sug.changeType === 'Strict Upgrade' ? '⚡ Strict Upgrade'
                                     : sug.changeType === 'Synergy Upgrade' ? '🔗 Synergy Upgrade'
                                     : sug.changeType === 'Curve Fix' ? '📉 Curve Fix'
                                     : sug.changeType === 'Protection Fix' ? '🛡️ Protection Fix'
                                     : sug.changeType}
                                 </span>
-                              </div>
-                            )}
+                              )}
+
+                              {sug.auditEvidenceInvariant && (
+                                <span className={cn(
+                                  "text-[8.5px] font-mono font-bold px-1.5 py-0.5 rounded border ml-auto",
+                                  sug.auditEvidenceInvariant.judgeVerdict === 'ACCEPT'
+                                    ? "bg-emerald-950/40 border-emerald-500/30 text-emerald-400"
+                                    : "bg-red-950/40 border-red-500/30 text-red-400"
+                                )}>
+                                  ⚖️ Judge: {sug.auditEvidenceInvariant.judgeVerdict}
+                                </span>
+                              )}
+                            </div>
 
                             {/* Badge de validación fallida */}
                             {sug._invalid && (

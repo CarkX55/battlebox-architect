@@ -1,6 +1,6 @@
 // src/services/ragService.js
 import { getBlueprint, getFormatAdjustedBlueprint } from '../constants/blueprintTemplates.js';
-import { MTG_TRIBES, MTG_STRATEGIES, PARASITIC_RULES, inferStrategyFromArchetype, CO_OCCURRENCE_RULES } from '../constants/legacyBattleBox.js';
+import { MTG_TRIBES, MTG_STRATEGIES, UNIVERSAL_ENGINES, PARASITIC_RULES, inferStrategyFromArchetype, CO_OCCURRENCE_RULES } from '../constants/legacyBattleBox.js';
 import { getAllCards } from './dbIngestor.js';
 import { loadMetaFromDB } from './mtgtop8Service.js';
 import { getSignalBoosts } from './synergyActivationEngine.js';
@@ -471,6 +471,15 @@ export const buildCardPool = async (formData) => {
         }
       }
     }
+  }
+  if (!activeFlavor && UNIVERSAL_ENGINES) {
+    const targetStr = String(targetEngineId || '').toLowerCase().trim();
+    activeFlavor = UNIVERSAL_ENGINES.find(e => 
+      e.id.toLowerCase() === targetStr || 
+      e.id.toLowerCase().replace('_generic', '') === targetStr ||
+      (e.label && e.label.toLowerCase().includes(targetStr)) ||
+      (targetStr && e.label && targetStr.includes(e.id.toLowerCase().replace('_generic', '')))
+    );
   }
 
   const userBoostKws = Array.isArray(formData.boostKeywords) ? formData.boostKeywords : (typeof formData.boostKeywords === 'string' ? formData.boostKeywords.split(',').map(k => k.trim()) : []);

@@ -7,10 +7,33 @@
 
 export class IntentNormalizer {
   static normalizeTribe(rawTribe) {
-    if (!rawTribe || typeof rawTribe !== 'string') return '';
-    const clean = rawTribe.trim().toLowerCase();
+    if (!rawTribe || typeof rawTribe !== 'string') return null;
+    const clean = rawTribe.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, '').trim().toLowerCase();
+    if (!clean || ['none', 'null', 'general', 'ninguna', 'sin tribu', 'omitir', 'universal', 'sin_tribu'].includes(clean)) {
+      return null;
+    }
 
     const dictionary = {
+      // Alianzas y Gremios (Prioritarios)
+      'terrores marinos (tritones, krakens, leviatanes)': 'Sea_monsters',
+      'terrores marinos': 'Sea_monsters',
+      'sea_monsters': 'Sea_monsters',
+      'sea monsters': 'Sea_monsters',
+      'forajidos (asesinos, mercenarios, piratas, pícaros)': 'Outlaws',
+      'forajidos': 'Outlaws',
+      'grupo de aventura (clérigo, pícaro, guerrero, mago)': 'Party',
+      'party': 'Party',
+      'ejército (humanos, soldados, caballeros)': 'Human_army',
+      'ejército': 'Human_army',
+      'horda (goblins, orcos, ogros)': 'Goblin_horde',
+      'horda': 'Goblin_horde',
+      'naturaleza (elfos, druidas, elementales)': 'Elf_druid',
+      'naturaleza': 'Elf_druid',
+      'plaga (zombies, esqueletos, horrores)': 'Undead_scourge',
+      'plaga': 'Undead_scourge',
+      'depredadores del ápice (dinosaurios, bestias, hidras)': 'Apex_predators',
+      'depredadores': 'Apex_predators',
+
       // Razas Clásicas & Vocaciones
       'tritones (merfolk)': 'Merfolk', 'tritones': 'Merfolk', 'merfolk': 'Merfolk',
       'gigantes (giants)': 'Giant', 'gigantes': 'Giant', 'giant': 'Giant', 'giants': 'Giant',
@@ -35,6 +58,8 @@ export class IntentNormalizer {
       'piratas (pirates)': 'Pirate', 'piratas': 'Pirate', 'pirate': 'Pirate', 'pirates': 'Pirate',
       
       // Monstruos, Exóticas & Nuevas Tribus Icónicas
+      'krakens': 'Sea_monsters', 'kraken': 'Sea_monsters',
+      'leviatanes': 'Sea_monsters', 'leviathan': 'Sea_monsters', 'leviathans': 'Sea_monsters',
       'bestias (beasts)': 'Beast', 'bestias': 'Beast', 'beast': 'Beast', 'beasts': 'Beast',
       'elementales (elementals)': 'Elemental', 'elementales': 'Elemental', 'elemental': 'Elemental', 'elementals': 'Elemental',
       'eldrazi (eldrazi tron / aggro)': 'Eldrazi', 'eldrazi': 'Eldrazi',
@@ -55,7 +80,7 @@ export class IntentNormalizer {
       'metamorfos (changelings - universal tribal)': 'Changeling', 'metamorfos': 'Changeling', 'changeling': 'Changeling', 'changelings': 'Changeling',
       'brujos & cultistas (warlocks)': 'Warlock', 'brujos': 'Warlock', 'warlock': 'Warlock', 'warlocks': 'Warlock',
 
-      // Alianzas y Gremios
+      // Gremios
       'gremio boros (prowess & sunforger)': 'Boros_guild', 'boros': 'Boros_guild',
       'gremio golgari (dredge & undergrowth)': 'Golgari_guild', 'golgari': 'Golgari_guild',
       'gremio dimir (infiltración & tempo)': 'Dimir_guild', 'dimir': 'Dimir_guild',
@@ -66,23 +91,20 @@ export class IntentNormalizer {
       'alianza jund (desgaste & sacrificio)': 'Jund_shard', 'jund': 'Jund_shard',
       'alianza naya (bestias & enjambre)': 'Naya_shard', 'naya': 'Naya_shard',
       'alianza jeskai (prowess & tempo burn)': 'Jeskai_shard', 'jeskai': 'Jeskai_shard',
-      'alianza sultai (reanimación & cementerio)': 'Sultai_shard', 'sultai': 'Sultai_shard',
-      'forajidos (asesinos, mercenarios, piratas, pícaros)': 'Outlaws', 'forajidos': 'Outlaws',
-      'grupo de aventura (clérigo, pícaro, guerrero, mago)': 'Party', 'party': 'Party',
-      'ejército (humanos, soldados, caballeros)': 'Human_army', 'ejército': 'Human_army',
-      'horda (goblins, orcos, ogros)': 'Goblin_horde', 'horda': 'Goblin_horde',
-      'naturaleza (elfos, druidas, elementales)': 'Elf_druid', 'naturaleza': 'Elf_druid',
-      'terrores marinos (tritones, krakens, leviatanes)': 'Sea_monsters', 'terrores marinos': 'Sea_monsters',
-      'plaga (zombies, esqueletos, horrores)': 'Undead_scourge', 'plaga': 'Undead_scourge',
-      'depredadores del ápice (dinosaurios, bestias, hidras)': 'Apex_predators', 'depredadores': 'Apex_predators'
+      'alianza sultai (reanimación & cementerio)': 'Sultai_shard', 'sultai': 'Sultai_shard'
     };
 
     // 1. Direct dictionary match first
     if (dictionary[clean]) return dictionary[clean];
 
-    // 2. Substring matching for full labels e.g. "Gremio Golgari..." -> "Golgari_guild"
-    for (const [key, val] of Object.entries(dictionary)) {
-      if (clean.includes(key) || key.includes(clean)) return val;
+    // 2. Exact and longest-key substring matching
+    const sortedKeys = Object.keys(dictionary).sort((a, b) => b.length - a.length);
+    for (const key of sortedKeys) {
+      if (clean === key) return dictionary[key];
+    }
+
+    for (const key of sortedKeys) {
+      if (clean.includes(key)) return dictionary[key];
     }
 
     // 3. Extract inside parentheses if available e.g. "Tritones (Merfolk)" -> "Merfolk"

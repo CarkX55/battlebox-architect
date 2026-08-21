@@ -14,6 +14,12 @@ import { getAllCards } from '../../services/dbIngestor';
 import ManaCurve from './ManaCurve';
 import { composeTwoLayerBlueprint } from '../../constants/blueprintTemplates';
 import { isUniversesBeyondOrCustom } from '../../utils/legalityCheck';
+import FirstLevelPrioritySliders from './FirstLevelPrioritySliders';
+import ArchetypeBehaviorTuner from './ArchetypeBehaviorTuner';
+import TripartiteConstraintsManager from './TripartiteConstraintsManager';
+import StrategicContractPreview from './StrategicContractPreview';
+import { StrategicContractBridge } from '../../services/compiler/core/strategicContractBridge';
+import { IntentBuilder } from '../../services/compiler/core/intentBuilder';
 
 // Componente de Renderizado Gráfico de Coste de Maná Premium (Scryfall Style)
 export function RenderManaCost({ manaCost, className }) {
@@ -171,6 +177,31 @@ function QuickGlancePanel({ formData, currentArchetype, selectedTribeInfo, selec
 
   const speedStyle = getSpeedStyle(currentArchetype.speed);
 
+  // Diagnóstico visual de CMC en tiempo real (Puramente informativo para la UI)
+  const cmcMetrics = useMemo(() => {
+    if (pseudoDeck && pseudoDeck.length > 0) {
+      const nonLands = pseudoDeck.filter(c => {
+        const type = (c.type_line || c.type || '').toLowerCase();
+        const cat = (c.category || '').toLowerCase();
+        return !type.includes('land') && !type.includes('tierra') && !cat.includes('land');
+      });
+      const totalCards = nonLands.reduce((acc, c) => acc + Number(c.quantity || 1), 0);
+      if (totalCards > 0) {
+        const totalCmc = nonLands.reduce((acc, c) => acc + (Number(c.cmc ?? c.mana_value ?? 0) * Number(c.quantity || 1)), 0);
+        const avgCmc = Number((totalCmc / totalCards).toFixed(2));
+        const earlyDrops = nonLands
+          .filter(c => Number(c.cmc ?? c.mana_value ?? 0) <= 2)
+          .reduce((acc, c) => acc + Number(c.quantity || 1), 0);
+        const earlyPercent = Math.round((earlyDrops / totalCards) * 100);
+        return { avgCmc, earlyPercent, totalSpells: totalCards };
+      }
+    }
+    const archVal = (currentArchetype?.value || currentArchetype?.id || 'midrange').toLowerCase();
+    if (archVal.includes('aggro') || archVal.includes('burn') || archVal.includes('prowess')) return { avgCmc: 1.85, earlyPercent: 72, totalSpells: 36 };
+    if (archVal.includes('control') || archVal.includes('ramp')) return { avgCmc: 3.10, earlyPercent: 38, totalSpells: 36 };
+    return { avgCmc: 2.45, earlyPercent: 55, totalSpells: 36 };
+  }, [pseudoDeck, currentArchetype]);
+
   const prosepica = getProsaEpica(formData, currentArchetype);
 
   return (
@@ -199,6 +230,27 @@ function QuickGlancePanel({ formData, currentArchetype, selectedTribeInfo, selec
           <span className="text-[8.5px] uppercase tracking-widest text-[#ffdf91] font-black leading-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">Turno Crítico</span>
           <span className="text-sm font-cinzel font-black text-magic-gold leading-none mt-1.5 drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">T{currentArchetype.winTurn}</span>
           <span className="text-[8px] font-sans font-bold text-white/60 leading-none mt-1">Victoria Optimizada</span>
+        </div>
+
+        {/* Diagnóstico Visual Pasivo de Curva & CMC (Solo Informativo) */}
+        <div className="p-3 rounded-xl border border-white/15 bg-black/85 shadow-[inset_0_0_10px_rgba(0,0,0,0.9)] flex flex-col justify-between min-h-[64px] col-span-2">
+          <div className="flex justify-between items-center">
+            <span className="text-[8.5px] uppercase tracking-widest text-[#ffdf91] font-black leading-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)] flex items-center gap-1">
+              <span>📊</span> Coste Medio (CMC)
+            </span>
+            <span className={cn(
+              "text-[9px] font-mono font-black px-2 py-0.5 rounded border",
+              cmcMetrics.avgCmc <= 2.2 ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/40" :
+              cmcMetrics.avgCmc <= 2.9 ? "bg-amber-500/20 text-amber-300 border-amber-500/40" :
+              "bg-purple-500/20 text-purple-300 border-purple-500/40"
+            )}>
+              {cmcMetrics.avgCmc}
+            </span>
+          </div>
+          <div className="flex justify-between items-center text-[8.5px] text-white/70 mt-1">
+            <span className="font-sans">Drops Tempranos (CMC 1-2):</span>
+            <span className="text-magic-gold font-bold font-mono">{cmcMetrics.earlyPercent}%</span>
+          </div>
         </div>
       </div>
 
@@ -505,6 +557,36 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
       manaGreed: 'balanced',
       manaBaseStyle: 'competitive',
       sideboardFocus: [],
+      customizationLevel: 'ADVANCED',
+      intentPriorities: {
+        competitiveVsTheme: 0.8,
+        tribeVsSynergy: 0.8,
+        innovationVsConsistency: 0.2
+      },
+      archetypePreferences: {
+        speed: 'EXPLOSIVE',
+        damagePlan: 'MIXED',
+        reachPriority: 'HIGH',
+        resilience: 'BALANCED'
+      },
+      tripartiteConstraints: {
+        hard: [],
+        preferred: [],
+        open: true
+      },
+      softPreferences: {
+        likedCards: [],
+        avoidedCards: []
+      },
+      strategicFreedom: {
+        discoverSynergies: true,
+        allowSubArchetypePivot: true,
+        reformulateIfRefuted: true,
+        allowOffTribe: false
+      },
+      thesisRefutationPolicy: 'REFORMULATE_IF_BETTER',
+      decisionPhilosophy: 'MAX_POWER',
+      constructionMode: 'PRO',
     };
   });
 
@@ -705,6 +787,60 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
     return list;
   }, [seedCards, allCards]);
 
+  // Diagnóstico visual pasivo de CMC para las semillas seleccionadas en tiempo real
+  const selectedSeedsCmcMetrics = useMemo(() => {
+    const seedEntries = Object.entries(seedCards || {});
+    if (seedEntries.length === 0) return null;
+    let totalCmc = 0;
+    let totalCount = 0;
+    let earlyCount = 0;
+    for (const [cardName, count] of seedEntries) {
+      const card = allCards.find(c => c.name.toLowerCase() === cardName.toLowerCase()) || packCards.find(c => c.name.toLowerCase() === cardName.toLowerCase());
+      const cmc = Number(card?.cmc ?? card?.mana_value ?? 0);
+      const qty = Number(count || 1);
+      totalCmc += cmc * qty;
+      totalCount += qty;
+      if (cmc <= 2) earlyCount += qty;
+    }
+    if (totalCount === 0) return null;
+    return {
+      avgCmc: Number((totalCmc / totalCount).toFixed(2)),
+      earlyPercent: Math.round((earlyCount / totalCount) * 100),
+      totalSeeds: totalCount
+    };
+  }, [seedCards, allCards, packCards]);
+
+  const handleToggleFairPlay = () => {
+    vibrateTouch();
+    setFormData(prev => {
+      const isActivating = !prev.fairPlayMode;
+      const friendlyVetos = ['infect', 'extra turn', 'destroy all lands', 'annihilator'];
+      
+      const newVetoed = isActivating
+        ? [...new Set([...(prev.vetoedKeywords || []), ...friendlyVetos])]
+        : (prev.vetoedKeywords || []).filter(k => !friendlyVetos.includes(k));
+
+      const newPredefined = isActivating
+        ? [...new Set([...(prev.predefinedBanned || []), 'Mana Crypt', 'Sol Ring'])]
+        : (prev.predefinedBanned || []).filter(b => !['Mana Crypt', 'Sol Ring'].includes(b));
+
+      return {
+        ...prev,
+        fairPlayMode: isActivating,
+        competitiveIntensity: isActivating ? 'CASUAL' : 'COMPETITIVE',
+        manaRiskTolerance: isActivating ? 'LOW' : 'MODERATE',
+        interactionPreference: isActivating ? 'MODERATE' : 'OPTIMAL',
+        frustrationTolerance: isActivating ? 'LOW' : 'HIGH',
+        stance: isActivating ? 'balanced' : prev.stance,
+        playstyle: isActivating ? 'balanced' : prev.playstyle,
+        manaGreed: isActivating ? 'balanced' : prev.manaGreed,
+        creativity: isActivating ? 40 : (prev.creativity || 50),
+        vetoedKeywords: newVetoed,
+        predefinedBanned: newPredefined
+      };
+    });
+  };
+
   const getStepStatus = useCallback((stepId) => {
     switch (stepId) {
       case 1:
@@ -793,6 +929,7 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
   const getEngineIcon = (id) => {
     if (!id) return '🔮';
     const cleanId = id.toLowerCase();
+    if (cleanId.includes('sea_monsters') || cleanId.includes('marinos') || cleanId.includes('kraken')) return '🌊';
     if (cleanId.includes('aristocrats')) return '💀';
     if (cleanId.includes('reanimator')) return '⚰️';
     if (cleanId.includes('spellslinger')) return '⚡';
@@ -804,6 +941,9 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
     if (cleanId.includes('voltron')) return '🛡️';
     if (cleanId.includes('storm')) return '🌪️';
     if (cleanId.includes('affinity')) return '⚙️';
+    if (cleanId.includes('counters')) return '➕';
+    if (cleanId.includes('tokens')) return '👥';
+    if (cleanId.includes('enchantress')) return '✨';
     if (cleanId.includes('lords')) return '👑';
     if (cleanId.includes('amass')) return '🧟';
     if (cleanId.includes('aggro')) return '⚔️';
@@ -1382,16 +1522,13 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
   const isTribeCompatible = useCallback((tribe) => {
     if (!tribe) return false;
     if (!formData.strategy || isCustomStrategy) return true;
-    const stratData = MTG_STRATEGIES.find(s => s.label === formData.strategy);
+    const stratData = MTG_STRATEGIES.find(s => s.label === formData.strategy || s.id === formData.selectedEngineId?.replace('_generic', ''));
     if (!stratData) return true;
     
-    // Si la tribu tiene estrategias recomendadas explícitas, comprobamos compatibilidad
-    if (tribe.strategies && tribe.strategies.length > 0) {
-      return tribe.strategies.includes(stratData.id);
-    }
-    // Si no, verificamos que compartan algún color
-    return Array.isArray(tribe.colors) && Array.isArray(stratData.colors) && tribe.colors.some(c => stratData.colors.includes(c));
-  }, [formData.strategy, isCustomStrategy]);
+    // Si la tribu o estrategia son flexibles o comparten algún color, es totalmente compatible
+    if (!Array.isArray(tribe.colors) || !Array.isArray(stratData.colors)) return true;
+    return tribe.colors.some(c => stratData.colors.includes(c)) || stratData.colors.includes('C') || tribe.colors.includes('C');
+  }, [formData.strategy, isCustomStrategy, formData.selectedEngineId]);
 
   const isStrategyCompatible = useCallback((strat) => {
     if (!strat) return false;
@@ -1399,27 +1536,25 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
     const tribeData = MTG_TRIBES.find(t => t.label === formData.tribe);
     if (!tribeData) return true;
     
-    // Si la tribu tiene estrategias recomendadas explícitas, comprobamos compatibilidad
-    if (tribeData.strategies && tribeData.strategies.length > 0) {
-      return tribeData.strategies.includes(strat.id);
-    }
-    // Si no, verificamos que compartan algún color
-    return Array.isArray(strat.colors) && Array.isArray(tribeData.colors) && strat.colors.some(c => tribeData.colors.includes(c));
+    // Si la tribu o estrategia son flexibles o comparten algún color, es totalmente compatible
+    if (!Array.isArray(strat.colors) || !Array.isArray(tribeData.colors)) return true;
+    return strat.colors.some(c => tribeData.colors.includes(c)) || strat.colors.includes('C') || tribeData.colors.includes('C');
   }, [formData.tribe, isCustomTribe]);
 
   // Filtrado de Tribus viables para el Arquetipo y Formato
   const availableTribes = useMemo(() => {
     const list = MTG_TRIBES.filter(t => {
       if (!t) return false;
-      // Si la tribu especifica formatos y no incluye el seleccionado, se descarta
-      if (t.formats && !t.formats.includes(selectedFormat)) return false;
+      // En formatos eternos/battlebox/legacy/free/custom/modern, todas las tribus son viables
+      const isEternalOrBattlebox = !selectedFormat || ['LEGACY', 'BATTLEBOX', 'LEGACY-BATTLEBOX', 'FREE', 'CUSTOM', 'MODERN', 'COMMANDER'].includes(selectedFormat.toUpperCase());
+      if (t.formats && !isEternalOrBattlebox && !t.formats.includes(selectedFormat)) return false;
       return true;
     });
 
     if (!formData.archetype) return [];
     if (formData.isFreeMode) return list;
     
-    return list.filter(t => t.archetypes && t.archetypes.includes(formData.archetype));
+    return list.filter(t => !t.archetypes || t.archetypes.includes(formData.archetype));
   }, [formData.archetype, formData.isFreeMode, selectedFormat]);
 
   // Agrupar por categoría
@@ -1439,46 +1574,19 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
   const availableStrategies = useMemo(() => {
     const list = MTG_STRATEGIES.filter(s => {
       if (!s) return false;
-      // Si la estrategia especifica formatos y no incluye el seleccionado, se descarta
-      if (s.formats && !s.formats.includes(selectedFormat)) return false;
+      const isEternalOrBattlebox = !selectedFormat || ['LEGACY', 'BATTLEBOX', 'LEGACY-BATTLEBOX', 'FREE', 'CUSTOM', 'MODERN', 'COMMANDER'].includes(selectedFormat.toUpperCase());
+      if (s.formats && !isEternalOrBattlebox && !s.formats.includes(selectedFormat)) return false;
       return true;
     });
 
     if (!formData.archetype) return [];
     if (formData.isFreeMode) return list;
     
-    return list.filter(s => s.archetypes && s.archetypes.includes(formData.archetype));
+    return list.filter(s => !s.archetypes || s.archetypes.includes(formData.archetype));
   }, [formData.archetype, formData.isFreeMode, selectedFormat]);
 
-  // Autoselección reactiva inteligente cuando queda un único camino habilitado
-  useEffect(() => {
-    if (formData.archetype && !formData.isExpertMode) {
-      // 1. Si no hay tribu seleccionada, pero solo hay una tribu compatible habilitada y no ha sido limpiada manualmente
-      const activeCompatibleTribes = availableTribes.filter(isTribeCompatible);
-      if (!formData.tribe && !isCustomTribe && !hasUserClearedTribe && activeCompatibleTribes.length === 1) {
-        setFormData(prev => ({ ...prev, tribe: activeCompatibleTribes[0].label }));
-      }
-      
-      // 2. Si no hay estrategia seleccionada, pero solo hay una estrategia compatible habilitada y no ha sido limpiada manualmente
-      const activeCompatibleStrats = availableStrategies.filter(isStrategyCompatible);
-      if (!formData.strategy && !isCustomStrategy && !hasUserClearedStrategy && activeCompatibleStrats.length === 1) {
-        setFormData(prev => ({ ...prev, strategy: activeCompatibleStrats[0].label }));
-      }
-    }
-  }, [
-    formData.archetype, 
-    formData.isExpertMode,
-    formData.tribe, 
-    formData.strategy, 
-    isCustomTribe, 
-    isCustomStrategy, 
-    hasUserClearedTribe,
-    hasUserClearedStrategy,
-    availableTribes, 
-    availableStrategies, 
-    isTribeCompatible, 
-    isStrategyCompatible
-  ]);
+  // La selección de estrategia / motor es explícita y opcional (a través de Oracle Tuner).
+  // No se impone ninguna estrategia de forma forzada para permitir arquetipos de puro control o sinergia libre.
 
 
 
@@ -1535,19 +1643,48 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
   }, [formData?.colores]);
 
   const steps = [
-    { id: 1, name: 'Clase', desc: 'Arquetipo' },
-    { id: 2, name: 'Núcleo', desc: 'Tribu/Táctica' },
-    { id: 3, name: 'Maná', desc: 'Colores' },
-    { id: 4, name: 'Sello', desc: 'Conjuración' }
+    { id: 1, name: 'Identidad', desc: 'Formato y Límites' },
+    { id: 2, name: 'Comportamiento', desc: 'Tribu y Táctica' },
+    { id: 3, name: 'Recursos', desc: 'Maná y Tierras' },
+    { id: 4, name: 'Libertad', desc: 'Restricciones y Vetos' },
+    { id: 5, name: 'Contrato', desc: 'Preview Estratégico' }
   ];
 
   return (
     <div className="space-y-8 max-w-5xl mx-auto">
-      {/* 4-Step Magic Wizard Progress Bar */}
+      {/* Selector de Nivel de Personalización (Progressive Disclosure) */}
+      <div className="flex items-center justify-between px-4 py-2 bg-stone-900/90 border border-stone-700/60 rounded-xl shadow-lg">
+        <span className="text-[11px] font-bold uppercase tracking-wider text-amber-300 font-cinzel">
+          Profundidad de Control:
+        </span>
+        <div className="flex items-center gap-1">
+          {[
+            { id: 'EASY', label: 'Fácil' },
+            { id: 'ADVANCED', label: 'Avanzado' },
+            { id: 'EXPERT', label: 'Experto' }
+          ].map(lvl => (
+            <button
+              key={lvl.id}
+              type="button"
+              onClick={() => setFormData(prev => ({ ...prev, customizationLevel: lvl.id }))}
+              className={cn(
+                "px-3 py-1 rounded-lg text-xs font-bold transition-all",
+                (formData.customizationLevel || 'ADVANCED') === lvl.id
+                  ? "bg-amber-500/20 border border-amber-400 text-amber-200 shadow-sm"
+                  : "text-stone-400 hover:text-stone-200 hover:bg-stone-800"
+              )}
+            >
+              {lvl.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 5-Step Magic Wizard Progress Bar */}
       {isMobile ? (
         <div className="sticky top-0 z-30 w-full bg-black/90 backdrop-blur-md border-b border-magic-gold/20 py-3 px-4 flex flex-col gap-2 relative overflow-hidden">
           <div className="flex justify-between items-center text-xs font-cinzel text-magic-gold font-bold">
-            <span>PASO {currentStep}/4</span>
+            <span>PASO {currentStep}/5</span>
             <span className="uppercase tracking-wider">
               {steps.find(s => s.id === currentStep)?.name}
             </span>
@@ -1555,7 +1692,7 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
           <div className="w-full bg-white/10 h-1 rounded-full overflow-hidden">
             <div 
               className="bg-gradient-to-r from-magic-gold to-[#ffca58] h-full transition-all duration-300"
-              style={{ width: `${(currentStep / 4) * 100}%` }}
+              style={{ width: `${(currentStep / 5) * 100}%` }}
             />
           </div>
         </div>
@@ -1569,7 +1706,7 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
               {/* Active glowing progress line */}
               <div 
                 className="absolute left-0 top-[18px] h-[2px] bg-gradient-to-r from-magic-gold to-[#ffca58] shadow-[0_0_8px_#ffca58] z-0 transition-all duration-500 ease-out" 
-                style={{ width: `${((currentStep - 1) / 3) * 100}%` }}
+                style={{ width: `${((currentStep - 1) / 4) * 100}%` }}
               />
 
               {steps.map((step) => {
@@ -1582,7 +1719,7 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                     <button
                       type="button"
                       onClick={() => {
-                        if (step.id < currentStep || (step.id === 2 && formData.archetype) || (step.id === 3 && formData.archetype && ((formData?.colores || []).length > 0 || formData.archetype === 'legacy-eldrazi')) || (step.id === 4 && formData.archetype && ((formData?.colores || []).length > 0 || formData.archetype === 'legacy-eldrazi'))) {
+                        if (step.id < currentStep || (step.id === 2 && formData.archetype) || (step.id >= 3 && formData.archetype && ((formData?.colores || []).length > 0 || formData.archetype === 'legacy-eldrazi' || formData.archetype === 'open-strategy'))) {
                           setCurrentStep(step.id);
                         }
                       }}
@@ -1784,6 +1921,40 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                   </label>
                 </div>
               </div>
+
+              {/* Preset Declarativo: Pacto de Amigos (Fair Play & Kitchen Table) */}
+              <div className="p-4 bg-gradient-to-r from-amber-950/40 via-black/80 to-emerald-950/30 border border-magic-gold/30 rounded-2xl relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-[0_0_15px_rgba(255,202,88,0.1)]">
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">⚔️</span>
+                  <div>
+                    <h4 className="text-xs font-cinzel font-black text-magic-gold uppercase tracking-wider flex items-center gap-2">
+                      Pacto de Amigos (Fair Play & Casual Battlebox)
+                    </h4>
+                    <p className="text-[10px] text-white/60 font-serif leading-tight mt-0.5">
+                      Configura el contrato de intención para partidas amistosas: interacción balanceada, maná Karsten estable y veto de turnos extra o combos opresivos.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleToggleFairPlay}
+                  className={cn(
+                    "px-3.5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider border transition-all flex items-center gap-1.5 shrink-0 select-none shadow-md",
+                    formData.fairPlayMode
+                      ? "bg-[#ffca58] border-[#ffca58] text-black shadow-[0_0_12px_rgba(255,202,88,0.35)] scale-[1.02]"
+                      : "bg-black/60 border-white/20 text-white/60 hover:text-white hover:border-white/40"
+                  )}
+                >
+                  <span>{formData.fairPlayMode ? '⚔️ PACTO ACTIVO ✓' : 'ACTIVAR PACTO'}</span>
+                </button>
+              </div>
+
+              {/* Controles Estratégicos de 1er Nivel (Potencia vs Fidelidad) */}
+              <FirstLevelPrioritySliders
+                intentPriorities={formData.intentPriorities}
+                onChange={(newPriorities) => setFormData(prev => ({ ...prev, intentPriorities: newPriorities }))}
+                className="relative z-10"
+              />
 
               {/* Forjas Recientes */}
               {forgeHistory && forgeHistory.length > 0 && (
@@ -2752,7 +2923,7 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                             <button
                               type="button"
                               onClick={() => {
-                                setFormData(prev => ({ ...prev, tribe: '', selectedEngineId: '' }));
+                                setFormData(prev => ({ ...prev, tribe: '', selectedEngineId: '', strategy: '', engineFlavor: '' }));
                                 setIsCustomTribe(false);
                                 setHasUserClearedTribe(true);
                               }}
@@ -2791,7 +2962,7 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                             <button
                               type="button"
                               onClick={() => {
-                                setFormData(prev => ({ ...prev, tribe: '', selectedEngineId: '' }));
+                                setFormData(prev => ({ ...prev, tribe: '', selectedEngineId: '', strategy: '', engineFlavor: '' }));
                                 setHasUserClearedTribe(true);
                               }}
                               className={cn(
@@ -2818,7 +2989,9 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                                     setFormData(prev => ({
                                       ...prev,
                                       tribe: tribe.label,
-                                      selectedEngineId: ''
+                                      selectedEngineId: '',
+                                      strategy: '',
+                                      engineFlavor: ''
                                     }));
                                     setHasUserClearedTribe(false);
                                   }}
@@ -2900,7 +3073,43 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                                 transition={{ duration: 0.3 }}
                                 className="p-4 space-y-4 overflow-hidden border-t border-white/5"
                               >
-                                <div className="grid grid-cols-1 gap-2 max-h-[220px] overflow-y-auto p-1 scrollbar-thin">
+                                <div className="grid grid-cols-1 gap-2 max-h-[260px] overflow-y-auto p-1 scrollbar-thin">
+                                  {/* Opción para limpiar/desactivar cualquier motor secundario */}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setFormData(prev => ({
+                                        ...prev,
+                                        selectedEngineId: '',
+                                        strategy: '',
+                                        engineFlavor: ''
+                                      }));
+                                    }}
+                                    className={cn(
+                                      "p-3 rounded-xl border text-left transition-all duration-300 flex items-start gap-3 relative",
+                                      !formData.selectedEngineId
+                                        ? "border-[#ffca58] bg-[#ffca58]/15 shadow-[0_0_12px_rgba(255,202,88,0.25)] font-black scale-[1.01]"
+                                        : "bg-black/60 border-white/10 hover:border-white/30 hover:bg-black/85"
+                                    )}
+                                  >
+                                    <span className="text-xl shrink-0 mt-0.5">⚖️</span>
+                                    <div className="flex-1">
+                                      <div className="flex items-center justify-between gap-2">
+                                        <span className="font-cinzel text-xs font-bold text-white leading-tight">
+                                          Sin Motor Secundario (Puro Control / Sin Sinergia Forzada)
+                                        </span>
+                                        {!formData.selectedEngineId && (
+                                          <span className="text-[8px] bg-[#ffca58]/20 border border-[#ffca58]/40 text-magic-gold px-1.5 py-0.5 rounded font-bold uppercase tracking-widest">
+                                            ✓ Activo
+                                          </span>
+                                        )}
+                                      </div>
+                                      <p className="text-[10px] text-white/50 font-serif leading-snug mt-1">
+                                        No impone mecánicas secundarias ajenas. Construye el mazo enfocado al 100% en la tribu y el plan clásico del arquetipo.
+                                      </p>
+                                    </div>
+                                  </button>
+
                                   {availableEngines.map(engine => {
                                     const isSelected = formData.selectedEngineId === engine.id;
                                     const isColorOk = isEngineColorCompatible(engine);
@@ -2914,12 +3123,22 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                                         type="button"
                                         disabled={!isColorOk}
                                         onClick={() => {
-                                          setFormData(prev => ({
-                                            ...prev,
-                                            selectedEngineId: engine.id,
-                                            strategy: engine.label,
-                                            engineFlavor: engine.label
-                                          }));
+                                          if (isSelected) {
+                                            // Toggle off / Deseleccionar
+                                            setFormData(prev => ({
+                                              ...prev,
+                                              selectedEngineId: '',
+                                              strategy: '',
+                                              engineFlavor: ''
+                                            }));
+                                          } else {
+                                            setFormData(prev => ({
+                                              ...prev,
+                                              selectedEngineId: engine.id,
+                                              strategy: engine.label,
+                                              engineFlavor: engine.label
+                                            }));
+                                          }
                                         }}
                                         className={cn(
                                           "p-3 rounded-xl border text-left transition-all duration-300 flex items-start gap-3 relative",
@@ -2937,7 +3156,12 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                                               {engine.label}
                                             </span>
                                             <div className="flex items-center gap-1.5 shrink-0">
-                                              {isRecommended && !formData.tribe && (
+                                              {isSelected && (
+                                                <span className="text-[8px] bg-[#ffca58]/20 border border-[#ffca58]/40 text-magic-gold px-1.5 py-0.5 rounded font-bold uppercase tracking-widest">
+                                                  ✓ Activo (Clic para quitar)
+                                                </span>
+                                              )}
+                                              {isRecommended && !formData.tribe && !isSelected && (
                                                 <span className="text-[8px] bg-emerald-950/60 border border-emerald-500/30 text-emerald-400 px-1.5 py-0.5 rounded font-bold uppercase tracking-widest">
                                                   ★ Sinergia
                                                 </span>
@@ -3008,6 +3232,21 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                               >
                                 <Sparkles size={12} /> Auto-Completar según Blueprint
                               </button>
+                            )}
+
+                            {selectedSeedsCmcMetrics && (
+                              <div className="flex items-center gap-1.5 px-2.5 py-1 bg-black/70 border border-white/15 rounded-xl shrink-0 shadow-inner" title="Diagnóstico visual pasivo de coste medio">
+                                <span className="text-[8.5px] uppercase font-bold text-[#ffdf91]">CMC:</span>
+                                <span className={cn(
+                                  "text-[9px] font-mono font-black px-1.5 py-0.2 rounded border",
+                                  selectedSeedsCmcMetrics.avgCmc <= 2.2 ? "text-emerald-400 bg-emerald-950/50 border-emerald-500/40" :
+                                  selectedSeedsCmcMetrics.avgCmc <= 2.9 ? "text-amber-300 bg-amber-950/50 border-amber-500/40" :
+                                  "text-purple-300 bg-purple-950/50 border-purple-500/40"
+                                )}>
+                                  {selectedSeedsCmcMetrics.avgCmc}
+                                </span>
+                                <span className="text-[8px] font-mono text-white/50">({selectedSeedsCmcMetrics.earlyPercent}% T1-2)</span>
+                              </div>
                             )}
 
                             <div className="flex flex-col items-end shrink-0">
@@ -3427,7 +3666,15 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                   </div>
               </div>
             )}
-              {/* Curve Profile Selector Removed as per user request */}
+
+              {/* Ajuste Dinámico del Comportamiento del Arquetipo */}
+              <ArchetypeBehaviorTuner
+                archetype={formData.archetype}
+                isOpenStrategy={formData.archetype === 'open-strategy'}
+                preferences={formData.archetypePreferences}
+                onChange={(newPrefs) => setFormData(prev => ({ ...prev, archetypePreferences: newPrefs }))}
+                className="relative z-10 my-4"
+              />
 
               {/* Navigation buttons */}
               <div className="flex justify-between pt-4 border-t border-white/10">
@@ -3482,6 +3729,33 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                   </div>
                 </div>
               )}
+
+              {/* Preset Declarativo: Pacto de Amigos (Fair Play & Kitchen Table) */}
+              <div className="p-4 bg-gradient-to-r from-amber-950/40 via-black/80 to-emerald-950/30 border border-magic-gold/30 rounded-2xl relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-[0_0_15px_rgba(255,202,88,0.1)]">
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">⚔️</span>
+                  <div>
+                    <h4 className="text-xs font-cinzel font-black text-magic-gold uppercase tracking-wider flex items-center gap-2">
+                      Pacto de Amigos (Fair Play & Casual Battlebox)
+                    </h4>
+                    <p className="text-[10px] text-white/60 font-serif leading-tight mt-0.5">
+                      Ajusta las preferencias de frustración para juego casual: balance de amenazas y respuestas, maná sin dolor y exclusión de mecánicas opresivas.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleToggleFairPlay}
+                  className={cn(
+                    "px-3.5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider border transition-all flex items-center gap-1.5 shrink-0 select-none shadow-md",
+                    formData.fairPlayMode
+                      ? "bg-[#ffca58] border-[#ffca58] text-black shadow-[0_0_12px_rgba(255,202,88,0.35)] scale-[1.02]"
+                      : "bg-black/60 border-white/20 text-white/60 hover:text-white hover:border-white/40"
+                  )}
+                >
+                  <span>{formData.fairPlayMode ? '⚔️ PACTO ACTIVO ✓' : 'ACTIVAR PACTO'}</span>
+                </button>
+              </div>
 
               {/* Prompts and Rules */}
               {/* Grid Responsivo de Doble Columna */}
@@ -4496,7 +4770,22 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                 </AnimatePresence>
               </div>
 
-              {/* Navigation and Final Button */}
+              {/* Esquema Tripartito de Restricciones (HARD, PREFERRED, DISCOVERY) y Política de Refutación */}
+              <TripartiteConstraintsManager
+                tripartiteConstraints={formData.tripartiteConstraints}
+                softPreferences={formData.softPreferences}
+                strategicFreedom={formData.strategicFreedom}
+                thesisRefutationPolicy={formData.thesisRefutationPolicy}
+                allCards={allCards}
+                selectedFormat={selectedFormat}
+                onTripartiteChange={(newTri) => setFormData(prev => ({ ...prev, tripartiteConstraints: newTri }))}
+                onSoftPreferencesChange={(newSoft) => setFormData(prev => ({ ...prev, softPreferences: newSoft }))}
+                onStrategicFreedomChange={(newFree) => setFormData(prev => ({ ...prev, strategicFreedom: newFree }))}
+                onRefutationPolicyChange={(newPolicy) => setFormData(prev => ({ ...prev, thesisRefutationPolicy: newPolicy }))}
+                className="relative z-10 my-4"
+              />
+
+              {/* Navigation and Step 5 Gate Button */}
               <div className="flex flex-col sm:flex-row justify-between items-center gap-4 pt-4 border-t border-white/10 relative z-10">
                 <button
                   type="button"
@@ -4507,25 +4796,43 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                 </button>
 
                 <button
-                  type="submit"
-                  disabled={isLoading || disabled || !isFormValid}
+                  type="button"
+                  disabled={!isFormValid}
+                  onClick={() => setCurrentStep(5)}
                   className={cn(
                     "w-full sm:w-auto btn-asset py-3 px-8 transition-all duration-300",
-                    (!isFormValid || isLoading || disabled) && "opacity-50 cursor-not-allowed pointer-events-none filter grayscale border-white/15 bg-stone-900"
+                    !isFormValid && "opacity-50 cursor-not-allowed pointer-events-none filter grayscale border-white/15 bg-stone-900"
                   )}
                 >
-                  {isLoading ? (
-                    <span className="flex items-center justify-center gap-3 text-stone-engraved animate-pulse text-sm">
-                      <span className="w-4 h-4 border-2 border-[#ffca58]/30 border-t-[#ffca58] rounded-full animate-spin" />
-                      Invocando IA...
-                    </span>
-                  ) : (
-                    <span className="text-stone-engraved uppercase tracking-[0.15em] text-sm md:text-base drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] font-black">
-                      🔥 Conjuración Final (Forjar)
-                    </span>
-                  )}
+                  <span className="text-stone-engraved uppercase tracking-[0.15em] text-sm md:text-base font-black flex items-center justify-center gap-2">
+                    📋 Revisar Contrato Estratégico (Paso 5) ➔
+                  </span>
                 </button>
               </div>
+            </motion.div>
+          )}
+
+          {/* ── PASO 5: STRATEGIC CONTRACT PREVIEW (CONTRATO NEGOCIADO PRE-SÍNTESIS) ── */}
+          {currentStep === 5 && (
+            <motion.div
+              key="step5"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              transition={{ duration: 0.3 }}
+              className="w-full relative z-10"
+            >
+              <StrategicContractPreview
+                contract={StrategicContractBridge.buildStrategicContractPreview(IntentBuilder.buildFromUI(formData), allCards)}
+                isCompiling={isLoading}
+                onBackToEdit={() => setCurrentStep(4)}
+                onConfirmCompile={(contractDecision) => {
+                  if (contractDecision?.selectedThesis) {
+                    setFormData(prev => ({ ...prev, selectedThesis: contractDecision.selectedThesis }));
+                  }
+                  handleSubmit({ preventDefault: () => {} });
+                }}
+              />
             </motion.div>
           )}
         </AnimatePresence>

@@ -71,8 +71,9 @@ export class DecisionEngine {
         else if (rawTribe === 'elf_druid' || rawTribe.includes('elf')) targetSubtypes = ['elf', 'druid'];
         else if (rawTribe === 'human_army' || rawTribe.includes('human')) targetSubtypes = ['human', 'soldier', 'knight'];
         else if (rawTribe === 'undead_scourge' || rawTribe.includes('zombie')) targetSubtypes = ['zombie', 'skeleton', 'vampire', 'horror'];
-        else if (rawTribe === 'sea_monsters') targetSubtypes = ['merfolk', 'kraken', 'leviathan', 'octopus', 'serpent'];
-        else if (rawTribe === 'apex_predators') targetSubtypes = ['dinosaur', 'beast', 'hydra'];
+        else if (rawTribe === 'sea_monsters' || rawTribe.includes('sea') || rawTribe.includes('marino') || rawTribe.includes('kraken')) targetSubtypes = ['merfolk', 'kraken', 'leviathan', 'octopus', 'serpent', 'fish'];
+        else if (rawTribe === 'apex_predators' || rawTribe.includes('predator')) targetSubtypes = ['dinosaur', 'beast', 'hydra'];
+        else if (rawTribe === 'werewolves' || rawTribe.includes('werewolf')) targetSubtypes = ['werewolf', 'wolf', 'human'];
 
         const isTribeCreature = targetSubtypes.some(sub => typeLine.includes(sub));
         const generatesTribeToken = oracleText.includes('create') && targetSubtypes.some(sub => oracleText.includes(sub));
@@ -149,8 +150,9 @@ export class DecisionEngine {
           else if (rawTribe === 'elf_druid' || rawTribe.includes('elf')) targetSubtypes = ['elf', 'druid'];
           else if (rawTribe === 'human_army' || rawTribe.includes('human')) targetSubtypes = ['human', 'soldier', 'knight'];
           else if (rawTribe === 'undead_scourge' || rawTribe.includes('zombie')) targetSubtypes = ['zombie', 'skeleton', 'vampire', 'horror'];
-          else if (rawTribe === 'sea_monsters') targetSubtypes = ['merfolk', 'kraken', 'leviathan', 'octopus', 'serpent'];
-          else if (rawTribe === 'apex_predators') targetSubtypes = ['dinosaur', 'beast', 'hydra'];
+          else if (rawTribe === 'sea_monsters' || rawTribe.includes('sea') || rawTribe.includes('marino') || rawTribe.includes('kraken')) targetSubtypes = ['merfolk', 'kraken', 'leviathan', 'octopus', 'serpent', 'fish'];
+          else if (rawTribe === 'apex_predators' || rawTribe.includes('predator')) targetSubtypes = ['dinosaur', 'beast', 'hydra'];
+          else if (rawTribe === 'werewolves' || rawTribe.includes('werewolf')) targetSubtypes = ['werewolf', 'wolf', 'human'];
 
           const isTribeCreature = typeLine.includes('creature') && targetSubtypes.some(sub => typeLine.includes(sub));
           const generatesTribeToken = oracleText.includes('create') && targetSubtypes.some(sub => oracleText.includes(sub));
@@ -206,8 +208,9 @@ export class DecisionEngine {
           else if (rawTribe === 'elf_druid' || rawTribe.includes('elf')) targetSubtypes = ['elf', 'druid'];
           else if (rawTribe === 'human_army' || rawTribe.includes('human')) targetSubtypes = ['human', 'soldier', 'knight'];
           else if (rawTribe === 'undead_scourge' || rawTribe.includes('zombie')) targetSubtypes = ['zombie', 'skeleton', 'vampire', 'horror'];
-          else if (rawTribe === 'sea_monsters') targetSubtypes = ['merfolk', 'kraken', 'leviathan', 'octopus', 'serpent'];
-          else if (rawTribe === 'apex_predators') targetSubtypes = ['dinosaur', 'beast', 'hydra'];
+          else if (rawTribe === 'sea_monsters' || rawTribe.includes('sea') || rawTribe.includes('marino') || rawTribe.includes('kraken')) targetSubtypes = ['merfolk', 'kraken', 'leviathan', 'octopus', 'serpent', 'fish'];
+          else if (rawTribe === 'apex_predators' || rawTribe.includes('predator')) targetSubtypes = ['dinosaur', 'beast', 'hydra'];
+          else if (rawTribe === 'werewolves' || rawTribe.includes('werewolf')) targetSubtypes = ['werewolf', 'wolf', 'human'];
 
           const isTribeCreature = typeLine.includes('creature') && targetSubtypes.some(sub => typeLine.includes(sub));
           const generatesTribeToken = oracleText.includes('create') && targetSubtypes.some(sub => oracleText.includes(sub));

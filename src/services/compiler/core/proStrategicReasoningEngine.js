@@ -30,7 +30,16 @@ export class ProStrategicReasoningEngine {
    * 2. Mike Flores' "Who's the Beatdown?" Aggressor Assignment & Inevitability.
    */
   static evaluateWhosTheBeatdown(deckIdentity, opponentArchetype = 'AZORIUS_CONTROL') {
-    const isAggro = (deckIdentity?.expectedKillTurn || 5) <= 4 || (deckIdentity?.archetypeKey || '').toLowerCase().includes('aggro');
+    const archKey = (deckIdentity?.archetypeKey || '').toLowerCase();
+    const isPureControl = archKey.includes('control');
+    const isAggro = !isPureControl && (
+      (deckIdentity?.expectedKillTurn || 5) <= 5 ||
+      archKey.includes('aggro') ||
+      archKey.includes('stomp') ||
+      archKey.includes('swarm') ||
+      archKey.includes('burn') ||
+      opponentArchetype.includes('CONTROL')
+    );
     
     return Object.freeze({
       assignedRole: isAggro ? 'THE_BEATDOWN (Aggressor)' : 'THE_CONTROL',

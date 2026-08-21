@@ -16,7 +16,7 @@ export class CanonicalModelIntegrityAuditor {
     const hasExecutiveSpec = Boolean(canonicalBlueprintModel.executiveSpecification && canonicalBlueprintModel.executiveSpecification.primaryGoal);
     const hasDagNodes = Array.isArray(canonicalBlueprintModel.dagNodes) && canonicalBlueprintModel.dagNodes.length > 0;
     const hasDecisionGraph = Array.isArray(canonicalBlueprintModel.decisionGraph) && canonicalBlueprintModel.decisionGraph.length > 0;
-    const hasConstraints = Array.isArray(canonicalBlueprintModel.constraintsChecklist) && canonicalBlueprintModel.constraintsChecklist.length > 0;
+    const hasConstraints = Array.isArray(canonicalBlueprintModel.constraintsChecklist) ? canonicalBlueprintModel.constraintsChecklist.length > 0 : Boolean(canonicalBlueprintModel.constraintsChecklist);
 
     const completenessPercentage = (hasIdentity && hasExecutiveSpec && hasDagNodes && hasDecisionGraph && hasConstraints) ? 100.0 : 80.0;
     const isComplete = completenessPercentage === 100.0;

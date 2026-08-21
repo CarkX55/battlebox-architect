@@ -19,7 +19,7 @@ import { getAllCards } from '../services/dbIngestor';
 import CardSearch from '../components/forge/CardSearch';
 import BlueprintEditor from '../components/forge/BlueprintEditor';
 import HandSimulator from '../components/forge/HandSimulator';
-import { PowerLevelMeter } from '../components/forge/PowerLevelMeter';
+import { PowerLevelMeter, calculateDeckPowerLevel } from '../components/forge/PowerLevelMeter';
 import RadarChart from '../components/forge/RadarChart';
 import ManaCurve from '../components/forge/ManaCurve';
 import { AlertTriangle, Shield, Lightbulb, Target, Scroll, PenTool, CheckCircle2, XCircle, Info, Zap, Sparkles, Copy, PlusCircle, MinusCircle, GitFork, Share2, Download, Droplet, Activity } from 'lucide-react';
@@ -1019,15 +1019,9 @@ export default function DeckForge() {
     // 2. Control: interactive spells count relative to format size
     const control = Math.max(1, Math.min(10, Math.round((removalCount + protectionCount) * (60 / Math.max(40, deckSize)) * 0.6)));
 
-    // 3. Poder (Power): rares/mythics presence + curve optimization
-    let rareCount = 0;
-    let mythicCount = 0;
-    deck.forEach(c => {
-      const qty = Number(c.quantity || 1);
-      if (c.rarity === 'rare') rareCount += qty;
-      if (c.rarity === 'mythic') mythicCount += qty;
-    });
-    const power = Math.max(1, Math.min(10, Math.round(3 + (rareCount * 0.2) + (mythicCount * 0.4))));
+    // 3. Poder (Power): evaluación holística de rareza, sinergia, playsets y arquetipo
+    const powerEval = calculateDeckPowerLevel(deck, selectedFormat, lastFormData?.archetype);
+    const power = powerEval.score;
 
     // 4. Complejidad (Complexity): length of text and complex mechanics
     let complexityPoints = 0;
@@ -1114,8 +1108,21 @@ export default function DeckForge() {
                   <p className="text-[9px] uppercase font-bold text-emerald-400 tracking-wider flex items-center gap-1">
                     <CheckCircle2 size={10} /> Opciones de Mejora
                   </p>
-                  <ul className="list-disc pl-4 text-[11px] text-emerald-200/80 space-y-0.5">
-                    {auditResult.suggestions.map((s, i) => <li key={i}>{typeof s === 'object' ? s.text || JSON.stringify(s) : s}</li>)}
+                  <ul className="pl-1 text-[11px] text-emerald-200/80 space-y-1.5">
+                    {auditResult.suggestions.map((s, i) => {
+                      const spec = typeof s === 'object' ? s.specialist : null;
+                      const txt = typeof s === 'object' ? s.text || JSON.stringify(s) : s;
+                      return (
+                        <li key={i} className="flex items-start gap-1.5 leading-snug">
+                          {spec && (
+                            <span className="text-[7.5px] font-black uppercase tracking-wider px-1 py-0.5 rounded border bg-purple-950/80 border-purple-500/40 text-purple-300 shrink-0 mt-0.5">
+                              {spec === 'MANA' ? '🌿 MANA' : spec === 'SYNERGY' ? '🧬 SINERGIA' : spec === 'CURVE' ? '⏱️ CURVA' : '⚔️ RESPUESTAS'}
+                            </span>
+                          )}
+                          <span className="flex-1">{txt}</span>
+                        </li>
+                      );
+                    })}
                   </ul>
                 </div>
               )}
@@ -2343,7 +2350,7 @@ export default function DeckForge() {
                       <XCircle size={12} /> No cumple las reglas
                     </span>
                   )}
-                  <PowerLevelMeter deck={renderDeck} />
+                  <PowerLevelMeter deck={renderDeck} format={selectedFormat} archetype={lastFormData?.archetype} />
                 </div>
               </div>
               

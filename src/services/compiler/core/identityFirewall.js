@@ -58,16 +58,60 @@ export class IdentityFirewall {
     const primaryTribe = (intentPackage ? intentPackage.primaryTribe : '') || '';
     const tribeLower = primaryTribe.toLowerCase();
 
-    // HARD CONSTRAINT 1: Primary Tribe Enforcement for Tribal Intent
+    // HARD CONSTRAINT 1: Primary Tribe & Alliance Enforcement for Tribal Intent
     if (primaryTribe && primaryTribe !== 'None' && typeLine.includes('creature')) {
+      const GUILD_FACTIONS = new Set([
+        'boros_guild', 'golgari_guild', 'dimir_guild', 'rakdos_guild', 'azorius_guild',
+        'gruul_guild', 'selesnya_guild', 'orzhov_guild', 'izzet_guild', 'simic_guild',
+        'esper_shard', 'jund_shard', 'naya_shard', 'jeskai_shard', 'sultai_shard',
+        'boros', 'golgari', 'dimir', 'rakdos', 'azorius',
+        'gruul', 'selesnya', 'orzhov', 'izzet', 'simic',
+        'esper', 'grixis', 'jund', 'naya', 'bant',
+        'abzan', 'jeskai', 'sultai', 'mardu', 'temur',
+        'none', 'ninguna', 'general', 'null', 'universal'
+      ]);
+
       let isMatchingTribe = false;
-      if (tribeLower.includes('saproling') || tribeLower.includes('fungus') || tribeLower.includes('hongo')) {
+      if (GUILD_FACTIONS.has(tribeLower) || tribeLower.includes('_guild') || tribeLower.includes('_shard')) {
+        isMatchingTribe = true;
+      } else if (tribeLower.includes('saproling') || tribeLower.includes('fungus') || tribeLower.includes('hongo')) {
         isMatchingTribe = typeLine.includes('saproling') || typeLine.includes('fungus') || 
                           oracleText.includes('saproling') || oracleText.includes('fungus') ||
                           cardName.toLowerCase().includes('slimefoot') || cardName.toLowerCase().includes('thallid');
+      } else if (tribeLower.includes('wall') || tribeLower.includes('muro') || tribeLower.includes('defender')) {
+        isMatchingTribe = typeLine.includes('wall') || typeLine.includes('plant') || typeLine.includes('treefolk') ||
+                          oracleText.includes('defender') || oracleText.includes('toughness') ||
+                          cardName.toLowerCase().includes('arcades') || cardName.toLowerCase().includes('doran');
       } else if (tribeLower.includes('thopter') || tribeLower.includes('servo')) {
         isMatchingTribe = typeLine.includes('thopter') || typeLine.includes('servo') || typeLine.includes('artificer') ||
                           oracleText.includes('thopter') || oracleText.includes('servo');
+      } else if (tribeLower.includes('sea_monster') || tribeLower.includes('sea') || tribeLower.includes('marino') || tribeLower.includes('kraken')) {
+        const seaSubtypes = ['merfolk', 'kraken', 'leviathan', 'octopus', 'serpent', 'fish'];
+        isMatchingTribe = seaSubtypes.some(sub => typeLine.includes(sub) || oracleText.includes(sub));
+      } else if (tribeLower.includes('outlaw')) {
+        const outlawSubtypes = ['assassin', 'mercenary', 'pirate', 'rogue', 'warlock'];
+        isMatchingTribe = outlawSubtypes.some(sub => typeLine.includes(sub) || oracleText.includes(sub));
+      } else if (tribeLower.includes('party')) {
+        const partySubtypes = ['cleric', 'rogue', 'warrior', 'wizard'];
+        isMatchingTribe = partySubtypes.some(sub => typeLine.includes(sub) || oracleText.includes(sub));
+      } else if (tribeLower.includes('human_army') || tribeLower.includes('ejército')) {
+        const armySubtypes = ['human', 'soldier', 'knight'];
+        isMatchingTribe = armySubtypes.some(sub => typeLine.includes(sub) || oracleText.includes(sub));
+      } else if (tribeLower.includes('goblin_horde') || tribeLower.includes('horda')) {
+        const hordeSubtypes = ['goblin', 'ogre', 'orc'];
+        isMatchingTribe = hordeSubtypes.some(sub => typeLine.includes(sub) || oracleText.includes(sub));
+      } else if (tribeLower.includes('elf_druid') || tribeLower.includes('naturaleza')) {
+        const druidSubtypes = ['elf', 'druid', 'elemental'];
+        isMatchingTribe = druidSubtypes.some(sub => typeLine.includes(sub) || oracleText.includes(sub));
+      } else if (tribeLower.includes('undead_scourge') || tribeLower.includes('plaga')) {
+        const undeadSubtypes = ['zombie', 'skeleton', 'vampire', 'horror'];
+        isMatchingTribe = undeadSubtypes.some(sub => typeLine.includes(sub) || oracleText.includes(sub));
+      } else if (tribeLower.includes('apex_predator') || tribeLower.includes('depredador')) {
+        const apexSubtypes = ['dinosaur', 'beast', 'hydra'];
+        isMatchingTribe = apexSubtypes.some(sub => typeLine.includes(sub) || oracleText.includes(sub));
+      } else if (tribeLower.includes('werewolf')) {
+        const wolfSubtypes = ['werewolf', 'wolf', 'human'];
+        isMatchingTribe = wolfSubtypes.some(sub => typeLine.includes(sub) || oracleText.includes(sub));
       } else {
         isMatchingTribe = typeLine.includes(tribeLower);
       }

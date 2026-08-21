@@ -7,9 +7,16 @@
  * State C = NO_ADDITION
  * 
  * Evaluates structured multidimensional deltas rather than a single scalar score.
- * Enforces deterministic state dominance based on WinPath closure, demand satisfaction,
+ * Enforces deterministic state dominance based on WinPath closure, DemandSupplyLedger verification,
  * curve velocity, mana alignment, and zero-orphan invariants.
+ * 
+ * Classifies candidates into:
+ *   - VALID: Functional and legal without hard constraint violations.
+ *   - SYNERGISTIC: Connects to existing infrastructure and advances the WinPath.
+ *   - STRATEGICALLY_DOMINATED: Valid, but another candidate produces a strictly superior causal state.
  */
+
+import { DemandSupplyLedger } from './demandSupplyLedger.js';
 
 export class StateCandidateRanker {
   /**
@@ -17,7 +24,7 @@ export class StateCandidateRanker {
    * @param {Object} currentState Current DeckState (cards, curve, openDemands, provenNodes, manaPips)
    * @param {Array<Object>} candidates Pool of candidate cards with Oracle truth
    * @param {Object} strategicContract Strategic Contract (WinPath, ProofObligations, IntentLock)
-   * @returns {Object} { winningCandidate, stateDelta, evaluatedStates, selectionStatus }
+   * @returns {Object} { winningCandidate, stateDelta, evaluatedStates, selectionStatus, classifications }
    */
   static rankCandidatesByStateDelta(currentState, candidates = [], strategicContract = {}) {
     if (!candidates || candidates.length === 0) {
@@ -31,27 +38,42 @@ export class StateCandidateRanker {
     }
 
     const evaluatedStates = [];
-    const winPath = strategicContract.winPath || [];
-    const proofObligations = strategicContract.proofObligations || [];
-    const openDemands = currentState.openDemands || [];
 
     for (const candidate of candidates) {
       const stateDelta = this.computeStateDelta(currentState, candidate, strategicContract);
+      const dominanceVector = this.computeDominanceVector(stateDelta);
+      
+      // Tri-state classification
+      let classification = 'VALID';
+      if (!stateDelta.demandsSatisfiedByExistingState) {
+        classification = 'STRATEGICALLY_DOMINATED';
+      } else if (stateDelta.winPathNodesProven.length > 0 || stateDelta.causalEdgesAdded.length >= 2) {
+        classification = 'SYNERGISTIC';
+      }
+
       evaluatedStates.push({
         candidate,
         stateDelta,
-        dominanceVector: this.computeDominanceVector(stateDelta)
+        dominanceVector,
+        classification
       });
     }
 
-    // Sort deterministically by dominance vector
+    // Sort deterministically by multi-dimensional dominance vector
     evaluatedStates.sort((a, b) => this.compareDominanceVectors(b.dominanceVector, a.dominanceVector));
+
+    // Mark dominated candidates relative to the best candidate
+    const topCandidate = evaluatedStates[0];
+    for (let i = 1; i < evaluatedStates.length; i++) {
+      if (this.isStrictlyDominatedBy(evaluatedStates[i], topCandidate)) {
+        evaluatedStates[i].classification = 'STRATEGICALLY_DOMINATED';
+      }
+    }
 
     const best = evaluatedStates[0];
 
-    // Evaluate if the best state is strictly better than NO_ADDITION
-    if (!best || best.dominanceVector.netUtility <= 0) {
-      // Check if failure is due to missing infrastructure
+    // Evaluate if the best state is strictly better than NO_ADDITION baseline
+    if (!best || best.dominanceVector.netUtility <= 0 || !best.stateDelta.demandsSatisfiedByExistingState) {
       const hasUnmetDemands = evaluatedStates.some(e => !e.stateDelta.demandsSatisfiedByExistingState);
       const selectionStatus = hasUnmetDemands ? 'NO_SELECTION_INFRASTRUCTURE' : 'NO_SELECTION_CAUSAL';
 
@@ -61,7 +83,7 @@ export class StateCandidateRanker {
         evaluatedStates,
         selectionStatus,
         reason: selectionStatus === 'NO_SELECTION_INFRASTRUCTURE'
-          ? 'Los candidatos disponibles requieren infraestructura no satisfecha en el estado actual.'
+          ? 'Los candidatos disponibles requieren infraestructura no satisfecha en el DemandSupplyLedger actual.'
           : 'Ningún candidato disponible produce una mejora causal comprobable sobre el estado actual.'
       };
     }
@@ -71,7 +93,7 @@ export class StateCandidateRanker {
       stateDelta: best.stateDelta,
       evaluatedStates,
       selectionStatus: 'SELECTION_SUCCESS',
-      reason: `El estado con ${best.candidate.name} domina las alternativas cerrando demandas (${best.stateDelta.needsClosed.join(', ') || 'tempo'}) y avanzando el WinPath.`
+      reason: `El estado con ${best.candidate.name} domina las alternativas [${best.classification}] cerrando demandas (${best.stateDelta.needsClosed.join(', ') || 'tempo'}) y avanzando el WinPath.`
     };
   }
 
@@ -85,7 +107,6 @@ export class StateCandidateRanker {
     const openDemands = currentState.openDemands || [];
 
     const candidateCapabilities = candidate.capabilities || candidate.semanticTags || [];
-    const candidateDemands = candidate.demands || [];
 
     // 1. WinPath Nodes Proven by this candidate
     const winPathNodesProven = [];
@@ -110,16 +131,10 @@ export class StateCandidateRanker {
       }
     }
 
-    // 3. New demands introduced and whether existing state satisfies them
-    const newDemands = [...candidateDemands];
-    let demandsSatisfiedByExistingState = true;
-    const existingCapabilities = new Set(existingCards.flatMap(c => c.capabilities || c.semanticTags || []));
-
-    for (const dem of newDemands) {
-      if (!existingCapabilities.has(dem) && !this.existingStateSatisfiesDemand(currentState, dem)) {
-        demandsSatisfiedByExistingState = false;
-      }
-    }
+    // 3. Universal DemandSupplyLedger Audit
+    const demandAudit = DemandSupplyLedger.auditCardDemands(candidate, currentState);
+    const demandsSatisfiedByExistingState = demandAudit.isSatisfied;
+    const newDemands = demandAudit.demands;
 
     // 4. Causal edges added
     const causalEdgesAdded = [];
@@ -127,23 +142,45 @@ export class StateCandidateRanker {
       causalEdgesAdded.push(`${candidate.name} -> SATISFIES(${need})`);
     }
     for (const existing of existingCards) {
-      if (this.cardsHaveSynergy(candidate, existing)) {
-        causalEdgesAdded.push(`${candidate.name} <-> SYNERGY(${existing.name})`);
+      if (this.cardsHaveSynergy(candidate, existing.card || existing)) {
+        causalEdgesAdded.push(`${candidate.name} <-> SYNERGY(${(existing.card || existing).name})`);
       }
     }
 
     // 5. Curve and Mana Delta
-    const cmc = Number(candidate.cmc || 0);
+    const cmc = Number(candidate.cmc || candidate.mana_value || 0);
     const curveBefore = currentState.curve || {};
     const curveCountAtCmc = (curveBefore[cmc] || 0);
     const curveHealthImpact = this.evaluateCurveImpact(cmc, curveCountAtCmc, strategicContract.archetype);
 
-    // 6. Redundancy & Diminishing Returns
-    const currentCopies = existingCards.filter(c => c.name === candidate.name).reduce((sum, c) => sum + (c.quantity || 1), 0);
-    const isLegendary = (candidate.type_line || candidate.type || '').includes('Legendary');
-    const redundancyPenalty = isLegendary && currentCopies >= 2 ? 0.4 : (currentCopies >= 3 ? 0.2 : 0);
+    // 6. Redundancy & Diminishing Returns (Evaluates character collision across printings)
+    const cardRootName = this.extractCharacterRoot(candidate.name);
+    const currentCopies = existingCards
+      .filter(c => (c.name === candidate.name || (c.card && c.card.name === candidate.name)))
+      .reduce((sum, c) => sum + Number(c.quantity || c.count || 1), 0);
 
-    // 7. Opportunity Cost & Competitiveness
+    const characterOverlaps = existingCards
+      .filter(c => this.extractCharacterRoot((c.card || c).name) === cardRootName && (c.card || c).name !== candidate.name)
+      .reduce((sum, c) => sum + Number(c.quantity || c.count || 1), 0);
+
+    const isLegendary = (candidate.type_line || candidate.type || '').includes('Legendary');
+    let redundancyPenalty = 0;
+    if (isLegendary) {
+      if (currentCopies >= 2) redundancyPenalty += 0.5;
+      if (currentCopies >= 3) redundancyPenalty += 1.2;
+      if (characterOverlaps >= 2) redundancyPenalty += 1.5; // Heavy penalty for character collision (e.g. 2nd Krenko printing)
+    }
+
+    // 7. Causal Cross-Domain Bridge Detection (Emergent from StateDelta)
+    const bridgeContribution = this.detectCrossDomainBridge(
+      candidate,
+      currentState,
+      strategicContract,
+      needsClosed,
+      winPathNodesProven
+    );
+
+    // 8. Opportunity Cost
     const isDominated = this.isStrictlyDominatedCard(candidate, existingCards);
 
     return {
@@ -152,45 +189,161 @@ export class StateCandidateRanker {
       needsClosed,
       newDemands,
       demandsSatisfiedByExistingState,
+      demandAudit,
       causalEdgesAdded,
+      bridgeContribution,
       curveDelta: { cmc, currentCountAtCmc: curveCountAtCmc, healthImpact: curveHealthImpact },
       manaDelta: { colorPips: candidate.mana_cost || '', aligned: true },
-      redundancyDelta: { currentCopies, redundancyPenalty },
+      redundancyDelta: { currentCopies, characterOverlaps, redundancyPenalty },
       opportunityCost: { isDominated, alternativeCandidateCount: 0 },
       executionDelta: {
         provesWinPath: winPathNodesProven.length > 0,
         closesObligations: needsClosed.length > 0,
-        unsupportedDemandsCount: demandsSatisfiedByExistingState ? 0 : newDemands.length
+        unsupportedDemandsCount: demandsSatisfiedByExistingState ? 0 : demandAudit.failureReasons.length
       }
     };
   }
 
   /**
-   * Computes a dominance vector for deterministic Pareto ordering.
+   * Detects whether candidate acts as an emergent bridge between distinct functional domains.
+   * BRIDGE is defined as cross-domain causal connectivity that improves the global state
+   * without creating unresolved hard demands and preserving/advancing the WinPath.
    */
-  static computeDominanceVector(delta) {
-    let winPathScore = delta.winPathNodesProven.length * 2.5;
-    let needsScore = delta.needsClosed.length * 2.0;
-    let synergyScore = delta.causalEdgesAdded.length * 0.75;
-    let curveScore = delta.curveDelta.healthImpact * 1.5;
-    let demandPenalty = delta.demandsSatisfiedByExistingState ? 0 : (delta.newDemands.length * 2.0);
-    let redundancyPenalty = delta.redundancyDelta.redundancyPenalty * 2.5;
-    let dominationPenalty = delta.opportunityCost.isDominated ? 5.0 : 0;
+  static detectCrossDomainBridge(candidate, currentState, strategicContract, needsClosed = [], winPathNodesProven = []) {
+    const candidateDomains = this.identifyCardDomains(candidate);
+    if (candidateDomains.length < 2) {
+      return { isBridge: false, fromDomain: null, toDomain: null, causalEdgesAdded: [], winPathNodesImproved: [] };
+    }
 
-    const netUtility = (winPathScore + needsScore + synergyScore + curveScore) - (demandPenalty + redundancyPenalty + dominationPenalty);
+    const fromDomain = candidateDomains[0];
+    const toDomain = candidateDomains[1];
+
+    const causalEdgesAdded = [
+      `${candidate.name} (${fromDomain}) -> CONNECTS -> (${toDomain})`
+    ];
+
+    for (const need of needsClosed) {
+      causalEdgesAdded.push(`${candidate.name} -> RESOLVES(${need})`);
+    }
 
     return {
-      netUtility,
+      isBridge: true,
+      fromDomain,
+      toDomain,
+      causalEdgesAdded,
+      winPathNodesImproved: [...winPathNodesProven]
+    };
+  }
+
+  /**
+   * Identifies functional domains provided by a card based on Oracle text, capabilities and types.
+   */
+  static identifyCardDomains(card) {
+    const domains = [];
+    const text = (card.oracle_text || card.text || '').toLowerCase();
+    const type = (card.type_line || card.type || '').toLowerCase();
+
+    if (type.includes('creature') && (type.includes('—') || type.includes('-'))) {
+      const subtypes = type.split(/—|-/)[1]?.trim() || '';
+      if (subtypes.length > 0) domains.push('TRIBAL_ENGINE');
+    }
+    if (text.includes('destroy') || text.includes('exile') || text.includes('deals damage to') || text.includes('counter target')) {
+      domains.push('INTERACTION');
+    }
+    if (text.includes('draw') || text.includes('look at the top') || text.includes('investigate')) {
+      domains.push('CARD_FLOW');
+    }
+    if (text.includes('add ') || text.includes('search your library for a land') || text.includes('treasure')) {
+      domains.push('RAMP_INFRASTRUCTURE');
+    }
+    if (text.includes('sacrifice') || text.includes('dies') || text.includes('graveyard')) {
+      domains.push('SACRIFICE_RECURSION');
+    }
+    if (text.includes('whenever') && (text.includes('+1/+1') || text.includes('token') || text.includes('gain life') || text.includes('loses life'))) {
+      domains.push('SYNERGY_PAYOFF');
+    }
+    if (text.includes('hexproof') || text.includes('ward') || text.includes('indestructible') || text.includes('protection from')) {
+      domains.push('PROTECTION');
+    }
+
+    return [...new Set(domains)];
+  }
+
+  /**
+   * Computes a dominance vector for deterministic multi-dimensional Pareto ordering.
+   */
+  static computeDominanceVector(delta) {
+    const winPathScore = delta.winPathNodesProven.length * 3.0;
+    const needsScore = delta.needsClosed.length * 2.0;
+    const synergyScore = delta.causalEdgesAdded.length * 0.8;
+    const bridgeScore = delta.bridgeContribution?.isBridge ? (delta.bridgeContribution.causalEdgesAdded.length * 1.2 + 2.0) : 0;
+    const curveScore = delta.curveDelta.healthImpact * 1.5;
+    const demandPenalty = delta.demandsSatisfiedByExistingState ? 0 : (delta.executionDelta.unsupportedDemandsCount * 3.0 + 5.0);
+    const redundancyPenalty = delta.redundancyDelta.redundancyPenalty * 3.0;
+    const dominationPenalty = delta.opportunityCost.isDominated ? 6.0 : 0;
+
+    const netUtility = (winPathScore + needsScore + synergyScore + bridgeScore + curveScore) - (demandPenalty + redundancyPenalty + dominationPenalty);
+
+    return {
+      netUtility: Number(netUtility.toFixed(2)),
+      hasUnsupportedDemands: !delta.demandsSatisfiedByExistingState,
+      isBridge: Boolean(delta.bridgeContribution?.isBridge),
+      fromDomain: delta.bridgeContribution?.fromDomain || null,
+      toDomain: delta.bridgeContribution?.toDomain || null,
       winPathProvenCount: delta.winPathNodesProven.length,
       needsClosedCount: delta.needsClosed.length,
-      unsupportedDemands: delta.executionDelta.unsupportedDemandsCount,
+      synergyCount: delta.causalEdgesAdded.length,
       curveHealth: delta.curveDelta.healthImpact,
+      redundancyPenalty: delta.redundancyDelta.redundancyPenalty,
       isDominated: delta.opportunityCost.isDominated
     };
   }
 
   /**
-   * Compares two dominance vectors deterministically.
+   * Evaluates a potential orphan card through a complete contrafactual state comparison loop:
+   * State A' = State without Card X
+   * State B' = State without Card X + Candidate B
+   * State C  = State without Card X + NO_ADDITION
+   * 
+   * @returns {Object} { decision: 'RESTORE_X' | 'REPLACE' | 'KEEP_REMOVED', winningCard, stateDelta }
+   */
+  static evaluateZeroOrphanContrafactual(currentState, potentialOrphanCard, alternativeCandidates = [], strategicContract = {}) {
+    // 1. Compute baseline State A' (without Card X)
+    const cardsWithoutX = (currentState.cards || []).filter(c => {
+      const name = c.name || (c.card && c.card.name);
+      return name !== potentialOrphanCard.name;
+    });
+    const stateWithoutX = { ...currentState, cards: cardsWithoutX };
+
+    // 2. Compute State A' validity (does Thesis / WinPath remain proven without X?)
+    const deltaWithoutX = this.computeStateDelta(stateWithoutX, potentialOrphanCard, strategicContract);
+
+    // 3. Rank alternative candidates for replacement
+    const replacementEvaluation = this.rankCandidatesByStateDelta(stateWithoutX, alternativeCandidates, strategicContract);
+
+    if (replacementEvaluation.winningCandidate && replacementEvaluation.winningCandidate.name !== potentialOrphanCard.name) {
+      const bestAlternative = replacementEvaluation.evaluatedStates[0];
+      if (bestAlternative && bestAlternative.dominanceVector.netUtility > deltaWithoutX.dominanceVector?.netUtility) {
+        return {
+          decision: 'REPLACE',
+          winningCard: replacementEvaluation.winningCandidate,
+          stateDelta: replacementEvaluation.stateDelta,
+          reason: `El candidato ${replacementEvaluation.winningCandidate.name} produce un estado causal contrafácticamente superior al reemplazar a ${potentialOrphanCard.name}.`
+        };
+      }
+    }
+
+    // If removing Card X degrades the state and no replacement dominates, restore Card X
+    return {
+      decision: 'RESTORE_X',
+      winningCard: potentialOrphanCard,
+      stateDelta: deltaWithoutX,
+      reason: `La presencia de ${potentialOrphanCard.name} está justificada causalmente por ser el ocupante dominante del estado.`
+    };
+  }
+
+  /**
+   * Compares two dominance vectors deterministically through multi-dimensional criteria.
    */
   static compareDominanceVectors(a, b) {
     // 1. Non-dominated cards always rank above dominated ones
@@ -198,8 +351,8 @@ export class StateCandidateRanker {
     if (a.isDominated && !b.isDominated) return -1;
 
     // 2. States with zero unsupported demands strictly dominate states with unsupported demands
-    if (a.unsupportedDemands === 0 && b.unsupportedDemands > 0) return 1;
-    if (a.unsupportedDemands > 0 && b.unsupportedDemands === 0) return -1;
+    if (!a.hasUnsupportedDemands && b.hasUnsupportedDemands) return 1;
+    if (a.hasUnsupportedDemands && !b.hasUnsupportedDemands) return -1;
 
     // 3. Higher WinPath proven count
     if (a.winPathProvenCount !== b.winPathProvenCount) {
@@ -211,8 +364,32 @@ export class StateCandidateRanker {
       return a.needsClosedCount - b.needsClosedCount;
     }
 
-    // 5. Higher net utility
+    // 5. Higher synergy density
+    if (a.synergyCount !== b.synergyCount) {
+      return a.synergyCount - b.synergyCount;
+    }
+
+    // 6. Net utility
     return a.netUtility - b.netUtility;
+  }
+
+  static isStrictlyDominatedBy(evaluatedA, evaluatedB) {
+    const vecA = evaluatedA.dominanceVector;
+    const vecB = evaluatedB.dominanceVector;
+
+    return (
+      vecB.netUtility > vecA.netUtility &&
+      vecB.winPathProvenCount >= vecA.winPathProvenCount &&
+      !vecB.hasUnsupportedDemands &&
+      (vecA.hasUnsupportedDemands || vecB.synergyCount > vecA.synergyCount)
+    );
+  }
+
+  static extractCharacterRoot(name = '') {
+    if (!name) return '';
+    // Extracts root character name before commas (e.g. "Krenko, Baron of Tin Street" -> "krenko")
+    const parts = name.toLowerCase().split(',');
+    return parts[0].trim();
   }
 
   static matchesNodeRequirement(card, node) {
@@ -221,19 +398,22 @@ export class StateCandidateRanker {
     const nodeStr = (typeof node === 'string' ? node : (node.id || node.name || '')).toLowerCase();
 
     if (nodeStr.includes('ramp') || nodeStr.includes('mana')) {
-      return cardText.includes('add ') || cardText.includes('search your library for a') || card.cmc <= 2 && typeLine.includes('creature') && cardText.includes('mana');
+      return cardText.includes('add ') || cardText.includes('search your library for a') || (card.cmc <= 2 && typeLine.includes('creature') && cardText.includes('mana'));
+    }
+    if (nodeStr.includes('burn') || nodeStr.includes('reach') || nodeStr.includes('player_targetable')) {
+      return cardText.includes('deals damage to any target') || cardText.includes('deals damage to target player') || cardText.includes('deals damage to target opponent') || cardText.includes('each opponent loses');
     }
     if (nodeStr.includes('removal') || nodeStr.includes('interaction')) {
       return cardText.includes('destroy') || cardText.includes('exile') || cardText.includes('damage') || cardText.includes('counter target');
     }
-    if (nodeStr.includes('draw') || nodeStr.includes('advantage')) {
+    if (nodeStr.includes('draw') || nodeStr.includes('advantage') || nodeStr.includes('card_flow')) {
       return cardText.includes('draw') || cardText.includes('look at the top');
     }
     if (nodeStr.includes('sacrifice') || nodeStr.includes('sac_outlet')) {
       return cardText.includes('sacrifice a') || cardText.includes('sacrifice another');
     }
-    if (nodeStr.includes('fodder')) {
-      return cardText.includes('create') && cardText.includes('token') || card.cmc <= 1;
+    if (nodeStr.includes('fodder') || nodeStr.includes('token')) {
+      return (cardText.includes('create') && cardText.includes('token')) || (card.cmc <= 1 && typeLine.includes('creature'));
     }
     return false;
   }
@@ -242,28 +422,26 @@ export class StateCandidateRanker {
     return this.matchesNodeRequirement(card, demand);
   }
 
-  static existingStateSatisfiesDemand(currentState, demand) {
-    const cards = currentState.cards || [];
-    const demandLower = (demand || '').toLowerCase();
-    if (demandLower.includes('goblin') || demandLower.includes('fodder')) {
-      return cards.some(c => (c.type_line || c.type || '').toLowerCase().includes('goblin') || (c.name || '').toLowerCase().includes('goblin'));
-    }
-    if (demandLower.includes('graveyard')) {
-      return cards.some(c => (c.oracle_text || c.text || '').toLowerCase().includes('mill') || (c.oracle_text || c.text || '').toLowerCase().includes('discard'));
-    }
-    return false;
-  }
-
   static cardsHaveSynergy(cardA, cardB) {
     const textA = (cardA.oracle_text || cardA.text || '').toLowerCase();
     const textB = (cardB.oracle_text || cardB.text || '').toLowerCase();
     const typeA = (cardA.type_line || cardA.type || '').toLowerCase();
     const typeB = (cardB.type_line || cardB.type || '').toLowerCase();
 
-    if (textA.includes('goblin') && typeB.includes('goblin')) return true;
-    if (textB.includes('goblin') && typeA.includes('goblin')) return true;
-    if (textA.includes('sacrifice') && (textB.includes('dies') || textB.includes('graveyard'))) return true;
-    if ((textA.includes('ninja') || textA.includes('ninjutsu')) && (textB.includes("can't be blocked") || textB.includes('flying') || (cardB.cmc <= 1 && typeB.includes('creature')))) return true;
+    // Tribal synergies
+    const subtypesA = typeA.split('—')[1] || '';
+    const subtypesB = typeB.split('—')[1] || '';
+    const wordsA = subtypesA.split(' ').filter(w => w.length > 2);
+    for (const word of wordsA) {
+      if (textB.includes(word) || textA.includes(word)) return true;
+    }
+
+    // Mechanical synergies (Sacrifice <-> Dies/Graveyard, Artifacts <-> Affinity/Bargain, Counters <-> Proliferate)
+    if (textA.includes('sacrifice') && (textB.includes('dies') || textB.includes('graveyard') || textB.includes('descend'))) return true;
+    if (textB.includes('sacrifice') && (textA.includes('dies') || textA.includes('graveyard') || textA.includes('descend'))) return true;
+    if ((typeA.includes('artifact') || textA.includes('treasure')) && (textB.includes('artifact') || textB.includes('bargain'))) return true;
+    if ((typeB.includes('artifact') || textB.includes('treasure')) && (textA.includes('artifact') || textA.includes('bargain'))) return true;
+
     return false;
   }
 
@@ -284,7 +462,7 @@ export class StateCandidateRanker {
   }
 
   static isStrictlyDominatedCard(candidate, existingCards) {
-    const cmc = Number(candidate.cmc || 0);
+    const cmc = Number(candidate.cmc || candidate.mana_value || 0);
     const power = Number(candidate.power || 0);
     const toughness = Number(candidate.toughness || 0);
     const text = (candidate.oracle_text || candidate.text || '').trim();

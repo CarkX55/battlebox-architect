@@ -1,6 +1,9 @@
 import { StrategyMetricsDatabase } from './strategyMetricsDatabase.js';
 import { ReasonLedger } from './reasonLedger.js';
 import { IdentityFirewall } from './identityFirewall.js';
+import { DemandSupplyLedger } from './demandSupplyLedger.js';
+import { StateCandidateRanker } from './stateCandidateRanker.js';
+import { CardCausalContract } from './cardCausalContract.js';
 
 export class CandidateConstraintEngine {
   constructor(db = null) {
@@ -103,8 +106,8 @@ export class CandidateConstraintEngine {
       // Step 2: Rank filtered candidates for this specific slot role
       const rankedCandidates = this.rankCandidatesForSlot(slot, filteredPool, intentPackage);
 
-      // Step 3: Select Winner
-      const selected = this.selectWinnerForSlot(slot, rankedCandidates, usedWinnersCount, intentPackage);
+      // Step 3: Select Winner with live Deck State Demand Audit
+      const selected = this.selectWinnerForSlot(slot, rankedCandidates, usedWinnersCount, intentPackage, filledSlots);
 
       if (selected.winnerCard) {
         const currentQty = usedWinnersCount.get(selected.winnerCard) || 0;
@@ -221,19 +224,45 @@ export class CandidateConstraintEngine {
       const oracleText = (card.oracle_text || card.oracleText || '').toLowerCase();
       const nameLower = (card.name || '').toLowerCase();
       const cmc = card.cmc || card.mana_value || 0;
+      const contract = CardCausalContract.parse(card);
 
       let score = 0;
 
       // Contribution score
       score += profile.getContributionAmount(slot.role);
 
-      // Primary tribe bonus: Handles direct subtype or token/kindred tribe aliases (e.g. Saproling <-> Fungus, Thopter <-> Artificer)
-      if (intentPackage.primaryTribe) {
-        const tribeLower = intentPackage.primaryTribe.toLowerCase();
-        const isSaprolingOrFungus = tribeLower.includes('saproling') || tribeLower.includes('fungus') || tribeLower.includes('hongo');
-        const isThopterOrServo = tribeLower.includes('thopter') || tribeLower.includes('servo');
+      // Causal compatibility check for the requested slot role
+      if (contract) {
+        const compat = CardCausalContract.isCausallyCompatibleWithRole(contract, slot.role, intentPackage);
+        if (!compat.isCompatible) {
+          score -= 300;
+        }
 
-        if (isSaprolingOrFungus) {
+        // Penalize cards with unfulfillable HARD demands in general slots (e.g. Artifact payoff in non-artifact deck)
+        const hasHardArtifactDemand = contract.demands.some(d => d.resource === 'ARTIFACT_CONTROL' && d.necessity === 'HARD');
+        if (hasHardArtifactDemand && !typeLine.includes('artifact')) {
+          score -= 350;
+        }
+      }
+
+      // Primary tribe bonus: Handles direct subtype or token/kindred tribe aliases (e.g. Sea Monsters, Saproling, Outlaws)
+      const rawTribeStr = intentPackage.primaryTribe ? String(intentPackage.primaryTribe).toLowerCase().trim() : '';
+      const isValidTribe = rawTribeStr && !['none', 'null', 'general', 'ninguna', 'sin tribu', 'omitir', 'universal', 'sin_tribu'].includes(rawTribeStr);
+      if (isValidTribe) {
+        const tribeLower = rawTribeStr;
+        const GUILD_FACTIONS = new Set([
+          'boros_guild', 'golgari_guild', 'dimir_guild', 'rakdos_guild', 'azorius_guild',
+          'gruul_guild', 'selesnya_guild', 'orzhov_guild', 'izzet_guild', 'simic_guild',
+          'esper_shard', 'jund_shard', 'naya_shard', 'jeskai_shard', 'sultai_shard',
+          'boros', 'golgari', 'dimir', 'rakdos', 'azorius',
+          'gruul', 'selesnya', 'orzhov', 'izzet', 'simic',
+          'esper', 'grixis', 'jund', 'naya', 'bant',
+          'abzan', 'jeskai', 'sultai', 'mardu', 'temur'
+        ]);
+
+        if (GUILD_FACTIONS.has(tribeLower) || tribeLower.includes('_guild') || tribeLower.includes('_shard')) {
+          score += 20;
+        } else if (tribeLower.includes('saproling') || tribeLower.includes('fungus') || tribeLower.includes('hongo')) {
           const isDirectMatch = typeLine.includes('fungus') || typeLine.includes('saproling') || 
                                 oracleText.includes('saproling') || oracleText.includes('fungus') ||
                                 nameLower.includes('slimefoot') || nameLower.includes('thallid');
@@ -242,12 +271,87 @@ export class CandidateConstraintEngine {
             if (oracleText.includes('create') && oracleText.includes('saproling')) score += 30; // Premier Saproling generator
             if (oracleText.includes('fungi you control') || oracleText.includes('saprolings you control')) score += 25;
           } else if (role.includes('tribal_density')) {
-            // Penalize completely unrelated creatures in a Saproling tribal slot
             score -= 120;
           }
-        } else if (isThopterOrServo) {
-          const isDirectMatch = typeLine.includes('thopter') || typeLine.includes('servo') || 
-                                oracleText.includes('thopter') || oracleText.includes('servo');
+        } else if (tribeLower.includes('wall') || tribeLower.includes('muro') || tribeLower.includes('defender')) {
+          const isDirectMatch = typeLine.includes('wall') || typeLine.includes('plant') || typeLine.includes('treefolk') ||
+                                oracleText.includes('defender') || oracleText.includes('toughness') ||
+                                nameLower.includes('arcades') || nameLower.includes('doran');
+          if (isDirectMatch) {
+            score += 45;
+            if (oracleText.includes('defender') || typeLine.includes('wall')) score += 25;
+            if (nameLower.includes('arcades') || oracleText.includes('rather than its power') || oracleText.includes('rather than their power')) score += 40;
+          } else if (role.includes('tribal_density')) {
+            score -= 120;
+          }
+        } else if (tribeLower.includes('sea_monster') || tribeLower.includes('sea') || tribeLower.includes('marino') || tribeLower.includes('kraken')) {
+          const seaSubtypes = ['merfolk', 'kraken', 'leviathan', 'octopus', 'serpent', 'fish'];
+          const isDirectMatch = seaSubtypes.some(sub => typeLine.includes(sub) || oracleText.includes(sub));
+          if (isDirectMatch) {
+            score += 45;
+            if (oracleText.includes('kraken') || oracleText.includes('leviathan') || oracleText.includes('serpent') || oracleText.includes('octopus')) score += 25;
+          } else if (role.includes('tribal_density')) {
+            score -= 120;
+          }
+        } else if (tribeLower.includes('outlaw')) {
+          const outlawSubtypes = ['assassin', 'mercenary', 'pirate', 'rogue', 'warlock'];
+          const isDirectMatch = outlawSubtypes.some(sub => typeLine.includes(sub) || oracleText.includes(sub));
+          if (isDirectMatch) {
+            score += 45;
+          } else if (role.includes('tribal_density')) {
+            score -= 120;
+          }
+        } else if (tribeLower.includes('party')) {
+          const partySubtypes = ['cleric', 'rogue', 'warrior', 'wizard'];
+          const isDirectMatch = partySubtypes.some(sub => typeLine.includes(sub) || oracleText.includes(sub));
+          if (isDirectMatch) {
+            score += 45;
+          } else if (role.includes('tribal_density')) {
+            score -= 120;
+          }
+        } else if (tribeLower.includes('human_army') || tribeLower.includes('ejército')) {
+          const armySubtypes = ['human', 'soldier', 'knight'];
+          const isDirectMatch = armySubtypes.some(sub => typeLine.includes(sub) || oracleText.includes(sub));
+          if (isDirectMatch) {
+            score += 45;
+          } else if (role.includes('tribal_density')) {
+            score -= 120;
+          }
+        } else if (tribeLower.includes('goblin_horde') || tribeLower.includes('horda')) {
+          const hordeSubtypes = ['goblin', 'ogre', 'orc'];
+          const isDirectMatch = hordeSubtypes.some(sub => typeLine.includes(sub) || oracleText.includes(sub));
+          if (isDirectMatch) {
+            score += 45;
+          } else if (role.includes('tribal_density')) {
+            score -= 120;
+          }
+        } else if (tribeLower.includes('elf_druid') || tribeLower.includes('naturaleza')) {
+          const druidSubtypes = ['elf', 'druid', 'elemental'];
+          const isDirectMatch = druidSubtypes.some(sub => typeLine.includes(sub) || oracleText.includes(sub));
+          if (isDirectMatch) {
+            score += 45;
+          } else if (role.includes('tribal_density')) {
+            score -= 120;
+          }
+        } else if (tribeLower.includes('undead_scourge') || tribeLower.includes('plaga')) {
+          const undeadSubtypes = ['zombie', 'skeleton', 'vampire', 'horror'];
+          const isDirectMatch = undeadSubtypes.some(sub => typeLine.includes(sub) || oracleText.includes(sub));
+          if (isDirectMatch) {
+            score += 45;
+          } else if (role.includes('tribal_density')) {
+            score -= 120;
+          }
+        } else if (tribeLower.includes('apex_predator') || tribeLower.includes('depredador')) {
+          const apexSubtypes = ['dinosaur', 'beast', 'hydra'];
+          const isDirectMatch = apexSubtypes.some(sub => typeLine.includes(sub) || oracleText.includes(sub));
+          if (isDirectMatch) {
+            score += 45;
+          } else if (role.includes('tribal_density')) {
+            score -= 120;
+          }
+        } else if (tribeLower.includes('werewolf')) {
+          const wolfSubtypes = ['werewolf', 'wolf', 'human'];
+          const isDirectMatch = wolfSubtypes.some(sub => typeLine.includes(sub) || oracleText.includes(sub));
           if (isDirectMatch) {
             score += 45;
           } else if (role.includes('tribal_density')) {
@@ -267,35 +371,48 @@ export class CandidateConstraintEngine {
         score -= 500;
       }
 
-      // ─── POWER LEVEL & TOURNAMENT QUALITY SCORING ─────────────────────────
+      // ─── POWER LEVEL & CONSTRUCTED EFFICIENCY SCORING ─────────────────────
       const powerLevel = (intentPackage.powerLevel || 'Competitive').toLowerCase();
       const rarity = (card.rarity || 'common').toLowerCase();
 
       if (powerLevel === 'competitive' || powerLevel === 'high-power') {
-        if (rarity === 'mythic') score += 25;
-        else if (rarity === 'rare') score += 20;
+        if (rarity === 'mythic') score += 20;
+        else if (rarity === 'rare') score += 15;
         else if (rarity === 'uncommon') score += 5;
 
-        // Competitive tournament staples bonus:
-        const isTournamentStaple = [
-          'cut down', 'go for the throat', 'bitter triumph', 'tear asunder', 'fatal push', 'infernal grasp',
-          'lightning strike', 'shock', 'play with fire', 'torch the tower', 'monstrous rage', 'lightning helix',
-          'scavenging ooze', 'predator ooze', 'biogenic ooze', 'experiment one', 'slime against humanity',
-          'agatha\'s soul cauldron', 'the ozolith', 'hardened scales', 'innkeeper\'s talent',
-          'glissa sunslayer', 'mosswood dreadknight', 'preacher of the schism', 'vraska, the silencer',
-          'deadly cover-up', 'glistening deluge', 'path of peril', 'restless cottage',
-          'inspiring call', 'archdruid\'s charm', 'delighted halfling', 'llanowar elves',
-          'thoughtseize', 'duress', 'inquisition of kozilek', 'counterspell', 'mana leak'
-        ].some(staple => nameLower === staple || nameLower.includes(staple));
+        // Dynamic Efficiency & Versatility Evaluation (Zero Hardcoded Names)
+        const isInstantSpeed = typeLine.includes('instant') || oracleText.includes('flash');
+        if (isInstantSpeed) score += 15;
 
-        if (isTournamentStaple) {
-          score += 35;
+        const isModalOrFlexible = oracleText.includes('choose one') || oracleText.includes('choose two') || oracleText.includes('kicker');
+        if (isModalOrFlexible) score += 15;
+
+        // Card Velocity (cantrip / card advantage)
+        if (oracleText.includes('draw a card') || oracleText.includes('draw two') || oracleText.includes('look at the top')) {
+          score += 15;
         }
+      }
 
-        // Penalize low-impact draft chaff commons with no constructed relevance
-        const isDraftChaff = ['putrid pals', 'hecteyes', 'unfortunate accident'].some(dc => nameLower === dc);
-        if (isDraftChaff) {
-          score -= 40;
+      // ─── UNIVERSAL DEMAND-SUPPLY CAUSAL CONTRACT ─────────────────────────
+      // If candidate has hard prerequisites (e.g. Artifacts, Sacrifice, Graveyard), evaluate against deck
+      const candidateDemands = DemandSupplyLedger.extractCardDemands(card);
+      if (candidateDemands.length > 0) {
+        for (const demand of candidateDemands) {
+          if (demand.necessity === 'HARD') {
+            // Check if current pool / deck provides this infrastructure
+            const hasPoolSupply = filteredPool.some(otherCard => {
+              const oOracle = (otherCard.oracle_text || otherCard.oracleText || '').toLowerCase();
+              const oType = (otherCard.type_line || otherCard.typeLine || '').toLowerCase();
+              if (demand.resource === 'ARTIFACT_CONTROL') return oType.includes('artifact') || oOracle.includes('treasure');
+              if (demand.resource === 'SACRIFICE_FODDER') return oType.includes('creature') || oOracle.includes('token');
+              if (demand.resource === 'GRAVEYARD_SUPPLY') return oType.includes('instant') || oType.includes('sorcery') || oOracle.includes('mill');
+              return false;
+            });
+
+            if (!hasPoolSupply) {
+              score -= 300; // Hard rejection for unfulfilled infrastructure demands
+            }
+          }
         }
       }
 
@@ -316,23 +433,42 @@ export class CandidateConstraintEngine {
 
       // ─── RAMP ACCELERATION ROLE ───────────────────────────────────────────
       if (role.includes('ramp') || role.includes('acceleration') || role.includes('mana_dork')) {
-        const isTapManaDork = oracleText.includes('{t}: add') ||
-                              oracleText.includes('{t}: put') ||
-                              oracleText.includes('search your library for a basic land') ||
-                              oracleText.includes('search your library for a land card') ||
-                              oracleText.includes('search your library for up to');
-        const isTriggeredRamp = oracleText.includes('add {') || oracleText.includes('adds {') || oracleText.includes('create a treasure');
+        const manaSupply = contract ? contract.supplies.find(s => s.capability === 'MANA_ACCELERATION') : null;
+        const isSpellslingerIntent = (intentPackage.tempo || intentPackage.archetype || '').toLowerCase().includes('spellslinger') || (intentPackage.tempo || intentPackage.archetype || '').toLowerCase().includes('storm');
+        const isToolboxIntent = (intentPackage.tempo || intentPackage.archetype || '').toLowerCase().includes('toolbox');
 
-        if (isTapManaDork) {
-          score += 70;
-          if (typeLine.includes('creature')) score += 30; // Premier creature dork (Delighted Halfling, Llanowar, Fanatic of Rhonas, Kami)
-          if (cmc <= 2) score += 25;
-          else if (cmc === 3) score += 15;
-          else score -= (cmc - 3) * 20;
-        } else if (isTriggeredRamp) {
-          score += 30;
-          if (cmc <= 2) score += 15;
-          if (typeLine.includes('vehicle')) score -= 40; // Penalize vehicles for ramp slots
+        if (manaSupply) {
+          if (manaSupply.isUniversal) {
+            score += 75;
+            if (typeLine.includes('creature')) {
+              if (isSpellslingerIntent) score -= 15; // Non-spell creature dorks are deprioritized in spellslinger
+              else score += 30; // Premier creature dork in stompy/ramp (Halfling, Llanowar, Birds)
+            }
+            if (cmc <= 2) score += 25;
+            else if (cmc === 3) score += 15;
+            else score -= (cmc - 3) * 20;
+          } else if (manaSupply.domain === 'INSTANT_OR_SORCERY_ONLY') {
+            if (isSpellslingerIntent) {
+              score += 95; // Dedicated Spellslinger acceleration engine
+              if (cmc <= 2) score += 30;
+            } else {
+              score -= 250; // Cannot ramp creatures/permanents in Stompy/Creature Ramp!
+            }
+          } else if (manaSupply.domain === 'ACTIVATED_ABILITIES_ONLY') {
+            if (isToolboxIntent) {
+              score += 95;
+            } else {
+              score -= 250; // Cannot cast spells with ability mana!
+            }
+          } else if (manaSupply.domain === 'LEGENDARY_SPELLS_ONLY') {
+            if (isSpellslingerIntent) {
+              score -= 250; // Cannot cast instant/sorcery spells with legendary-restricted mana
+            } else {
+              score += 50;
+            }
+          } else {
+            score += 30;
+          }
         } else {
           score -= 200; // Not a ramp accelerator!
         }
@@ -560,16 +696,51 @@ export class CandidateConstraintEngine {
   /**
    * WinnerSelector: Selects the winning card and top alternatives for a slot.
    */
-  selectWinnerForSlot(slot, rankedCandidates, usedWinnersCount, intentPackage) {
+  selectWinnerForSlot(slot, rankedCandidates, usedWinnersCount, intentPackage, filledSlots = []) {
     const format = intentPackage.format.toUpperCase();
     const maxPlayset = format === 'COMMANDER' ? 1 : 4;
+
+    const currentDeckState = {
+      cards: filledSlots.map(s => ({ card: s.winnerCardObj || { name: s.winnerCard }, count: s.requiredDensity }))
+    };
 
     for (const item of rankedCandidates) {
       const cardName = item.card.name;
       const currentQty = usedWinnersCount.get(cardName) || 0;
 
+      // Verify operational demands against current deck state infrastructure
+      const demandAudit = DemandSupplyLedger.auditCardDemands(item.card, currentDeckState, intentPackage);
+      if (!demandAudit.isSatisfied) {
+        continue; // Skip cards with unsatisfied HARD operational demands
+      }
+
       // Ensure distinct winner cards across packages to prevent fractional split violations
       if (currentQty === 0 && slot.requiredDensity <= maxPlayset) {
+        const isLegendary = (item.card.type_line || item.card.type || '').includes('Legendary');
+        const cardRoot = StateCandidateRanker.extractCharacterRoot(cardName);
+
+        // Check if another printing of this same legendary character is already chosen
+        const hasLegendaryCollision = isLegendary && Array.from(usedWinnersCount.keys()).some(
+          used => StateCandidateRanker.extractCharacterRoot(used) === cardRoot && used !== cardName
+        );
+
+        // If there is a legendary collision and other non-colliding candidates exist, prefer alternatives
+        if (hasLegendaryCollision) {
+          const nonCollidingAlt = rankedCandidates.find(c => {
+            const altName = c.card.name;
+            const altRoot = StateCandidateRanker.extractCharacterRoot(altName);
+            const altIsLegendary = (c.card.type_line || c.card.type || '').includes('Legendary');
+            const altCollides = altIsLegendary && Array.from(usedWinnersCount.keys()).some(
+              used => StateCandidateRanker.extractCharacterRoot(used) === altRoot
+            );
+            return !usedWinnersCount.has(altName) && !altCollides;
+          });
+
+          if (nonCollidingAlt) {
+            continue; // Skip this collided printing and select the non-colliding candidate
+          }
+        }
+
         const altCards = rankedCandidates
           .filter(c => c.card.name !== cardName && !usedWinnersCount.has(c.card.name))
           .slice(0, 3)

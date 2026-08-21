@@ -46,6 +46,11 @@ export class StrategicExecutionCompiler {
           lineId: 'WIN_LINE_B',
           name: 'Ataque de Enjambre ──► Sacrificio en Respuesta ──► Limpieza Asimétrica',
           steps: ['T2 Swarm', 'T3 Combat Pressure', 'T4 Sac Value']
+        },
+        {
+          lineId: 'WIN_LINE_C',
+          name: 'Bucle de Recursión de Cementerio ──► Desgaste Continuo',
+          steps: ['T2 Graveyard Setup', 'T3 Recursive Loop', 'T4 Inevitable Drain']
         }
       ]);
       resourcePlan = Object.freeze({
@@ -66,6 +71,16 @@ export class StrategicExecutionCompiler {
           lineId: 'WIN_LINE_A',
           name: 'Prowess T1 ──► Cadena de Cantrips ──► Ráfaga Letal',
           steps: ['T1 Prowess', 'T2 Cantrips', 'T3 Burn/Tempo', 'T4 Lethal Burst']
+        },
+        {
+          lineId: 'WIN_LINE_B',
+          name: 'Control de Tempo ──► Interacción Instantánea ──► Desgaste Aéreo',
+          steps: ['T1 Attacker', 'T2 Counter/Bounce', 'T3 Burn Face', 'T4 Finish']
+        },
+        {
+          lineId: 'WIN_LINE_C',
+          name: 'Quemadura Directa Masiva ──► Daño a la Cara',
+          steps: ['T1-T2 Chip Damage', 'T3 Reach Burn', 'T4 Double Burn Lethal']
         }
       ]);
       resourcePlan = Object.freeze({
@@ -91,6 +106,11 @@ export class StrategicExecutionCompiler {
           lineId: 'WIN_LINE_B',
           name: 'Ataque de Curva ──► Remoción Barata ──► Daño a la Cara',
           steps: ['T1-T2 Attackers', 'T3 Remove Blocker', 'T4 Direct Reach']
+        },
+        {
+          lineId: 'WIN_LINE_C',
+          name: 'Recarga de Flujo ──► Segunda Ola de Ataque ──► Remate Final',
+          steps: ['T1-T2 Attackers', 'T3 Card Flow Refill', 'T4 Secondary Wave', 'T5 Final Push']
         }
       ]);
       resourcePlan = Object.freeze({
@@ -114,8 +134,13 @@ export class StrategicExecutionCompiler {
         },
         {
           lineId: 'WIN_LINE_B',
-          name: 'Landfall / Contadores ──► Escalado Exponencial ──► Cierre',
-          steps: ['T2 Engine', 'T3 Scaling Threat', 'T4 Exponential Growth']
+          name: 'Ventaja de Maná ──► Encadenamiento de Amenazas ──► Desgaste Insuperable',
+          steps: ['T1-T2 Ramp', 'T3 Threat 1', 'T4 Threat 2', 'T5 Overrun']
+        },
+        {
+          lineId: 'WIN_LINE_C',
+          name: 'Estabilización Temprana ──► Salto de Curva ──► Finisher Protector',
+          steps: ['T1 Fix Mana', 'T2 Ramp', 'T3 Stabilize', 'T4 Giant Finisher']
         }
       ]);
       resourcePlan = Object.freeze({
@@ -136,6 +161,16 @@ export class StrategicExecutionCompiler {
           lineId: 'WIN_LINE_A',
           name: 'Disrupción Temprana ──► Limpieza Masiva ──► Rematador Protegido',
           steps: ['T2-T3 Answers', 'T4 Sweeper', 'T5+ Inevitable Finisher']
+        },
+        {
+          lineId: 'WIN_LINE_B',
+          name: 'Bloqueo de Recursos ──► Agotamiento de Respuestas ──► Inevitabilidad',
+          steps: ['T1-T3 Counter/Remove', 'T4 Card Draw Engine', 'T5+ Lockout']
+        },
+        {
+          lineId: 'WIN_LINE_C',
+          name: 'Planeswalker / Manland Beatdown ──► Dominio Absoluto',
+          steps: ['T3-T4 Stabilize', 'T5 Engine', 'T6+ Unstoppable Pressure']
         }
       ]);
       resourcePlan = Object.freeze({
@@ -157,6 +192,16 @@ export class StrategicExecutionCompiler {
           lineId: 'WIN_LINE_A',
           name: 'Curva Eficiente ──► Ventaja 2x1 ──► Cierre de Partida',
           steps: ['T2 Threat', 'T3 Value Engine', 'T4 Finisher', 'T5 Lethal']
+        },
+        {
+          lineId: 'WIN_LINE_B',
+          name: 'Desgaste Temprano ──► Amenaza Clave ──► Cierre por Atrito',
+          steps: ['T1-T2 Disruption', 'T3 Midrange Threat', 'T4 Clean Up', 'T5 Victory']
+        },
+        {
+          lineId: 'WIN_LINE_C',
+          name: 'Dominio de Mesa ──► Bloqueadores Superados ──► Ataque Total',
+          steps: ['T2-T3 Board Build', 'T4 Removal', 'T5 Overrun']
         }
       ]);
       resourcePlan = Object.freeze({

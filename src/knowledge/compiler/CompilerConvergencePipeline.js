@@ -63,6 +63,8 @@ import { FormatWorldModel } from '../../services/compiler/core/formatWorldModel.
 import { ConstraintCostEvaluator } from '../../services/compiler/core/constraintCostEvaluator.js';
 import { TradeoffAnalyzer } from '../../services/compiler/core/tradeoffAnalyzer.js';
 import { ExecutionOptimizer } from '../../services/compiler/core/executionOptimizer.js';
+import { StrategicStateOptimizer } from '../../services/compiler/core/strategicStateOptimizer.js';
+import { DemandSupplyLedger } from '../../services/compiler/core/demandSupplyLedger.js';
 import { GroundTruthBenchmarkEngine } from '../../services/compiler/core/groundTruthBenchmarkEngine.js';
 import { EmpiricalAutoCalibrator } from '../../services/compiler/core/empiricalAutoCalibrator.js';
 import { SelfEvaluationRefinementLoop } from '../../services/compiler/core/selfEvaluationRefinementLoop.js';
@@ -279,8 +281,16 @@ export class CompilerConvergencePipeline {
       details: { reason: `Average CMC is ${avgCmc}. Virtual mana dorks: ${virtualManaSources}. Karsten target: 24 lands.` }
     });
 
-    // PASS 5: Pure DeckExpansion — transform CopyAllocationState into immutable DeckState
-    const deckState = DeckExpansion.expand(copyAllocationState);
+    // PASS 5: Pure DeckExpansion — transform CopyAllocationState into DeckState
+    const rawDeckState = DeckExpansion.expand(copyAllocationState);
+
+    // PASS 5b: Autonomous StrategicStateOptimizer & DemandSupplyLedger Universal Causal Refinement
+    const { optimizedState: deckState, autopsyReport, optimizationLog } = StrategicStateOptimizer.optimize(
+      rawDeckState,
+      deckIdentity,
+      intentPackage,
+      restrictedPool
+    );
     
     // PASS 6: DeckFitnessEvaluator & CompilerReport
     const fitnessReport = DeckFitnessEvaluator.evaluate(deckState, intentPackage);
@@ -569,8 +579,22 @@ export class CompilerConvergencePipeline {
     const regressionBenchmarkReport = CompetitiveValidationEngine.runRegressionBenchmark();
 
     // Model Integrity & Reverse Presentation Audits
-    const modelCompletenessAudit = CanonicalModelIntegrityAuditor.auditModelCompleteness({ intentPackage, deckIdentity }, {});
-    const reversePresentationAudit = CanonicalModelIntegrityAuditor.runReversePresentationAudit({});
+    const canonicalBlueprintModel = {
+      archetype: deckIdentity.archetypeKey,
+      tribe: intentPackage.primaryTribe || '',
+      format: intentPackage.format,
+      executiveSpecification: { primaryGoal: deckIdentity.gameplan },
+      dagNodes: deckIdentity.mandatoryRoles || ['Core Engine'],
+      decisionGraph: copyAllocationState.packages || [{ name: 'Core' }],
+      constraintsChecklist: [
+        `Format: ${intentPackage.format}`,
+        `PowerLevel: ${intentPackage.powerLevel}`,
+        ...(intentPackage.userConstraints?.mustInclude || [])
+      ]
+    };
+
+    const modelCompletenessAudit = CanonicalModelIntegrityAuditor.auditModelCompleteness({ intentPackage, deckIdentity }, canonicalBlueprintModel);
+    const reversePresentationAudit = CanonicalModelIntegrityAuditor.runReversePresentationAudit(canonicalBlueprintModel);
 
     // Scientific Calibration Roadmap (Gold Dataset, Human Expert, Error Taxonomy, Statistical Calibration, Longitudinal)
     const goldDatasetReport = GoldDatasetRegistry.evaluateAgainstGoldDataset(deckState, deckIdentity);
@@ -642,7 +666,20 @@ export class CompilerConvergencePipeline {
         const pTribeLower = primaryTribe.toLowerCase();
         let isTribeMatch = false;
 
-        if (pTribeLower.includes('saproling') || pTribeLower.includes('fungus')) {
+        const GUILD_FACTIONS = new Set([
+          'boros_guild', 'golgari_guild', 'dimir_guild', 'rakdos_guild', 'azorius_guild',
+          'gruul_guild', 'selesnya_guild', 'orzhov_guild', 'izzet_guild', 'simic_guild',
+          'esper_shard', 'jund_shard', 'naya_shard', 'jeskai_shard', 'sultai_shard',
+          'boros', 'golgari', 'dimir', 'rakdos', 'azorius',
+          'gruul', 'selesnya', 'orzhov', 'izzet', 'simic',
+          'esper', 'grixis', 'jund', 'naya', 'bant',
+          'abzan', 'jeskai', 'sultai', 'mardu', 'temur',
+          'none', 'ninguna', 'general', 'null', 'universal'
+        ]);
+
+        if (GUILD_FACTIONS.has(pTribeLower) || pTribeLower.includes('_guild') || pTribeLower.includes('_shard')) {
+          isTribeMatch = true;
+        } else if (pTribeLower.includes('saproling') || pTribeLower.includes('fungus')) {
           isTribeMatch = typeLine.includes('saproling') || typeLine.includes('fungus') || 
                          oracleText.includes('saproling') || oracleText.includes('fungus') || 
                          (cardObj.name || '').toLowerCase().includes('slimefoot') || 
@@ -650,6 +687,33 @@ export class CompilerConvergencePipeline {
         } else if (pTribeLower.includes('thopter') || pTribeLower.includes('servo')) {
           isTribeMatch = typeLine.includes('thopter') || typeLine.includes('servo') || 
                          oracleText.includes('thopter') || oracleText.includes('servo');
+        } else if (pTribeLower.includes('sea_monster') || pTribeLower.includes('sea') || pTribeLower.includes('marino') || pTribeLower.includes('kraken')) {
+          const seaSubtypes = ['merfolk', 'kraken', 'leviathan', 'octopus', 'serpent', 'fish'];
+          isTribeMatch = seaSubtypes.some(sub => typeLine.includes(sub) || oracleText.includes(sub));
+        } else if (pTribeLower.includes('outlaw')) {
+          const outlawSubtypes = ['assassin', 'mercenary', 'pirate', 'rogue', 'warlock'];
+          isTribeMatch = outlawSubtypes.some(sub => typeLine.includes(sub) || oracleText.includes(sub));
+        } else if (pTribeLower.includes('party')) {
+          const partySubtypes = ['cleric', 'rogue', 'warrior', 'wizard'];
+          isTribeMatch = partySubtypes.some(sub => typeLine.includes(sub) || oracleText.includes(sub));
+        } else if (pTribeLower.includes('human_army') || pTribeLower.includes('ejército')) {
+          const armySubtypes = ['human', 'soldier', 'knight'];
+          isTribeMatch = armySubtypes.some(sub => typeLine.includes(sub) || oracleText.includes(sub));
+        } else if (pTribeLower.includes('goblin_horde') || pTribeLower.includes('horda')) {
+          const hordeSubtypes = ['goblin', 'ogre', 'orc'];
+          isTribeMatch = hordeSubtypes.some(sub => typeLine.includes(sub) || oracleText.includes(sub));
+        } else if (pTribeLower.includes('elf_druid') || pTribeLower.includes('naturaleza')) {
+          const druidSubtypes = ['elf', 'druid', 'elemental'];
+          isTribeMatch = druidSubtypes.some(sub => typeLine.includes(sub) || oracleText.includes(sub));
+        } else if (pTribeLower.includes('undead_scourge') || pTribeLower.includes('plaga')) {
+          const undeadSubtypes = ['zombie', 'skeleton', 'vampire', 'horror'];
+          isTribeMatch = undeadSubtypes.some(sub => typeLine.includes(sub) || oracleText.includes(sub));
+        } else if (pTribeLower.includes('apex_predator') || pTribeLower.includes('depredador')) {
+          const apexSubtypes = ['dinosaur', 'beast', 'hydra'];
+          isTribeMatch = apexSubtypes.some(sub => typeLine.includes(sub) || oracleText.includes(sub));
+        } else if (pTribeLower.includes('werewolf')) {
+          const wolfSubtypes = ['werewolf', 'wolf', 'human'];
+          isTribeMatch = wolfSubtypes.some(sub => typeLine.includes(sub) || oracleText.includes(sub));
         } else {
           isTribeMatch = typeLine.includes(pTribeLower);
         }

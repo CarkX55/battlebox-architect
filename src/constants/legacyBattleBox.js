@@ -425,6 +425,33 @@ export const UNIVERSAL_ENGINES = [
     vetoedKeywords: [],
     boostKeywords: ['affinity', 'metalcraft', 'artifact', 'steel overseer', 'cranial plating', 'memnite'],
     corePackageId: null
+  },
+  {
+    id: 'counters_generic',
+    label: 'Contadores +1/+1 & Proliferación',
+    description: 'Coloca y multiplica contadores +1/+1 sobre tus criaturas para escalado exponencial.',
+    requiredColors: ['G', 'W', 'U', 'B', 'R'],
+    vetoedKeywords: [],
+    boostKeywords: ['+1/+1 counter', 'put a +1/+1 counter', 'proliferate', 'hardened scales', 'ozolith'],
+    corePackageId: null
+  },
+  {
+    id: 'tokens_generic',
+    label: 'Tokens / Enjambre (Go-Wide)',
+    description: 'Inunda la mesa con fichas de criatura e inflalas con efectos de himno masivos.',
+    requiredColors: ['W', 'G', 'B', 'R'],
+    vetoedKeywords: [],
+    boostKeywords: ['create a', 'creature token', 'tokens you control', 'convoke', 'anthem'],
+    corePackageId: null
+  },
+  {
+    id: 'enchantress_generic',
+    label: 'Enchantress (Encantamientos & Auras)',
+    description: 'Encadena encantamientos y roba cartas con cada hechizo jugado.',
+    requiredColors: ['W', 'G', 'U'],
+    vetoedKeywords: [],
+    boostKeywords: ['whenever you cast an enchantment', 'enchantment', 'constellation', 'aura', 'sythis'],
+    corePackageId: null
   }
 ];
 
@@ -933,9 +960,9 @@ export const MTG_TRIBES = [
       }
     ]
   },
-  { id: 'constructs', label: 'Constructos & Myr (Affinity)', category: 'exotica', colors: ['C', 'U', 'R', 'W'], primaryColor: 'C', strategies: ['tokens', 'vehicles'], archetypes: ['aggro', 'midrange', 'combo', 'prison'], subtypes: ['construct', 'myr', 'golem', 'thopter'], formats: ['MODERN'] },
-  { id: 'sliver-5c', label: 'Slivers (Pentacolor 5C)', category: 'exotica', colors: ['W', 'U', 'B', 'R', 'G'], primaryColor: ['W', 'U', 'B', 'R', 'G'], strategies: ['tokens', 'slivers'], archetypes: ['aggro', 'midrange', 'combo', 'tempo'], subtypes: ['sliver'], formats: ['MODERN'] },
-  { id: 'sliver-bant', label: 'Slivers (Bant/Naya Base)', category: 'exotica', colors: ['W', 'U', 'G', 'R'], primaryColor: ['G', 'W'], strategies: ['tokens', 'slivers'], archetypes: ['aggro', 'midrange', 'combo', 'tempo'], subtypes: ['sliver'], formats: ['MODERN'] },
+  { id: 'constructs', label: 'Constructos & Myr (Affinity)', category: 'exotica', colors: ['C', 'U', 'R', 'W'], primaryColor: 'C', strategies: ['tokens', 'vehicles'], archetypes: ['aggro', 'midrange', 'combo', 'prison'], subtypes: ['construct', 'myr', 'golem', 'thopter'] },
+  { id: 'sliver-5c', label: 'Slivers (Pentacolor 5C)', category: 'exotica', colors: ['W', 'U', 'B', 'R', 'G'], primaryColor: ['W', 'U', 'B', 'R', 'G'], strategies: ['tokens', 'slivers'], archetypes: ['aggro', 'midrange', 'combo', 'tempo'], subtypes: ['sliver'] },
+  { id: 'sliver-bant', label: 'Slivers (Bant/Naya Base)', category: 'exotica', colors: ['W', 'U', 'G', 'R'], primaryColor: ['G', 'W'], strategies: ['tokens', 'slivers'], archetypes: ['aggro', 'midrange', 'combo', 'tempo'], subtypes: ['sliver'] },
 
   // NUEVAS TRIBUS ICÓNICAS MTG (SAPROLINES, HOMBRES LOBO, HIDRAS, DEFENDEDORES, LIMOS, GORGONAS, ESQUELETOS, ETC)
   {
@@ -1173,10 +1200,53 @@ export const MTG_TRIBES = [
   { id: 'human_army', label: '⚔️ Ejército (Humanos, Soldados, Caballeros)', category: 'alianza', colors: ['W', 'R'], primaryColor: 'W', strategies: ['tokens', 'voltron'], archetypes: ['aggro', 'midrange', 'prison'], subtypes: ['human', 'soldier', 'knight'] },
   { id: 'goblin_horde', label: '🔥 Horda (Goblins, Orcos, Ogros)', category: 'alianza', colors: ['R', 'B'], primaryColor: 'R', strategies: ['tokens', 'aristocrats'], archetypes: ['aggro', 'midrange'], subtypes: ['goblin', 'orc', 'ogre'] },
   { id: 'elf_druid', label: '🌿 Naturaleza (Elfos, Druidas, Elementales)', category: 'alianza', colors: ['G', 'R', 'U'], primaryColor: 'G', strategies: ['tokens', 'landfall'], archetypes: ['midrange', 'combo', 'ramp'], subtypes: ['elf', 'druid', 'elemental'] },
-  { id: 'sea_monsters', label: '🌊 Terrores Marinos (Tritones, Krakens, Leviatanes)', category: 'alianza', colors: ['U', 'G'], primaryColor: 'U', strategies: ['sea_monsters', 'blink'], archetypes: ['tempo', 'midrange', 'combo', 'control', 'ramp'], subtypes: ['merfolk', 'kraken', 'leviathan', 'octopus', 'rose-monsters', 'serpent'], formats: ['MODERN'] },
+  { 
+    id: 'sea_monsters', 
+    label: '🌊 Terrores Marinos (Tritones, Krakens, Leviatanes)', 
+    category: 'alianza', 
+    colors: ['U', 'G', 'W', 'B'], 
+    primaryColor: 'U', 
+    strategies: ['ramp', 'graveyard', 'blink', 'spellslinger', 'control'], 
+    archetypes: ['tempo', 'midrange', 'combo', 'control', 'ramp'], 
+    subtypes: ['merfolk', 'kraken', 'leviathan', 'octopus', 'rose-monsters', 'serpent'],
+    flavors: [
+      {
+        id: 'sea_monsters_ramp',
+        label: 'Big Sea Ramp (Krakens & Leviatanes)',
+        description: 'Acelera maná marino para jugar krakens y leviatanes gigantes de lategame.',
+        requiredColors: ['U', 'G'],
+        vetoedKeywords: [],
+        boostKeywords: ['kraken', 'leviathan', 'octopus', 'serpent', 'ramp', 'search for a land', 'kiora']
+      },
+      {
+        id: 'sea_monsters_control',
+        label: 'Control Marino & Congelación (Tap & Lock)',
+        description: 'Gira y bloquea permanentes enemigos mientras dominas el tablero con ventaja de cartas y contrahechizos.',
+        requiredColors: ['U', 'W', 'B'],
+        vetoedKeywords: [],
+        boostKeywords: ['tap target', "doesn't untap", 'draw', 'counter target', 'bounce', 'subduction']
+      },
+      {
+        id: 'sea_monsters_merfolk',
+        label: 'Tritones & Señores de las Olas (Tempo)',
+        description: 'Inunda la mesa con tritones imbloqueables y señores que aumentan su fuerza exponencialmente.',
+        requiredColors: ['U', 'G'],
+        vetoedKeywords: [],
+        boostKeywords: ['merfolk', 'islandwalk', 'lord', '+1/+1', 'svyelun', 'vodalian']
+      },
+      {
+        id: 'sea_monsters_reanimate',
+        label: 'Abismo Marino & Reanimación (Deep Sea Dredge)',
+        description: 'Descarta monstruos marinos gigantes a las profundidades del cementerio y revívelos.',
+        requiredColors: ['U', 'B'],
+        vetoedKeywords: [],
+        boostKeywords: ['graveyard', 'reanimate', 'mill', 'surveil', 'return target creature card from your graveyard']
+      }
+    ]
+  },
   { id: 'undead_scourge', label: '💀 Plaga (Zombies, Esqueletos, Horrores)', category: 'alianza', colors: ['B', 'U'], primaryColor: 'B', strategies: ['aristocrats', 'reanimator', 'graveyard'], archetypes: ['midrange', 'combo', 'control', 'reanimator'], subtypes: ['zombie', 'skeleton', 'horror'] },
   { id: 'apex_predators', label: '🦖 Depredadores del Ápice (Dinosaurios, Bestias, Hidras)', category: 'alianza', colors: ['G', 'R', 'W'], primaryColor: 'G', strategies: ['landfall', 'tokens', 'lifegain'], archetypes: ['midrange', 'ramp', 'aggro'], subtypes: ['dinosaur', 'beast', 'hydra', 'wurm', 'dragon'] },
-  { id: 'sliver', label: 'Slivers (Fectidios Sinérgicos)', category: 'exotica', colors: ['W', 'U', 'B', 'R', 'G'], primaryColor: ['W', 'U', 'B', 'R', 'G'], strategies: ['tokens', 'voltron'], archetypes: ['aggro', 'midrange', 'combo'], subtypes: ['sliver'], formats: ['MODERN'] }
+  { id: 'sliver', label: 'Slivers (Fectidios Sinérgicos)', category: 'exotica', colors: ['W', 'U', 'B', 'R', 'G'], primaryColor: ['W', 'U', 'B', 'R', 'G'], strategies: ['tokens', 'voltron'], archetypes: ['aggro', 'midrange', 'combo'], subtypes: ['sliver'] }
 ];
 
 export const TRIBE_CATEGORIES = {
@@ -1436,8 +1506,7 @@ export const MTG_STRATEGIES = [
     primaryColor: 'B',
     archetypes: ['combo', 'midrange', 'control', 'tempo'],
     mechanics: 'Usa efectos de descarte para mandar monstruos al cementerio y revivirlos a ritmo instantáneo o con Persist.',
-    keywords: ['persist', 'goryo\'s vengeance', 'unburial rites', 'discard', 'put target creature', 'graveyard onto the battlefield', 'priest of fell rites', 'late to dinner', 'archon of cruelty', 'atraxa'],
-    formats: ['MODERN']
+    keywords: ['persist', 'goryo\'s vengeance', 'unburial rites', 'discard', 'put target creature', 'graveyard onto the battlefield', 'priest of fell rites', 'late to dinner', 'archon of cruelty', 'atraxa']
   },
   { 
     id: 'tokens', 
@@ -1518,8 +1587,7 @@ export const MTG_STRATEGIES = [
     primaryColor: 'W',
     archetypes: ['aggro', 'midrange', 'combo'],
     mechanics: 'Equipa instantáneamente Colossus Hammer o auras sobre amenazas baratas imbloqueables.',
-    keywords: ['equipped creature', 'enchanted creature', 'equipment', 'aura', 'colossus hammer', 'sigarda\'s aid', 'puresteel paladin'],
-    formats: ['MODERN']
+    keywords: ['equipped creature', 'enchanted creature', 'equipment', 'aura', 'colossus hammer', 'sigarda\'s aid', 'puresteel paladin']
   },
   { 
     id: 'tron', 
@@ -1528,8 +1596,7 @@ export const MTG_STRATEGIES = [
     primaryColor: ['G', 'C'],
     archetypes: ['ramp', 'combo', 'midrange', 'prison'],
     mechanics: 'Ensambla el trío de tierras de Urza o acelera masivamente en los primeros turnos para encadenar Eldrazis legendarios o Titanes devastadores.',
-    keywords: ["urza's", 'power plant', 'mine', 'tower', 'expedition map', 'sylvan scrying', 'ancient stirrings', 'chromatic star', 'chromatic sphere', 'karn', 'wurmcoil', 'ulamog', 'titan'],
-    formats: ['MODERN']
+    keywords: ["urza's", 'power plant', 'mine', 'tower', 'expedition map', 'sylvan scrying', 'ancient stirrings', 'chromatic star', 'chromatic sphere', 'karn', 'wurmcoil', 'ulamog', 'titan']
   },
   { 
     id: 'ramp', 
@@ -1538,8 +1605,7 @@ export const MTG_STRATEGIES = [
     primaryColor: 'G',
     archetypes: ['ramp', 'midrange', 'combo'],
     mechanics: 'Acelera tu maná usando criaturas (Mana Dorks) o conjuros de búsqueda de tierras para lanzar finishers de alto coste de tus propios colores.',
-    keywords: ['ramp', 'search your library for a land', 'mana dork', 'cultivate', 'farseek', 'rampant growth', 'birds of paradise', 'llanowar elves', 'titan', 'craterhoof'],
-    formats: ['MODERN', 'STANDARD', 'PIONEER']
+    keywords: ['ramp', 'search your library for a land', 'mana dork', 'cultivate', 'farseek', 'rampant growth', 'birds of paradise', 'llanowar elves', 'titan', 'craterhoof']
   },
   { 
     id: 'vehicles', 
@@ -1557,8 +1623,7 @@ export const MTG_STRATEGIES = [
     primaryColor: ['U', 'G'],
     archetypes: ['combo', 'tempo'],
     mechanics: 'Ensambla cascadas de coste 3 para castear automáticamente hechizos demoledores de coste 0.',
-    keywords: ['cascade', 'suspend', 'crashing footfalls', 'living end', 'shardless agent', 'ardent plea'],
-    formats: ['MODERN']
+    keywords: ['cascade', 'suspend', 'crashing footfalls', 'living end', 'shardless agent', 'ardent plea']
   },
   { 
     id: 'storm', 
@@ -1567,8 +1632,7 @@ export const MTG_STRATEGIES = [
     primaryColor: ['R', 'U'],
     archetypes: ['combo'],
     mechanics: 'Encadena múltiples rituales y hechizos cantrips de coste bajo en un solo turno para finalizar con un hechizo con la mecánica de Tormenta (Grapeshot, Empty the Warrens).',
-    keywords: ['storm', 'grapeshot', 'empty the warrens', 'add {r}', 'add {u}', 'ritual', 'manamorphose', 'ruby medallion', 'ral, monsoon mage', 'baral', 'electromancer', 'past in flames', 'wish', 'tendrils of agony', 'desperate ritual', 'pyretic ritual', 'seething song', 'strike', 'draw'],
-    formats: ['MODERN']
+    keywords: ['storm', 'grapeshot', 'empty the warrens', 'add {r}', 'add {u}', 'ritual', 'manamorphose', 'ruby medallion', 'ral, monsoon mage', 'baral', 'electromancer', 'past in flames', 'wish', 'tendrils of agony', 'desperate ritual', 'pyretic ritual', 'seething song', 'strike', 'draw']
   },
   {
     id: "ninjutsu",

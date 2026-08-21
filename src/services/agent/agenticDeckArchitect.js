@@ -116,13 +116,15 @@ export class AgenticDeckArchitect {
 
       // WinPath Completion Invariant (v10.3): Transition directly to Mana Base when all WinPath obligations are PROVEN
       if (needRequest.need === 'STOP_CAUSAL') {
-        this.reActLogs.push({
-          turn: turnCounter++,
-          phase: 'STOP_CAUSAL_TRANSITION',
-          reasoning: needRequest.reasoning,
-          status: 'ALL_WIN_PATH_NEEDS_PROVEN'
-        });
-        break;
+        if (this.deckState.nonLandCount >= this.deckState.targetNonLands) {
+          this.reActLogs.push({
+            turn: turnCounter++,
+            phase: 'STOP_CAUSAL_TRANSITION',
+            reasoning: needRequest.reasoning,
+            status: 'ALL_WIN_PATH_NEEDS_PROVEN'
+          });
+          break;
+        }
       }
 
       // Step 2: Hyper-Strict DB Candidate Search from CardImplementer (Need Contract Gate)

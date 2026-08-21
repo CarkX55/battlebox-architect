@@ -206,6 +206,28 @@ export class CapabilityPlanner {
       }
       // If all targets are filled but budget remains, allocate additional support slots to highest-weight axis
       if (!allocatedInCycle && remainingBudget > 0) {
+        // If in non-singleton format, augment an existing high-priority slot with < 4 copies to prevent 1x splinters
+        if (!isSingletonFormat) {
+          const expIdx = slots.findIndex(s => s.role !== 'Land' && s.requiredDensity < maxPlayset);
+          if (expIdx !== -1) {
+            const expSlot = slots[expIdx];
+            const addAmount = Math.min(remainingBudget, maxPlayset - expSlot.requiredDensity);
+            slots[expIdx] = new AllocationSlot({
+              slotId: expSlot.slotId,
+              role: expSlot.role,
+              requiredDensity: expSlot.requiredDensity + addAmount,
+              priority: expSlot.priority,
+              timing: expSlot.timing,
+              mandatory: expSlot.mandatory,
+              origin: expSlot.origin,
+              strength: expSlot.strength
+            });
+            remainingBudget -= addAmount;
+            allocatedInCycle = true;
+            continue;
+          }
+        }
+
         const topAxis = spellAxes[0] || { id: 'CARD_FLOW', weight: 8 };
         const chunkSize = Math.min(remainingBudget, maxPlayset);
         slots.push(new AllocationSlot({

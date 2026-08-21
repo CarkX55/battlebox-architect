@@ -56,10 +56,81 @@ const isLandCard = (c) => {
 };
 
 /**
+ * INVARIANTE CAUSAL DE IDENTIDAD DE TIERRAS: LandState -> LandState'
+ * Evalúa si la sustitución de una tierra original por una candidata mejora realmente el estado:
+ * - manaSourceDelta: fuentes netas de maná aportadas
+ * - tribalSourceDelta: soporte de maná tribal/incoloro o sinérgico
+ * - colorReliabilityDelta: probabilidad de maná enderezado en turnos 1-3
+ * - strategicDelta: tempo, coste de entrada (tapland vs untapped) y valor de utilidad
+ * 
+ * Regla: Sustitución permitida (allowed: true) SOLO SI strategicDelta + colorReliabilityDelta >= 0 y no degrada fuentes tribales necesarias.
+ */
+export function evaluateLandStateTransition(originalLand, candidateLand, activeDeckContext = {}) {
+  const origName = (typeof originalLand === 'string' ? originalLand : (originalLand?.name || '')).toLowerCase().trim();
+  const candName = (typeof candidateLand === 'string' ? candidateLand : (candidateLand?.name || '')).toLowerCase().trim();
+
+  // Tierras tribales/especiales irremplazables por tierras básicas
+  const isTribalSpecial = origName.includes('cavern of souls') || origName.includes('unclaimed territory') || origName.includes('secluded courtyard') || origName.includes('mutavault') || origName.includes('haven of the spirit dragon');
+  const isBasicCand = isBasicLand(candName);
+
+  if (isTribalSpecial && isBasicCand) {
+    return {
+      legal: true,
+      manaSourceDelta: 0,
+      tribalSourceDelta: -4,
+      colorReliabilityDelta: -0.25,
+      strategicDelta: -0.40,
+      allowed: false,
+      reason: `Degrada el soporte tribal de fijación y no contrarrestable de ${originalLand.name || originalLand} a una básica simple.`
+    };
+  }
+
+  // Comprobar si originalLand es una tapland lenta y candidateLand es una dual rápida (Shockland, Fastland, Painland, Fetchland)
+  const isSlowTapland = origName.includes('commercial district') || origName.includes('guildgate') || origName.includes('temple of') || origName.includes('campus');
+  const isFastDual = candName.includes('stomping ground') || candName.includes('copperline gorge') || candName.includes('karplusan forest') || candName.includes('wooded foothills') || candName.includes('rockfall vale') || candName.includes('spirebluff canal') || candName.includes('steam vents');
+
+  if (isSlowTapland && isFastDual) {
+    return {
+      legal: true,
+      manaSourceDelta: 0,
+      tribalSourceDelta: 0,
+      colorReliabilityDelta: +0.20,
+      strategicDelta: +0.35,
+      allowed: true,
+      reason: `Mejora la velocidad de entrada en turno temprano reemplazando una tierra girada lenta por una tierra rápida competitiva.`
+    };
+  }
+
+  // Si se intenta degradar una dual premium a básica sin justificación
+  const isPremiumDualOrig = KNOWN_LAND_NAMES.has(origName) || origName.includes('shock') || origName.includes('pathway') || origName.includes('vale') || origName.includes('gorge') || origName.includes('cavern');
+  if (isPremiumDualOrig && isBasicCand) {
+    return {
+      legal: true,
+      manaSourceDelta: -1,
+      tribalSourceDelta: 0,
+      colorReliabilityDelta: -0.18,
+      strategicDelta: -0.30,
+      allowed: false,
+      reason: `Degrada la flexibilidad de color y calidad de la base de maná sustituyendo una tierra dual probada por una básica.`
+    };
+  }
+
+  return {
+    legal: true,
+    manaSourceDelta: 0,
+    tribalSourceDelta: 0,
+    colorReliabilityDelta: 0,
+    strategicDelta: 0,
+    allowed: true,
+    reason: `Sustitución de tierra compatible con los requerimientos de maná del mazo.`
+  };
+}
+
+/**
  * Corrige el Tamaño de la baraja principal y regenera/rebalancea la base de tierras
  * para asegurar que sume exactamente targetDeckSize (60 u 80).
  */
-export async function corregirTamañoYBaseDeMana(cards, targetDeckSize = 60, formData = {}, ragPool = [], preserveLands = false) {
+export async function corregirTamañoYBaseDeMana(cards, targetDeckSize = 60, formData = {}, ragPool = [], preserveLands = true) {
   const intentPackage = IntentBuilder.buildFromUI(formData);
   const deckState = new DeckState(intentPackage);
 

@@ -300,8 +300,10 @@ export default function CardSearch({ onAddCard, formData = {} }) {
 
   const getSynergyLabel = (card) => {
     if (!formData) return null;
-    const activeStrat = (formData.strategy || '').toLowerCase();
-    const activeTribe = (formData.tribe || '').toLowerCase();
+    const rawStrat = formData.strategy;
+    const activeStrat = (typeof rawStrat === 'string' ? rawStrat : (Array.isArray(rawStrat) && rawStrat[0] ? String(rawStrat[0]) : '')).toLowerCase();
+    const rawTribe = formData.tribe || formData.primaryTribe;
+    const activeTribe = (typeof rawTribe === 'string' ? rawTribe : (rawTribe?.name || '')).toLowerCase();
     const name = (card.name || '').toLowerCase();
     const text = (card.oracle_text || '').toLowerCase();
     const type = (card.type_line || '').toLowerCase();

@@ -98,7 +98,7 @@ export class CausalSynergyAdvisor {
       }
     }
 
-    // 1. Check ENABLES capability (e.g. SacOutlet, Looting, Ramp, Evasive Enablers)
+    // 1. Check ENABLES capability (e.g. SacOutlet, Looting, Ramp, Card Draw, Evasive Enablers)
     if (oracleText.includes('flying') || oracleText.includes('can\'t be blocked') || oracleText.includes('shadow') || oracleText.includes('skulk') || oracleText.includes('menace')) {
       causalRole = causalRole === 'NONE' ? 'ENABLES' : causalRole;
       addedCapabilities.push('EVASIVE_ENABLER', 'EVASIVE_T1');
@@ -108,17 +108,17 @@ export class CausalSynergyAdvisor {
       causalRole = 'ENABLES';
       addedCapabilities.push('SAC_OUTLET');
       evidence.push('Provides Sacrifice Outlet capability (ENABLES Death triggers)');
-    } else if (oracleText.includes('draw a card') && oracleText.includes('discard')) {
-      causalRole = 'ENABLES';
-      addedCapabilities.push('LOOTING');
-      evidence.push('Provides Looting/Graveyard Enabler capability');
+    } else if (oracleText.includes('draw a card') || oracleText.includes('draw cards') || oracleText.includes('draw two') || oracleText.includes('look at the top') || oracleText.includes('scry') || oracleText.includes('surveil') || oracleText.includes('investigate')) {
+      causalRole = causalRole === 'NONE' ? 'ENABLES' : causalRole;
+      addedCapabilities.push('CARD_ADVANTAGE', 'CARD_FLOW');
+      evidence.push('Provides Card Velocity / Flow capability (ENABLES consistency & resource replenishment)');
     } else if (oracleText.includes('add {') || oracleText.includes('search your library for a land') || oracleText.includes('additional land')) {
       causalRole = 'ENABLES';
       addedCapabilities.push('PRODUCES_MANA');
       evidence.push('Provides Mana Acceleration capability (ENABLES high-CMC spells)');
     }
 
-    // 2. Check CONVERTS / DIRECT_DAMAGE / DEATH_PAYOFF capability
+    // 2. Check CONVERTS / DIRECT_DAMAGE / DEATH_PAYOFF / FINISHER capability
     if (oracleText.includes('deals ') && (oracleText.includes('any target') || oracleText.includes('player') || oracleText.includes('opponent') || oracleText.includes('each target'))) {
       causalRole = causalRole === 'NONE' ? 'CONVERTS' : causalRole;
       addedCapabilities.push('DIRECT_DAMAGE', 'PLAYER_REACH');
@@ -130,7 +130,14 @@ export class CausalSynergyAdvisor {
       evidence.push('Provides Death Payoff capability (CONVERTS Death Events into Victory Progress)');
     }
 
-    // 3. Check AMPLIFIES / TRIBAL_ANTHEM & ENGINE SYNERGY capability
+    // 3. Check DISRUPTS / REMOVAL / INTERACTION capability
+    if (oracleText.includes('destroy') || oracleText.includes('exile') || oracleText.includes('discards') || oracleText.includes('discard a card') || oracleText.includes('counter target') || oracleText.includes('-x/-x') || (oracleText.includes('deals ') && oracleText.includes('target creature'))) {
+      if (causalRole === 'NONE') causalRole = 'DISRUPTS';
+      addedCapabilities.push('INTERACTION', 'CHEAP_REMOVAL');
+      evidence.push('Provides Interaction / Threat Neutralization (DISRUPTS opponent board development)');
+    }
+
+    // 4. Check AMPLIFIES / TRIBAL_ANTHEM & ENGINE SYNERGY capability
     const targetTribe = (deckState.primaryTribe || '').toLowerCase();
     const boostKeywords = deckState.intentPackage?.boostKeywords || [];
     const engineFlavor = (deckState.intentPackage?.engineFlavor || '').toLowerCase();
@@ -155,12 +162,12 @@ export class CausalSynergyAdvisor {
       }
     }
 
-    // Check Boost Keywords & Engine Flavor Synergy (Strict mechanic matching, zero raw substring pollution)
+    // Check Boost Keywords & Engine Flavor Synergy
     if (Array.isArray(boostKeywords) && boostKeywords.length > 0) {
       const matchedKw = boostKeywords.filter(kw => {
         if (!kw || typeof kw !== 'string') return false;
         const kwLower = kw.toLowerCase().trim();
-        if (kwLower.length <= 3 || kwLower === 'damage to' || kwLower === 'deals') return false; // Ignore vague substrings
+        if (kwLower.length <= 3 || kwLower === 'damage to' || kwLower === 'deals') return false;
         return combinedText.includes(kwLower);
       });
       if (matchedKw.length > 0) {
@@ -170,11 +177,18 @@ export class CausalSynergyAdvisor {
       }
     }
 
-    // 4. Check PROTECTS capability
-    if (oracleText.includes('hexproof') || oracleText.includes('indestructible') || oracleText.includes('counter target spell')) {
+    // 5. Check PROTECTS capability
+    if (oracleText.includes('hexproof') || oracleText.includes('indestructible') || oracleText.includes('counter target spell') || oracleText.includes('ward')) {
       if (causalRole === 'NONE') causalRole = 'PROTECTS';
       addedCapabilities.push('PROTECTION');
       evidence.push('Provides Protection / Counter capability for core engine');
+    }
+
+    // 6. Check BOARD_DEVELOPMENT capability (Creatures & Threat Permanents)
+    if (typeLine.includes('creature') || typeLine.includes('planeswalker')) {
+      if (causalRole === 'NONE') causalRole = 'DEVELOP_BOARD';
+      addedCapabilities.push('BOARD_PRESENCE');
+      evidence.push('Provides Permanent Board Presence & Combat Potential');
     }
 
     if (causalRole !== 'NONE') {

@@ -22,6 +22,32 @@ export class IntentPackage {
     mustRules = [],
     mustNotRules = [],
     preferRules = [],
+    isOpenStrategy = false,
+    customizationLevel = 'ADVANCED',
+    intentPriorities = {
+      competitiveVsTheme: 0.8,
+      tribeVsSynergy: 0.8,
+      innovationVsConsistency: 0.2
+    },
+    archetypePreferences = {},
+    tripartiteConstraints = {
+      hard: [],
+      preferred: [],
+      open: true
+    },
+    thesisRefutationPolicy = 'REFORMULATE_IF_BETTER',
+    softPreferences = {
+      likedCards: [],
+      avoidedCards: []
+    },
+    strategicFreedom = {
+      discoverSynergies: true,
+      allowSubArchetypePivot: true,
+      reformulateIfRefuted: true,
+      allowOffTribe: false
+    },
+    decisionPhilosophy = 'MAX_POWER',
+    constructionMode = 'PRO',
     source = 'UI_FORM_STATE',
     timestamp = null
   } = {}) {
@@ -42,6 +68,25 @@ export class IntentPackage {
     this.mustRules = Object.freeze([...mustRules]);
     this.mustNotRules = Object.freeze([...mustNotRules]);
     this.preferRules = Object.freeze([...preferRules]);
+
+    // Declarative Strategic Extensions (v3.0)
+    this.isOpenStrategy = Boolean(isOpenStrategy);
+    this.customizationLevel = customizationLevel;
+    this.intentPriorities = Object.freeze({ ...intentPriorities });
+    this.archetypePreferences = Object.freeze({ ...archetypePreferences });
+    this.tripartiteConstraints = Object.freeze({
+      hard: Object.freeze([...(tripartiteConstraints.hard || [])]),
+      preferred: Object.freeze([...(tripartiteConstraints.preferred || [])]),
+      open: tripartiteConstraints.open !== false
+    });
+    this.thesisRefutationPolicy = thesisRefutationPolicy;
+    this.softPreferences = Object.freeze({
+      likedCards: Object.freeze([...(softPreferences.likedCards || [])]),
+      avoidedCards: Object.freeze([...(softPreferences.avoidedCards || [])])
+    });
+    this.strategicFreedom = Object.freeze({ ...strategicFreedom });
+    this.decisionPhilosophy = decisionPhilosophy;
+    this.constructionMode = constructionMode;
 
     this.source = source;
     this.timestamp = timestamp || new Date().toISOString();
@@ -68,7 +113,10 @@ export class IntentPackage {
       userConstraints: this.userConstraints,
       mustRules: this.mustRules,
       mustNotRules: this.mustNotRules,
-      preferRules: this.preferRules
+      preferRules: this.preferRules,
+      isOpenStrategy: this.isOpenStrategy,
+      archetypePreferences: this.archetypePreferences,
+      tripartiteConstraints: this.tripartiteConstraints
     });
 
     let hash = 0;
@@ -93,7 +141,9 @@ export class IntentPackage {
       { field: 'strategy', source: this.source, value: this.strategy.join(', ') || 'None' },
       { field: 'mechanics', source: this.source, value: this.mechanics.join(', ') || 'None' },
       { field: 'budget', source: this.source, value: this.budget },
-      { field: 'powerLevel', source: this.source, value: this.powerLevel }
+      { field: 'powerLevel', source: this.source, value: this.powerLevel },
+      { field: 'customizationLevel', source: this.source, value: this.customizationLevel },
+      { field: 'refutationPolicy', source: this.source, value: this.thesisRefutationPolicy }
     ]);
   }
 

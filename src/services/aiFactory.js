@@ -765,6 +765,48 @@ export function buildUnifiedDeckArchitectPrompt(params) {
   return prompt;
 }
 
+/**
+ * Traduce la configuración unificada de Thinking { mode, budget }
+ * a la estructura requerida por cada proveedor y familia de modelos (Gemini 2.5, Gemini 3.x, OpenRouter).
+ */
+export function resolveThinkingConfig(provider, modelName = '', thinkingOptions = {}) {
+  const mode = (thinkingOptions.mode || 'PRO').toUpperCase();
+  if (mode === 'OFF') return null;
+
+  const defaultBudget = mode === 'BALANCED' ? 2048 : (mode === 'MAX' ? 16384 : 8192);
+  const budget = Number(thinkingOptions.budget || defaultBudget);
+  const modelLower = (modelName || '').toLowerCase();
+
+  if (provider === 'gemini') {
+    // Modelos Gemini 3.x -> thinkingLevel
+    if (modelLower.includes('gemini-3') || modelLower.includes('gemini-3.')) {
+      return {
+        thinkingConfig: {
+          thinkingLevel: mode === 'PRO' || mode === 'MAX' ? 'high' : 'medium'
+        }
+      };
+    }
+    // Modelos Gemini 2.0 / 2.5 / Flash Thinking -> thinkingBudget
+    return {
+      thinkingConfig: {
+        thinkingBudget: budget
+      }
+    };
+  }
+
+  if (provider === 'openrouter') {
+    // OpenRouter reasoning object estándar
+    return {
+      reasoning: {
+        max_tokens: budget,
+        effort: mode === 'PRO' || mode === 'MAX' ? 'high' : 'medium'
+      }
+    };
+  }
+
+  return null;
+}
+
 export async function callAI(messages, config, options = {}) {
   let { provider, apiKey, selectedModel, baseUrl } = config;
   const { forceJSON = false, maxTokens = 8000, onRetry = null, temperature } = options;
@@ -779,6 +821,11 @@ export async function callAI(messages, config, options = {}) {
       selectedModel = 'gpt-3.5-turbo';
     }
   }
+
+  const thinkingPayload = resolveThinkingConfig(provider, selectedModel, {
+    mode: config.thinkingMode || options.thinkingMode || 'PRO',
+    budget: config.thinkingBudget || options.thinkingBudget || 8192
+  });
 
   const systemMessage = messages.find(m => m.role === 'system');
   const userMessage = messages.find(m => m.role === 'user');
@@ -807,6 +854,7 @@ export async function callAI(messages, config, options = {}) {
       generationConfig: {
         maxOutputTokens: maxTokens,
         temperature: temperature !== undefined ? temperature : 0.1,
+        ...(thinkingPayload ? thinkingPayload : {}),
         ...(forceJSON || options.schema ? { responseMimeType: 'application/json' } : {}),
         ...(options.schema ? { responseSchema: options.schema } : {})
       }
@@ -818,6 +866,7 @@ export async function callAI(messages, config, options = {}) {
       messages,
       temperature: temperature !== undefined ? temperature : 0.7,
       max_tokens: maxTokens,
+      ...(thinkingPayload ? thinkingPayload : {}),
       ...(forceJSON ? { response_format: { type: 'json_object' } } : {})
     };
   }

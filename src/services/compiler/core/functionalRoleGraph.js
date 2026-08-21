@@ -14,7 +14,8 @@ export class FunctionalRoleGraph {
    * @returns {{ cardName: string, primaryRole: string, secondaryRoles: Array<string>, roleDescription: string }}
    */
   static getFunctionalRoles(cardName = 'Core Threat', archetypeKey = 'Ramp') {
-    const primaryRole = 'CORE_PIVOT';
+    const isCurveBridge = (cardName || '').toLowerCase().includes('turn1') || (cardName || '').toLowerCase().includes('turn2') || (cardName || '').toLowerCase().includes('curve');
+    const primaryRole = isCurveBridge ? 'CURVE_BRIDGE' : 'CORE_PIVOT';
     const secondaryRoles = Object.freeze(['STABILIZER', 'CLOSER', 'PRESSURE']);
     const roleDescription = `Actúa como amenaza central (${cardName}) y ancla sinérgica para la estrategia ${archetypeKey}.`;
 
