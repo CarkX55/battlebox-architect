@@ -38,6 +38,7 @@ export class StrategicIdentityCompiler {
     const engineId = (typeof rawEngId === 'string' ? rawEngId : '').toLowerCase();
     const rawBoosts = intentPackage.userConstraints?.boostKeywords || [];
     const boostStr = (Array.isArray(rawBoosts) ? rawBoosts.join(' ') : String(rawBoosts)).toLowerCase();
+    const powerLevel = (intentPackage.powerLevel || 'Competitive').toLowerCase();
 
     const allMechanicalSignals = `${strategy} ${mechanics.join(' ')} ${engineId} ${boostStr}`.toLowerCase();
 
@@ -62,8 +63,38 @@ export class StrategicIdentityCompiler {
       });
     }
 
-    // Sea Monsters / Terrores Marinos / Oceanic Ramp (Tritones, Krakens, Leviatanes, Pulpos, Serpientes)
+    // Sea Monsters / Terrores Marinos (Tritones, Krakens, Leviatanes, Pulpos, Serpientes)
     if (tribe.includes('sea_monster') || tribe.includes('kraken') || tribe.includes('leviathan') || tribe.includes('serpent') || tribe.includes('octopus') || strategy.includes('sea_monster') || strategy.includes('marino') || (tribe.includes('merfolk') && (tempo.includes('ramp') || strategy.includes('ramp') || strategy.includes('big mana') || strategy.includes('tron')))) {
+      if (tempo.includes('control')) {
+        return new DeckIdentity({
+          archetypeKey: 'SEA_MONSTERS_CONTROL',
+          gameplan: 'Controlar los primeros turnos con interacción eficiente, contrahechizos, robos y sweepers (como Whelming Wave), cerrando la partida con un número selecto de terrores oceánicos colosales.',
+          requiredEngines: ['Cheap Removal & Countermagic', 'Card Flow & Cantrips', 'Oceanic Sweepers', 'Colossal Oceanic Finishers'],
+          expectedCurveRange: { min: 1, max: 7 },
+          mandatoryRoles: ['Cheap Removal', 'Card Flow', 'Board Stabilization', 'Finisher', 'Tribal Density'],
+          strengths: ['Unblockable oceanic leviathans', 'Dominant late-game board presence', 'Asymmetric bounce sweepers (Whelming Wave)'],
+          weaknesses: ['Aggressive blitz decks if answers fail in turns 1-2'],
+          failureModes: ['Mana screw early', 'Threat deficit without card flow'],
+          recoveryPlan: ['Whelming Wave board reset', 'Card flow into resilient finishers'],
+          expectedKillTurn: 7,
+          requiresManaRamp: false
+        });
+      } else if (tempo.includes('tempo') || tempo.includes('aggro')) {
+        return new DeckIdentity({
+          archetypeKey: 'SEA_MONSTERS_TEMPO',
+          gameplan: 'Desplegar amenazas marítimas ágiles y generadores continuos (Ominous Seas, Shark Typhoon) con protección de contrahechizos y disrupción de tempo.',
+          requiredEngines: ['Cheap Interaction & Bounce', 'Continuous Oceanic Token Generators', 'Card Flow Velocity', 'Agile Threats'],
+          expectedCurveRange: { min: 1, max: 5 },
+          mandatoryRoles: ['Turn 1 Play', 'Turn 2 Pressure', 'Cheap Removal', 'Card Flow', 'Tribal Density'],
+          strengths: ['Continuous pressure', 'Agile tempo disruption'],
+          weaknesses: ['Fast aggressive burn decks'],
+          failureModes: ['Loss of tempo'],
+          recoveryPlan: ['Bounce sweepers', 'Card draw velocity'],
+          expectedKillTurn: 5,
+          requiresManaRamp: false
+        });
+      }
+
       return new DeckIdentity({
         archetypeKey: 'SEA_MONSTERS_RAMP',
         gameplan: 'Acelerar maná en turnos 1-2 mediante tritones aceleradores, cantrips y conjuros de rampa para desplegar terrores oceánicos colosales (Krakens, Leviatanes, Pulpos, Serpientes) que dominan la mesa.',
@@ -137,7 +168,7 @@ export class StrategicIdentityCompiler {
         gameplan: 'Dominar la partida desde el cementerio y la mesa con una horda imparable de zombis, esqueletos y horrores recurrentes.',
         requiredEngines: ['Graveyard Recursion', 'Sacrifice & Drain', 'Undead Swarm', 'Removal Suite'],
         expectedCurveRange: { min: 1, max: 5 },
-        mandatoryRoles: ['Turn 1 Play', 'Recursive Fodder', 'Tribal Density', 'Cheap Removal', 'Card Flow', 'Finisher'],
+        mandatoryRoles: ['Turn 1 Play', 'Turn 2 Pressure', 'Tribal Density', 'Amplify Board Pressure', 'Cheap Removal', 'Card Flow'],
         strengths: ['Infinite recursion from graveyard', 'Life drain bypasses combat'],
         weaknesses: ['Exile sweepers and Rest in Peace'],
         failureModes: ['Graveyard hate'],
@@ -317,19 +348,41 @@ export class StrategicIdentityCompiler {
       });
     }
 
-    // Werewolves Daybound / Nightbound Midrange
-    if (tribe.includes('werewolf') || tribe.includes('wolf')) {
+    // Werewolves Daybound / Nightbound
+    if (tribe.includes('werewolf') || tribe.includes('licantrop')) {
+      const isTempo = tempo.includes('tempo') || tempo.includes('aggro');
       return new DeckIdentity({
-        archetypeKey: 'WEREWOLF_DAYBOUND_MIDRANGE',
-        gameplan: 'Manipular el ciclo de Día y Noche para transformar humanos en Hombres Lobo gigantescos liderados por Tovolar, robando cartas al golpear.',
+        archetypeKey: isTempo ? 'WEREWOLF_DAYBOUND_TEMPO' : 'WEREWOLF_DAYBOUND_MIDRANGE',
+        gameplan: isTempo 
+          ? 'Manipular el ciclo de Día y Noche para aplicar presión agresiva en curva temprana con licántropos transformados a velocidad instantánea y robo de combate.'
+          : 'Manipular el ciclo de Día y Noche para transformar humanos en Hombres Lobo gigantescos liderados por Tovolar, robando cartas al golpear.',
         requiredEngines: ['Daybound Werewolves', 'Tovolar Draw & Transformation', 'Instant Speed Flash/Pass', 'Fight Removal'],
-        expectedCurveRange: { min: 1, max: 5 },
-        mandatoryRoles: ['Turn 1 Play', 'Turn 2 Pressure', 'Tribal Density', 'Cheap Removal', 'Card Flow', 'Finisher'],
-        strengths: ['Overwhelming stats during night', 'Continuous card draw on damage'],
+        expectedCurveRange: isTempo ? { min: 1, max: 4 } : { min: 1, max: 5 },
+        mandatoryRoles: isTempo 
+          ? ['Turn 1 Play', 'Turn 2 Pressure', 'Tribal Density', 'Cheap Removal', 'Card Flow']
+          : ['Turn 1 Play', 'Turn 2 Pressure', 'Tribal Density', 'Cheap Removal', 'Card Flow', 'Finisher'],
+        strengths: ['Overwhelming stats during night', 'Continuous card draw on damage', 'Tempo advantage through flash/pass'],
         weaknesses: ['Opponent casting 2 spells to force day'],
         failureModes: ['Locked into day mode'],
         recoveryPlan: ['Tovolar forced night trigger', 'Moonmist / The Celestus'],
-        expectedKillTurn: 5,
+        expectedKillTurn: isTempo ? 4 : 5,
+        requiresManaRamp: false
+      });
+    }
+
+    // Wolves Combat Pack Aggro (Distinct from Werewolves)
+    if (tribe === 'wolf' || tribe === 'wolves' || tribe === 'lobo' || tribe === 'lobos') {
+      return new DeckIdentity({
+        archetypeKey: 'WOLF_PACK_AGGRO',
+        gameplan: 'Desplegar manadas de lobos agresivos de bajo coste con amplificadores de combate para abrumar al oponente en turnos tempranos.',
+        requiredEngines: ['Cheap Wolves', 'Pack Alpha Amplifiers', 'Combat Removal', 'Card Flow'],
+        expectedCurveRange: { min: 1, max: 4 },
+        mandatoryRoles: ['Turn 1 Play', 'Turn 2 Pressure', 'Tribal Density', 'Cheap Removal', 'Card Flow'],
+        strengths: ['Fast swarm pressure', 'High early power-to-mana ratio'],
+        weaknesses: ['Board sweepers'],
+        failureModes: ['Stalled combat against large blockers'],
+        recoveryPlan: ['Overrun combat amplifiers'],
+        expectedKillTurn: 4,
         requiresManaRamp: false
       });
     }
@@ -595,10 +648,11 @@ export class StrategicIdentityCompiler {
       const hasWhite = colors.includes('W');
       const hasBlack = colors.includes('B');
       const hasGreen = colors.includes('G');
-      const isSacrifice = strategy.includes('sacrifice') || strategy.includes('dies') || mechanics.includes('sacrifice');
-      const isCombo = tempo.includes('combo') || strategy.includes('combo') || strategy.includes('snoop');
-      const isMidrange = tempo.includes('midrange') || strategy.includes('midrange') || strategy.includes('value');
-      const isTempo = tempo.includes('tempo') || strategy.includes('spells') || strategy.includes('prowess');
+      const combStrat = `${strategy} ${engineId} ${boostStr} ${mechanics.join(' ')}`.toLowerCase();
+      const isSacrifice = combStrat.includes('sacrifice') || combStrat.includes('sacrificio') || combStrat.includes('dies') || combStrat.includes('muere');
+      const isCombo = tempo.includes('combo') || combStrat.includes('combo') || combStrat.includes('snoop');
+      const isMidrange = tempo.includes('midrange') || combStrat.includes('midrange') || combStrat.includes('value');
+      const isTempo = tempo.includes('tempo') || combStrat.includes('spells') || combStrat.includes('prowess');
 
       if (isSacrifice) {
         return new DeckIdentity({

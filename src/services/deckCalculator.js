@@ -688,6 +688,8 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
   const tribe = (formData?.tribe || '').toLowerCase();
   const formColors = formData?.colores || [];
   const format = (formData?.format || 'MODERN').toUpperCase();
+  const isBattleboxCasual = format.includes('BATTLEBOX') || format.includes('CASUAL-HOUSE');
+  const activeVetos = isBattleboxCasual ? BATTLEBOX_VETOS : [];
 
   const hasTribe = !!(formData?.tribe && formData.tribe !== 'none' && formData.tribe !== 'ninguna');
   let minBasics = 3;
@@ -1064,15 +1066,15 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
       const tribalLands = [];
       
       // Cavern of Souls is legal in Modern, Legacy, Pioneer, Standard
-      if (!BATTLEBOX_VETOS.includes('Cavern of Souls')) {
+      if (!activeVetos.includes('Cavern of Souls')) {
           tribalLands.push({ name: "Cavern of Souls", quantity: 4 });
       }
       // Secluded Courtyard is legal in Modern, Pioneer, Legacy
-      if (!BATTLEBOX_VETOS.includes('Secluded Courtyard') && format !== 'STANDARD') {
+      if (!activeVetos.includes('Secluded Courtyard') && format !== 'STANDARD') {
           tribalLands.push({ name: "Secluded Courtyard", quantity: 4 });
       }
       // Unclaimed Territory is legal in Modern, Pioneer, Legacy
-      if (!BATTLEBOX_VETOS.includes('Unclaimed Territory') && format !== 'STANDARD') {
+      if (!activeVetos.includes('Unclaimed Territory') && format !== 'STANDARD') {
           tribalLands.push({ name: "Unclaimed Territory", quantity: 4 });
       }
       
@@ -1138,7 +1140,7 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
     { name: 'Sacred Foundry', colors: ['R', 'W'] },
     { name: 'Godless Shrine', colors: ['W', 'B'] },
     { name: 'Breeding Pool', colors: ['G', 'U'] }
-  ].filter(land => !BATTLEBOX_VETOS.includes(land.name));
+  ].filter(land => !activeVetos.includes(land.name));
 
   const fetchLands = [
     { name: 'Flooded Strand', colors: ['W', 'U'] },
@@ -1151,7 +1153,7 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
     { name: 'Verdant Catacombs', colors: ['B', 'G'] },
     { name: 'Arid Mesa', colors: ['R', 'W'] },
     { name: 'Misty Rainforest', colors: ['G', 'U'] }
-  ].filter(land => !BATTLEBOX_VETOS.includes(land.name));
+  ].filter(land => !activeVetos.includes(land.name));
 
   const legacyDuals = [
     { name: 'Underground Sea', colors: ['U', 'B'] },
@@ -1164,7 +1166,7 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
     { name: 'Scrubland', colors: ['W', 'B'] },
     { name: 'Plateau', colors: ['R', 'W'] },
     { name: 'Tropical Island', colors: ['G', 'U'] }
-  ].filter(land => !BATTLEBOX_VETOS.includes(land.name));
+  ].filter(land => !activeVetos.includes(land.name));
 
   const fastLands = [
     { name: 'Darkslick Shores', colors: ['U', 'B'] },
@@ -1177,7 +1179,7 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
     { name: 'Inspiring Vantage', colors: ['R', 'W'] },
     { name: 'Concealed Courtyard', colors: ['W', 'B'] },
     { name: 'Botanical Sanctum', colors: ['G', 'U'] }
-  ].filter(land => !BATTLEBOX_VETOS.includes(land.name));
+  ].filter(land => !activeVetos.includes(land.name));
 
   const slowLands = [
     { name: 'Shipwreck Marsh', colors: ['U', 'B'] },
@@ -1190,7 +1192,7 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
     { name: 'Sundown Pass', colors: ['R', 'W'] },
     { name: 'Shattered Sanctuary', colors: ['W', 'B'] },
     { name: 'Dreamroot Cascade', colors: ['G', 'U'] }
-  ].filter(land => !BATTLEBOX_VETOS.includes(land.name));
+  ].filter(land => !activeVetos.includes(land.name));
 
   const triomes = [
     { name: 'Raffine\'s Tower', colors: ['W', 'U', 'B'] },
@@ -1203,7 +1205,7 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
     { name: 'Raugrin Triome', colors: ['U', 'R', 'W'] },
     { name: 'Savai Triome', colors: ['W', 'B', 'R'] },
     { name: 'Zagoth Triome', colors: ['U', 'B', 'G'] }
-  ].filter(land => !BATTLEBOX_VETOS.includes(land.name));
+  ].filter(land => !activeVetos.includes(land.name));
 
   const painLands = [
     { name: 'Underground River', colors: ['U', 'B'] },
@@ -1216,7 +1218,7 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
     { name: 'Battlefield Forge', colors: ['R', 'W'] },
     { name: 'Caves of Koilos', colors: ['W', 'B'] },
     { name: 'Yavimaya Coast', colors: ['G', 'U'] }
-  ].filter(land => !BATTLEBOX_VETOS.includes(land.name));
+  ].filter(land => !activeVetos.includes(land.name));
 
   const surveilLands = [
     { name: 'Undercity Sewers', colors: ['U', 'B'] },
@@ -1229,7 +1231,7 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
     { name: 'Elegant Parlor', colors: ['R', 'W'] },
     { name: 'Shadowy Backstreet', colors: ['W', 'B'] },
     { name: 'Hedge Maze', colors: ['G', 'U'] }
-  ].filter(land => !BATTLEBOX_VETOS.includes(land.name));
+  ].filter(land => !activeVetos.includes(land.name));
 
   const restlessLands = [
     { name: 'Restless Cottage', colors: ['B', 'G'] },
@@ -1242,7 +1244,7 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
     { name: 'Restless Bivouac', colors: ['R', 'W'] },
     { name: 'Restless Fortress', colors: ['W', 'B'] },
     { name: 'Restless Vinestalk', colors: ['G', 'U'] }
-  ].filter(land => !BATTLEBOX_VETOS.includes(land.name));
+  ].filter(land => !activeVetos.includes(land.name));
 
   const pathways = [
     { name: 'Barkchannel Pathway // Tidechannel Pathway', colors: ['G', 'U'] },
@@ -1255,7 +1257,7 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
     { name: 'Riverglide Pathway // Lavaglide Pathway', colors: ['U', 'R'] },
     { name: 'Brightclimb Pathway // Grimclimb Pathway', colors: ['W', 'B'] },
     { name: 'Cragcrown Pathway // Timbercrown Pathway', colors: ['R', 'G'] }
-  ].filter(land => !BATTLEBOX_VETOS.includes(land.name));
+  ].filter(land => !activeVetos.includes(land.name));
 
   const temples = [
     { name: 'Temple of Deceit', colors: ['U', 'B'] },
@@ -1268,7 +1270,7 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
     { name: 'Temple of Triumph', colors: ['R', 'W'] },
     { name: 'Temple of Silence', colors: ['W', 'B'] },
     { name: 'Temple of Mystery', colors: ['G', 'U'] }
-  ].filter(land => !BATTLEBOX_VETOS.includes(land.name));
+  ].filter(land => !activeVetos.includes(land.name));
 
   const crowdLands = [
     { name: 'Morphic Pool', colors: ['U', 'B'] },
@@ -1281,7 +1283,7 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
     { name: 'Undergrowth Stadium', colors: ['B', 'G'] },
     { name: 'Spectator Seating', colors: ['R', 'W'] },
     { name: 'Rejuvenating Springs', colors: ['G', 'U'] }
-  ].filter(land => !BATTLEBOX_VETOS.includes(land.name));
+  ].filter(land => !activeVetos.includes(land.name));
 
   // Función de prioridad de tierras duales según formato y preferencia del usuario
   function getDualLandsPriority(format, style) {
@@ -1496,7 +1498,7 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
     if (format === 'LEGACY' && remainingLands > currentMinBasics) {
       if (['aggro', 'midrange', 'tempo', 'taxes'].includes(archetype) || ['aggro', 'midrange', 'prison'].includes(strategy)) {
         const qtyWasteland = Math.min(3, remainingLands - currentMinBasics);
-        if (qtyWasteland > 0 && !BATTLEBOX_VETOS.includes('Wasteland')) {
+        if (qtyWasteland > 0 && !activeVetos.includes('Wasteland')) {
           manaBase.push({
             name: 'Wasteland',
             quantity: qtyWasteland,
@@ -1515,7 +1517,7 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
       const rainbowLands = [
         { name: "City of Brass", quantity: 4 },
         { name: "Mana Confluence", quantity: 4 }
-      ].filter(land => !BATTLEBOX_VETOS.includes(land.name));
+      ].filter(land => !activeVetos.includes(land.name));
       
       let rainbowAdded = 0;
       const maxRainbow = 6;
@@ -1586,20 +1588,20 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
 
     // A. Tribal support for Mono-color
     if (hasTribe && monoCreatureCount >= 12) {
-      if (!BATTLEBOX_VETOS.includes('Cavern of Souls')) {
+      if (!activeVetos.includes('Cavern of Souls')) {
         utilityLandsToInject.push({ name: "Cavern of Souls", qty: 2, type: "Land — Cavern" });
       }
-      if (!BATTLEBOX_VETOS.includes('Mutavault') && format !== 'STANDARD') {
+      if (!activeVetos.includes('Mutavault') && format !== 'STANDARD') {
         utilityLandsToInject.push({ name: "Mutavault", qty: 2, type: "Land" });
       }
     }
 
     // B. Strategic engines
     if (monoColor === 'B' && (strategy === 'control' || strategy === 'reanimator' || archetype === 'control')) {
-      if (!BATTLEBOX_VETOS.includes('Cabal Coffers')) {
+      if (!activeVetos.includes('Cabal Coffers')) {
         utilityLandsToInject.push({ name: "Cabal Coffers", qty: 2, type: "Land" });
       }
-      if (!BATTLEBOX_VETOS.includes('Urborg, Tomb of Yawgmoth')) {
+      if (!activeVetos.includes('Urborg, Tomb of Yawgmoth')) {
         utilityLandsToInject.push({ name: "Urborg, Tomb of Yawgmoth", qty: 1, type: "Legendary Land" });
       }
       utilityLandsToInject.push({ name: "Castle Locthwain", qty: 2, type: "Land" });
@@ -1647,7 +1649,7 @@ export async function generateManaBase(pipBalance, totalLands, colorIdentity, fo
       };
       const list = genericMonoLands[monoColor] || [];
       list.forEach(item => utilityLandsToInject.push(item));
-      if (!BATTLEBOX_VETOS.includes('Mutavault') && utilityLandsToInject.length < 5) {
+      if (!activeVetos.includes('Mutavault') && utilityLandsToInject.length < 5) {
         utilityLandsToInject.push({ name: "Mutavault", qty: 2, type: "Land" });
       }
     }

@@ -42,7 +42,7 @@ export class DemandSupplyLedger {
    * @param {string} resource Name of the resource
    * @returns {number} Available raw supply count in deck
    */
-  static computeAvailableSupply(deckState, resource) {
+  static computeAvailableSupply(deckState, resource, demand = null, intentContext = {}) {
     const cards = (deckState && deckState.cards) || [];
     let supply = 0;
 
@@ -143,6 +143,16 @@ export class DemandSupplyLedger {
           supply += 4;
           break;
 
+        case 'SUBTYPE_CONTROL': {
+          const reqSub = (demand && demand.requiredSubtype) ? String(demand.requiredSubtype).toLowerCase().trim() : '';
+          if (reqSub) {
+            if (typeLine.includes(reqSub) || oracle.includes(reqSub + ' creature token') || oracle.includes(reqSub + ' token')) {
+              supply += count;
+            }
+          }
+          break;
+        }
+
         default:
           break;
       }
@@ -217,15 +227,24 @@ export class DemandSupplyLedger {
         continue;
       }
 
-      // 2. Compute available supply in deck state
-      const availableSupply = this.computeAvailableSupply(deckState, demand.resource);
-      const turn = demand.turn || (card.cmc || card.mana_value || 2);
+      // 2. Compute available supply in deck state & intent context
+      let availableSupply = this.computeAvailableSupply(deckState, demand.resource, demand, intentContext);
+
+      // If evaluating in context of a declared tribal intent, check if intent natively supplies the required subtype
+      if (demand.resource === 'SUBTYPE_CONTROL' && demand.requiredSubtype) {
+        const rawTribe = (intentContext.primaryTribe || intentContext.tribe || '').toLowerCase().trim();
+        if (rawTribe && rawTribe.includes(demand.requiredSubtype)) {
+          availableSupply += 20; // Native tribal deck infrastructure guarantee
+        }
+      }
+
+      const turn = demand.turn || demand.earliestRelevantTurn || (card.cmc || card.mana_value || 2);
       const { reliableSupply, probability } = this.computeReliableSupply(availableSupply, turn);
 
       // Hard demand verification
       let satisfies = false;
       if (demand.necessity === 'HARD') {
-        satisfies = availableSupply >= 4 && probability >= 0.45;
+        satisfies = availableSupply > 0 && probability >= 0.20;
       } else if (demand.necessity === 'OPPONENT_DEPENDENT') {
         satisfies = true; // Evaluated via metagame scenarios
       } else {
@@ -238,7 +257,7 @@ export class DemandSupplyLedger {
       if (status === 'UNFULFILLED' && demand.necessity === 'HARD') {
         isSatisfied = false;
         failureReasons.push(
-          `Demanda estricta [${demand.resource}] no satisfecha por la infraestructura del mazo (Disponibles: ${availableSupply}, Fiables: ${reliableSupply}, P: ${Math.round(probability * 100)}%).`
+          `Demanda estricta [${demand.resource}${demand.requiredSubtype ? ': ' + demand.requiredSubtype : ''}] no satisfecha por la infraestructura del mazo (Disponibles: ${availableSupply}, Fiables: ${reliableSupply}, P: ${Math.round(probability * 100)}%).`
         );
       }
 

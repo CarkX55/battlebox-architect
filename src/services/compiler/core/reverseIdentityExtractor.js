@@ -14,7 +14,11 @@ export class ReverseIdentityExtractor {
    * @returns {{ predictedArchetypeKey: string, confidenceScore: number, matchDetails: Object }}
    */
   static extractIdentity(deckState) {
-    if (!deckState || !Array.isArray(deckState.cards) || deckState.cards.length === 0) {
+    const rawCards = Array.isArray(deckState?.cards)
+      ? deckState.cards
+      : (deckState?.cards instanceof Map ? Array.from(deckState.cards.values()) : []);
+
+    if (!deckState || rawCards.length === 0) {
       return {
         predictedArchetypeKey: 'GENERIC_AGGRO',
         confidenceScore: 1.0,
@@ -22,7 +26,7 @@ export class ReverseIdentityExtractor {
       };
     }
 
-    const cards = deckState.cards;
+    const cards = rawCards;
     const tribeCounts = new Map();
     let rampCount = 0;
     let counterspellCount = 0;
@@ -30,31 +34,77 @@ export class ReverseIdentityExtractor {
     let burnCount = 0;
     let sacrificeCount = 0;
     let cardDrawCount = 0;
+    let taxLockCount = 0;
     let totalNonLand = 0;
 
     const KNOWN_TRIBES = [
-      'ninja', 'faerie', 'spirit', 'sliver', 'rat', 'squirrel', 'cat', 'dog', 'hound',
+      'phyrexian', 'ninja', 'faerie', 'spirit', 'sliver', 'rat', 'squirrel', 'cat', 'dog', 'hound',
       'wall', 'defender', 'werewolf', 'wolf', 'knight', 'rogue', 'wizard', 'cleric', 'warrior', 'soldier',
       'angel', 'demon', 'dragon', 'dinosaur', 'hydra', 'giant', 'beast', 'elemental', 'eldrazi',
       'ooze', 'gorgon', 'saproling', 'fungus', 'thallid', 'skeleton', 'horror', 'zombie', 'vampire',
       'kraken', 'leviathan', 'serpent', 'octopus', 'merfolk', 'pirate', 'assassin', 'mercenary', 'warlock',
-      'shaman', 'druid', 'mutant', 'construct', 'myr', 'golem', 'goblin', 'elf', 'human'
+      'shaman', 'druid', 'mutant', 'construct', 'myr', 'golem', 'goblin', 'elf', 'human',
+      'lizard', 'mouse', 'bat', 'otter', 'frog', 'rabbit', 'treefolk', 'spider', 'snake', 'crab', 'devil', 'turtle'
     ];
 
-    for (const card of cards) {
-      const qty = card.quantity || 1;
-      const typeLine = (card.type_line || '').toLowerCase();
+    for (const cardItem of cards) {
+      const card = cardItem.card || cardItem;
+      const qty = cardItem.quantity || card.quantity || 1;
+      const typeLine = (card.type_line || card.typeLine || '').toLowerCase();
       const name = (card.name || '').toLowerCase();
-      const oracleText = (card.oracle_text || card.oracleText || '').toLowerCase();
+      const oracleText = (card.oracle_text || card.oracleText || card.text || '').toLowerCase();
       const isLand = typeLine.includes('land');
 
       if (!isLand) {
         totalNonLand += qty;
 
         for (const tribe of KNOWN_TRIBES) {
-          if (typeLine.includes(tribe) || name.includes(tribe) || (tribe === 'saproling' && (oracleText.includes('saproling') || typeLine.includes('fungus')))) {
+          if (typeLine.includes(tribe) || name.includes(tribe) || 
+              (tribe === 'saproling' && (oracleText.includes('saproling') || typeLine.includes('fungus'))) ||
+              (tribe === 'werewolf' && (typeLine.includes('werewolf') || oracleText.includes('daybound') || oracleText.includes('nightbound') || name.includes('tovolar') || name.includes('arlinn')))) {
             tribeCounts.set(tribe, (tribeCounts.get(tribe) || 0) + qty);
           }
+        }
+
+        const isSelfDrawbackOnly = (oracleText.includes("this creature can't attack") || 
+                                    oracleText.includes("can't attack or block unless") || 
+                                    oracleText.includes("can't attack unless") || 
+                                    oracleText.includes("this creature can't block") || 
+                                    oracleText.includes("can't block.") ||
+                                    oracleText.includes("this spell costs") || 
+                                    oracleText.includes("strive —")) &&
+                                   !oracleText.includes("creatures your opponents control") &&
+                                   !oracleText.includes("opponents can't") &&
+                                   !oracleText.includes("each spell a player casts costs");
+
+        const isTaxOrLock = !isSelfDrawbackOnly && (
+                            oracleText.includes('more to cast') || 
+                            oracleText.includes('more to activate') || 
+                            oracleText.includes("can't cast more than one") || 
+                            oracleText.includes("can cast only one") || 
+                            oracleText.includes("no more than one spell") || 
+                            oracleText.includes('enters tapped') || 
+                            oracleText.includes('enter the battlefield tapped') || 
+                            oracleText.includes("players can't search") || 
+                            oracleText.includes("can't search libraries") || 
+                            oracleText.includes("unless its controller pays") || 
+                            oracleText.includes("unless that player pays") || 
+                            name.includes('thalia') || 
+                            name.includes('archon of emeria') || 
+                            name.includes('strict proctor') || 
+                            name.includes('reidane') || 
+                            name.includes('aven mindcensor') || 
+                            name.includes('damping sphere') || 
+                            name.includes('deafening silence') || 
+                            name.includes('high noon') || 
+                            name.includes('authority of the consuls') || 
+                            name.includes('blind obedience') || 
+                            name.includes('ghostly prison') || 
+                            name.includes('containment priest') ||
+                            name.includes('inquisitor')
+        );
+        if (isTaxOrLock) {
+          taxLockCount += qty;
         }
 
         if (oracleText.includes('counter target') || name.includes('counterspell')) {
@@ -80,10 +130,11 @@ export class ReverseIdentityExtractor {
 
     // Identify dominant tribe (including tribal alliances with MTG race vs vocation tie-breaking)
     const PRIMARY_RACES = new Set([
-      'elf', 'goblin', 'merfolk', 'zombie', 'vampire', 'dragon', 'dinosaur', 'sliver', 
+      'phyrexian', 'elf', 'goblin', 'merfolk', 'zombie', 'vampire', 'dragon', 'dinosaur', 'sliver', 
       'faerie', 'spirit', 'angel', 'demon', 'hydra', 'giant', 'beast', 'elemental', 
       'eldrazi', 'werewolf', 'cat', 'dog', 'rat', 'squirrel', 'ooze', 'gorgon', 
-      'saproling', 'fungus', 'skeleton', 'horror', 'kraken', 'leviathan', 'serpent', 'octopus'
+      'saproling', 'fungus', 'skeleton', 'horror', 'kraken', 'leviathan', 'serpent', 'octopus',
+      'lizard', 'mouse', 'bat', 'otter', 'frog', 'rabbit', 'treefolk', 'spider', 'snake', 'crab', 'devil', 'turtle'
     ]);
 
     let dominantTribe = null;
@@ -145,7 +196,10 @@ export class ReverseIdentityExtractor {
     let predictedArchetypeKey = 'GENERIC_AGGRO';
     let confidenceScore = 0.95;
 
-    if (dominantTribe && maxTribeCount >= 8) {
+    if (taxLockCount >= 8) {
+      predictedArchetypeKey = 'PRISON_TAXES_CONTROL';
+      confidenceScore = Math.min(1.0, 0.92 + (taxLockCount * 0.01));
+    } else if (dominantTribe && maxTribeCount >= 8) {
       if (dominantTribe === 'hydra') {
         predictedArchetypeKey = 'HYDRA_COUNTERS_RAMP';
         confidenceScore = Math.min(1.0, 0.92 + (maxTribeCount * 0.01));
@@ -198,7 +252,13 @@ export class ReverseIdentityExtractor {
         predictedArchetypeKey = 'SELESNYA_ELVES_RAMP';
         confidenceScore = Math.min(1.0, 0.90 + (maxTribeCount * 0.01));
       } else if (dominantTribe === 'sea_monsters' || dominantTribe === 'kraken' || dominantTribe === 'leviathan' || dominantTribe === 'serpent' || dominantTribe === 'octopus' || (dominantTribe === 'merfolk' && rampCount >= 6)) {
-        predictedArchetypeKey = 'SEA_MONSTERS_RAMP';
+        if (counterspellCount + removalCount >= 6 && rampCount <= 4) {
+          predictedArchetypeKey = 'SEA_MONSTERS_CONTROL';
+        } else if (rampCount >= 6) {
+          predictedArchetypeKey = 'SEA_MONSTERS_RAMP';
+        } else {
+          predictedArchetypeKey = 'SEA_MONSTERS_CONTROL';
+        }
         confidenceScore = Math.min(1.0, 0.92 + (maxTribeCount * 0.01));
       } else if (dominantTribe === 'merfolk') {
         predictedArchetypeKey = 'MERFOLK_TEMPO';
@@ -245,8 +305,11 @@ export class ReverseIdentityExtractor {
       } else if (dominantTribe === 'wall' || dominantTribe === 'defender') {
         predictedArchetypeKey = 'WALLS_TOUGHNESS_STOMPY';
         confidenceScore = Math.min(1.0, 0.90 + (maxTribeCount * 0.01));
-      } else if (dominantTribe === 'werewolf' || dominantTribe === 'wolf') {
-        predictedArchetypeKey = 'WEREWOLF_DAYBOUND_MIDRANGE';
+      } else if (dominantTribe === 'werewolf') {
+        predictedArchetypeKey = 'WEREWOLF_DAYBOUND_TEMPO';
+        confidenceScore = Math.min(1.0, 0.90 + (maxTribeCount * 0.01));
+      } else if (dominantTribe === 'wolf') {
+        predictedArchetypeKey = 'WOLF_PACK_AGGRO';
         confidenceScore = Math.min(1.0, 0.90 + (maxTribeCount * 0.01));
       } else if (dominantTribe === 'knight') {
         predictedArchetypeKey = 'KNIGHTS_EQUIPMENT_AGGRO';
@@ -278,9 +341,9 @@ export class ReverseIdentityExtractor {
       } else if (dominantTribe === 'outlaws') {
         predictedArchetypeKey = 'OUTLAWS_CRIMES_TEMPO';
         confidenceScore = 0.92;
-      } else if (dominantTribe === 'party') {
-        predictedArchetypeKey = 'PARTY_ADVENTURERS_MIDRANGE';
-        confidenceScore = 0.92;
+      } else if (dominantTribe === 'phyrexian') {
+        predictedArchetypeKey = 'PHYREXIAN_TOXIC_MIDRANGE';
+        confidenceScore = Math.min(1.0, 0.92 + (maxTribeCount * 0.01));
       } else {
         predictedArchetypeKey = `${dominantTribe.toUpperCase()}_TRIBAL`;
         confidenceScore = 0.92;
@@ -328,8 +391,10 @@ export class ReverseIdentityExtractor {
 
     // Check exact or semantic archetype match
     const isExactMatch = predictedKey === targetKey;
-    const isFamilyMatch = (targetKey.includes('RAMP') && predictedKey.includes('RAMP')) ||
-                          (targetKey.includes('CONTROL') && predictedKey.includes('CONTROL')) ||
+    const isFamilyMatch = (targetKey.includes('PRISON') && (predictedKey.includes('PRISON') || predictedKey.includes('TAX'))) ||
+                          (targetKey.includes('TAX') && (predictedKey.includes('PRISON') || predictedKey.includes('TAX'))) ||
+                          (targetKey.includes('RAMP') && predictedKey.includes('RAMP')) ||
+                          (targetKey.includes('CONTROL') && (predictedKey.includes('CONTROL') || predictedKey.includes('PRISON'))) ||
                           (targetKey.includes('AGGRO') && predictedKey.includes('AGGRO')) ||
                           (targetKey.includes('TEMPO') && predictedKey.includes('TEMPO')) ||
                           (targetKey.includes('SACRIFICE') && (predictedKey.includes('SACRIFICE') || predictedKey.includes('ARISTOCRAT'))) ||

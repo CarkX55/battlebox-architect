@@ -54,6 +54,7 @@ function extractCardData(card) {
     promo_types: card.promo_types || [],
     power: card.power ?? '',
     toughness: card.toughness ?? '',
+    reprint: Boolean(card.reprint),
   };
 }
 

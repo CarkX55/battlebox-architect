@@ -109,10 +109,10 @@ const PILLAR_KEYWORDS = {
   ],
   removal: [
     'exile target', 'destroy target', 'return target', 'counter target', 'negate',
-    'tap target', 'deals damage to target', 'damage to any target',
-    '-x/-x', 'put into the graveyard', 'remove from combat',
-    'sacrifice a creature', 'fights', 'deathtouch',
-    'until end of turn target', 'destroy all', 'exile all',
+    'tap target', 'deals damage to target', 'damage to any target', 'deal damage to any target',
+    '-x/-x', '-1/-1', '-2/-2', '-3/-3', '-4/-4', '-5/-5',
+    'sacrifice a creature', 'fights target', 'deals damage equal to',
+    'destroy all', 'exile all', 'all creatures get -',
     'wraths', 'board wipe', 'mass removal',
   ],
   protection: [
@@ -121,24 +121,39 @@ const PILLAR_KEYWORDS = {
     'can\'t be countered', 'uncounterable', 'can\'t be destroyed',
     'prevent', 'redirect damage',
   ],
-  threats: [], // Threats = creatures with power ≥ 3, or planeswalkers – handled in code
+  threats: [], // Threats = creatures with power ≥ 3, on-curve aggro beaters, lords, or planeswalkers
 };
 
 // Simple heuristic: false positive filter for ramp
 const RAMP_FALSE_POSITIVES = ['put a +1/+1 counter'];
 
+function normalizeTribeWord(tribeStr) {
+  if (!tribeStr) return '';
+  let clean = String(tribeStr).toLowerCase().trim();
+  if (['none', 'null', 'general', 'ninguna', 'sin tribu', 'omitir', 'universal', 'sin_tribu'].includes(clean)) return '';
+  if (clean.endsWith('ies')) clean = clean.slice(0, -3) + 'y';
+  else if (clean.endsWith('ves')) clean = clean.slice(0, -3) + 'f';
+  else if (clean.endsWith('es') && (clean.endsWith('shes') || clean.endsWith('ches') || clean.endsWith('xes') || clean.endsWith('sses'))) clean = clean.slice(0, -2);
+  else if (clean.endsWith('s') && !clean.endsWith('ss') && !clean.endsWith('us') && !clean.endsWith('is')) clean = clean.slice(0, -1);
+  return clean;
+}
+
 /**
  * Clasifica un spell en uno o más pilares funcionales usando oracle_text.
  * @param {Object} card - Objeto carta con oracle_text, type_line, power
+ * @param {string|null} tribe - Tribu activa
+ * @param {string} archetype - Arquetipo activo
  * @returns {string[]} - Lista de pilares a los que contribuye la carta
  */
-function classifyCardPillar(card, tribe = null) {
+function classifyCardPillar(card, tribe = null, archetype = 'midrange') {
   const oracle = (card.oracle_text || '').toLowerCase();
   const typeLine = (card.type_line || '').toLowerCase();
   const powerStr = (card.power || '').trim();
   const isVariablePower = powerStr.includes('*');
   const power = isVariablePower ? 3 : parseInt(powerStr || '0', 10);
+  const cmc = card.mana_value ?? card.cmc ?? 0;
   const pillars = new Set();
+  const isCreature = typeLine.includes('creature');
 
   // THREATS: planeswalkers
   if (typeLine.includes('planeswalker')) {
@@ -151,29 +166,40 @@ function classifyCardPillar(card, tribe = null) {
     "dauthi voidwalker", "thalia, guardian of thraben", "young pyromancer", 
     "tarmogoyf", "slickshot show-off", "balmor, battlemage captain", "psychatog",
     "scute swarm", "monastery swiftspear", "soul-scar mage", "ledger shredder",
-    "goblin guide", "eidolon of the great revel", "dreadhorde arcanist", "hollow one"
+    "goblin guide", "eidolon of the great revel", "dreadhorde arcanist", "hollow one",
+    "diregraf ghoul", "festerleech", "engine rat", "hungry ghoul", "postmortem professor",
+    "unstoppable slasher", "death baron", "midnight reaper"
   ];
   
   const nameLower = (card.name || '').toLowerCase();
-  const isLord = typeLine.includes('creature') && 
+  const isLord = isCreature && 
     (oracle.includes('get +1/+1') || oracle.includes('gets +1/+1') || oracle.includes('obtienen +1/+1') || oracle.includes('obtiene +1/+1')) && 
     (oracle.includes('other ') || oracle.includes('otras ') || oracle.includes('otros ') || oracle.includes('creatures you control') || oracle.includes('las criaturas que controlas'));
 
-  const isTribeMember = tribe && tribe !== 'none' && tribe !== 'ninguna' && 
-    typeLine.includes('creature') && 
-    typeLine.includes(tribe.toLowerCase().trim());
+  const cleanTribe = normalizeTribeWord(tribe);
+  const isTribeMember = cleanTribe && isCreature && (typeLine.includes(cleanTribe) || oracle.includes('changeling'));
 
-  const isLowPowerThreat = typeLine.includes('creature') && 
-    (LOW_POWER_THREATS.some(t => nameLower.includes(t)) ||
-     isLord ||
-     isTribeMember ||
-     oracle.includes('prowess') ||
-     oracle.includes('double strike') ||
-     oracle.includes('infect') ||
-     oracle.includes('toxic') ||
-     (oracle.includes('whenever') && (oracle.includes('deals damage') || oracle.includes('draws a card') || oracle.includes('draw a card') || oracle.includes('put a +1/+1 counter')) && power >= 1));
+  const archStr = String(archetype || '').toLowerCase();
+  const isAggroOrTribal = archStr.includes('aggro') || archStr.includes('tribal') || archStr.includes('burn') || Boolean(cleanTribe);
 
-  if (typeLine.includes('creature') && ((!isNaN(power) && power >= 3) || isLowPowerThreat)) {
+  const isCombatBeater = isCreature && (
+    (!isNaN(power) && power >= 3) ||
+    LOW_POWER_THREATS.some(t => nameLower.includes(t)) ||
+    isLord ||
+    isTribeMember ||
+    (isAggroOrTribal && power >= 1 && cmc <= 4) ||
+    oracle.includes('prowess') ||
+    oracle.includes('double strike') ||
+    oracle.includes('infect') ||
+    oracle.includes('toxic') ||
+    oracle.includes('haste') ||
+    oracle.includes('flying') ||
+    oracle.includes('menace') ||
+    oracle.includes('deathtouch') ||
+    (oracle.includes('whenever') && (oracle.includes('deals damage') || oracle.includes('draws a card') || oracle.includes('draw a card') || oracle.includes('put a +1/+1 counter')) && power >= 1)
+  );
+
+  if (isCombatBeater) {
     pillars.add('threats');
   }
 
@@ -186,7 +212,10 @@ function classifyCardPillar(card, tribe = null) {
   if (PILLAR_KEYWORDS.draw.some(kw => oracle.includes(kw))) pillars.add('draw');
 
   // REMOVAL
-  if (PILLAR_KEYWORDS.removal.some(kw => oracle.includes(kw))) pillars.add('removal');
+  const isRemovalSpell = !isCreature || oracle.includes('when ~ enters') || oracle.includes('when this creature enters') || oracle.includes('destroy target') || oracle.includes('exile target') || oracle.includes('fights target');
+  if (isRemovalSpell && PILLAR_KEYWORDS.removal.some(kw => oracle.includes(kw))) {
+    pillars.add('removal');
+  }
 
   // PROTECTION
   if (PILLAR_KEYWORDS.protection.some(kw => oracle.includes(kw))) pillars.add('protection');
@@ -209,8 +238,8 @@ export function analyzeFunctionalPillars(spells, format = 'MODERN', archetypeOrF
   let tribe = null;
 
   if (archetypeOrFormData && typeof archetypeOrFormData === 'object') {
-    archetype = archetypeOrFormData.archetype || 'midrange';
-    tribe = archetypeOrFormData.tribe || null;
+    archetype = archetypeOrFormData.archetype || archetypeOrFormData.tempo || 'midrange';
+    tribe = archetypeOrFormData.tribe || archetypeOrFormData.primaryTribe || archetypeOrFormData.tribu || archetypeOrFormData.aiMetadata?.tribe || null;
   } else {
     archetype = archetypeOrFormData || 'midrange';
     tribe = tribeInput || null;
@@ -229,7 +258,7 @@ export function analyzeFunctionalPillars(spells, format = 'MODERN', archetypeOrF
 
   spells.forEach(card => {
     const qty = card.quantity || 1;
-    const cardPillars = classifyCardPillar(card, tribe);
+    const cardPillars = classifyCardPillar(card, tribe, archetype);
     cardPillars.forEach(p => {
       if (pillars[p]) {
         pillars[p].count += qty;

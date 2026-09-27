@@ -15,6 +15,7 @@ export class ArchetypeProfileRegistry {
   static getProfile(intentPackage = {}) {
     const rawArch = intentPackage.archetype || intentPackage.tempo || '';
     const archetype = (typeof rawArch === 'string' ? rawArch : (Array.isArray(rawArch) ? rawArch.join(' ') : (rawArch?.id || rawArch?.name || ''))).toLowerCase();
+    const tempo = archetype;
 
     const rawStrat = intentPackage.strategy || '';
     const strategy = (typeof rawStrat === 'string' ? rawStrat : (Array.isArray(rawStrat) ? rawStrat.join(' ') : (rawStrat?.id || rawStrat?.name || ''))).toLowerCase();
@@ -55,6 +56,109 @@ export class ArchetypeProfileRegistry {
 
     const hasTribe = Boolean(tribe && tribe !== 'none' && tribe !== 'ninguna' && tribe !== 'general' && tribe !== 'null');
 
+    // 0. SPECIALIZED ENGINE PROFILES (Priority Engine Detection)
+    const isToughnessCombat = tribe === 'wall' || strategy.includes('toughness') || strategy.includes('resistencia') || engineId.includes('wall_toughness') || flavor.includes('resistencia') || flavor.includes('toughness');
+    const isNinjutsu = tribe === 'ninja' || strategy.includes('ninjutsu') || engineId.includes('ninja');
+    const isAristocrats = strategy.includes('aristocrat') || strategy.includes('sacrifice') || engineId.includes('sacrifice') || engineId.includes('aristocrat');
+    const isReanimator = strategy.includes('reanimat') || strategy.includes('dredge') || strategy.includes('graveyard') || engineId.includes('reanimat');
+    const isSpellslinger = strategy.includes('spellslinger') || strategy.includes('prowess') || strategy.includes('magecraft') || engineId.includes('spellslinger');
+    const isLandfall = strategy.includes('landfall') || engineId.includes('landfall');
+    const isPrison = (tempo || '').toLowerCase().includes('prison') || (tempo || '').toLowerCase().includes('tax') || strategy.includes('prison') || strategy.includes('tax') || strategy.includes('hatebear') || strategy.includes('impuest') || engineId.includes('prison') || engineId.includes('tax');
+
+    if (isPrison) {
+      return {
+        id: 'PRISON_TAXES_CONTROL',
+        name: 'PRISON TAXES CONTROL',
+        sequence: [
+          { nonLandMax: 12, need: 'TAXING_CREATURE', type: 'Creature', cmcMin: 1, cmcMax: 3, reasoning: 'Core hatebears & taxing creatures (Thalia, Guardian of Thraben, Archon of Emeria, Strict Proctor, Reidane, Aven Mindcensor, Skyclave Apparition).' },
+          { nonLandMax: 20, need: 'PRISON_LOCK', type: 'Any', cmcMin: 1, cmcMax: 4, reasoning: 'Static denial, mana taxes & attack restrictions (Damping Sphere, Deafening Silence, High Noon, Authority of the Consuls, Ghostly Prison).' },
+          { nonLandMax: 28, need: 'CHEAP_REMOVAL', type: 'Any', cmcMin: 1, cmcMax: 3, reasoning: 'Cheap targeted removal & confinement (Portable Hole, Get Lost, Temporary Lockdown, Spell Queller).' },
+          { nonLandMax: 36, need: 'CARD_FLOW', type: 'Any', cmcMin: 1, cmcMax: 4, reasoning: 'Card advantage & asymmetric velocity.' }
+        ]
+      };
+    }
+
+    if (isToughnessCombat) {
+      return {
+        id: 'DEFENDER_TOUGHNESS_STOMPY',
+        name: 'DEFENDER TOUGHNESS STOMPY',
+        sequence: [
+          { nonLandMax: 8, need: 'TOUGHNESS_ENABLER', type: 'Any', cmcMin: 1, cmcMax: 4, reasoning: 'Essential toughness-combat enablers (Arcades, High Alert, Assault Formation, Bedrock Tortoise, Huatli).' },
+          { nonLandMax: 14, need: 'DEFENDER_MANA_RAMP', type: 'Creature', cmcMin: 1, cmcMax: 3, reasoning: 'Defender-based mana acceleration (Axebane Guardian, Overgrown Battlement, Sylvan Caryatid).' },
+          { nonLandMax: 26, need: 'DEFENDER_DENSITY', type: 'Creature', cmcMin: 1, cmcMax: 4, reasoning: 'Core high-toughness defenders and cantrips (Wall of Blossoms, Wall of Omens, Jeskai Barricade, Wall of Mulch).' },
+          { nonLandMax: 30, need: 'COMBAT_AMPLIFICATION', type: 'Instant', cmcMin: 1, cmcMax: 3, reasoning: 'Lethal toughness combat tricks (Tower Defense, Bar the Door, Solid Footing).' },
+          { nonLandMax: 36, need: 'CHEAP_REMOVAL', type: 'Instant_or_Sorcery', cmcMin: 1, cmcMax: 3, reasoning: 'Low-cost spot removal & protection.' }
+        ]
+      };
+    }
+
+    if (isNinjutsu) {
+      return {
+        id: 'NINJUTSU_TEMPO',
+        name: 'NINJUTSU TEMPO',
+        sequence: [
+          { nonLandMax: 8, need: 'EVASIVE_ENABLER', type: 'Creature', cmcMin: 0, cmcMax: 2, reasoning: 'Cheap evasive enablers T1-T2 to trigger Ninjutsu (Ornithopter, Faerie Seer, Changeling Outcast, Silver-Raven).' },
+          { nonLandMax: 20, need: 'NINJUTSU_PAYOFF', type: 'Creature', cmcMin: 1, cmcMax: 5, reasoning: 'Core Ninjas with Ninjutsu combat damage triggers (Yuriko, Ingenious Infiltrator, Thousand-Faced Shadow, Moon-Circuit Hacker).' },
+          { nonLandMax: 28, need: 'CHEAP_REMOVAL', type: 'Instant_or_Sorcery', cmcMin: 1, cmcMax: 2, reasoning: 'Cheap counterspells, bounce & spot removal to protect attackers.' },
+          { nonLandMax: 36, need: 'CARD_FLOW', type: 'Any', cmcMin: 1, cmcMax: 3, reasoning: 'Card advantage & tempo velocity engines.' }
+        ]
+      };
+    }
+
+    if (isAristocrats) {
+      return {
+        id: 'ARISTOCRATS_SACRIFICE',
+        name: 'ARISTOCRATS SACRIFICE',
+        sequence: [
+          { nonLandMax: 8, need: 'SACRIFICE_OUTLET', type: 'Any', cmcMin: 1, cmcMax: 3, reasoning: 'Free repeatable sacrifice outlets (Viscera Seer, Carrion Feeder, Witch\'s Oven, Woe Strider, Goblin Bombardment).' },
+          { nonLandMax: 18, need: 'SACRIFICE_FODDER', type: 'Creature', cmcMin: 1, cmcMax: 3, reasoning: 'Recurring sacrifice fodder & token generators (Bloodghast, Reassembling Skeleton, Doomed Traveler, Forsaken Miner).' },
+          { nonLandMax: 26, need: 'DEATH_PAYOFF', type: 'Any', cmcMin: 2, cmcMax: 3, reasoning: 'Death trigger drain & ping payoffs (Blood Artist, Zulaport Cutthroat, Cruel Celebrant, Marionette Apprentice, Mayhem Devil).' },
+          { nonLandMax: 32, need: 'CARD_FLOW', type: 'Any', cmcMin: 1, cmcMax: 3, reasoning: 'Sacrifice-based card advantage engines (Deadly Dispute, Village Rites).' },
+          { nonLandMax: 36, need: 'CHEAP_REMOVAL', type: 'Instant_or_Sorcery', cmcMin: 1, cmcMax: 2, reasoning: 'Cheap interaction & removal.' }
+        ]
+      };
+    }
+
+    if (isReanimator) {
+      return {
+        id: 'REANIMATOR_COMBO',
+        name: 'REANIMATOR COMBO',
+        sequence: [
+          { nonLandMax: 8, need: 'DISCARD_OUTLET', type: 'Any', cmcMin: 1, cmcMax: 2, reasoning: 'Fast graveyard enablers, discard outlets & mill (Faithless Looting, Consider, Tainted Indulgence, Stitcher\'s Supplier).' },
+          { nonLandMax: 16, need: 'REANIMATE_SPELL', type: 'Instant_or_Sorcery', cmcMin: 1, cmcMax: 4, reasoning: 'Reanimation spells (Reanimate, Persist, Animate Dead, Goryo\'s Vengeance).' },
+          { nonLandMax: 24, need: 'FINISHER', type: 'Creature', cmcMin: 6, cmcMax: 12, reasoning: 'Colossal reanimation targets (Archon of Cruelty, Atraxa, Griselbrand).' },
+          { nonLandMax: 32, need: 'CHEAP_REMOVAL', type: 'Instant_or_Sorcery', cmcMin: 1, cmcMax: 2, reasoning: 'Early interaction & protection.' },
+          { nonLandMax: 36, need: 'CARD_FLOW', type: 'Any', cmcMin: 1, cmcMax: 3, reasoning: 'Card draw & filtering.' }
+        ]
+      };
+    }
+
+    if (isSpellslinger) {
+      return {
+        id: 'SPELLSLINGER_PROWESS',
+        name: 'SPELLSLINGER PROWESS',
+        sequence: [
+          { nonLandMax: 12, need: 'SPELL_VELOCITY', type: 'Instant_or_Sorcery', cmcMin: 1, cmcMax: 2, reasoning: 'Cheap cantrips & burn velocity (Consider, Opt, Preordain, Monstrous Rage, Lightning Bolt).' },
+          { nonLandMax: 24, need: 'PROWESS_PAYOFF', type: 'Creature', cmcMin: 1, cmcMax: 3, reasoning: 'Prowess & magecraft threats (Monastery Swiftspear, Monastery Mentor, Third Path Iconoclast, Bria, Coruscation Mage).' },
+          { nonLandMax: 30, need: 'CHEAP_REMOVAL', type: 'Instant_or_Sorcery', cmcMin: 1, cmcMax: 2, reasoning: 'Cheap burn & counterspells.' },
+          { nonLandMax: 36, need: 'CARD_FLOW', type: 'Any', cmcMin: 2, cmcMax: 4, reasoning: 'Impulse draw & resource refill.' }
+        ]
+      };
+    }
+
+    if (isLandfall) {
+      return {
+        id: 'LANDFALL_RAMP',
+        name: 'LANDFALL RAMP',
+        sequence: [
+          { nonLandMax: 10, need: 'EARLY_RAMP', type: 'Any', cmcMin: 1, cmcMax: 3, reasoning: 'Land searching & extra land drop enablers (Growth Spiral, Explore, Cultivate, Fabled Passage).' },
+          { nonLandMax: 22, need: 'LANDFALL_PAYOFF', type: 'Any', cmcMin: 2, cmcMax: 5, reasoning: 'Landfall triggers & scaling threats (Lotus Cobra, Scute Swarm, Tireless Tracker, Omnath, Felidar Retreat).' },
+          { nonLandMax: 28, need: 'CHEAP_REMOVAL', type: 'Instant_or_Sorcery', cmcMin: 1, cmcMax: 3, reasoning: 'Spot removal & interaction.' },
+          { nonLandMax: 36, need: 'FINISHER', type: 'Creature', cmcMin: 5, cmcMax: 8, reasoning: 'Apex landfall finishers (Avenger of Zendikar, Primeval Titan).' }
+        ]
+      };
+    }
+
     // 1. TRIBAL COMBINATION PROFILES (Tribe + Archetype Matrix)
     if (hasTribe) {
       const isRamp = archetype.includes('ramp') || strategy.includes('ramp') || (intentPackage.selectedEngineId || '').includes('ramp') || (intentPackage.engineFlavor || '').toLowerCase().includes('ramp') || (intentPackage.engineFlavor || '').toLowerCase().includes('big mana');
@@ -62,23 +166,18 @@ export class ArchetypeProfileRegistry {
       const isAggro = archetype.includes('aggro') || strategy.includes('aggro') || strategy.includes('burn') || strategy.includes('blitz');
       const isTempo = archetype.includes('tempo') || strategy.includes('tempo') || strategy.includes('prowess');
       const isControl = archetype.includes('control') || strategy.includes('control');
-      const isAristocrats = strategy.includes('aristocrat') || strategy.includes('sacrifice') || strategy.includes('tokens');
-      const isReanimator = strategy.includes('reanimat') || strategy.includes('dredge') || strategy.includes('graveyard');
       const isTokenTribe = tribe.includes('saproling') || tribe.includes('fungus') || tribe.includes('thopter') || tribe.includes('servo');
 
-      const HEAVY_TRIBES = ['dragon', 'demon', 'giant', 'dinosaur', 'eldrazi', 'kraken', 'sphinx', 'angel', 'sea_monsters', 'apex_predators'];
-      const isHeavyTribe = HEAVY_TRIBES.some(t => tribe.includes(t));
-
-      if (isHeavyTribe) {
+      if (isControl) {
         return {
-          id: 'HEAVY_TRIBAL_MIDRANGE',
-          name: `${tribe.toUpperCase()} HEAVY TRIBAL ENGINE`,
+          id: 'TRIBAL_CONTROL',
+          name: `${tribe.toUpperCase()} TRIBAL CONTROL`,
           sequence: [
-            { nonLandMax: 8, need: 'EARLY_RAMP', type: 'Any', cmcMin: 1, cmcMax: 3, reasoning: `Deploying early mana acceleration & tribal cost reducers T1-T3 for [${tribe}].` },
-            { nonLandMax: 14, need: 'CHEAP_REMOVAL', type: 'Instant_or_Sorcery', cmcMin: 1, cmcMax: 3, reasoning: 'Establishing early spot removal & interaction.' },
-            { nonLandMax: 26, need: 'TRIBAL_THREAT', type: 'Creature', cmcMin: 2, cmcMax: 5, tribe, reasoning: `Deploying core creature threats & tribal enablers for [${tribe}].` },
-            { nonLandMax: 30, need: 'CARD_FLOW', type: 'Any', cmcMin: 2, cmcMax: 4, reasoning: 'Adding card advantage & impulse draw engines.' },
-            { nonLandMax: 36, need: 'FINISHER', type: 'Creature', cmcMin: 5, cmcMax: 7, tribe, reasoning: `Adding apex heavy tribal dragons/finishers for [${tribe}].` }
+            { nonLandMax: 10, need: 'CHEAP_REMOVAL', type: 'Instant_or_Sorcery', cmcMin: 1, cmcMax: 2, reasoning: 'Early counterspells & spot removal.' },
+            { nonLandMax: 16, need: 'SWEEPER', type: 'Instant_or_Sorcery', cmcMin: 3, cmcMax: 5, reasoning: 'Board stabilization and mass removal.' },
+            { nonLandMax: 26, need: 'CARD_FLOW', type: 'Instant_or_Sorcery', cmcMin: 1, cmcMax: 4, reasoning: 'Card advantage & draw engines.' },
+            { nonLandMax: 32, need: 'TRIBAL_THREAT', type: 'Creature', cmcMin: 2, cmcMax: 5, tribe, reasoning: `Deploying resilient tribal threats for [${tribe}].` },
+            { nonLandMax: 36, need: 'FINISHER', type: 'Creature', cmcMin: 5, cmcMax: 7, tribe, reasoning: `Adding apex control finishers for [${tribe}].` }
           ]
         };
       }

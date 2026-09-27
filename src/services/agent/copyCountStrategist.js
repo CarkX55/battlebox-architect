@@ -86,13 +86,16 @@ export class CopyCountStrategist {
       };
     }
 
-    // 3. Legendary Rule & Diminishing Utility (3 Copies)
+    // 3. Legendary Rule & Diminishing Utility (3-4 Copies)
     if (isLegendary && cmc <= 4) {
-      const copies = Math.min(3, maxAllowed);
+      const isCoreEnabler = role.includes('ENABLER') || role.includes('COMMANDER') || role.includes('LORD');
+      const copies = (constraints.prioritizePlaysets && isCoreEnabler) ? Math.min(4, maxAllowed) : Math.min(3, maxAllowed);
       return {
         quantity: copies,
-        why: 'LEGENDARY_RULE_CONSTRAINED',
-        reason: 'High strategic importance, constrained to 3 copies by Legendary rule dead-draw penalty',
+        why: isCoreEnabler ? 'CORE_LEGENDARY_ENABLER_DENSITY' : 'LEGENDARY_RULE_CONSTRAINED',
+        reason: isCoreEnabler 
+          ? `Essential legendary enabler allocated ${copies}x to maximize opening consistency`
+          : 'High strategic importance, constrained to 3 copies by Legendary rule dead-draw penalty',
         deadDrawCost: 'MEDIUM',
         assemblySupport: virtualDensitySupport
       };

@@ -58,7 +58,8 @@ export class StrategicStateOptimizer {
         const rankResult = StateCandidateRanker.rankCandidatesByStateDelta(
           currentState,
           availablePool.filter(c => c.name !== card.name),
-          strategicContract
+          strategicContract,
+          intentPackage
         );
 
         if (rankResult.winningCandidate && rankResult.selectionStatus === 'SELECTION_SUCCESS') {
@@ -114,7 +115,8 @@ export class StrategicStateOptimizer {
           const rankResult = StateCandidateRanker.rankCandidatesByStateDelta(
             currentState,
             availablePool.filter(c => !(c.type_line || '').includes('Legendary') && StateCandidateRanker.extractCharacterRoot(c.name) !== root),
-            strategicContract
+            strategicContract,
+            intentPackage
           );
 
           if (rankResult.winningCandidate && secIdx !== -1) {

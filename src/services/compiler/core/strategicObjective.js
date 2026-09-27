@@ -31,9 +31,16 @@ export class StrategicObjective {
   }
 
   /**
-   * Derive target CapabilityVector axes from Strategic Contract and IntentPackage.
+   * Derive target CapabilityVector axes from Strategic Contract, IntentPackage, and DeckIdentity.
    */
-  toCapabilityAxes(intentPackage) {
+  static toCapabilityAxes(intentPackage, deckIdentity = null) {
+    return new StrategicObjective().toCapabilityAxes(intentPackage, deckIdentity);
+  }
+
+  /**
+   * Derive target CapabilityVector axes from Strategic Contract, IntentPackage, and DeckIdentity.
+   */
+  toCapabilityAxes(intentPackage, deckIdentity = null) {
     const tempoLower = (intentPackage.tempo || '').toLowerCase();
     const strategyLower = (intentPackage.strategy || []).join(' ').toLowerCase();
     const mechanicsList = (intentPackage.mechanics || []).map(m => (typeof m === 'string' ? m : m?.name || '').toLowerCase());
@@ -42,23 +49,16 @@ export class StrategicObjective {
     const boostStr = (Array.isArray(rawBoosts) ? rawBoosts.join(' ') : String(rawBoosts)).toLowerCase();
     const allSignals = `${strategyLower} ${mechanicsList.join(' ')} ${engId} ${boostStr}`.toLowerCase();
 
-    const isRamp = tempoLower.includes('ramp') || tempoLower.includes('big_mana');
-    const isControl = tempoLower.includes('control');
-    const isAggro = tempoLower.includes('aggro') || this.speedTier === 'FAST';
-    const isLandfall = allSignals.includes('landfall') || allSignals.includes('tierras') || allSignals.includes('land_entry') || allSignals.includes('land_acceleration');
-    const isBlink = allSignals.includes('blink') || allSignals.includes('flicker') || allSignals.includes('etb');
-    const isLifegain = allSignals.includes('lifegain') || allSignals.includes('lifelink') || allSignals.includes('vida');
-    const isReanimator = allSignals.includes('reanimat') || allSignals.includes('resurrect') || allSignals.includes('cementerio');
-    const isCounters = allSignals.includes('counter') || allSignals.includes('+1/+1') || allSignals.includes('proliferat');
-    const isSacrifice = allSignals.includes('sacrifice') || allSignals.includes('dies') || allSignals.includes('aristocrat');
-    const isBurn = allSignals.includes('burn') || allSignals.includes('direct damage') || allSignals.includes('asalto');
-    const isSpellslinger = allSignals.includes('spellslinger') || allSignals.includes('prowess') || allSignals.includes('magecraft');
-    const isArtifacts = allSignals.includes('artifact') || allSignals.includes('affinity') || allSignals.includes('metalcraft');
+    const primaryTribe = (intentPackage.primaryTribe || '').toLowerCase();
+    const hasTribe = Boolean(primaryTribe && primaryTribe !== 'none' && primaryTribe !== 'null' && primaryTribe !== 'general');
 
     const totalDeckSize = intentPackage.format === 'COMMANDER' ? 100 : 60;
     const isCommander = intentPackage.format === 'COMMANDER';
-    const landTarget = isCommander ? 36 : (isRamp ? 24 : (isAggro ? 22 : 24));
-    const spellTarget = totalDeckSize - landTarget;
+    const isRamp = tempoLower.includes('ramp') || tempoLower.includes('big_mana');
+    const isControl = tempoLower.includes('control') || (deckIdentity && (deckIdentity.archetypeKey || '').toLowerCase().includes('control'));
+    const isAggro = tempoLower.includes('aggro') || this.speedTier === 'FAST';
+
+    const landTarget = isCommander ? 36 : (isControl ? 26 : (isRamp ? 24 : (isAggro ? 22 : 24)));
 
     const axes = [];
 
@@ -71,6 +71,125 @@ export class StrategicObjective {
       origin: { field: 'colors', value: intentPackage.colors },
       strength: 'MANDATORY'
     });
+
+    // 2. Archetype Identity Contract Integration:
+    const mandatoryRoles = deckIdentity?.mandatoryRoles || [];
+    const hasRole = (r) => mandatoryRoles.some(mr => mr.toLowerCase().replace(/_/g, ' ').includes(r.toLowerCase().replace(/_/g, ' ')));
+
+    if (mandatoryRoles.length > 0) {
+      if (hasRole('tribal density') || hasTribe) {
+        axes.push({
+          id: 'TRIBAL_DENSITY',
+          target: isCommander ? 16 : 12,
+          weight: 10,
+          mandatory: true,
+          origin: { field: 'deckIdentity', value: 'Tribal Density' },
+          strength: 'MANDATORY'
+        });
+      }
+      if (hasRole('ramp acceleration') || isRamp) {
+        axes.push({
+          id: 'RAMP_ACCELERATION',
+          target: isCommander ? 12 : 8,
+          weight: 10,
+          mandatory: true,
+          origin: { field: 'deckIdentity', value: 'Ramp Acceleration' },
+          strength: 'MANDATORY'
+        });
+      }
+      if (hasRole('turn 1 play') || hasRole('turn1 pressure')) {
+        axes.push({
+          id: 'TURN1_PRESSURE',
+          target: isCommander ? 10 : 8,
+          weight: 10,
+          mandatory: true,
+          origin: { field: 'deckIdentity', value: 'Turn 1 Early Pressure' },
+          strength: 'MANDATORY'
+        });
+      }
+      if (hasRole('turn 2 pressure') || hasRole('turn2 pressure')) {
+        axes.push({
+          id: 'TURN2_PRESSURE',
+          target: isCommander ? 10 : 8,
+          weight: 9,
+          mandatory: true,
+          origin: { field: 'deckIdentity', value: 'Turn 2 Pressure' },
+          strength: 'MANDATORY'
+        });
+      }
+      if (hasRole('counterspell suite') || hasRole('countermagic') || hasRole('counterspell') || (isControl && !hasRole('aggro'))) {
+        axes.push({
+          id: 'COUNTER_DISRUPTION',
+          target: isCommander ? 12 : 8,
+          weight: 10,
+          mandatory: true,
+          origin: { field: 'deckIdentity', value: 'Counterspell Suite' },
+          strength: 'MANDATORY'
+        });
+      }
+      if (hasRole('board sweeper') || hasRole('sweeper') || hasRole('mass removal') || (isControl && !hasRole('aggro') && !hasRole('tempo'))) {
+        axes.push({
+          id: 'BOARD_SWEEPER',
+          target: isCommander ? 6 : 4,
+          weight: 9,
+          mandatory: true,
+          origin: { field: 'deckIdentity', value: 'Board Sweepers' },
+          strength: 'MANDATORY'
+        });
+      }
+      if (hasRole('cheap removal') || hasRole('spot removal') || hasRole('removal')) {
+        axes.push({
+          id: 'CHEAP_REMOVAL',
+          target: isCommander ? 8 : (isControl ? 8 : 4),
+          weight: isControl ? 9 : 8,
+          mandatory: true,
+          origin: { field: 'deckIdentity', value: 'Cheap Removal' },
+          strength: 'MANDATORY'
+        });
+      }
+      if (hasRole('card flow') || hasRole('cantrip') || hasRole('card advantage') || hasRole('card draw')) {
+        axes.push({
+          id: 'CARD_FLOW',
+          target: isCommander ? 10 : (isControl ? 8 : 4),
+          weight: isControl ? 9 : 7,
+          mandatory: isControl,
+          origin: { field: 'deckIdentity', value: 'Card Flow' },
+          strength: isControl ? 'MANDATORY' : 'PREFERRED'
+        });
+      }
+      if (hasRole('amplify') || hasRole('lord') || (hasTribe && isAggro)) {
+        axes.push({
+          id: 'AMPLIFY_BOARD_PRESSURE',
+          target: isCommander ? 8 : 4,
+          weight: 9,
+          mandatory: false,
+          origin: { field: 'deckIdentity', value: 'Amplify Board Pressure' },
+          strength: 'PREFERRED'
+        });
+      }
+      if (hasRole('board presence') || hasRole('stabilization')) {
+        axes.push({
+          id: 'BOARD_PRESENCE',
+          target: isCommander ? 8 : 4,
+          weight: 8,
+          mandatory: false,
+          origin: { field: 'deckIdentity', value: 'Board Presence' },
+          strength: 'PREFERRED'
+        });
+      }
+      if (hasRole('finisher') && !isAggro) {
+        axes.push({
+          id: 'FINISHER',
+          target: isCommander ? 6 : (isRamp ? 6 : (isControl ? 4 : 4)),
+          weight: isControl ? 6 : 9,
+          mandatory: false,
+          origin: { field: 'deckIdentity', value: 'Finisher' },
+          strength: 'PREFERRED'
+        });
+      }
+
+      return axes;
+    }
 
     // 2. Dynamic Strategic Obligations Compilation
     if (isLandfall) {
@@ -282,6 +401,55 @@ export class StrategicObjective {
         origin: { field: 'strategy', value: 'Affinity / Modular Payoffs' },
         strength: 'MANDATORY'
       });
+    } else if (isPrison) {
+      axes.push({
+        id: 'TAXING_CREATURE',
+        target: isCommander ? 14 : 10,
+        weight: 10,
+        mandatory: true,
+        origin: { field: 'strategy', value: 'Taxing Creatures & Hatebears' },
+        strength: 'MANDATORY'
+      });
+      axes.push({
+        id: 'PRISON_LOCK',
+        target: isCommander ? 10 : 6,
+        weight: 10,
+        mandatory: true,
+        origin: { field: 'strategy', value: 'Mana Taxes, Attack Locks & Static Denial' },
+        strength: 'MANDATORY'
+      });
+      axes.push({
+        id: 'CHEAP_REMOVAL',
+        target: isCommander ? 10 : 6,
+        weight: 10,
+        mandatory: true,
+        origin: { field: 'strategy', value: 'Targeted Removal & Disruption' },
+        strength: 'MANDATORY'
+      });
+      axes.push({
+        id: 'CARD_FLOW',
+        target: isCommander ? 8 : 4,
+        weight: 9,
+        mandatory: true,
+        origin: { field: 'strategy', value: 'Card Velocity & Sustained Draw' },
+        strength: 'MANDATORY'
+      });
+      axes.push({
+        id: 'BOARD_PRESENCE',
+        target: isCommander ? 8 : 6,
+        weight: 8,
+        mandatory: false,
+        origin: { field: 'strategy', value: 'Board Presence & Attackers' },
+        strength: 'PREFERRED'
+      });
+      axes.push({
+        id: 'FINISHER',
+        target: isCommander ? 6 : 4,
+        weight: 8,
+        mandatory: false,
+        origin: { field: 'strategy', value: 'Asymmetric Finisher' },
+        strength: 'PREFERRED'
+      });
     } else if (isRamp) {
       axes.push({
         id: 'RAMP_ACCELERATION',
@@ -334,11 +502,27 @@ export class StrategicObjective {
         strength: 'MANDATORY'
       });
       axes.push({
+        id: 'BOARD_STABILIZATION',
+        target: isCommander ? 6 : 4,
+        weight: 10,
+        mandatory: true,
+        origin: { field: 'tempo', value: 'Board Stabilization & Sweepers' },
+        strength: 'MANDATORY'
+      });
+      axes.push({
         id: 'CARD_FLOW',
-        target: isCommander ? 14 : 10,
+        target: isCommander ? 12 : 8,
         weight: 9,
         mandatory: true,
         origin: { field: 'tempo', value: 'Card Advantage & Draw' },
+        strength: 'MANDATORY'
+      });
+      axes.push({
+        id: 'FINISHER',
+        target: isCommander ? 6 : 4,
+        weight: 9,
+        mandatory: true,
+        origin: { field: 'tempo', value: 'Protected Win Condition' },
         strength: 'MANDATORY'
       });
     } else {
@@ -373,9 +557,11 @@ export class StrategicObjective {
     const rawTribeStr = intentPackage.primaryTribe ? String(intentPackage.primaryTribe).toLowerCase().trim() : '';
     const isValidTribe = rawTribeStr && !['none', 'null', 'general', 'ninguna', 'sin tribu', 'omitir', 'universal', 'sin_tribu'].includes(rawTribeStr);
     if (isValidTribe) {
+      // In Control WinPath, tribal density is aligned with win condition payoffs & anchors (4-6 slots), leaving space for stabilization
+      const tribalTarget = isControl ? (isCommander ? 6 : 4) : Math.round(spellTarget * 0.35);
       axes.push({
         id: 'TRIBAL_DENSITY',
-        target: Math.round(spellTarget * 0.35),
+        target: tribalTarget,
         weight: 9,
         mandatory: true,
         origin: { field: 'primaryTribe', value: intentPackage.primaryTribe },
@@ -383,7 +569,20 @@ export class StrategicObjective {
       });
     }
 
-    // 4. Interaction & Flow
+    // 4. Emergent Board Pressure Amplification (v26.1 Causal Selection Core)
+    const reliesOnMultipleBodies = isValidTribe || isAggro || isBurn || allSignals.includes('swarm') || allSignals.includes('tokens') || allSignals.includes('aristocrat');
+    if (reliesOnMultipleBodies && !axes.some(a => a.id === 'AMPLIFY_BOARD_PRESSURE') && !isControl) {
+      axes.push({
+        id: 'AMPLIFY_BOARD_PRESSURE',
+        target: isCommander ? 6 : 4,
+        weight: 9,
+        mandatory: true,
+        origin: { field: 'winPath', value: 'Board Pressure Amplification & Multipliers' },
+        strength: 'MANDATORY'
+      });
+    }
+
+    // 5. Interaction & Flow
     if (!axes.some(a => a.id === 'CHEAP_REMOVAL')) {
       axes.push({
         id: 'CHEAP_REMOVAL',

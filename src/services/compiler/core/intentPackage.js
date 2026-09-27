@@ -55,9 +55,114 @@ export class IntentPackage {
     this.format = (format || 'Standard').toUpperCase();
     this.colors = Object.freeze(colors.map(c => c.toUpperCase()));
     this.primaryTribe = primaryTribe ? primaryTribe.trim() : null;
-    this.tempo = tempo;
-    this.strategy = Object.freeze([...strategy]);
-    this.mechanics = Object.freeze([...mechanics]);
+
+    // Canonical strategicTempo (Rule 5 & Phase B): Unified SSOT enum
+    let normalizedTempo = 'MIDRANGE';
+    const rawTempoStr = String(tempo || '').toUpperCase();
+    if (rawTempoStr.includes('AGGRO') || rawTempoStr.includes('BURN') || rawTempoStr.includes('SLIGH')) {
+      normalizedTempo = 'AGGRO';
+    } else if (rawTempoStr.includes('TEMPO')) {
+      normalizedTempo = 'TEMPO';
+    } else if (rawTempoStr.includes('CONTROL')) {
+      normalizedTempo = 'CONTROL';
+    } else if (rawTempoStr.includes('RAMP')) {
+      normalizedTempo = 'RAMP';
+    } else if (rawTempoStr.includes('COMBO')) {
+      normalizedTempo = 'COMBO';
+    } else if (rawTempoStr.includes('MIDRANGE')) {
+      normalizedTempo = 'MIDRANGE';
+    }
+    this.strategicTempo = normalizedTempo;
+    this.tempo = normalizedTempo;
+    this.archetype = normalizedTempo;
+
+    // Canonical tribalPreference (Continuous Weight 0.0 - 1.0, Rule 1)
+    const rawTribalVal = intentPriorities?.tribeVsSynergy !== undefined
+      ? Number(intentPriorities.tribeVsSynergy)
+      : 0.8;
+    const clampedTribalVal = Math.max(0.0, Math.min(1.0, isNaN(rawTribalVal) ? 0.8 : rawTribalVal));
+    this.tribalPreference = Object.freeze({
+      value: clampedTribalVal,
+      interpretation: clampedTribalVal >= 0.75 ? 'TRIBAL_PURITY' : (clampedTribalVal <= 0.25 ? 'POWER_SYNERGY' : 'BALANCED'),
+      source: 'UI'
+    });
+
+    // Canonical allowOffTribe (Hard Permission Gate, Rule 1)
+    this.allowOffTribe = strategicFreedom?.allowOffTribe !== undefined
+      ? Boolean(strategicFreedom.allowOffTribe)
+      : false;
+
+    this.strategy = Object.freeze([...(Array.isArray(strategy) ? strategy : (strategy ? [strategy] : []))]);
+
+    // Canonical Identity Policy (Creature Domain vs Spell Utility)
+    const creatureMembershipMode = (!this.primaryTribe || this.primaryTribe === 'None')
+      ? 'NON_TRIBAL'
+      : (this.allowOffTribe ? 'ALLOW_APPROVED_EXTERNAL_ENGINE' : 'STRICT_TRIBE');
+    this.identityPolicy = Object.freeze({
+      creatureMembershipMode,
+      primaryTribe: this.primaryTribe,
+      allowOffTribe: this.allowOffTribe
+    });
+
+    // Tri-State Mechanics Modalities: EXPLICIT_REQUIRED (Hard gate), PREFERRED (Affinity boost), OPTIONAL (Tiebreaker)
+    let explicitReq = [];
+    let req = [];
+    let pref = [];
+    let opt = [];
+
+    if (mechanics && typeof mechanics === 'object' && !Array.isArray(mechanics)) {
+      explicitReq = Array.isArray(mechanics.explicitRequired) ? [...mechanics.explicitRequired] : [];
+      req = Array.isArray(mechanics.required) ? [...mechanics.required] : (mechanics.required ? [mechanics.required] : []);
+      pref = Array.isArray(mechanics.preferred) ? [...mechanics.preferred] : (mechanics.preferred ? [mechanics.preferred] : []);
+      opt = Array.isArray(mechanics.optional) ? [...mechanics.optional] : (mechanics.optional ? [mechanics.optional] : []);
+    } else if (Array.isArray(mechanics)) {
+      pref = [...mechanics];
+    }
+
+    // Extract explicit mechanical capabilities from strategy, engineId, and engineFlavor signals
+    const explicitSignals = [
+      ...(Array.isArray(this.strategy) ? this.strategy : [this.strategy]),
+      userConstraints?.selectedEngineId || '',
+      userConstraints?.engineFlavor || '',
+      prompt || ''
+    ].map(s => String(s || '').toLowerCase());
+
+    for (const sig of explicitSignals) {
+      if (sig.includes('daybound') || sig.includes('nightbound') || sig.includes('day/night') || sig.includes('daynight') || sig.includes('transform')) {
+        explicitReq.push('DAYBOUND_NIGHTBOUND', 'STATE_TRANSITION_ENGINE', 'TRANSFORM_PAYOFF');
+      }
+      if (sig.includes('sacrifice') || sig.includes('aristocrat') || sig.includes('dies')) {
+        explicitReq.push('SACRIFICE_OUTLET', 'DEATH_PAYOFF');
+      }
+      if (sig.includes('landfall') || sig.includes('land_enters')) {
+        explicitReq.push('LANDFALL_PAYOFF', 'LAND_ACCELERATION');
+      }
+      if (sig.includes('burn') || sig.includes('reach')) {
+        explicitReq.push('PLAYER_REACH');
+      }
+      if (sig.includes('counter') && (sig.includes('+1/+1') || sig.includes('growth'))) {
+        explicitReq.push('COUNTER_GENERATOR', 'GROWTH_PAYOFF');
+      }
+      if (sig.includes('token') && (sig.includes('swarm') || sig.includes('populate'))) {
+        explicitReq.push('TOKEN_GENERATOR');
+      }
+    }
+
+    // Also include mustRules / preferRules if present
+    if (Array.isArray(mustRules)) req.push(...mustRules);
+    if (Array.isArray(preferRules)) pref.push(...preferRules);
+
+    const mergedExplicit = [...new Set([...explicitReq, ...req])].map(m => String(m).toUpperCase().replace(/[\s-]/g, '_'));
+
+    this.mechanicsModalities = Object.freeze({
+      explicitRequired: Object.freeze(mergedExplicit),
+      required: Object.freeze(mergedExplicit),
+      preferred: Object.freeze(pref.map(m => String(m).toUpperCase().replace(/[\s-]/g, '_'))),
+      optional: Object.freeze(opt.map(m => String(m).toUpperCase().replace(/[\s-]/g, '_')))
+    });
+
+    const allMechs = Array.isArray(mechanics) ? mechanics : [...req, ...pref, ...opt];
+    this.mechanics = Object.freeze([...new Set(allMechs.map(m => String(m).toUpperCase().replace(/[\s-]/g, '_')))]);
     this.budget = budget;
     this.powerLevel = powerLevel;
     this.userConstraints = Object.freeze({ ...userConstraints });
@@ -105,7 +210,9 @@ export class IntentPackage {
       format: this.format,
       colors: this.colors,
       primaryTribe: this.primaryTribe,
-      tempo: this.tempo,
+      strategicTempo: this.strategicTempo,
+      tribalPreference: this.tribalPreference,
+      allowOffTribe: this.allowOffTribe,
       strategy: this.strategy,
       mechanics: this.mechanics,
       budget: this.budget,

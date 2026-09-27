@@ -276,7 +276,7 @@ async function run() {
   console.log(`✨ [Obsidian Compiler] ¡Grafo consolidado exportado a: ${OUTPUT_FILE}!`);
   
   // Enriquecer el grafo con todos los datos de Scryfall
-  enrich();
+  await enrich();
 }
 
 run().catch(err => {

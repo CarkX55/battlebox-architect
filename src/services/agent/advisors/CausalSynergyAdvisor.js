@@ -98,11 +98,30 @@ export class CausalSynergyAdvisor {
       }
     }
 
-    // 1. Check ENABLES capability (e.g. SacOutlet, Looting, Ramp, Card Draw, Evasive Enablers)
-    if (oracleText.includes('flying') || oracleText.includes('can\'t be blocked') || oracleText.includes('shadow') || oracleText.includes('skulk') || oracleText.includes('menace')) {
+    // 1. Check ENABLES capability (e.g. Toughness Enablers, SacOutlet, Looting, Ramp, Card Draw, Evasive Enablers)
+    if (oracleText.includes('toughness rather than its power') || oracleText.includes('damage equal to its toughness') || oracleText.includes("didn't have defender") || oracleText.includes("doesn't have defender") || cardName.includes('arcades') || cardName.includes('high alert') || cardName.includes('assault formation') || cardName.includes('bedrock tortoise') || cardName.includes('huatli, the sun')) {
+      causalRole = 'ENABLES';
+      addedCapabilities.push('TOUGHNESS_ENABLER', 'TOUGHNESS_COMBAT');
+      evidence.push('Provides Toughness-Combat Enabler capability (ENABLES Defenders to attack and deal damage)');
+    } else if ((oracleText.includes('defender') || typeLine.includes('wall')) && (oracleText.includes('add ') || oracleText.includes('mana of any color'))) {
+      causalRole = 'ENABLES';
+      addedCapabilities.push('DEFENDER_RAMP', 'PRODUCES_MANA');
+      evidence.push('Provides Defender Mana Ramp capability (ENABLES mana acceleration from defender count)');
+    } else if (oracleText.includes('flying') || oracleText.includes('can\'t be blocked') || oracleText.includes('shadow') || oracleText.includes('skulk') || oracleText.includes('menace')) {
       causalRole = causalRole === 'NONE' ? 'ENABLES' : causalRole;
       addedCapabilities.push('EVASIVE_ENABLER', 'EVASIVE_T1');
       evidence.push('Provides Evasive Enabler capability (ENABLES Ninjutsu / Combat Triggers)');
+    }
+    
+    if (oracleText.includes('ninjutsu') || cardName.includes('yuriko')) {
+      causalRole = causalRole === 'NONE' ? 'ENABLES' : causalRole;
+      addedCapabilities.push('NINJUTSU_PAYOFF');
+      evidence.push('Provides Ninjutsu Payoff capability (ENABLES combat damage saboteur triggers)');
+    }
+    if (oracleText.includes('return target creature card from your graveyard') || oracleText.includes("goryo's")) {
+      causalRole = causalRole === 'NONE' ? 'ENABLES' : causalRole;
+      addedCapabilities.push('REANIMATE_SPELL');
+      evidence.push('Provides Reanimation capability (ENABLES graveyard revival)');
     }
     if (oracleText.includes('sacrifice a creature') || oracleText.includes('sacrifice another creature')) {
       causalRole = 'ENABLES';
@@ -129,8 +148,55 @@ export class CausalSynergyAdvisor {
       addedCapabilities.push('DEATH_PAYOFF');
       evidence.push('Provides Death Payoff capability (CONVERTS Death Events into Victory Progress)');
     }
+    if (oracleText.includes('+0/+') || cardName.includes('tower defense') || cardName.includes('bar the door') || cardName.includes('solid footing')) {
+      causalRole = 'AMPLIFIES';
+      addedCapabilities.push('COMBAT_AMPLIFICATION', 'TOUGHNESS_PUMP');
+      evidence.push('Provides Toughness Combat Amplification (AMPLIFIES lethal alpha-strike damage)');
+    }
+    if (oracleText.includes('prowess') || oracleText.includes('magecraft') || oracleText.includes('whenever you cast a noncreature spell') || oracleText.includes('whenever you cast an instant or sorcery')) {
+      causalRole = causalRole === 'NONE' ? 'AMPLIFIES' : causalRole;
+      addedCapabilities.push('PROWESS_PAYOFF');
+      evidence.push('Provides Prowess / Magecraft scaling (AMPLIFIES spell velocity into damage)');
+    }
+    if (oracleText.includes('landfall') || oracleText.includes('whenever a land enters the battlefield under your control')) {
+      causalRole = causalRole === 'NONE' ? 'AMPLIFIES' : causalRole;
+      addedCapabilities.push('LANDFALL_PAYOFF');
+      evidence.push('Provides Landfall trigger scaling (AMPLIFIES land drops into board value)');
+    }
 
-    // 3. Check DISRUPTS / REMOVAL / INTERACTION capability
+    // 3. Check DISRUPTS / REMOVAL / TAXES / PRISON LOCK capability
+    const isTaxingOrPrison = oracleText.includes('more to cast') || 
+                             oracleText.includes('more to activate') || 
+                             oracleText.includes("can't cast more than one") || 
+                             oracleText.includes("can cast only one") || 
+                             oracleText.includes("no more than one spell") || 
+                             oracleText.includes('enters tapped') || 
+                             oracleText.includes('enter the battlefield tapped') || 
+                             oracleText.includes("can't attack") || 
+                             oracleText.includes("can't block") || 
+                             oracleText.includes("players can't search") || 
+                             oracleText.includes("can't search libraries") || 
+                             oracleText.includes("unless its controller pays") || 
+                             oracleText.includes("unless that player pays") || 
+                             cardName.includes('thalia') || 
+                             cardName.includes('archon of emeria') || 
+                             cardName.includes('strict proctor') || 
+                             cardName.includes('reidane') || 
+                             cardName.includes('aven mindcensor') || 
+                             cardName.includes('damping sphere') || 
+                             cardName.includes('deafening silence') || 
+                             cardName.includes('high noon') || 
+                             cardName.includes('authority of the consuls') || 
+                             cardName.includes('blind obedience') || 
+                             cardName.includes('ghostly prison') || 
+                             cardName.includes('containment priest');
+
+    if (isTaxingOrPrison) {
+      if (causalRole === 'NONE') causalRole = 'DISRUPTS';
+      addedCapabilities.push('TAXING_CREATURE', 'PRISON_LOCK', 'STATIC_DENIAL', 'INTERACTION');
+      evidence.push('Provides Static Tax / Prison Lock capability (DISRUPTS opponent mana and spell execution)');
+    }
+
     if (oracleText.includes('destroy') || oracleText.includes('exile') || oracleText.includes('discards') || oracleText.includes('discard a card') || oracleText.includes('counter target') || oracleText.includes('-x/-x') || (oracleText.includes('deals ') && oracleText.includes('target creature'))) {
       if (causalRole === 'NONE') causalRole = 'DISRUPTS';
       addedCapabilities.push('INTERACTION', 'CHEAP_REMOVAL');
@@ -196,7 +262,9 @@ export class CausalSynergyAdvisor {
     }
 
     // 5. Dynamic Assembly Probability & Redundancy Check (Adjusted by Tutors & Cantrips)
-    const existingCards = Array.from(deckState.cards.values());
+    const existingCards = Array.isArray(deckState?.cards)
+      ? deckState.cards
+      : (deckState?.cards instanceof Map ? Array.from(deckState.cards.values()) : []);
     const cantripCount = existingCards.filter(c => {
       const o = (c.oracle_text || c.card?.oracle_text || '').toLowerCase();
       return o.includes('draw a card') || o.includes('look at the top') || o.includes('search your library for');

@@ -21,6 +21,9 @@
  *    └── OperationalPrerequisites (Deck & State infrastructure requirements)
  */
 
+import { IdentityFirewall } from './identityFirewall.js';
+import { extractCanonicalCmc } from './canonicalCardNormalizer.js';
+
 export class CardCausalContract {
   /**
    * Parses a raw MTG card object into a full CardCausalContract.
@@ -30,17 +33,47 @@ export class CardCausalContract {
   static parse(card) {
     if (!card) return null;
 
-    const oracleRaw = card.oracle_text || card.oracleText || '';
+    const faces = Array.isArray(card.card_faces) ? card.card_faces : [];
+    let oracleRaw = card.oracle_text || card.oracleText || '';
+    let typeLineRaw = card.type_line || card.typeLine || '';
+    let power = card.power !== undefined ? String(card.power) : '';
+    let toughness = card.toughness !== undefined ? String(card.toughness) : '';
+    let manaCost = card.mana_cost || card.manaCost || '';
+    let colors = Array.isArray(card.colors) ? card.colors : [];
+
+    // Extract rich attributes from card_faces for DFCs (Transform/MDFC)
+    if (faces.length > 0) {
+      if (!oracleRaw) {
+        oracleRaw = faces.map(f => f.oracle_text || f.oracleText || '').filter(Boolean).join('\n//\n');
+      }
+      if (!typeLineRaw) {
+        typeLineRaw = faces.map(f => f.type_line || f.typeLine || '').filter(Boolean).join(' // ');
+      }
+      if (!power && faces[0]?.power !== undefined) {
+        power = String(faces[0].power);
+      }
+      if (!toughness && faces[0]?.toughness !== undefined) {
+        toughness = String(faces[0].toughness);
+      }
+      if (!manaCost && faces[0]?.mana_cost) {
+        manaCost = faces[0].mana_cost;
+      }
+      if (colors.length === 0) {
+        const faceColors = new Set();
+        faces.forEach(f => (f.colors || []).forEach(c => faceColors.add(c)));
+        if (faceColors.size > 0) {
+          colors = Array.from(faceColors);
+        } else if (Array.isArray(card.color_identity)) {
+          colors = card.color_identity;
+        }
+      }
+    }
+
     const oracle = oracleRaw.toLowerCase();
-    const typeLineRaw = card.type_line || card.typeLine || '';
     const typeLine = typeLineRaw.toLowerCase();
     const name = card.name || 'Unknown';
-    const cmc = Number(card.cmc || card.mana_value || 0);
-    const manaCost = card.mana_cost || card.manaCost || '';
-    const colors = Array.isArray(card.colors) ? card.colors : [];
-    const colorIdentity = Array.isArray(card.color_identity) ? card.color_identity : [];
-    const power = card.power !== undefined ? String(card.power) : '';
-    const toughness = card.toughness !== undefined ? String(card.toughness) : '';
+    const cmc = extractCanonicalCmc(card);
+    const colorIdentity = Array.isArray(card.color_identity) ? card.color_identity : colors;
 
     // 1. Oracle Truth Extraction
     const oracleTruth = this._extractOracleTruth(oracle, typeLine, cmc);
@@ -48,11 +81,18 @@ export class CardCausalContract {
     // 2. Derived Capabilities: Supplies
     const supplies = this._deriveSupplies(oracleTruth, oracle, typeLine, cmc);
 
+    // 2b. High-Resolution Proof Capabilities (v26.1 Causal Selection Core)
+    const interactionProof = this._deriveInteractionProof(oracleTruth, oracle, typeLine, cmc);
+    const resourceAccessChains = this._deriveResourceAccessChains(oracleTruth, oracle, typeLine, cmc);
+
     // 3. Derived Capabilities: Demands & Self-Supply
     const { demands, selfSupply } = this._deriveDemandsAndSelfSupply(oracleTruth, oracle, typeLine, cmc, supplies);
 
     // 4. Derived Capabilities: Operational Prerequisites
     const operationalPrerequisites = this._deriveOperationalPrerequisites(oracleTruth, demands);
+
+    // 5. Derived Capabilities: Execution Modes & Effective Mana Demand
+    const { executionModes, effectiveManaDemand } = this._deriveExecutionModesAndManaDemand(oracleRaw, oracle, typeLine, cmc, manaCost, supplies);
 
     return Object.freeze({
       cardIdentity: Object.freeze({
@@ -72,13 +112,20 @@ export class CardCausalContract {
         isEnchantment: typeLine.includes('enchantment'),
         isPlaneswalker: typeLine.includes('planeswalker'),
         isLand: typeLine.includes('land'),
-        isLegendary: typeLine.includes('legendary')
+        isLegendary: typeLine.includes('legendary'),
+        isTribal: typeLine.includes('tribal'),
+        card_faces: faces,
+        rawCard: card
       }),
       oracleTruth: Object.freeze(oracleTruth),
       supplies: Object.freeze(supplies),
+      interactionProof: Object.freeze(interactionProof),
+      resourceAccessChains: Object.freeze(resourceAccessChains),
       demands: Object.freeze(demands),
       selfSupply: Object.freeze(selfSupply),
-      operationalPrerequisites: Object.freeze(operationalPrerequisites)
+      operationalPrerequisites: Object.freeze(operationalPrerequisites),
+      executionModes: Object.freeze(executionModes),
+      effectiveManaDemand: Object.freeze(effectiveManaDemand)
     });
   }
 
@@ -154,19 +201,20 @@ export class CardCausalContract {
 
     // --- Effects ---
     // Mana Generation
-    if (oracle.includes('{t}: add') || oracle.includes('{t}: put') || oracle.includes('add {') || oracle.includes('adds {')) {
+    const isRenownOrDeathTrigger = oracle.includes('renown') || oracle.includes('when this creature dies') || oracle.includes('sacrifice this creature');
+    if (!isRenownOrDeathTrigger && (oracle.includes('{t}: add') || oracle.includes('{t}: put') || oracle.includes('add {') || oracle.includes('adds {'))) {
       effects.push({ type: 'ADD_MANA', isTriggered: !oracle.includes('{t}: add') });
     }
     // Land Search Ramp
-    if (oracle.includes('search your library for a basic land') || oracle.includes('search your library for a land card') || oracle.includes('put a land card from your hand')) {
+    if (/search your library for.*land/i.test(oracle) || /put.*land.*battlefield/i.test(oracle) || /(?:if\s+(?:it's\s+a\s+)?land,?\s+put\s+onto\s+battlefield)/i.test(oracle)) {
       effects.push({ type: 'LAND_RAMP' });
     }
     // Token Generation
-    if (oracle.includes('create a') || oracle.includes('create two') || oracle.includes('create x') || oracle.includes('create that many') || oracle.includes('create a token')) {
+    if (/create\s+(?:a|an|two|three|four|\d+|x|that many|.*token)/i.test(oracle)) {
       effects.push({ type: 'CREATE_TOKEN' });
     }
     // Card Advantage / Draw
-    if (oracle.includes('draw a card') || oracle.includes('draw two cards') || oracle.includes('draw three cards') || oracle.includes('draws a card')) {
+    if (/draws?\s+(?:a|two|three|four|\d+|x)\s+card/i.test(oracle) || /look at (?:the )?top card/i.test(oracle)) {
       effects.push({ type: 'DRAW_CARDS' });
     }
     // Counter Spell
@@ -175,7 +223,22 @@ export class CardCausalContract {
     }
     // Removal & Burn (Destroy / Exile / -N/-N / Damage)
     const isDamageEffect = (oracle.includes('deals ') && oracle.includes('damage')) || oracle.includes('deal damage');
-    const isDestroyOrExile = oracle.includes('destroy target') || oracle.includes('exile target') || oracle.includes('destroy all') || oracle.includes('exile all');
+    const isGraveyardTarget = oracle.includes('from a graveyard') || 
+      oracle.includes('from their graveyard') || 
+      oracle.includes('from any graveyard') || 
+      oracle.includes('in a graveyard') || 
+      oracle.includes('cards from all graveyards') || 
+      oracle.includes('exile all graveyards') || 
+      oracle.includes('target player\'s graveyard') || 
+      oracle.includes('target card from a graveyard') || 
+      oracle.includes('target card in a graveyard');
+
+    const isDestroyOrExile = (oracle.includes('destroy target') || oracle.includes('exile target') || oracle.includes('destroy all') || oracle.includes('exile all')) && !isGraveyardTarget;
+
+    if (isGraveyardTarget && (oracle.includes('exile') || oracle.includes('remove'))) {
+      effects.push({ type: 'GRAVEYARD_HATE' });
+    }
+
     if (isDamageEffect || isDestroyOrExile) {
       const canHitFace = targets.some(t => t.canHitPlayer);
       if (canHitFace) {
@@ -189,6 +252,23 @@ export class CardCausalContract {
     }
 
     // --- Conditions ---
+    const subtypeConditionMatch = oracle.match(/(?:as long as you control|if you control)\s+(?:a|an|another)\s+([a-z\-]+)/i);
+    if (subtypeConditionMatch) {
+      const requiredSubtype = subtypeConditionMatch[1].toLowerCase().trim();
+      const KNOWN_MTG_SUBTYPES = new Set([
+        'cleric', 'rogue', 'warrior', 'wizard', 'shaman', 'druid', 'knight', 'soldier', 'assassin', 'warlock', 'monk', 'archer', 'artificer',
+        'goblin', 'elf', 'vampire', 'zombie', 'dragon', 'angel', 'demon', 'dinosaur', 'beast', 'hydra', 'elemental', 'spirit', 'faerie',
+        'sliver', 'merfolk', 'human', 'werewolf', 'wolf', 'cat', 'dog', 'hound', 'bird', 'lizard', 'mouse', 'rabbit', 'bat', 'otter', 'frog',
+        'turtle', 'crab', 'golem', 'treefolk', 'spider', 'snake', 'naga', 'ooze', 'giant', 'eldrazi', 'ninja', 'pirate', 'wall'
+      ]);
+      if (KNOWN_MTG_SUBTYPES.has(requiredSubtype)) {
+        conditions.push({
+          type: 'SUBTYPE_CONDITION',
+          requiredSubtype,
+          source: 'ORACLE_CONDITION'
+        });
+      }
+    }
     if (oracle.includes('affinity for artifacts') || oracle.includes('metalcraft') || oracle.includes('if you control an artifact') || oracle.includes('cast an artifact spell from your hand without paying')) {
       conditions.push({ type: 'REQUIRES_ARTIFACTS', source: 'ORACLE_CONDITION' });
     }
@@ -240,14 +320,17 @@ export class CardCausalContract {
     if (hasManaEffect) {
       const restriction = oracleTruth.restrictions.find(r => r.type === 'MANA_RESTRICTION');
       const domain = restriction ? restriction.allowedUse : 'UNIVERSAL';
+      const isDelayedOrConditional = oracle.includes('renown') || oracle.includes('when this creature dies');
 
-      supplies.push({
-        capability: 'MANA_ACCELERATION',
-        domain, // 'UNIVERSAL' | 'ACTIVATED_ABILITIES_ONLY' | 'INSTANT_OR_SORCERY_ONLY' | 'CREATURE_SPELLS_ONLY' | 'ARTIFACT_SPELLS_ONLY'
-        isUniversal: domain === 'UNIVERSAL',
-        timing: oracleTruth.timing.includes('INSTANT_SPEED') ? 'INSTANT_SPEED' : 'TAP_ABILITY',
-        estimatedTurnOnline: Math.max(1, cmc)
-      });
+      if (!isDelayedOrConditional) {
+        supplies.push({
+          capability: 'MANA_ACCELERATION',
+          domain, // 'UNIVERSAL' | 'ACTIVATED_ABILITIES_ONLY' | 'INSTANT_OR_SORCERY_ONLY' | 'CREATURE_SPELLS_ONLY' | 'ARTIFACT_SPELLS_ONLY'
+          isUniversal: domain === 'UNIVERSAL',
+          timing: oracleTruth.timing.includes('INSTANT_SPEED') ? 'INSTANT_SPEED' : 'TAP_ABILITY',
+          estimatedTurnOnline: Math.max(1, cmc)
+        });
+      }
     }
 
     // 2. Token Generation Supply (Fodder / Swarm)
@@ -283,7 +366,11 @@ export class CardCausalContract {
 
     // 5. Cheap Removal & Direct Reach Supply
     const spotRemovalEffect = oracleTruth.effects.find(e => e.type === 'SPOT_REMOVAL');
-    if (spotRemovalEffect) {
+    const isSlowArtifactRemoval = (typeLine.includes('artifact') || typeLine.includes('enchantment')) &&
+      !typeLine.includes('creature') &&
+      /\{[2-9wubrg]\}[,\s]*\{t\}/i.test(oracle);
+
+    if (spotRemovalEffect && !isSlowArtifactRemoval) {
       supplies.push({
         capability: 'CHEAP_REMOVAL',
         timing: oracleTruth.timing.includes('INSTANT_SPEED') ? 'INSTANT_SPEED' : 'SORCERY_SPEED',
@@ -291,7 +378,7 @@ export class CardCausalContract {
       });
     }
 
-    if (oracleTruth.effects.some(e => e.type === 'PLAYER_BURN')) {
+    if (oracleTruth.effects.some(e => e.type === 'PLAYER_BURN') && !isSlowArtifactRemoval) {
       supplies.push({
         capability: 'PLAYER_REACH',
         timing: oracleTruth.timing.includes('INSTANT_SPEED') ? 'INSTANT_SPEED' : 'SORCERY_SPEED'
@@ -308,11 +395,24 @@ export class CardCausalContract {
     }
 
     // 7. Large Threat / Finisher Supply
-    if (typeLine.includes('creature') && (cmc >= 5 || (cmc >= 4 && (oracle.includes('trample') || oracle.includes('flying') || oracle.includes('ward'))))) {
+    const isPlaneswalker = typeLine.includes('planeswalker');
+    const isBigCreature = typeLine.includes('creature') && (
+      cmc >= 5 || 
+      (cmc >= 4 && (oracle.includes('trample') || oracle.includes('flying') || oracle.includes('ward') || oracle.includes('haste') || oracle.includes('flash')))
+    );
+    const isGameEndingPermanent = (typeLine.includes('enchantment') || typeLine.includes('artifact')) && (
+      oracle.includes('shark creature token') || 
+      oracle.includes('demon creature token') || 
+      oracle.includes('dragon creature token') || 
+      oracle.includes('whenever you cast a noncreature spell')
+    );
+
+    if (isPlaneswalker || isBigCreature || isGameEndingPermanent) {
       supplies.push({
         capability: 'FINISHER',
+        isPlaneswalker,
         evasion: oracle.includes('flying') ? 'FLYING' : (oracle.includes('trample') ? 'TRAMPLE' : (oracle.includes("can't be blocked") ? 'UNBLOCKABLE' : 'NONE')),
-        resilience: oracle.includes('ward') || oracle.includes('hexproof') || oracle.includes('indestructible')
+        resilience: isPlaneswalker || oracle.includes('ward') || oracle.includes('hexproof') || oracle.includes('indestructible') || oracle.includes('flash')
       });
     }
 
@@ -333,7 +433,7 @@ export class CardCausalContract {
     }
 
     // 10. Land Acceleration & Landfall Payoffs
-    if (oracle.includes('search your library for a land') || oracle.includes('search your library for a basic land') || oracle.includes('you may play an additional land') || oracle.includes('put a land card from your hand onto the battlefield') || (oracle.includes('land') && oracle.includes('onto the battlefield tapped'))) {
+    if (/search your library for.*land/i.test(oracle) || /play (?:an |additional )land/i.test(oracle) || /put.*land.*battlefield/i.test(oracle) || /(?:if\s+(?:it's\s+a\s+)?land,?\s+put\s+onto\s+battlefield)/i.test(oracle) || oracle.includes('onto the battlefield tapped')) {
       supplies.push({
         capability: 'LAND_ACCELERATION',
         timing: oracleTruth.timing.includes('INSTANT_SPEED') ? 'INSTANT_SPEED' : 'SORCERY_SPEED'
@@ -381,14 +481,324 @@ export class CardCausalContract {
         timing: oracleTruth.timing.includes('INSTANT_SPEED') ? 'INSTANT_SPEED' : 'SORCERY_SPEED'
       });
     }
-    if (oracle.includes('discard a card') || oracle.includes('draw a card, then discard') || (oracle.includes('search your library') && oracle.includes('into your graveyard'))) {
+    // 14. Sacrifice Outlet & Death Payoff Supplies
+    const hasSacOutletText = oracle.includes('sacrifice a ') || oracle.includes('sacrifice another ') || oracle.includes('sacrifice an artifact') || oracle.includes('sacrifice a permanent');
+    if (hasSacOutletText && oracle.includes(':')) {
       supplies.push({
-        capability: 'LOOTING_DISCARD',
-        timing: oracleTruth.timing.includes('INSTANT_SPEED') ? 'INSTANT_SPEED' : 'SORCERY_SPEED'
+        capability: 'SACRIFICE_OUTLET',
+        timing: oracleTruth.timing.includes('INSTANT_SPEED') ? 'INSTANT_SPEED' : 'ACTIVATED'
+      });
+    }
+
+    const hasDeathPayoffText = (oracle.includes('dies') || oracle.includes('is put into a graveyard')) && (oracle.includes('whenever') || oracle.includes('when'));
+    if (hasDeathPayoffText) {
+      supplies.push({
+        capability: 'DEATH_PAYOFF',
+        timing: 'TRIGGERED'
+      });
+    }
+
+    // 15. Tribal Lord & Stat Buff Supply (Permanents only)
+    const isBuffPermanent = typeLine.includes('creature') || typeLine.includes('enchantment') || typeLine.includes('artifact');
+    if (isBuffPermanent && (oracle.includes('creatures you control get +') || (oracle.includes('other ') && oracle.includes('you control get +')))) {
+      supplies.push({
+        capability: 'TRIBAL_LORD',
+        timing: 'STATIC'
+      });
+    }
+
+    // 16. State Transition & Day/Night Transformation (v29.3)
+    if (oracle.includes('daybound') || oracle.includes('nightbound') || oracle.includes('it becomes day') || oracle.includes('it becomes night')) {
+      supplies.push({
+        capability: 'DAYBOUND_NIGHTBOUND',
+        timing: 'STATIC_OR_TRIGGERED'
+      });
+    }
+    if (oracle.includes('as long as it\'s night') || oracle.includes('if it\'s night') || oracle.includes('whenever a werewolf you control transforms') || oracle.includes('whenever a permanent you control transforms')) {
+      supplies.push({
+        capability: 'NIGHT_PAYOFF',
+        timing: 'TRIGGERED'
+      });
+    }
+    if ((oracle.includes('it becomes night') || oracle.includes('it becomes day')) && (oracle.includes('whenever') || oracle.includes('{t}:') || oracle.includes('beginning of your upkeep'))) {
+      supplies.push({
+        capability: 'STATE_TRANSITION_CONTROLLER',
+        timing: 'TRIGGERED_OR_ACTIVATED'
       });
     }
 
     return supplies;
+  }
+
+  /**
+   * Internal parser: Derives structured interaction proof capabilities (v26.1).
+   * @private
+   */
+  static _deriveInteractionProof(oracleTruth, oracle, typeLine, cmc, targets = []) {
+    const isInstant = typeLine.includes('instant') || oracle.includes('flash');
+    const isSorcery = typeLine.includes('sorcery');
+    const isCreature = typeLine.includes('creature');
+    const isGraveyardTarget = oracle.includes('from a graveyard') || 
+      oracle.includes('from their graveyard') || 
+      oracle.includes('from any graveyard') || 
+      oracle.includes('in a graveyard') || 
+      oracle.includes('cards from all graveyards') || 
+      oracle.includes('exile all graveyards') || 
+      oracle.includes('target player\'s graveyard') || 
+      oracle.includes('target card from a graveyard') || 
+      oracle.includes('target card in a graveyard');
+
+    const isConditionalDamageDestroy = oracle.includes('was dealt damage this turn') || 
+      oracle.includes('with damage on it') || 
+      oracle.includes('that was dealt damage') || 
+      oracle.includes('that took damage');
+
+    const isDestroyOrExile = (oracle.includes('destroy target') || oracle.includes('exile target') || oracle.includes('destroy all') || oracle.includes('exile all')) && !isGraveyardTarget && !isConditionalDamageDestroy;
+    const isCounter = oracleTruth.effects.some(e => e.type === 'COUNTER_SPELL') || oracle.includes('counter target');
+    const isBounce = (oracle.includes('return target') || oracle.includes('return each')) && (oracle.includes('to its owner') || oracle.includes('to their owner'));
+    const isDamageEffect = (oracle.includes('deals ') && oracle.includes('damage')) || oracle.includes('deal damage');
+    const isFightOrBite = oracle.includes('fights target') || oracle.includes('deals damage equal to its power') || oracle.includes("deals damage equal to that creature's power") || oracle.includes('fights another target');
+
+    // 1. Timing Window
+    let timingWindow = 'SORCERY_SPEED';
+    if (isInstant) {
+      timingWindow = 'INSTANT_SPEED';
+    } else if (oracle.includes('when this creature dies') || oracle.includes('when ~ dies') || (oracle.includes('dies') && isDamageEffect && isCreature)) {
+      timingWindow = 'DEATH_TRIGGER_CONDITIONAL';
+    } else if (oracle.includes('whenever this creature attacks') || oracle.includes('whenever ~ attacks')) {
+      timingWindow = 'ATTACK_TRIGGER';
+    } else if (oracle.includes('at the beginning of your upkeep') || oracle.includes('at the beginning of each upkeep')) {
+      timingWindow = 'UPKEEP_TRIGGER';
+    } else if (oracle.includes(':') && isCreature) {
+      timingWindow = 'ACTIVATED_ABILITY';
+    }
+
+    // 2. Target Scope
+    let targetScope = 'NONE';
+    if (oracle.includes('to any target') || (oracle.includes('target') && oracle.includes('any target'))) {
+      targetScope = 'ANY_TARGET';
+    } else if (oracle.includes('target nonland permanent') || oracle.includes('target permanent')) {
+      targetScope = 'NONLAND_PERMANENT';
+    } else if (oracle.includes('target creature or planeswalker')) {
+      targetScope = 'CREATURE_OR_PLANESWALKER';
+    } else if (oracle.includes('target creature') && !isConditionalDamageDestroy) {
+      targetScope = 'TARGET_CREATURE';
+    } else if (oracle.includes('target artifact') || oracle.includes('target enchantment') || oracle.includes('attacking creature') || oracle.includes('tapped creature') || isConditionalDamageDestroy) {
+      targetScope = 'NARROW_CONDITIONAL';
+    } else if (isCounter) {
+      targetScope = 'TARGET_SPELL';
+    } else if (isGraveyardTarget) {
+      targetScope = 'GRAVEYARD_TARGET';
+    }
+
+    // 3. Conditionality
+    let conditionality = 'UNCONDITIONAL';
+    if (timingWindow === 'DEATH_TRIGGER_CONDITIONAL' || oracle.includes('flip a coin') || oracle.includes('attacking creature without flying') || isConditionalDamageDestroy) {
+      conditionality = 'HIGHLY_CONDITIONAL';
+    } else if (oracle.includes('if revolt') || oracle.includes('revolt —') || oracle.includes('landfall') || oracle.includes('delirium') || oracle.includes('threshold') || oracle.includes('bargain')) {
+      conditionality = 'CONDITIONALLY_RELIABLE';
+    }
+
+    // 4. Damage Potency
+    let damagePotency = 0;
+    if (isConditionalDamageDestroy) {
+      damagePotency = 2.0; // Narrow situational conditional destroy
+    } else if (isDestroyOrExile || isCounter) {
+      damagePotency = 5;
+    } else if (isFightOrBite) {
+      damagePotency = 4.5;
+    } else if (isDamageEffect) {
+      if (oracle.includes('deals 1 damage') || oracle.includes('deal 1 damage')) {
+        damagePotency = 1;
+      } else if (oracle.includes('deals 2 damage') || oracle.includes('deal 2 damage')) {
+        damagePotency = 2;
+      } else if (oracle.includes('deals 3 damage') || oracle.includes('deal 3 damage')) {
+        damagePotency = 3;
+      } else if (oracle.includes('deals 4 damage') || oracle.includes('deal 4 damage')) {
+        damagePotency = 4;
+      } else if (oracle.includes('deals 5 damage') || oracle.includes('deals 6 damage') || oracle.includes('deals x damage') || oracle.includes('deal x damage')) {
+        damagePotency = 4.5;
+      } else {
+        damagePotency = 2.5;
+      }
+    }
+
+    // 5. Effect Scope
+    let effectScope = 'NONE';
+    if (isConditionalDamageDestroy) {
+      effectScope = 'CONDITIONAL_REMOVAL';
+    } else if (isCounter) {
+      effectScope = 'COUNTER_SPELL';
+    } else if (isDestroyOrExile || isFightOrBite) {
+      effectScope = 'HARD_REMOVAL';
+    } else if (isBounce) {
+      effectScope = 'BOUNCE_TEMPO';
+    } else if (isGraveyardTarget) {
+      effectScope = 'GRAVEYARD_HATE';
+    } else if (isDamageEffect) {
+      if ((timingWindow === 'DEATH_TRIGGER_CONDITIONAL' && isCreature) || (damagePotency <= 1 && cmc >= 2)) {
+        effectScope = 'INCIDENTAL_PING';
+      } else {
+        effectScope = 'DAMAGE_REMOVAL';
+      }
+    }
+
+    // Effective mana cost for activation-based interaction
+    let effectiveCmc = cmc;
+    const actMatch = oracle.match(/\{(\d+)\}[^:]*:/);
+    if (actMatch && (typeLine.includes('artifact') || typeLine.includes('enchantment') || typeLine.includes('creature'))) {
+      const actCost = parseInt(actMatch[1], 10);
+      if (!isNaN(actCost)) {
+        effectiveCmc = cmc + actCost;
+      }
+    }
+
+    const isDirectInteraction = (effectScope === 'HARD_REMOVAL' || effectScope === 'DAMAGE_REMOVAL' || effectScope === 'COUNTER_SPELL' || effectScope === 'BOUNCE_TEMPO') &&
+      conditionality !== 'HIGHLY_CONDITIONAL' &&
+      timingWindow !== 'DEATH_TRIGGER_CONDITIONAL' &&
+      effectScope !== 'INCIDENTAL_PING' &&
+      effectiveCmc <= 6;
+
+    return {
+      effectScope,
+      timingWindow,
+      targetScope,
+      conditionality,
+      isDirectInteraction,
+      damagePotency,
+      manaCost: effectiveCmc
+    };
+  }
+
+  /**
+   * Internal parser: Derives compositional resource access chains (v26.1).
+   * @private
+   */
+  static _deriveResourceAccessChains(oracleTruth, oracle, typeLine, cmc) {
+    const chains = [];
+
+    // Impulse Draw
+    if ((oracle.includes('exile the top') || oracle.includes('exile top')) && 
+        (oracle.includes('you may play') || oracle.includes('you may cast') || oracle.includes('until the end of your next turn') || oracle.includes('until end of turn'))) {
+      chains.push('IMPULSE_DRAW');
+    }
+
+    // Death-Triggered Resource Access
+    if ((oracle.includes('dies') || oracle.includes('is put into a graveyard')) && 
+        (oracle.includes('draw') || oracle.includes('exile the top') || oracle.includes('look at the top'))) {
+      chains.push('DEATH_TRIGGERED_FLOW');
+    }
+
+    // Combat Damage Flow
+    if (oracle.includes('deals combat damage') && (oracle.includes('draw') || oracle.includes('exile the top'))) {
+      chains.push('COMBAT_DAMAGE_FLOW');
+    }
+
+    // Upkeep / End Step Flow
+    if ((oracle.includes('beginning of your upkeep') || oracle.includes('beginning of your end step')) && 
+        (oracle.includes('draw') || oracle.includes('look at the top') || oracle.includes('investigate'))) {
+      chains.push('UPKEEP_FLOW');
+    }
+
+    // Raw Card Draw
+    if (oracleTruth.effects.some(e => e.type === 'DRAW_CARDS') || oracle.includes('draw a card') || oracle.includes('draw two cards') || oracle.includes('draws a card')) {
+      chains.push('RAW_DRAW');
+    }
+
+    const isCompositionalFlow = chains.includes('IMPULSE_DRAW') || chains.includes('DEATH_TRIGGERED_FLOW') || chains.includes('COMBAT_DAMAGE_FLOW') || chains.includes('UPKEEP_FLOW');
+
+    return {
+      chains,
+      isCompositionalFlow,
+      hasResourceFlow: chains.length > 0
+    };
+  }
+
+  /**
+   * Extracts typed tribal contribution vector for a target tribe (v26.1).
+   */
+  static extractTribalContribution(card, targetTribe = '') {
+    if (!card) return { isMember: false, isEnabler: false, isAmplifier: false, isEngine: false, isPayoff: false };
+    const rawTribe = targetTribe ? String(targetTribe).toLowerCase().trim() : '';
+    if (!rawTribe || rawTribe === 'none' || rawTribe === 'universal' || rawTribe === 'general') {
+      return { isMember: false, isEnabler: false, isAmplifier: false, isEngine: false, isPayoff: false };
+    }
+
+    const faces = Array.isArray(card.card_faces) ? card.card_faces : [];
+    let typeLine = (card.type_line || card.typeLine || card.type || '').toLowerCase();
+    let oracle = (card.oracle_text || card.oracleText || card.text || '').toLowerCase();
+
+    if (faces.length > 0) {
+      if (!typeLine) typeLine = faces.map(f => f.type_line || f.typeLine || '').filter(Boolean).join(' // ').toLowerCase();
+      if (!oracle) oracle = faces.map(f => f.oracle_text || f.oracleText || '').filter(Boolean).join('\n//\n').toLowerCase();
+    }
+
+    const hasExactSubtype = (sub) => {
+      const regex = new RegExp(`\\b${sub}\\b`, 'i');
+      if (regex.test(typeLine)) return true;
+      return faces.some(f => regex.test((f.type_line || '').toLowerCase()));
+    };
+
+    const isChangeling = oracle.includes('changeling') && !oracle.includes('lose all abilities');
+
+    let isMember = false;
+    if (rawTribe === 'werewolf' || rawTribe === 'werewolves') {
+      isMember = hasExactSubtype('werewolf') || 
+        (typeLine.includes('creature') && (oracle.includes('daybound') || oracle.includes('nightbound'))) || 
+        isChangeling;
+    } else if (rawTribe === 'wolf' || rawTribe === 'wolves') {
+      isMember = (hasExactSubtype('wolf') && !hasExactSubtype('werewolf')) || isChangeling;
+    } else {
+      isMember = hasExactSubtype(rawTribe) || isChangeling;
+    }
+    
+    // Amplifier: +X/+X, Haste, Trample, Battle Cry, Anthem, Deathtouch/Keywords to tribe
+    const isAmplifier = (
+      oracle.includes('other ' + rawTribe) || 
+      oracle.includes('and other ' + rawTribe) ||
+      oracle.includes(rawTribe + 's you control get +') || 
+      oracle.includes(rawTribe + ' you control get +') || 
+      oracle.includes(rawTribe + ' creatures you control get +') ||
+      (rawTribe === 'werewolf' && (oracle.includes('wolves and werewolves you control get +') || (oracle.includes('as long as it\'s night') && oracle.includes('get +')))) ||
+      oracle.includes('creatures you control get +') ||
+      oracle.includes('battle cry') ||
+      (oracle.includes(rawTribe) && (oracle.includes('have haste') || oracle.includes('gain haste') || oracle.includes('gain trample') || oracle.includes('have menace') || oracle.includes('have deathtouch') || oracle.includes('gain deathtouch')))
+    );
+
+    // Engine: Generates cards, resources, reanimation or recurring bodies specifically tied to tribe or state
+    const isEngine = (
+      ((oracle.includes(rawTribe) || (oracle.includes('another creature you control') && isMember)) && 
+      (oracle.includes('whenever') || oracle.includes('when') || oracle.includes('once during each of your turns')) && 
+      (oracle.includes('dies') || oracle.includes('attacks') || oracle.includes('enters') || oracle.includes('from your graveyard')) && 
+      (oracle.includes('draw') || oracle.includes('exile the top') || oracle.includes('create a ' + rawTribe) || oracle.includes('create ' + rawTribe) || oracle.includes('cast a ' + rawTribe) || oracle.includes('cast ' + rawTribe) || oracle.includes('return this card from your graveyard') || oracle.includes('return it to the battlefield'))) ||
+      (rawTribe === 'werewolf' && (oracle.includes('whenever a wolf or werewolf you control deals combat damage to a player, draw') || oracle.includes('it becomes night') || oracle.includes('daybound') && oracle.includes('draw')))
+    );
+
+    // Enabler: Abarata costes o genera maná para la tribu
+    const isEnabler = (
+      oracle.includes(rawTribe + ' spells you cast cost') || 
+      oracle.includes('spend this mana only to cast ' + rawTribe) || 
+      oracle.includes('create a ' + rawTribe) ||
+      oracle.includes('create two ' + rawTribe)
+    );
+
+    // Payoff: Escala por la cantidad de miembros de la tribu o daño devastador / Nightbound
+    const isPayoff = (
+      oracle.includes('for each ' + rawTribe) || 
+      oracle.includes('equal to the number of ' + rawTribe) ||
+      oracle.includes('number of ' + rawTribe + 's you control') ||
+      oracle.includes('loses half their life') ||
+      oracle.includes('deals combat damage to a player, that player loses') ||
+      (rawTribe === 'werewolf' && (oracle.includes('as long as it\'s night') || oracle.includes('if it\'s night') || oracle.includes('three or more wolves and/or werewolves')))
+    );
+
+    return {
+      isMember,
+      isEnabler,
+      isAmplifier,
+      isEngine,
+      isPayoff
+    };
   }
 
   /**
@@ -510,6 +920,21 @@ export class CardCausalContract {
       });
     }
 
+    // --- 7. Subtype Control Demands (e.g. Relic Vial requiring a Cleric) ---
+    const subtypeCondition = oracleTruth.conditions.find(c => c.type === 'SUBTYPE_CONDITION');
+    if (subtypeCondition) {
+      const isSubtypeInType = typeLine.includes(subtypeCondition.requiredSubtype);
+      demands.push({
+        resource: 'SUBTYPE_CONTROL',
+        requiredSubtype: subtypeCondition.requiredSubtype,
+        necessity: isSubtypeInType ? 'SELF_SUPPLYING' : 'HARD',
+        earliestRelevantTurn: Math.max(1, cmc),
+        latestUsefulTurn: Math.max(5, cmc + 2),
+        description: `Requires controlling a ${subtypeCondition.requiredSubtype} to unlock triggered payoff.`,
+        timing: 'ON_BOARD'
+      });
+    }
+
     return { demands, selfSupply };
   }
 
@@ -549,8 +974,18 @@ export class CardCausalContract {
 
       // If the deck's primary WinPath is Creature Stompy / Big Mana and the ramp card is restricted to abilities or spells:
       const deckGoal = (intentContext.tempo || intentContext.archetype || '').toLowerCase();
-      const isCreatureRampTarget = deckGoal.includes('ramp') || deckGoal.includes('stompy') || deckGoal.includes('midrange');
+      const isCreatureRampTarget = deckGoal.includes('ramp') || deckGoal.includes('stompy') || deckGoal.includes('midrange') || (intentContext.primaryTribe && intentContext.primaryTribe !== 'none');
       const isSpellslingerTarget = deckGoal.includes('spellslinger') || deckGoal.includes('storm') || deckGoal.includes('prowess');
+
+      // Symmetrical damage spells cannot act as Ramp Acceleration in creature-based decks
+      const oracle = (contract.cardIdentity?.oracleText || '').toLowerCase();
+      const isSymmetricalDamage = (oracle.includes('deals 1 damage to each creature') || oracle.includes('deals 2 damage to each creature') || oracle.includes('deals 3 damage to each creature') || oracle.includes('damage to each creature without')) && !oracle.includes('opponents control') && !oracle.includes("you don't control");
+      if (isSymmetricalDamage && isCreatureRampTarget) {
+        return {
+          isCompatible: false,
+          reason: 'FAILS_ROLE_PROOF: Symmetrical creature damage spell damages friendly creatures and undermines creature-centric Ramp WinPath.'
+        };
+      }
 
       if (manaSupply.domain === 'ACTIVATED_ABILITIES_ONLY') {
         if (!deckGoal.includes('ability') && !deckGoal.includes('toolbox')) {
@@ -582,11 +1017,57 @@ export class CardCausalContract {
       return { isCompatible: true, reason: `Provides compatible ${manaSupply.domain} mana acceleration.` };
     }
 
-    // 2. CHEAP_REMOVAL role check
-    if (roleLower.includes('removal') || roleLower.includes('interaction')) {
-      const hasRemoval = contract.supplies.some(s => s.capability === 'CHEAP_REMOVAL' || s.capability === 'COUNTER_DISRUPTION' || s.capability === 'BOARD_SWEEPER');
+    // 2. COUNTER_DISRUPTION / COUNTERSPELL_SUITE
+    if (roleLower.includes('counter') || roleLower.includes('disruption')) {
+      const oracle = (contract.cardIdentity?.oracleText || '').toLowerCase();
+      const isCounter = contract.supplies.some(s => s.capability === 'COUNTER_DISRUPTION') ||
+        (contract.interactionProof && contract.interactionProof.effectScope === 'COUNTER_SPELL') ||
+        oracle.includes('counter target');
+      if (!isCounter) {
+        return { isCompatible: false, reason: 'FAILS_ROLE_PROOF: Card does not provide counterspell disruption.' };
+      }
+      return { isCompatible: true, reason: 'Supplies counterspell disruption.' };
+    }
+
+    // 2b. BOARD_SWEEPER / SWEEPER / MASS_REMOVAL
+    if (roleLower.includes('sweeper') || roleLower.includes('board_wipe') || roleLower.includes('mass_removal')) {
+      const oracle = (contract.cardIdentity?.oracleText || '').toLowerCase();
+      const isGraveyardTarget = oracle.includes('from a graveyard') || oracle.includes('all graveyards');
+      const hasSweeper = (contract.supplies.some(s => s.capability === 'BOARD_SWEEPER') ||
+        oracle.includes('destroy all') || oracle.includes('exile all') ||
+        (oracle.includes('damage to each creature') && !oracle.includes('deals 1 damage')) ||
+        (oracle.includes('return each creature') && oracle.includes('to its owner\'s hand'))) &&
+        (!isGraveyardTarget || oracle.includes('creature') || oracle.includes('permanent'));
+
+      if (!hasSweeper) {
+        return { isCompatible: false, reason: 'FAILS_ROLE_PROOF: Card does not provide a board sweeper effect.' };
+      }
+      return { isCompatible: true, reason: 'Supplies board sweeper effect.' };
+    }
+
+    // 2c. CHEAP_REMOVAL / SPOT_REMOVAL / INTERACTION
+    if (roleLower.includes('removal') || roleLower.includes('interaction') || roleLower.includes('cheap_removal')) {
+      const proof = contract.interactionProof;
+      if (proof) {
+        if (proof.effectScope === 'COUNTER_SPELL') {
+          return {
+            isCompatible: false,
+            reason: 'FAILS_ROLE_PROOF: Counterspells belong in COUNTER_DISRUPTION, not battlefield SPOT_REMOVAL.'
+          };
+        }
+        if (proof.effectScope === 'GRAVEYARD_HATE' || proof.effectScope === 'INCIDENTAL_PING' || proof.timingWindow === 'DEATH_TRIGGER_CONDITIONAL' || proof.conditionality === 'HIGHLY_CONDITIONAL') {
+          return {
+            isCompatible: false,
+            reason: 'FAILS_ROLE_PROOF: Incidental ping, death trigger, or graveyard hate cannot execute reliable threat removal.'
+          };
+        }
+        if (proof.isDirectInteraction && proof.effectScope !== 'GRAVEYARD_HATE') {
+          return { isCompatible: true, reason: `Provides direct ${proof.effectScope} at ${proof.timingWindow} timing.` };
+        }
+      }
+      const hasRemoval = contract.supplies.some(s => s.capability === 'CHEAP_REMOVAL');
       if (!hasRemoval) {
-        return { isCompatible: false, reason: 'Card does not provide spot removal, board sweep, or counter disruption.' };
+        return { isCompatible: false, reason: 'Card does not provide spot removal.' };
       }
       return { isCompatible: true, reason: 'Provides interaction/removal capability.' };
     }
@@ -677,7 +1158,290 @@ export class CardCausalContract {
       return { isCompatible: true, reason: 'Supplies discard/mill graveyard enabler.' };
     }
 
+    // 9. SACRIFICE_OUTLET & DEATH_PAYOFF & TRIBAL_LORD
+    if (roleLower.includes('sacrifice_outlet') || roleLower.includes('sac_outlet')) {
+      const hasSac = contract.supplies.some(s => s.capability === 'SACRIFICE_OUTLET');
+      if (!hasSac) {
+        return { isCompatible: false, reason: 'Card does not provide a sacrifice outlet activation.' };
+      }
+      return { isCompatible: true, reason: 'Supplies sacrifice outlet capability.' };
+    }
+
+    if (roleLower.includes('death_payoff')) {
+      const hasDeath = contract.supplies.some(s => s.capability === 'DEATH_PAYOFF');
+      if (!hasDeath) {
+        return { isCompatible: false, reason: 'Card does not trigger on creature death or sacrifice.' };
+      }
+      return { isCompatible: true, reason: 'Supplies death payoff capability.' };
+    }
+
+    if (roleLower.includes('recursive_fodder') || roleLower.includes('fodder')) {
+      const hasFodder = contract.supplies.some(s => s.capability === 'TOKEN_GENERATOR') || contract.cardIdentity.isCreature;
+      if (!hasFodder) {
+        return { isCompatible: false, reason: 'Card does not provide creature presence or token generation.' };
+      }
+      return { isCompatible: true, reason: 'Supplies creature fodder capability.' };
+    }
+
+    if (roleLower.includes('amplify') || roleLower.includes('lord') || roleLower.includes('force_multiplier') || roleLower.includes('board_amplifier')) {
+      const hasLord = contract.supplies.some(s => s.capability === 'TRIBAL_LORD');
+      const oracle = (contract.cardIdentity?.oracleText || '').toLowerCase();
+      const hasBoardAmp = hasLord || 
+        oracle.includes('creatures you control get +') || 
+        oracle.includes('other creatures you control get +') ||
+        oracle.includes('other goblins you control get +') ||
+        oracle.includes('other elves you control get +') ||
+        oracle.includes('other vampires you control get +') ||
+        oracle.includes('other zombies you control get +') ||
+        oracle.includes('battle cry') ||
+        (oracle.includes('you control get +') && oracle.includes('/+'));
+
+      if (!hasBoardAmp) {
+        return { isCompatible: false, reason: 'FAILS_ROLE_PROOF: Card does not amplify or multiply board pressure across multiple creatures.' };
+      }
+      return { isCompatible: true, reason: 'Supplies board pressure amplification.' };
+    }
+
+    if (roleLower.includes('draw') || roleLower.includes('card_flow') || roleLower.includes('flow') || roleLower.includes('advantage')) {
+      const typeLine = (contract.cardIdentity?.typeLine || '').toLowerCase();
+      const oracle = (contract.cardIdentity?.oracleText || '').toLowerCase();
+      const isAura = typeLine.includes('aura') || typeLine.includes('enchantment — aura');
+      const isCombatDependent = oracle.includes('combat damage to a player') || oracle.includes("if you didn't attack");
+      const isControl = (intentContext.tempo || intentContext.archetype || '').toLowerCase().includes('control') || (intentContext.tempo || '').toLowerCase().includes('reactive');
+
+      if (isAura && isCombatDependent && isControl) {
+        return {
+          isCompatible: false,
+          reason: 'FAILS_ROLE_PROOF: Combat-dependent Aura (e.g. Curious Obsession) requires aggressive creature curve, invalid for Control.'
+        };
+      }
+
+      const flow = contract.resourceAccessChains;
+      const hasRawDraw = contract.supplies.some(s => s.capability === 'CARD_FLOW');
+      if (flow && (flow.isCompositionalFlow || flow.hasResourceFlow)) {
+        return { isCompatible: true, reason: `Supplies compositional resource flow via [${flow.chains.join(', ')}].` };
+      }
+      if (hasRawDraw) {
+        return { isCompatible: true, reason: 'Supplies standard card flow/draw capability.' };
+      }
+      return { isCompatible: false, reason: 'FAILS_ROLE_PROOF: Card does not supply card flow, impulse draw, or recurring resource access.' };
+    }
+
+    // 10. TRIBAL_DENSITY (Strict on-tribe creature requirement)
+    if (roleLower.includes('tribal_density') || roleLower.includes('tribal')) {
+      const typeLine = (contract.cardIdentity?.typeLine || '').toLowerCase();
+      const oracle = (contract.cardIdentity?.oracleText || '').toLowerCase();
+      const isVehicle = typeLine.includes('vehicle');
+      const isLand = typeLine.includes('land') && !typeLine.includes('creature');
+      const isCreature = (contract.cardIdentity?.isCreature || typeLine.includes('creature')) && !isVehicle && !isLand;
+      const primaryTribe = intentContext?.primaryTribe || '';
+
+      if (!isCreature && !oracle.includes('create a token') && !oracle.includes('create a') && !oracle.includes('token')) {
+        return {
+          isCompatible: false,
+          reason: 'FAILS_ROLE_PROOF: Non-creature spell cannot fulfill TRIBAL_DENSITY slot.'
+        };
+      }
+
+      if (primaryTribe && primaryTribe !== 'none') {
+        const cardObj = {
+          name: contract.cardIdentity?.name || '',
+          type_line: contract.cardIdentity?.typeLine || '',
+          oracle_text: contract.cardIdentity?.oracleText || ''
+        };
+        const isMatch = IdentityFirewall.isMatchingTribe(cardObj, primaryTribe);
+        if (!isMatch) {
+          return {
+            isCompatible: false,
+            reason: `FAILS_ROLE_PROOF: Card "${contract.cardIdentity?.name}" does not match required tribe [${intentContext.primaryTribe}].`
+          };
+        }
+      }
+      return { isCompatible: true, reason: 'Supplies on-tribe creature density.' };
+    }
+
     // Default: compatible
     return { isCompatible: true, reason: 'General compatibility verified.' };
   }
+
+  /**
+   * Internal parser: Extracts structured execution modes and contextual effective mana demand.
+   * @private
+   */
+  static _deriveExecutionModesAndManaDemand(oracleRaw, oracle, typeLine, cmc, manaCost, supplies = []) {
+    const modes = [];
+    const isInstantSpeed = typeLine.includes('instant') || oracle.includes('flash');
+    const isCreature = typeLine.includes('creature');
+    const isLand = typeLine.includes('land');
+
+    // Detect X-Cost in casting cost or oracle text
+    const isXCost = manaCost.includes('{X}') || manaCost.includes('{x}') || (oracle.includes('{x}') && (oracle.includes('enters with x') || oracle.includes('deals x damage') || oracle.includes('equal to x')));
+    let effectiveOperationalCmc = cmc;
+    let xEarliestExecutableTurn = Math.max(1, cmc);
+
+    if (isXCost) {
+      // In MTG, an X-cost card requires mana investment (X >= 2) to be cast as a functional threat/spell
+      effectiveOperationalCmc = isCreature ? Math.max(4, cmc + 2) : Math.max(4, cmc + 2);
+      xEarliestExecutableTurn = Math.max(3, cmc + 2);
+      modes.push({
+        modeId: 'X_SCALABLE_CAST',
+        effectiveDemand: effectiveOperationalCmc,
+        timing: isInstantSpeed ? 'INSTANT_SPEED' : 'SORCERY_SPEED',
+        purpose: isCreature ? 'SCALABLE_FINISHER' : 'SCALABLE_SPELL',
+        restrictions: [],
+        earliestExecutableTurn: xEarliestExecutableTurn
+      });
+    }
+
+    // 1. Primary Cast Mode
+    modes.push({
+      modeId: 'PRIMARY_CAST',
+      effectiveDemand: isXCost ? effectiveOperationalCmc : cmc,
+      timing: isInstantSpeed ? 'INSTANT_SPEED' : 'SORCERY_SPEED',
+      purpose: isCreature ? 'BOARD_PRESENCE' : (isLand ? 'MANA_BASE' : 'SPELL_EFFECT'),
+      restrictions: [],
+      earliestExecutableTurn: isXCost ? xEarliestExecutableTurn : Math.max(1, cmc)
+    });
+
+    // 2. Alternative Execution Modes (Zero hardcoded names, pure oracle syntax)
+    // Cycling (e.g. Cycling {1}, Cycling {2}, Cycling {X}{1}{U})
+    if (oracle.includes('cycling {') || oracle.includes('cycling—{')) {
+      const match = oracle.match(/cycling[—\s]*\{([0-9wubrgcx]+)\}/i);
+      let cyclingCost = 2; // Default cycling cost in MTG if parse fails
+      if (match && match[1]) {
+        const costStr = match[1].toLowerCase();
+        const numMatch = costStr.match(/[0-9]+/);
+        cyclingCost = numMatch ? Number(numMatch[0]) : 1;
+      }
+      modes.push({
+        modeId: 'CYCLING',
+        effectiveDemand: cyclingCost,
+        timing: 'INSTANT_SPEED',
+        purpose: 'CARD_VELOCITY',
+        restrictions: [],
+        earliestExecutableTurn: cyclingCost
+      });
+    }
+
+    // Adventure (e.g. Brazen Borrower / Petty Theft, Bonecrusher Giant / Stomp)
+    if (typeLine.includes('adventure') || oracle.includes('adventure') || oracle.includes('cast as an adventure')) {
+      // Adventures allow early interaction / card advantage on lower curve
+      const adventureCost = Math.min(2, Math.max(1, cmc - 2));
+      modes.push({
+        modeId: 'ADVENTURE',
+        effectiveDemand: adventureCost,
+        timing: 'INSTANT_SPEED',
+        purpose: 'EARLY_INTERACTION_OR_CREATURE',
+        restrictions: [],
+        earliestExecutableTurn: adventureCost
+      });
+    }
+
+    // Evoke
+    if (oracle.includes('evoke {') || oracle.includes('evoke—{')) {
+      const match = oracle.match(/evoke[—\s]*\{([0-9wubrgcx]+)\}/i);
+      let evokeCost = Math.max(1, cmc - 2);
+      if (match && match[1]) {
+        const numMatch = match[1].match(/[0-9]+/);
+        if (numMatch) evokeCost = Number(numMatch[0]);
+      }
+      modes.push({
+        modeId: 'EVOKE',
+        effectiveDemand: evokeCost,
+        timing: 'SORCERY_SPEED',
+        purpose: 'ETB_EFFECT',
+        restrictions: [],
+        earliestExecutableTurn: evokeCost
+      });
+    }
+
+    // Prototype
+    if (oracle.includes('prototype {') || oracle.includes('prototype — {')) {
+      const protoCost = Math.max(1, Math.min(3, cmc - 3));
+      modes.push({
+        modeId: 'PROTOTYPE',
+        effectiveDemand: protoCost,
+        timing: 'SORCERY_SPEED',
+        purpose: 'EARLY_CREATURE_CURVE',
+        restrictions: [],
+        earliestExecutableTurn: protoCost
+      });
+    }
+
+    // Channel
+    if (oracle.includes('channel — {') || oracle.includes('channel —')) {
+      const channelCost = Math.max(1, cmc - 2);
+      modes.push({
+        modeId: 'CHANNEL',
+        effectiveDemand: channelCost,
+        timing: 'INSTANT_SPEED',
+        purpose: 'INTERACTION_OR_ACCELERATION',
+        restrictions: [],
+        earliestExecutableTurn: channelCost
+      });
+    }
+
+    // Foretell
+    if (oracle.includes('foretell {') || oracle.includes('foretell—{')) {
+      modes.push({
+        modeId: 'FORETELL',
+        effectiveDemand: 2,
+        timing: 'SPECIAL_ACTION',
+        purpose: 'COST_DISTRIBUTION',
+        restrictions: [],
+        earliestExecutableTurn: 2
+      });
+    }
+
+    // Modal / Spree (e.g. Three Steps Ahead, Choose one or more)
+    if (oracle.includes('spree') || oracle.includes('choose one or more')) {
+      modes.push({
+        modeId: 'MODAL_SPREE',
+        effectiveDemand: Math.max(1, cmc),
+        timing: isInstantSpeed ? 'INSTANT_SPEED' : 'SORCERY_SPEED',
+        purpose: 'VERSATILE_INTERACTION',
+        restrictions: [],
+        earliestExecutableTurn: Math.max(1, cmc)
+      });
+    }
+
+    // Affinity / Delve / Convoke
+    if (oracle.includes('affinity for artifacts') || oracle.includes('delve') || oracle.includes('convoke') || oracle.includes('improvise')) {
+      modes.push({
+        modeId: 'COST_REDUCTION',
+        effectiveDemand: Math.max(1, cmc - 3),
+        timing: isInstantSpeed ? 'INSTANT_SPEED' : 'SORCERY_SPEED',
+        purpose: 'DISCOUNTED_EXECUTION',
+        restrictions: [],
+        earliestExecutableTurn: Math.max(1, cmc - 3)
+      });
+    }
+
+    const hasEarlyInteractionAlternative = modes.some(m => m.modeId !== 'PRIMARY_CAST' && m.effectiveDemand <= 2);
+    const minExecutableTurn = isXCost && !hasEarlyInteractionAlternative
+      ? xEarliestExecutableTurn
+      : Math.min(...modes.map(m => m.earliestExecutableTurn));
+
+    const effectiveManaDemand = {
+      primaryDemand: isXCost ? effectiveOperationalCmc : cmc,
+      effectiveOperationalCmc,
+      isXCost,
+      earliestExecutableTurn: minExecutableTurn,
+      hasEarlyInteractionAlternative,
+      modes,
+      latestUsefulTurn: isCreature && cmc <= 2 && !isXCost ? 6 : 10,
+      earliestUsefulTurnByWinPath: (winPathNodes = []) => {
+        if (hasEarlyInteractionAlternative) return minExecutableTurn;
+        if (isXCost) return xEarliestExecutableTurn;
+        if (isCreature && cmc >= 5) return Math.max(5, cmc);
+        return minExecutableTurn;
+      }
+    };
+
+    return {
+      executionModes: modes,
+      effectiveManaDemand
+    };
+  }
 }
+

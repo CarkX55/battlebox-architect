@@ -20,6 +20,7 @@
 
 import { CapabilityPackage, LockLevel, PackagePriority } from './capabilityPackage.js';
 import { CapabilityRequirement, CapabilityImportance, resolveAllocationMode } from './capabilityRequirement.js';
+import { MarginalCopyEvaluator } from './marginalCopyEvaluator.js';
 
 /**
  * CopyAllocationState: Immutable verified snapshot of all allocation decisions.
@@ -64,32 +65,201 @@ export class CopyAllocationState {
 export class CopyAllocationManager {
   /**
    * Converts filled AllocationSlots from CandidateConstraintEngine into a verified CopyAllocationState.
-   * This is the SINGLE AUTHORITY for copy multiplicities.
+   * This is the SINGLE AUTHORITY for copy multiplicities and deck size closure.
    * 
    * @param {Array<import('./capabilityPlan.js').AllocationSlot>} filledSlots
    * @param {string} format
    * @param {string|null} userModeOverride
+   * @param {Object} intentPackage
+   * @param {Array<Object>} cardPool
+   * @param {Object} deckIdentity
    * @returns {CopyAllocationState}
    */
-  static createAllocationStateFromPlan(filledSlots = [], format = 'STANDARD', userModeOverride = null) {
+  static createAllocationStateFromPlan(filledSlots = [], format = 'STANDARD', userModeOverride = null, intentPackage = {}, cardPool = [], deckIdentity = null) {
     const { mode, source } = resolveAllocationMode(format, userModeOverride);
+    const fmt = (format || 'MODERN').toUpperCase();
+    const isSingleton = fmt === 'COMMANDER' || fmt === 'EDH' || fmt === 'BRAWL' || fmt === 'SINGLETON' || mode === 'SINGLETON';
+    const totalDeckTarget = isSingleton ? 100 : (intentPackage.deckSize || 60);
+
+    const landSlots = filledSlots.filter(s => s.role === 'Land' || (s.role || '').toLowerCase().includes('mana_base'));
+    const spellSlots = filledSlots.filter(s => s.role !== 'Land' && !(s.role || '').toLowerCase().includes('mana_base'));
+
+    const landTargetCount = landSlots.reduce((sum, s) => sum + (s.requiredDensity || 0), 0) || 24;
+    const targetSpellCount = totalDeckTarget - landTargetCount; // e.g. 36 for standard 60-card deck
+
+    const runningDeckState = { cards: [] };
+    const strategicContract = {
+      archetype: intentPackage?.strategicTempo || 'MIDRANGE',
+      winPath: intentPackage?.winPath || [],
+      proofObligations: deckIdentity?.requiredEngines || [],
+      format: fmt,
+      constraints: intentPackage?.userConstraints || {}
+    };
+
+    // 1. Initial Marginal Copy Allocation for Spells
+    const rawAllocations = [];
+    for (const slot of spellSlots) {
+      const cardObj = slot.winnerCardObj || { name: slot.winnerCard, cmc: 2 };
+      
+      let optimalCopies;
+      if (isSingleton) {
+        optimalCopies = 1;
+      } else {
+        const evalResult = MarginalCopyEvaluator.evaluateOptimalCopies(cardObj, runningDeckState, strategicContract);
+        optimalCopies = evalResult.optimalCopies;
+        if (mode === 'PRIORITIZE_4X' && !(cardObj.type_line || cardObj.type || '').includes('Legendary') && Number(cardObj.cmc || 0) <= 2) {
+          optimalCopies = Math.max(optimalCopies, 4);
+        }
+      }
+
+      rawAllocations.push({
+        slot,
+        cardObj,
+        cardName: slot.winnerCard,
+        copies: optimalCopies,
+        maxLegal: MarginalCopyEvaluator.getCopyDomain(cardObj, fmt).max
+      });
+
+      // Update running deck state for redundancy calculation
+      runningDeckState.cards.push({ card: cardObj, count: optimalCopies, quantity: optimalCopies });
+    }
+
+    // 2. Causal Expansion Loop to achieve exact targetSpellCount (e.g. 36 spells)
+    let currentSpellTotal = rawAllocations.reduce((sum, a) => sum + a.copies, 0);
+
+    if (!isSingleton && currentSpellTotal < targetSpellCount) {
+      // Loop: increase copies on best non-legendary, low CMC, high marginal utility cards first
+      let progress = true;
+      while (currentSpellTotal < targetSpellCount && progress) {
+        progress = false;
+        
+        let bestCandidate = null;
+        let bestGain = -Infinity;
+
+        for (const alloc of rawAllocations) {
+          if (alloc.copies < alloc.maxLegal) {
+            const isLeg = (alloc.cardObj.type_line || alloc.cardObj.type || '').includes('Legendary');
+            const cmc = Number(alloc.cardObj.cmc || 0);
+            
+            // Do not force 4x on legendary cards if avoidable
+            if (isLeg && alloc.copies >= 2) continue;
+
+            const nextCopyGain = (alloc.maxLegal - alloc.copies) * 0.5 - (cmc * 0.1) - (isLeg ? 1.0 : 0);
+            if (nextCopyGain > bestGain) {
+              bestGain = nextCopyGain;
+              bestCandidate = alloc;
+            }
+          }
+        }
+
+        if (bestCandidate) {
+          bestCandidate.copies += 1;
+          currentSpellTotal += 1;
+          progress = true;
+        } else {
+          // If all current primary slots are at marginal saturation, check proven slot alternatives
+          for (const alloc of rawAllocations) {
+            if (currentSpellTotal >= targetSpellCount) break;
+            const alts = alloc.slot.alternatives || [];
+            for (const altName of alts) {
+              if (currentSpellTotal >= targetSpellCount) break;
+              if (!rawAllocations.some(a => a.cardName === altName)) {
+                const altCardObj = (cardPool || []).find(c => c.name === altName) || { name: altName, cmc: 2 };
+                const copiesToAdd = Math.min(2, targetSpellCount - currentSpellTotal);
+                rawAllocations.push({
+                  slot: alloc.slot,
+                  cardObj: altCardObj,
+                  cardName: altName,
+                  copies: copiesToAdd,
+                  maxLegal: 4,
+                  isExpandedAlternative: true
+                });
+                currentSpellTotal += copiesToAdd;
+                progress = true;
+                break;
+              }
+            }
+          }
+
+          // If no alternatives exist, raise existing non-legendary allocations up to maxLegal
+          if (!progress) {
+            for (const alloc of rawAllocations) {
+              const isLeg = (alloc.cardObj.type_line || alloc.cardObj.type || '').includes('Legendary');
+              if (alloc.copies < alloc.maxLegal && !isLeg) {
+                alloc.copies += 1;
+                currentSpellTotal += 1;
+                progress = true;
+                break;
+              }
+            }
+          }
+        }
+      }
+    } else if (!isSingleton && currentSpellTotal > targetSpellCount) {
+      // Trim excess copies from highest CMC / legendary slots first
+      while (currentSpellTotal > targetSpellCount) {
+        let worstCandidate = null;
+        let worstScore = Infinity;
+
+        for (const alloc of rawAllocations) {
+          if (alloc.copies > 1) {
+            const isLeg = (alloc.cardObj.type_line || alloc.cardObj.type || '').includes('Legendary');
+            const cmc = Number(alloc.cardObj.cmc || 0);
+            const score = (isLeg ? -2 : 0) - cmc + (4 - alloc.copies);
+            if (score < worstScore) {
+              worstScore = score;
+              worstCandidate = alloc;
+            }
+          }
+        }
+
+        if (worstCandidate) {
+          worstCandidate.copies -= 1;
+          currentSpellTotal -= 1;
+        } else {
+          break;
+        }
+      }
+    }
+
+    // 3. Assemble final packages
     const packages = [];
 
-    for (const slot of filledSlots) {
-      const lockLevel = slot.mandatory ? LockLevel.LOCK_HARD : LockLevel.LOCK_SOFT;
-      const priority = slot.priority >= 90 ? PackagePriority.PRIORITY_1_CORE : PackagePriority.PRIORITY_2_SUPPORT;
-
+    // Land packages
+    for (const slot of landSlots) {
       packages.push(new CapabilityPackage({
         role: slot.role,
         requiredDensity: slot.requiredDensity,
         allocatedDensity: slot.requiredDensity,
-        winnerCard: slot.winnerCard || `[Pending: ${slot.role}]`,
+        winnerCard: slot.winnerCard,
         winnerCardObj: slot.winnerCardObj || null,
         copies: slot.requiredDensity,
         alternatives: slot.alternatives || [],
+        priority: PackagePriority.PRIORITY_1_CORE,
+        lockLevel: LockLevel.LOCK_HARD,
+        rationale: slot.allocationReason || `Mana base: ${slot.requiredDensity} lands allocated`
+      }));
+    }
+
+    // Spell packages
+    for (const alloc of rawAllocations) {
+      const slot = alloc.slot;
+      const priority = slot.priority >= 90 ? PackagePriority.PRIORITY_1_CORE : PackagePriority.PRIORITY_2_SUPPORT;
+      const lockLevel = slot.mandatory ? LockLevel.LOCK_HARD : LockLevel.LOCK_SOFT;
+
+      packages.push(new CapabilityPackage({
+        role: alloc.isExpandedAlternative ? `SUPPORT_${slot.role}` : slot.role,
+        requiredDensity: alloc.copies,
+        allocatedDensity: alloc.copies,
+        winnerCard: alloc.cardName,
+        winnerCardObj: alloc.cardObj,
+        copies: alloc.copies,
+        alternatives: slot.alternatives || [],
         priority,
         lockLevel,
-        rationale: slot.allocationReason || `Allocated ${slot.requiredDensity}x in ${mode} mode`
+        rationale: alloc.isExpandedAlternative
+          ? `Causal Expansion: Added ${alloc.copies}x "${alloc.cardName}" to close deck size (36 spells)`
+          : `MarginalCopyEvaluator: Allocated ${alloc.copies}x "${alloc.cardName}" based on marginal state gain`
       }));
     }
 
@@ -97,7 +267,56 @@ export class CopyAllocationManager {
       packages,
       mode,
       modeSource: source,
-      format
+      format: fmt
+    });
+  }
+
+  /**
+   * Creates a verified CopyAllocationState directly from a compiled DeckState.
+   * Ensures 100% single-source-of-truth alignment between ProgressiveDeckStateBuilder
+   * and explanatory UI/Auditor representations.
+   * 
+   * @param {import('./deckState.js').DeckState} deckState
+   * @param {string} format
+   * @param {Object} intentPackage
+   * @param {Object} deckIdentity
+   * @returns {CopyAllocationState}
+   */
+  static createAllocationStateFromDeckState(deckState, format = 'MODERN', intentPackage = {}, deckIdentity = {}) {
+    const cards = deckState?.cards || [];
+    const packages = [];
+    const fmt = (typeof format === 'string' && format) ? format.toUpperCase() : (intentPackage?.format ? String(intentPackage.format).toUpperCase() : 'MODERN');
+    const mode = resolveAllocationMode(fmt, intentPackage?.userConstraints?.allocationMode || null);
+
+    for (const entry of cards) {
+      const cardObj = entry.cardObj || entry;
+      const isLand = Boolean(entry.isLand || (entry.type_line || '').toLowerCase().includes('land') || entry.role === 'Land');
+      const copies = Number(entry.quantity || entry.count || 1);
+      const role = entry.role || (isLand ? 'Land' : 'CORE_SYNERGY');
+      const priority = isLand ? PackagePriority.PRIORITY_1_CORE : (entry.packagePriority === 'CORE' ? PackagePriority.PRIORITY_1_CORE : PackagePriority.PRIORITY_2_SUPPORT);
+      const lockLevel = entry.lockLevel || (isLand ? LockLevel.LOCK_HARD : LockLevel.LOCK_SOFT);
+
+      packages.push(new CapabilityPackage({
+        role,
+        requiredDensity: copies,
+        allocatedDensity: copies,
+        winnerCard: entry.name,
+        winnerCardObj: cardObj,
+        copies,
+        alternatives: [],
+        priority,
+        lockLevel,
+        rationale: isLand
+          ? `Mana base: ${copies}x "${entry.name}" allocated by Frank Karsten engine`
+          : `Progressive State Optimizer: Allocated ${copies}x "${entry.name}" based on marginal state gain`
+      }));
+    }
+
+    return new CopyAllocationState({
+      packages,
+      mode: mode.mode,
+      modeSource: mode.source,
+      format: fmt
     });
   }
   /**

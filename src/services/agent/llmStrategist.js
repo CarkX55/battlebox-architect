@@ -6,6 +6,7 @@
  */
 
 import { ArchetypeProfileRegistry } from './archetypeProfiles.js';
+import { CardImplementer } from './cardImplementer.js';
 
 export class LLMStrategist {
   /**
@@ -89,13 +90,17 @@ CORE DIRECTIVES:
     let falsifiers = [];
     let confidence = 'HIGH';
 
-    // 1. Oceanic Alliance / Sea Monsters (Tritones, Krakens, Leviatanes, Pulpos, Serpientes)
+    // 1. Toughness Combat & Wall Stompy (Arcades, High Alert, Assault Formation)
+    const isToughnessCombat = rawTribeStr.includes('wall') || combText.includes('WALL') || combText.includes('TOUGHNESS') || combText.includes('RESISTENCIA') || combText.includes('DEFENDER');
+
+    // 2. Oceanic Alliance / Sea Monsters (Tritones, Krakens, Leviatanes, Pulpos, Serpientes)
     const isSeaMonsters = rawTribeStr.includes('sea_monster') || rawTribeStr.includes('sea') || rawTribeStr.includes('marino') || rawTribeStr.includes('kraken') || rawTribeStr.includes('leviathan') || rawTribeStr.includes('octopus') || rawTribeStr.includes('serpent') || combText.includes('SEA_MONSTER');
     
-    // 2. Heavy Tribal Ramp (Dragons, Dinosaurs, Eldrazi, Angels, Giants, Apex Predators)
+    // 3. Heavy Tribal Ramp (Dragons, Dinosaurs, Eldrazi, Angels, Giants, Apex Predators)
     const isHeavyTribal = rawTribeStr.match(/dragon|demon|dinosaur|eldrazi|angel|giant|apex_predators/) && (combText.includes('RAMP') || combText.includes('BIG_MANA') || combText.includes('MIDRANGE'));
 
-    // 3. Specific Engine & Strategy Profiles
+    // 4. Specific Engine & Strategy Profiles
+    const isPhyrexian = rawTribeStr.includes('phyrexian') || rawTribeStr.includes('pirexian') || combText.includes('PHYREXIAN') || combText.includes('TOXIC') || combText.includes('INFECT') || combText.includes('PROLIFERATE') || combText.includes('CORRUPTED');
     const isWerewolf = rawTribeStr.includes('werewolf') || combText.includes('WEREWOLF');
     const isNinja = rawTribeStr.includes('ninja') || combText.includes('NINJA');
     const isAristocrats = combText.includes('ARISTOCRAT') || combText.includes('SACRIFICE');
@@ -113,7 +118,33 @@ CORE DIRECTIVES:
     const isTempo = combText.includes('TEMPO');
     const isMidrange = combText.includes('MIDRANGE');
 
-    if (isSeaMonsters) {
+    if (isToughnessCombat) {
+      thesisSummary = 'Deploy high-toughness defenders, assemble toughness-combat enablers (Arcades, High Alert, Assault Formation), ramp mana, and alpha-strike with Tower Defense.';
+      winPath = ['TOUGHNESS_ENABLER', 'DEFENDER_MANA_RAMP', 'DEFENDER_DENSITY', 'COMBAT_AMPLIFICATION', 'CARD_FLOW'];
+      coreCapabilities = ['TOUGHNESS_COMBAT_ENABLER', 'DEFENDER_RAMP', 'HIGH_TOUGHNESS_DEFENDER', 'TOUGHNESS_PUMP'];
+      failureModes = ['NO_TOUGHNESS_ENABLER', 'DEFENDER_STALL'];
+      falsifiers = [
+        {
+          id: 'FALSIFIER_NO_TOUGHNESS_ENABLER',
+          claim: 'Defenders without Arcades/High Alert/Assault Formation cannot attack or deal combat damage',
+          evidenceRequired: ['TOUGHNESS_ENABLER'],
+          failureCondition: 'ENABLER_UNPROVEN'
+        }
+      ];
+    } else if (isPhyrexian) {
+      thesisSummary = 'Deploy aggressive toxic and infect creatures, apply early poison counters, and proliferate to 10 poison counters for victory.';
+      winPath = ['T1_PRESSURE', 'TRIBAL_DENSITY', 'CHEAP_REMOVAL', 'CARD_FLOW', 'INEVITABLE_WIN_PAYOFF'];
+      coreCapabilities = ['TOXIC_CARRIER', 'POISON_ENABLER', 'PROLIFERATE', 'BOARD_PRESENCE'];
+      failureModes = ['NO_POISON_APPLICATION', 'SLOW_PROLIFERATE'];
+      falsifiers = [
+        {
+          id: 'FALSIFIER_POISON_DEFICIT',
+          claim: 'Failure to apply first poison counter by Turn 2 disables proliferate win velocity',
+          evidenceRequired: ['T1_PRESSURE'],
+          failureCondition: 'POISON_UNPROVEN'
+        }
+      ];
+    } else if (isSeaMonsters) {
       thesisSummary = 'Develop early mana acceleration with Merfolk/ramp and deploy colossal oceanic apex threats (Krakens, Leviathans, Serpents, Octopuses) ahead of curve.';
       winPath = ['EARLY_RAMP', 'TRIBAL_DENSITY', 'CARD_FLOW', 'INEVITABLE_WIN_PAYOFF'];
       coreCapabilities = ['MANA_ACCELERATION', 'TRIBAL_SUBTYPE', 'APEX_PAYOFF'];
@@ -245,8 +276,8 @@ CORE DIRECTIVES:
       ];
     } else if (isPrison) {
       thesisSummary = 'Deploy mana taxes, fiscal hatebears, and asymmetric locks to restrict opponent actions while applying steady beatdown pressure.';
-      winPath = ['T1_PRESSURE', 'CHEAP_REMOVAL', 'TRIBAL_DENSITY', 'CARD_FLOW'];
-      coreCapabilities = ['TAX_EFFECT', 'HATEBEAR', 'DISRUPTION'];
+      winPath = ['TAXING_CREATURE', 'PRISON_LOCK', 'CHEAP_REMOVAL', 'CARD_FLOW', 'BOARD_PRESENCE'];
+      coreCapabilities = ['TAX_EFFECT', 'HATEBEAR', 'DISRUPTION', 'STATIC_DENIAL'];
       failureModes = ['NO_TAX_PRESSURE', 'OPPONENT_BREAKS_LOCK'];
       falsifiers = [
         {
@@ -444,9 +475,7 @@ CORE DIRECTIVES:
     const creatureCount = creatureCards.reduce((sum, c) => sum + (c.quantity || 1), 0);
 
     const tribeCards = nonLandCards.filter(c => {
-      const type = (c.type_line || '').toLowerCase();
-      const text = (c.oracle_text || c.text || '').toLowerCase();
-      return rawTribe && (type.includes(rawTribe) || text.includes(rawTribe));
+      return rawTribe && CardImplementer.matchesTribe(c, rawTribe);
     });
     const tribeCount = tribeCards.reduce((sum, c) => sum + (c.quantity || 1), 0);
 
@@ -478,7 +507,163 @@ CORE DIRECTIVES:
       let isSatisfied = false;
       let needConfig = null;
 
-      if (step === 'T1_PRESSURE' || step === 'EVASIVE_ENABLER') {
+      if (step === 'TOUGHNESS_ENABLER') {
+        const enablerCount = cards.reduce((sum, c) => {
+          const o = (c.oracle_text || c.text || '').toLowerCase();
+          const n = (c.name || '').toLowerCase();
+          const isEnabler = o.includes('toughness rather than its power') || 
+                            o.includes('damage equal to its toughness') || 
+                            o.includes("didn't have defender") || 
+                            o.includes("doesn't have defender") ||
+                            n.includes('arcades') || 
+                            n.includes('high alert') || 
+                            n.includes('assault formation') ||
+                            n.includes('bedrock tortoise');
+          return isEnabler ? sum + (c.quantity || 1) : sum;
+        }, 0);
+        isSatisfied = enablerCount >= 8;
+        if (!isSatisfied) {
+          needConfig = {
+            need: 'TOUGHNESS_ENABLER',
+            status: 'OPEN',
+            priority: 'CRITICAL',
+            whyOpen: 'Defenders require redundant toughness-combat enablers (Arcades, High Alert, Assault Formation) to guarantee combat viability.',
+            requiredOutcome: 'TOUGHNESS_COMBAT_ENABLER',
+            timing: 'T2_T4',
+            requiredCapabilities: ['TOUGHNESS_ENABLER'],
+            preferredCapabilities: ['ARCADES', 'HIGH_ALERT', 'ASSAULT_FORMATION', 'BEDROCK_TORTOISE'],
+            forbiddenPatterns: [],
+            cmcMin: 1, cmcMax: 4, targetColors: colors, targetTribe: null
+          };
+        }
+      } else if (step === 'DEFENDER_MANA_RAMP') {
+        const defRampCount = cards.reduce((sum, c) => {
+          const o = (c.oracle_text || c.text || '').toLowerCase();
+          const isDefRamp = (o.includes('defender') || (c.type_line || '').toLowerCase().includes('wall')) && 
+                            (o.includes('add ') || o.includes('mana of any color') || o.includes('add {g}'));
+          return isDefRamp ? sum + (c.quantity || 1) : sum;
+        }, 0);
+        isSatisfied = defRampCount >= 4;
+        if (!isSatisfied) {
+          needConfig = {
+            need: 'DEFENDER_MANA_RAMP',
+            status: 'OPEN',
+            priority: 'HIGH',
+            whyOpen: 'Defender engine requires dedicated mana ramp (Axebane Guardian, Overgrown Battlement, Sylvan Caryatid).',
+            requiredOutcome: 'MANA_ACCELERATION',
+            timing: 'T2_T3',
+            requiredCapabilities: ['DEFENDER_RAMP', 'MANA_ACCELERATION'],
+            preferredCapabilities: ['AXEBANE_GUARDIAN', 'OVERGROWN_BATTLEMENT', 'SYLVAN_CARYATID'],
+            forbiddenPatterns: [],
+            cmcMin: 1, cmcMax: 3, targetColors: colors, targetTribe: 'wall'
+          };
+        }
+      } else if (step === 'COMBAT_AMPLIFICATION') {
+        const trickCount = cards.reduce((sum, c) => {
+          const o = (c.oracle_text || c.text || '').toLowerCase();
+          const n = (c.name || '').toLowerCase();
+          const isTrick = o.includes('+0/+') || n.includes('tower defense') || n.includes('bar the door') || n.includes('solid footing');
+          return isTrick ? sum + (c.quantity || 1) : sum;
+        }, 0);
+        isSatisfied = trickCount >= 2;
+        if (!isSatisfied) {
+          needConfig = {
+            need: 'COMBAT_AMPLIFICATION',
+            status: 'OPEN',
+            priority: 'HIGH',
+            whyOpen: 'Toughness Stompy requires mass toughness combat tricks (Tower Defense, Bar the Door) for lethal alpha-strikes.',
+            requiredOutcome: 'COMBAT_AMPLIFICATION',
+            timing: 'T3_T5',
+            requiredCapabilities: ['TOUGHNESS_PUMP', 'COMBAT_TRICK'],
+            preferredCapabilities: ['TOWER_DEFENSE', 'BAR_THE_DOOR'],
+            forbiddenPatterns: [],
+            cmcMin: 1, cmcMax: 3, targetColors: colors, targetTribe: null
+          };
+        }
+      } else if (step === 'EVASIVE_ENABLER') {
+        const evasiveCount = cards.reduce((sum, c) => {
+          const o = (c.oracle_text || c.text || '').toLowerCase();
+          const cmc = c.cmc || c.mana_value || 0;
+          const isEvasive = cmc <= 2 && (o.includes("can't be blocked") || o.includes("cannot be blocked") || o.includes('flying'));
+          return isEvasive ? sum + (c.quantity || 1) : sum;
+        }, 0);
+        isSatisfied = evasiveCount >= 6;
+        if (!isSatisfied) {
+          needConfig = {
+            need: 'EVASIVE_ENABLER',
+            status: 'OPEN',
+            priority: 'CRITICAL',
+            whyOpen: 'Ninjutsu / Saboteur engine requires cheap T1-T2 evasive enablers (Ornithopter, Faerie Seer, Changeling Outcast).',
+            requiredOutcome: 'EVASIVE_ATTACKER',
+            timing: 'T1_T2',
+            requiredCapabilities: ['EVASIVE_T1', 'BOARD_PRESENCE'],
+            preferredCapabilities: ['UNBLOCKABLE', 'FLYING'],
+            forbiddenPatterns: [],
+            cmcMin: 0, cmcMax: 2, targetColors: colors, targetTribe: null
+          };
+        }
+      } else if (step === 'SACRIFICE_OUTLET') {
+        const outletCount = cards.reduce((sum, c) => {
+          const o = (c.oracle_text || c.text || '').toLowerCase();
+          return (o.includes('sacrifice a creature:') || o.includes('sacrifice another creature:')) ? sum + (c.quantity || 1) : sum;
+        }, 0);
+        isSatisfied = outletCount >= 4;
+        if (!isSatisfied) {
+          needConfig = {
+            need: 'SACRIFICE_OUTLET',
+            status: 'OPEN',
+            priority: 'CRITICAL',
+            whyOpen: 'Aristocrats engine requires free repeatable sacrifice outlets (Viscera Seer, Carrion Feeder, Witch\'s Oven, Woe Strider).',
+            requiredOutcome: 'SACRIFICE_OUTLET',
+            timing: 'T1_T3',
+            requiredCapabilities: ['SAC_OUTLET'],
+            preferredCapabilities: ['FREE_SAC', 'SCRY', 'TOKEN_SAC'],
+            forbiddenPatterns: [],
+            cmcMin: 1, cmcMax: 3, targetColors: colors, targetTribe: null
+          };
+        }
+      } else if (step === 'DEATH_PAYOFF') {
+        const deathCount = cards.reduce((sum, c) => {
+          const o = (c.oracle_text || c.text || '').toLowerCase();
+          return (o.includes('whenever a creature you control dies') || o.includes('whenever another creature dies')) ? sum + (c.quantity || 1) : sum;
+        }, 0);
+        isSatisfied = deathCount >= 4;
+        if (!isSatisfied) {
+          needConfig = {
+            need: 'DEATH_PAYOFF',
+            status: 'OPEN',
+            priority: 'HIGH',
+            whyOpen: 'Aristocrats engine requires death drain/ping payoffs (Blood Artist, Zulaport Cutthroat, Cruel Celebrant).',
+            requiredOutcome: 'DEATH_TRIGGER_PAYOFF',
+            timing: 'T2_T3',
+            requiredCapabilities: ['DEATH_TRIGGER', 'DRAIN_LIFE'],
+            preferredCapabilities: ['BLOOD_ARTIST', 'ZULAPORT_CUTTHROAT'],
+            forbiddenPatterns: [],
+            cmcMin: 2, cmcMax: 3, targetColors: colors, targetTribe: null
+          };
+        }
+      } else if (step === 'SPELL_VELOCITY') {
+        const cantripCount = cards.reduce((sum, c) => {
+          const t = (c.type_line || c.type || '').toLowerCase();
+          const cmc = c.cmc || c.mana_value || 0;
+          return ((t.includes('instant') || t.includes('sorcery')) && cmc <= 2) ? sum + (c.quantity || 1) : sum;
+        }, 0);
+        isSatisfied = cantripCount >= 10;
+        if (!isSatisfied) {
+          needConfig = {
+            need: 'SPELL_VELOCITY',
+            status: 'OPEN',
+            priority: 'CRITICAL',
+            whyOpen: 'Spellslinger / Prowess engine requires high velocity low-cost instants and sorceries.',
+            requiredOutcome: 'SPELL_VELOCITY',
+            timing: 'T1_T2',
+            requiredCapabilities: ['LOW_CMC_SPELL', 'INSTANT_SPEED'],
+            preferredCapabilities: ['CANTRIP', 'BURN', 'PUMP'],
+            forbiddenPatterns: [],
+            cmcMin: 1, cmcMax: 2, targetColors: colors, targetTribe: null
+          };
+        }
+      } else if (step === 'T1_PRESSURE') {
         isSatisfied = t1Count >= 4;
         if (!isSatisfied) {
           needConfig = {
@@ -491,14 +676,156 @@ CORE DIRECTIVES:
             requiredCapabilities: ['PLAYABLE_T1', 'BOARD_PRESENCE', 'ADVANCES_WIN_PATH'],
             preferredCapabilities: [rawTribe ? `TRIBAL_${rawTribe.toUpperCase()}` : 'TRIBAL_MEMBER', 'HASTE'],
             forbiddenPatterns: ['REQUIRES_T2_MANA', 'PURE_COMBAT_TRICK'],
-            cmcMin: 1, cmcMax: 1, targetColors: colors, targetTribe: step === 'EVASIVE_ENABLER' ? null : rawTribe
+            cmcMin: 1, cmcMax: 1, targetColors: colors, targetTribe: rawTribe
           };
         }
-      } else if (step === 'TRIBAL_DENSITY' || step === 'SACRIFICE_FODDER') {
+      } else if (step === 'NINJUTSU_PAYOFF') {
+        const ninjaCount = cards.reduce((sum, c) => {
+          const o = (c.oracle_text || c.text || '').toLowerCase();
+          const t = (c.type_line || c.type || '').toLowerCase();
+          const isNinja = o.includes('ninjutsu') || t.includes('ninja') || (c.name || '').toLowerCase().includes('yuriko');
+          return isNinja ? sum + (c.quantity || 1) : sum;
+        }, 0);
+        isSatisfied = ninjaCount >= 8;
+        if (!isSatisfied) {
+          needConfig = {
+            need: 'NINJUTSU_PAYOFF',
+            status: 'OPEN',
+            priority: 'CRITICAL',
+            whyOpen: 'Ninja tempo engine requires core Ninjas with Ninjutsu combat damage triggers.',
+            requiredOutcome: 'NINJUTSU_PAYOFF',
+            timing: 'T2_T4',
+            requiredCapabilities: ['NINJUTSU_PAYOFF', 'SABOTEUR_TRIGGER'],
+            preferredCapabilities: ['YURIKO', 'INGENIOUS_INFILTRATOR'],
+            forbiddenPatterns: [],
+            cmcMin: 1, cmcMax: 5, targetColors: colors, targetTribe: 'ninja'
+          };
+        }
+      } else if (step === 'PROWESS_PAYOFF') {
+        const prowessCount = cards.reduce((sum, c) => {
+          const o = (c.oracle_text || c.text || '').toLowerCase();
+          const isProwess = o.includes('prowess') || o.includes('magecraft') || o.includes('noncreature spell');
+          return isProwess ? sum + (c.quantity || 1) : sum;
+        }, 0);
+        isSatisfied = prowessCount >= 8;
+        if (!isSatisfied) {
+          needConfig = {
+            need: 'PROWESS_PAYOFF',
+            status: 'OPEN',
+            priority: 'CRITICAL',
+            whyOpen: 'Spellslinger engine requires creatures with prowess or magecraft triggers.',
+            requiredOutcome: 'PROWESS_SCALING',
+            timing: 'T1_T3',
+            requiredCapabilities: ['PROWESS_PAYOFF'],
+            preferredCapabilities: ['MONASTERY_SWIFTSPEAR', 'THIRD_PATH_ICONOCLAST'],
+            forbiddenPatterns: [],
+            cmcMin: 1, cmcMax: 3, targetColors: colors, targetTribe: null
+          };
+        }
+      } else if (step === 'LANDFALL_PAYOFF') {
+        const landfallCount = cards.reduce((sum, c) => {
+          const o = (c.oracle_text || c.text || '').toLowerCase();
+          return o.includes('landfall') || o.includes('whenever a land enters') ? sum + (c.quantity || 1) : sum;
+        }, 0);
+        isSatisfied = landfallCount >= 6;
+        if (!isSatisfied) {
+          needConfig = {
+            need: 'LANDFALL_PAYOFF',
+            status: 'OPEN',
+            priority: 'CRITICAL',
+            whyOpen: 'Landfall engine requires scaling payoffs triggered by land drops.',
+            requiredOutcome: 'LANDFALL_SCALING',
+            timing: 'T2_T4',
+            requiredCapabilities: ['LANDFALL_PAYOFF'],
+            preferredCapabilities: ['LOTUS_COBRA', 'SCUTE_SWARM', 'TIRELESS_TRACKER'],
+            forbiddenPatterns: [],
+            cmcMin: 2, cmcMax: 5, targetColors: colors, targetTribe: null
+          };
+        }
+      } else if (step === 'SACRIFICE_FODDER') {
+        const fodderCount = cards.reduce((sum, c) => {
+          const o = (c.oracle_text || c.text || '').toLowerCase();
+          const n = (c.name || '').toLowerCase();
+          const isFodder = o.includes('dies, create') || o.includes('enters, create') || o.includes('return from your graveyard') || n.includes('bloodghast') || n.includes('skeleton');
+          return isFodder ? sum + (c.quantity || 1) : sum;
+        }, 0);
+        isSatisfied = fodderCount >= 8;
+        if (!isSatisfied) {
+          needConfig = {
+            need: 'SACRIFICE_FODDER',
+            status: 'OPEN',
+            priority: 'CRITICAL',
+            whyOpen: 'Aristocrats engine requires recurring sacrifice fodder and token generators.',
+            requiredOutcome: 'SACRIFICE_FODDER',
+            timing: 'T1_T2',
+            requiredCapabilities: ['RECURRING_CREATURE', 'TOKEN_GENERATOR'],
+            preferredCapabilities: ['BLOODGHAST', 'REASSEMBLING_SKELETON', 'DOOMED_TRAVELER'],
+            forbiddenPatterns: [],
+            cmcMin: 1, cmcMax: 3, targetColors: colors, targetTribe: null
+          };
+        }
+      } else if (step === 'TAXING_CREATURE') {
+        const taxCount = cards.reduce((sum, c) => {
+          const o = (c.oracle_text || c.text || '').toLowerCase();
+          const t = (c.type_line || c.type || '').toLowerCase();
+          const n = (c.name || '').toLowerCase();
+          const isTax = t.includes('creature') && (
+            o.includes('more to cast') || o.includes('more to activate') || o.includes("can't cast more than one") || 
+            o.includes('enters tapped') || o.includes('enter the battlefield tapped') || o.includes("players can't search") || 
+            n.includes('thalia') || n.includes('archon of emeria') || n.includes('strict proctor') || n.includes('reidane') || 
+            n.includes('aven mindcensor') || n.includes('containment priest') || n.includes('skyclave') || n.includes('spell queller') || n.includes('reflector mage') || n.includes('inquisitor')
+          );
+          return isTax ? sum + (c.quantity || 1) : sum;
+        }, 0);
+        isSatisfied = taxCount >= 10;
+        if (!isSatisfied) {
+          needConfig = {
+            need: 'TAXING_CREATURE',
+            status: 'OPEN',
+            priority: 'CRITICAL',
+            whyOpen: 'Prison / Taxes strategy requires early hatebears and taxing creatures (Thalia, Archon of Emeria, Strict Proctor, Reidane).',
+            requiredOutcome: 'MANA_AND_SPELL_TAX',
+            timing: 'T1_T3',
+            requiredCapabilities: ['TAXING_CREATURE', 'STATIC_DENIAL'],
+            preferredCapabilities: ['THALIA', 'ARCHON_OF_EMERIA', 'STRICT_PROCTOR'],
+            forbiddenPatterns: [],
+            cmcMin: 1, cmcMax: 4, targetColors: colors, targetTribe: null
+          };
+        }
+      } else if (step === 'PRISON_LOCK') {
+        const lockCount = cards.reduce((sum, c) => {
+          const o = (c.oracle_text || c.text || '').toLowerCase();
+          const t = (c.type_line || c.type || '').toLowerCase();
+          const n = (c.name || '').toLowerCase();
+          const isNonCreatureLock = (t.includes('artifact') || t.includes('enchantment')) && (
+            o.includes('more to cast') || o.includes("can't cast more than one") || o.includes("no more than one spell") || 
+            o.includes('enters tapped') || o.includes('enter the battlefield tapped') || o.includes("can't attack") || 
+            n.includes('damping sphere') || n.includes('deafening silence') || n.includes('high noon') || n.includes('authority of the consuls') || 
+            n.includes('blind obedience') || n.includes('ghostly prison') || n.includes('rest in peace') || n.includes('portable hole') || n.includes('temporary lockdown')
+          );
+          return isNonCreatureLock ? sum + (c.quantity || 1) : sum;
+        }, 0);
+        isSatisfied = lockCount >= 6;
+        if (!isSatisfied) {
+          needConfig = {
+            need: 'PRISON_LOCK',
+            status: 'OPEN',
+            priority: 'CRITICAL',
+            whyOpen: 'Prison engine requires static denial artifacts and enchantments (Damping Sphere, Deafening Silence, High Noon, Authority of the Consuls, Portable Hole).',
+            requiredOutcome: 'STATIC_LOCK',
+            timing: 'T1_T3',
+            requiredCapabilities: ['PRISON_LOCK', 'STATIC_DENIAL'],
+            preferredCapabilities: ['DAMPING_SPHERE', 'HIGH_NOON', 'DEAFENING_SILENCE', 'PORTABLE_HOLE'],
+            forbiddenPatterns: [],
+            cmcMin: 1, cmcMax: 4, targetColors: colors, targetTribe: null
+          };
+        }
+      } else if (step === 'TRIBAL_DENSITY' || step === 'DEFENDER_DENSITY' || step === 'CREATURE_DENSITY') {
         isSatisfied = (rawTribe ? tribeCount >= 12 : creatureCount >= 12);
         if (!isSatisfied) {
           const isHeavyTribe = rawTribe && /dragon|demon|dinosaur|eldrazi|angel|giant|sea|marino|kraken|leviathan|serpent|octopus|apex_predators/.test(rawTribe.toLowerCase());
           const maxTribeCmc = isHeavyTribe ? 8 : 4;
+          const isNonTribal = !rawTribe || ['none', 'null', 'general', 'ninguna', 'sin tribu', 'universal', 'sin_tribu'].includes(rawTribe.toLowerCase());
           needConfig = {
             need: 'TRIBAL_DENSITY',
             status: 'OPEN',
@@ -506,13 +833,13 @@ CORE DIRECTIVES:
             whyOpen: 'Core board engine lacks required tribal/engine creature density.',
             requiredOutcome: 'ENGINE_DENSITY',
             timing: isHeavyTribe ? 'T2_T6' : 'T1_T3',
-            requiredCapabilities: ['CREATURE', rawTribe ? `TRIBAL_${rawTribe.toUpperCase()}` : 'ENGINE_PIECE'],
+            requiredCapabilities: ['CREATURE', (rawTribe && !isNonTribal) ? `TRIBAL_${rawTribe.toUpperCase()}` : 'ENGINE_PIECE'],
             preferredCapabilities: ['LORD_EFFECT', 'TOKEN_GENERATOR', 'APEX_PAYOFF'],
-            forbiddenPatterns: ['OFF_TRIBE_CREATURE', 'PURE_COMBAT_TRICK'],
-            cmcMin: 1, cmcMax: maxTribeCmc, targetColors: colors, targetTribe: rawTribe
+            forbiddenPatterns: ['PURE_COMBAT_TRICK'],
+            cmcMin: 1, cmcMax: maxTribeCmc, targetColors: colors, targetTribe: isNonTribal ? null : rawTribe
           };
         }
-      } else if (step === 'T2_PRESSURE' || step === 'NINJUTSU_PAYOFF' || step === 'SACRIFICE_OUTLET') {
+      } else if (step === 'T2_PRESSURE') {
         isSatisfied = t2Count >= 8;
         if (!isSatisfied) {
           needConfig = {
@@ -525,7 +852,7 @@ CORE DIRECTIVES:
             requiredCapabilities: ['PLAYABLE_T2', 'BOARD_PRESENCE'],
             preferredCapabilities: [rawTribe ? `TRIBAL_${rawTribe.toUpperCase()}` : 'TRIBAL_MEMBER', 'LORD_EFFECT'],
             forbiddenPatterns: ['REQUIRES_T3_MANA', 'PURE_COMBAT_TRICK'],
-            cmcMin: 2, cmcMax: 2, targetColors: colors, targetTribe: rawTribe
+            cmcMin: 2, cmcMax: 3, targetColors: colors, targetTribe: rawTribe
           };
         }
       } else if (step === 'CHEAP_REMOVAL' || step === 'INSTANT_REMOVAL' || step === 'INTERACTION' || step === 'DISRUPTION') {
@@ -612,7 +939,47 @@ CORE DIRECTIVES:
             cmcMin: 1, cmcMax: 3, targetColors: colors, targetTribe: null
           };
         }
-      } else if (step === 'REACH' || step === 'FACE_BURN_REACH' || step === 'TRANSFORMATION_PAYOFF' || step === 'DEATH_PAYOFF') {
+      } else if (step === 'DISCARD_OUTLET') {
+        const discardCount = cards.reduce((sum, c) => {
+          const o = (c.oracle_text || c.text || '').toLowerCase();
+          return (o.includes('discard a card') || o.includes('draw a card, then discard') || o.includes('mill')) ? sum + (c.quantity || 1) : sum;
+        }, 0);
+        isSatisfied = discardCount >= 4;
+        if (!isSatisfied) {
+          needConfig = {
+            need: 'DISCARD_OUTLET',
+            status: 'OPEN',
+            priority: 'CRITICAL',
+            whyOpen: 'Reanimator engine requires discard outlets and mill enablers to seed graveyard.',
+            requiredOutcome: 'GRAVEYARD_ENABLER',
+            timing: 'T1_T2',
+            requiredCapabilities: ['DISCARD_OUTLET', 'LOOTING'],
+            preferredCapabilities: ['FAITHLESS_LOOTING', 'CONSIDER'],
+            forbiddenPatterns: [],
+            cmcMin: 1, cmcMax: 2, targetColors: colors, targetTribe: null
+          };
+        }
+      } else if (step === 'REANIMATE_SPELL') {
+        const reanimateCount = cards.reduce((sum, c) => {
+          const o = (c.oracle_text || c.text || '').toLowerCase();
+          return (o.includes('return target creature card from your graveyard') || o.includes("goryo's")) ? sum + (c.quantity || 1) : sum;
+        }, 0);
+        isSatisfied = reanimateCount >= 4;
+        if (!isSatisfied) {
+          needConfig = {
+            need: 'REANIMATE_SPELL',
+            status: 'OPEN',
+            priority: 'CRITICAL',
+            whyOpen: 'Reanimator engine requires reanimation spells to return apex targets.',
+            requiredOutcome: 'REANIMATION_EXECUTION',
+            timing: 'T2_T4',
+            requiredCapabilities: ['REANIMATE_SPELL'],
+            preferredCapabilities: ['REANIMATE', 'PERSIST', 'ANIMATE_DEAD'],
+            forbiddenPatterns: [],
+            cmcMin: 1, cmcMax: 4, targetColors: colors, targetTribe: null
+          };
+        }
+      } else if (step === 'REACH' || step === 'FACE_BURN_REACH' || step === 'TRANSFORMATION_PAYOFF') {
         const hasReach = cards.some(c => {
           const text = (c.oracle_text || c.text || '').toLowerCase();
           return text.includes('deals ') || text.includes('nightbound') || text.includes('whenever a creature you control dies');
@@ -663,8 +1030,35 @@ CORE DIRECTIVES:
     // If all WinPath nodes are satisfied but non-land slots remain unfilled:
     if (openNeeds.length === 0 && nonLandCount < targetNonLands) {
       const isRampOrTron = (thesis.winPath || []).includes('EARLY_RAMP') || (deckState.intentPackage?.selectedEngineId || '').includes('tron');
+      const isPrison = (thesis.winPath || []).includes('TAXING_CREATURE');
       
-      if (isRampOrTron && finisherCount < 8) {
+      if (isPrison && creatureCount < 16) {
+        openNeeds.push({
+          need: 'TAXING_CREATURE',
+          status: 'OPEN',
+          priority: 'HIGH',
+          whyOpen: `Filling prison hatebear / taxing creature density (${creatureCount}/16).`,
+          requiredOutcome: 'MANA_AND_SPELL_TAX',
+          timing: 'T1_T3',
+          requiredCapabilities: ['TAXING_CREATURE', 'STATIC_DENIAL'],
+          preferredCapabilities: ['THALIA', 'ARCHON_OF_EMERIA', 'STRICT_PROCTOR', 'SKYCLAVE_APPARITION'],
+          forbiddenPatterns: [],
+          cmcMin: 1, cmcMax: 4, targetColors: colors, targetTribe: null
+        });
+      } else if (isPrison && removalCount < 10) {
+        openNeeds.push({
+          need: 'CHEAP_REMOVAL',
+          status: 'OPEN',
+          priority: 'HIGH',
+          whyOpen: `Filling prison confinement & removal density (${removalCount}/10).`,
+          requiredOutcome: 'OPPONENT_THREAT_REMOVAL',
+          timing: 'T1_T3',
+          requiredCapabilities: ['CHEAP_REMOVAL', 'INSTANT_SPEED'],
+          preferredCapabilities: ['PORTABLE_HOLE', 'GET_LOST', 'TEMPORARY_LOCKDOWN'],
+          forbiddenPatterns: [],
+          cmcMin: 1, cmcMax: 4, targetColors: colors, targetTribe: null
+        });
+      } else if (isRampOrTron && finisherCount < 8) {
         openNeeds.push({
           need: 'FINISHER',
           status: 'OPEN',
@@ -807,18 +1201,49 @@ CORE DIRECTIVES:
       };
     }
 
-    // Fallback: Continue filling non-land slots
+    // Fallback: Continue filling non-land slots dynamically based on deck identity
+    if (tribe && tribe !== 'none' && tribe !== 'ninguna' && tribe !== 'general') {
+      return {
+        need: 'TRIBAL_DENSITY',
+        priority: 'MEDIUM',
+        requiredCapabilities: ['CREATURE'],
+        preferredCapabilities: [],
+        forbiddenPatterns: [],
+        targetColors: colors,
+        cmcMin: 2,
+        cmcMax: 4,
+        targetTribe: tribe,
+        reasoning: `Filling remaining non-land slots with ${tribe} creatures (${nonLandCount}/${targetNonLands}).`
+      };
+    }
+
+    const isPrison = (thesis.winPath || []).includes('TAXING_CREATURE') || (thesis.winPath || []).includes('PRISON_LOCK');
+    if (isPrison) {
+      return {
+        need: 'TAXING_CREATURE',
+        priority: 'MEDIUM',
+        requiredCapabilities: ['TAXING_CREATURE', 'STATIC_DENIAL'],
+        preferredCapabilities: ['THALIA', 'ARCHON_OF_EMERIA', 'STRICT_PROCTOR', 'SKYCLAVE_APPARITION', 'PORTABLE_HOLE'],
+        forbiddenPatterns: [],
+        targetColors: colors,
+        cmcMin: 1,
+        cmcMax: 4,
+        targetTribe: null,
+        reasoning: `Filling remaining prison non-land slots (${nonLandCount}/${targetNonLands}).`
+      };
+    }
+
     return {
-      need: 'TRIBAL_DENSITY',
+      need: 'CHEAP_REMOVAL',
       priority: 'MEDIUM',
-      requiredCapabilities: ['CREATURE'],
+      requiredCapabilities: ['CHEAP_REMOVAL', 'INTERACTION'],
       preferredCapabilities: [],
       forbiddenPatterns: [],
       targetColors: colors,
-      cmcMin: 2,
+      cmcMin: 1,
       cmcMax: 4,
-      targetTribe: tribe,
-      reasoning: `Filling remaining non-land slots (${nonLandCount}/${targetNonLands}).`
+      targetTribe: null,
+      reasoning: `Filling remaining non-land slots with interactive removal (${nonLandCount}/${targetNonLands}).`
     };
   }
 

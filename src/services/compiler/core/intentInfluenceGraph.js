@@ -64,12 +64,14 @@ export class IntentInfluenceGraph {
     }
 
     // Process capability slots impact and origins
-    for (const slot of capabilityPlan.slots) {
-      const originField = slot.origin?.field || 'tempo';
-      const impact = this.fieldImpacts.get(originField);
-      if (impact) {
-        impact.slotsGenerated += 1;
-        impact.hasMeasurableInfluence = true;
+    if (capabilityPlan && Array.isArray(capabilityPlan.slots)) {
+      for (const slot of capabilityPlan.slots) {
+        const originField = slot.origin?.field || 'tempo';
+        const impact = this.fieldImpacts.get(originField);
+        if (impact) {
+          impact.slotsGenerated += 1;
+          impact.hasMeasurableInfluence = true;
+        }
       }
     }
 
@@ -85,22 +87,11 @@ export class IntentInfluenceGraph {
       }
     }
 
-    // Active intent rules evaluation
-    if (intentPackage.colors && intentPackage.colors.length > 0) this.fieldImpacts.get('colors').hasMeasurableInfluence = true;
-    if (intentPackage.primaryTribe) this.fieldImpacts.get('primaryTribe').hasMeasurableInfluence = true;
-    if (intentPackage.strategy && intentPackage.strategy.length > 0) this.fieldImpacts.get('strategy').hasMeasurableInfluence = true;
-    if (intentPackage.mechanics && intentPackage.mechanics.length > 0) {
-      this.fieldImpacts.get('mechanics').hasMeasurableInfluence = true;
-    } else {
-      this.fieldImpacts.get('mechanics').hasMeasurableInfluence = true; // Default mechanics automatically satisfied
+    // Empirical influence evaluation: A field has measurable influence ONLY if it filtered candidates,
+    // generated slots, or affected winning card selections in the causal decision graph.
+    for (const [field, impact] of this.fieldImpacts.entries()) {
+      impact.hasMeasurableInfluence = (impact.candidatesFiltered > 0 || impact.slotsGenerated > 0 || impact.winnersAffected > 0);
     }
-    if (intentPackage.budget) this.fieldImpacts.get('budget').hasMeasurableInfluence = true;
-    if (intentPackage.userConstraints && Object.keys(intentPackage.userConstraints).length > 0) this.fieldImpacts.get('userConstraints').hasMeasurableInfluence = true;
-
-    // Mandatory baseline influence
-    this.fieldImpacts.get('format').hasMeasurableInfluence = true;
-    this.fieldImpacts.get('tempo').hasMeasurableInfluence = true;
-    this.fieldImpacts.get('powerLevel').hasMeasurableInfluence = true;
   }
 
   /**

@@ -261,6 +261,278 @@ export class CardImplementer {
           }
           break;
 
+        case 'TAXING_CREATURE':
+        case 'HATEBEAR':
+          if (typeLine.includes('creature')) {
+            const isSelfDrawback = (cleanOracleText.includes("this creature can't attack") || 
+                                    cleanOracleText.includes("can't attack or block unless") || 
+                                    cleanOracleText.includes("can't attack unless") || 
+                                    cleanOracleText.includes("this creature can't block") || 
+                                    cleanOracleText.includes("as though it had flash if you pay") || 
+                                    cleanOracleText.includes("strive —")) &&
+                                   !cleanOracleText.includes("creatures your opponents control") &&
+                                   !cleanOracleText.includes("opponents can't") &&
+                                   !cleanOracleText.includes("each spell a player casts costs") &&
+                                   !cleanOracleText.includes("each player can't") &&
+                                   !cleanOracleText.includes("spells your opponents cast") &&
+                                   !cleanOracleText.includes("each spell cast this way costs");
+
+            const isTax = !isSelfDrawback && (
+              cleanOracleText.includes('spells cost {') || 
+              cleanOracleText.includes('spells your opponents cast cost') || 
+              cleanOracleText.includes('noncreature spells cost') || 
+              cleanOracleText.includes('each spell a player casts costs') || 
+              cleanOracleText.includes('spell cast by an opponent this way costs') || 
+              cleanOracleText.includes('each spell cast this way costs') || 
+              cleanOracleText.includes('more to cast for each other spell') || 
+              cleanOracleText.includes('more to activate') || 
+              cleanOracleText.includes("can't cast more than one") || 
+              cleanOracleText.includes("can cast only one") || 
+              cleanOracleText.includes("no more than one spell") || 
+              cleanOracleText.includes("creatures your opponents control enter") || 
+              cleanOracleText.includes("nonbasic lands enter the battlefield tapped") || 
+              cleanOracleText.includes("permanents your opponents control enter") || 
+              cleanOracleText.includes("each land played this way enters tapped") || 
+              cleanOracleText.includes("players can't search") || 
+              cleanOracleText.includes("can't search libraries") || 
+              cleanOracleText.includes("unless its controller pays") || 
+              cardNameLower.includes('thalia') || 
+              cardNameLower.includes('archon of emeria') || 
+              cardNameLower.includes('strict proctor') || 
+              cardNameLower.includes('reidane') || 
+              cardNameLower.includes('aven mindcensor') || 
+              cardNameLower.includes('containment priest') || 
+              cardNameLower.includes('skyclave') || 
+              cardNameLower.includes('spell queller') || 
+              cardNameLower.includes('reflector mage') || 
+              cardNameLower.includes('inquisitor') || 
+              cardNameLower.includes('aven interrupter') || 
+              cardNameLower.includes('elite spellbinder')
+            );
+            if (isTax) {
+              passesRoleRequirement = true;
+              score += 150;
+            } else if (cleanOracleText.includes('exile') || cleanOracleText.includes('counter') || cleanOracleText.includes('flash')) {
+              passesRoleRequirement = true;
+              score += 60;
+            }
+          }
+          break;
+
+        case 'PRISON_LOCK':
+        case 'STATIC_DENIAL':
+          {
+            const isSelfDrawback = (cleanOracleText.includes("this spell costs") || 
+                                    cleanOracleText.includes("as though it had flash if you pay") || 
+                                    cleanOracleText.includes("strive —")) &&
+                                   !cleanOracleText.includes("creatures your opponents control") &&
+                                   !cleanOracleText.includes("opponents can't") &&
+                                   !cleanOracleText.includes("each spell a player casts costs") &&
+                                   !cleanOracleText.includes("each player can't") &&
+                                   !cleanOracleText.includes("spells your opponents cast") &&
+                                   !cleanOracleText.includes("each spell cast this way costs");
+
+            const isLock = !isSelfDrawback && (
+              cleanOracleText.includes('spells cost {') || 
+              cleanOracleText.includes('spells your opponents cast cost') || 
+              cleanOracleText.includes('noncreature spells cost') || 
+              cleanOracleText.includes('each spell a player casts costs') || 
+              cleanOracleText.includes('spell cast by an opponent this way costs') || 
+              cleanOracleText.includes('each spell cast this way costs') || 
+              cleanOracleText.includes('more to cast for each other spell') || 
+              cleanOracleText.includes('more to activate') || 
+              cleanOracleText.includes("can't cast more than one") || 
+              cleanOracleText.includes("can cast only one") || 
+              cleanOracleText.includes("no more than one spell") || 
+              cleanOracleText.includes("creatures your opponents control enter") || 
+              cleanOracleText.includes("nonbasic lands enter the battlefield tapped") || 
+              cleanOracleText.includes("permanents your opponents control enter") || 
+              cleanOracleText.includes("each land played this way enters tapped") || 
+              cleanOracleText.includes("creatures can't attack you unless") || 
+              cleanOracleText.includes("opponents can't attack") || 
+              cleanOracleText.includes("can't attack you or planeswalkers") || 
+              cleanOracleText.includes("unless its controller pays") || 
+              cleanOracleText.includes("unless that player pays") || 
+              cardNameLower.includes('damping sphere') || 
+              cardNameLower.includes('deafening silence') || 
+              cardNameLower.includes('high noon') || 
+              cardNameLower.includes('authority of the consuls') || 
+              cardNameLower.includes('blind obedience') || 
+              cardNameLower.includes('ghostly prison') || 
+              cardNameLower.includes('propaganda') || 
+              cardNameLower.includes('rest in peace')
+            );
+            if (isLock) {
+              passesRoleRequirement = true;
+              score += 150;
+            }
+          }
+          break;
+
+        case 'TOUGHNESS_ENABLER':
+          {
+            const isToughnessEnabler = cleanOracleText.includes('toughness rather than its power') ||
+                                       cleanOracleText.includes('damage equal to its toughness') ||
+                                       cleanOracleText.includes("didn't have defender") ||
+                                       cleanOracleText.includes("doesn't have defender") ||
+                                       cardNameLower.includes('arcades') ||
+                                       cardNameLower.includes('high alert') ||
+                                       cardNameLower.includes('assault formation') ||
+                                       cardNameLower.includes('bedrock tortoise') ||
+                                       cardNameLower.includes('huatli, the sun') ||
+                                       cardNameLower.includes('rasaad yn bashir');
+            if (isToughnessEnabler) {
+              passesRoleRequirement = true;
+              score += 150;
+            }
+          }
+          break;
+
+        case 'DEFENDER_MANA_RAMP':
+          {
+            const isDefRamp = (cleanOracleText.includes('defender') || typeLine.includes('wall')) &&
+                              (cleanOracleText.includes('add ') || cleanOracleText.includes('mana of any color') || cleanOracleText.includes('add {g}'));
+            if (isDefRamp) {
+              passesRoleRequirement = true;
+              score += 100;
+            }
+          }
+          break;
+
+        case 'DEFENDER_DENSITY':
+          if (typeLine.includes('wall') || cleanOracleText.includes('defender')) {
+            passesRoleRequirement = true;
+            score += 60;
+            if (card.toughness && Number(card.toughness) >= 4) score += 30;
+          }
+          break;
+
+        case 'COMBAT_AMPLIFICATION':
+          {
+            const isCombatAmp = cleanOracleText.includes('+0/+') || 
+                                cardNameLower.includes('tower defense') || 
+                                cardNameLower.includes('bar the door') || 
+                                cardNameLower.includes('solid footing') ||
+                                cardNameLower.includes('aegis of the heavens');
+            if (isCombatAmp) {
+              passesRoleRequirement = true;
+              score += 120;
+            }
+          }
+          break;
+
+        case 'EVASIVE_ENABLER':
+          if (typeLine.includes('creature') && cmc <= 2) {
+            const isEvasive = cleanOracleText.includes("can't be blocked") || 
+                              cleanOracleText.includes("cannot be blocked") || 
+                              cleanOracleText.includes('flying') ||
+                              cleanOracleText.includes('shadow') ||
+                              cleanOracleText.includes('skulk');
+            if (isEvasive) {
+              passesRoleRequirement = true;
+              score += 90;
+            }
+          }
+          break;
+
+        case 'NINJUTSU_PAYOFF':
+          if (cleanOracleText.includes('ninjutsu') || cardNameLower.includes('yuriko')) {
+            passesRoleRequirement = true;
+            score += 120;
+          }
+          break;
+
+        case 'SACRIFICE_OUTLET':
+          {
+            const isSacOutlet = cleanOracleText.includes('sacrifice a creature:') ||
+                                cleanOracleText.includes('sacrifice another creature:') ||
+                                cleanOracleText.includes('sacrifice an artifact or creature:') ||
+                                cardNameLower.includes("witch's oven") ||
+                                cardNameLower.includes('viscera seer') ||
+                                cardNameLower.includes('carrion feeder') ||
+                                cardNameLower.includes('goblin bombardment');
+            if (isSacOutlet) {
+              passesRoleRequirement = true;
+              score += 120;
+            }
+          }
+          break;
+
+        case 'SACRIFICE_FODDER':
+          if (typeLine.includes('creature')) {
+            const isFodder = cleanOracleText.includes('when ~ dies, create') ||
+                             cleanOracleText.includes('when ~ enters, create') ||
+                             cleanOracleText.includes('return ~ from your graveyard') ||
+                             cleanOracleText.includes('return from your graveyard to the battlefield') ||
+                             cardNameLower.includes('bloodghast') ||
+                             cardNameLower.includes('reassembling skeleton') ||
+                             cardNameLower.includes('doomed traveler') ||
+                             cardNameLower.includes('forsaken miner') ||
+                             cardNameLower.includes('cauldron familiar');
+            if (isFodder) {
+              passesRoleRequirement = true;
+              score += 90;
+            }
+          }
+          break;
+
+        case 'DEATH_PAYOFF':
+          {
+            const isDeathPayoff = cleanOracleText.includes('whenever a creature you control dies') ||
+                                  cleanOracleText.includes('whenever another creature you control dies') ||
+                                  cleanOracleText.includes('whenever another creature dies') ||
+                                  cardNameLower.includes('blood artist') ||
+                                  cardNameLower.includes('zulaport cutthroat') ||
+                                  cardNameLower.includes('cruel celebrant') ||
+                                  cardNameLower.includes('mayhem devil');
+            if (isDeathPayoff) {
+              passesRoleRequirement = true;
+              score += 120;
+            }
+          }
+          break;
+
+        case 'DISCARD_OUTLET':
+          if (cleanOracleText.includes('discard a card') || cleanOracleText.includes('draw a card, then discard') || cleanOracleText.includes('mill')) {
+            passesRoleRequirement = true;
+            score += 90;
+          }
+          break;
+
+        case 'REANIMATE_SPELL':
+          if (cleanOracleText.includes('return target creature card from your graveyard') || cleanOracleText.includes("goryo's")) {
+            passesRoleRequirement = true;
+            score += 120;
+          }
+          break;
+
+        case 'SPELL_VELOCITY':
+          if ((typeLine.includes('instant') || typeLine.includes('sorcery')) && cmc <= 2) {
+            passesRoleRequirement = true;
+            score += 80;
+          }
+          break;
+
+        case 'PROWESS_PAYOFF':
+          if (typeLine.includes('creature')) {
+            const isProwess = cleanOracleText.includes('prowess') || 
+                              cleanOracleText.includes('magecraft') || 
+                              cleanOracleText.includes('whenever you cast a noncreature spell') ||
+                              cleanOracleText.includes('whenever you cast an instant or sorcery');
+            if (isProwess) {
+              passesRoleRequirement = true;
+              score += 110;
+            }
+          }
+          break;
+
+        case 'LANDFALL_PAYOFF':
+          if (cleanOracleText.includes('landfall') || cleanOracleText.includes('whenever a land enters the battlefield under your control')) {
+            passesRoleRequirement = true;
+            score += 110;
+          }
+          break;
+
         case 'FINISHER':
           if (typeLine.includes('creature') || typeLine.includes('planeswalker') || typeLine.includes('sorcery') || typeLine.includes('enchantment')) {
             const rawTribe = (strategicNeedRequest.targetTribe || intentPackage.primaryTribe || intentPackage.tribe || '').toLowerCase();
@@ -477,7 +749,7 @@ export class CardImplementer {
    */
   static matchesTribe(card, rawTribe) {
     if (!rawTribe) return true;
-    const tribeLower = (rawTribe || '').toLowerCase();
+    const tribeLower = (rawTribe || '').toLowerCase().trim();
     const typeLine = (card.type_line || card.typeLine || '').toLowerCase();
     const oracleText = (card.oracle_text || card.oracleText || card.text || '').toLowerCase();
 
@@ -495,17 +767,350 @@ export class CardImplementer {
       return true;
     }
 
-    let targetSubtypes = [tribeLower];
-    if (tribeLower === 'outlaws') targetSubtypes = ['assassin', 'mercenary', 'pirate', 'rogue', 'warlock'];
-    else if (tribeLower === 'party') targetSubtypes = ['cleric', 'rogue', 'warrior', 'wizard'];
-    else if (tribeLower === 'goblin_horde' || tribeLower.includes('goblin')) targetSubtypes = ['goblin', 'ogre', 'orc'];
-    else if (tribeLower === 'elf_druid' || tribeLower.includes('elf')) targetSubtypes = ['elf', 'druid'];
-    else if (tribeLower === 'human_army' || tribeLower.includes('human')) targetSubtypes = ['human', 'soldier', 'knight'];
-    else if (tribeLower === 'undead_scourge' || tribeLower.includes('zombie')) targetSubtypes = ['zombie', 'skeleton', 'vampire', 'horror'];
-    else if (tribeLower === 'sea_monsters' || tribeLower.includes('sea') || tribeLower.includes('marino') || tribeLower.includes('kraken')) targetSubtypes = ['merfolk', 'kraken', 'leviathan', 'octopus', 'serpent', 'fish'];
-    else if (tribeLower === 'apex_predators' || tribeLower.includes('predator')) targetSubtypes = ['dinosaur', 'beast', 'hydra'];
-    else if (tribeLower === 'werewolves' || tribeLower.includes('werewolf')) targetSubtypes = ['werewolf', 'wolf', 'human'];
+    const TRIBAL_SYNONYMS = {
+      'pirexianos': ['phyrexian'],
+      'pirexiano': ['phyrexian'],
+      'phyrexian': ['phyrexian'],
+      'phyrexians': ['phyrexian'],
+      'phyrexians_toxic_infect': ['phyrexian'],
+      'muros': ['wall', 'plant', 'defender'],
+      'muro': ['wall', 'plant', 'defender'],
+      'wall': ['wall', 'plant', 'defender'],
+      'walls': ['wall', 'plant', 'defender'],
+      'walls_defender_combat': ['wall', 'plant', 'defender'],
+      'ardillas': ['squirrel'],
+      'ardilla': ['squirrel'],
+      'squirrel': ['squirrel'],
+      'squirrels': ['squirrel'],
+      'nutrias': ['otter'],
+      'nutria': ['otter'],
+      'otter': ['otter'],
+      'otters': ['otter'],
+      'ranas': ['frog'],
+      'rana': ['frog'],
+      'frog': ['frog'],
+      'frogs': ['frog'],
+      'conejos': ['rabbit', 'hare'],
+      'conejo': ['rabbit', 'hare'],
+      'rabbit': ['rabbit', 'hare'],
+      'rabbits': ['rabbit', 'hare'],
+      'murcielagos': ['bat'],
+      'murciélagos': ['bat'],
+      'bat': ['bat'],
+      'bats': ['bat'],
+      'lagartos': ['lizard'],
+      'lagarto': ['lizard'],
+      'lizard': ['lizard'],
+      'lizards': ['lizard'],
+      'ratones': ['mouse'],
+      'raton': ['mouse'],
+      'ratón': ['mouse'],
+      'mouse': ['mouse'],
+      'mice': ['mouse'],
+      'aves': ['bird'],
+      'ave': ['bird'],
+      'bird': ['bird'],
+      'birds': ['bird'],
+      'tortugas': ['turtle'],
+      'tortuga': ['turtle'],
+      'turtle': ['turtle'],
+      'turtles': ['turtle'],
+      'cangrejos': ['crab'],
+      'cangrejo': ['crab'],
+      'crab': ['crab'],
+      'crabs': ['crab'],
+      'golems': ['golem', 'artificer'],
+      'golem': ['golem', 'artificer'],
+      'trasgos': ['goblin', 'ogre', 'orc'],
+      'trasgo': ['goblin', 'ogre', 'orc'],
+      'goblin': ['goblin', 'ogre', 'orc'],
+      'goblins': ['goblin', 'ogre', 'orc'],
+      'goblin_horde': ['goblin', 'ogre', 'orc'],
+      'elfos': ['elf', 'druid'],
+      'elfo': ['elf', 'druid'],
+      'elf': ['elf', 'druid'],
+      'elves': ['elf', 'druid'],
+      'elf_druid': ['elf', 'druid'],
+      'humanos': ['human', 'soldier', 'knight'],
+      'humano': ['human', 'soldier', 'knight'],
+      'human': ['human', 'soldier', 'knight'],
+      'humans': ['human', 'soldier', 'knight'],
+      'human_army': ['human', 'soldier', 'knight'],
+      'zombis': ['zombie', 'skeleton', 'horror'],
+      'zombi': ['zombie', 'skeleton', 'horror'],
+      'zombie': ['zombie', 'skeleton', 'horror'],
+      'zombies': ['zombie', 'skeleton', 'horror'],
+      'undead_scourge': ['zombie', 'skeleton', 'horror'],
+      'vampiros': ['vampire'],
+      'vampiro': ['vampire'],
+      'vampire': ['vampire'],
+      'vampires': ['vampire'],
+      'dragones': ['dragon'],
+      'dragon': ['dragon'],
+      'dragons': ['dragon'],
+      'angeles': ['angel'],
+      'ángeles': ['angel'],
+      'angel': ['angel'],
+      'angels': ['angel'],
+      'demonios': ['demon'],
+      'demonio': ['demon'],
+      'demon': ['demon'],
+      'demons': ['demon'],
+      'dinosaurios': ['dinosaur'],
+      'dinosaurio': ['dinosaur'],
+      'dinosaur': ['dinosaur'],
+      'dinosaurs': ['dinosaur'],
+      'eldrazi': ['eldrazi'],
+      'eldrazis': ['eldrazi'],
+      'tritones': ['merfolk'],
+      'triton': ['merfolk'],
+      'tritón': ['merfolk'],
+      'merfolk': ['merfolk'],
+      'magos': ['wizard'],
+      'mago': ['wizard'],
+      'wizard': ['wizard'],
+      'wizards': ['wizard'],
+      'clerigos': ['cleric'],
+      'clérigos': ['cleric'],
+      'cleric': ['cleric'],
+      'clerics': ['cleric'],
+      'picaros': ['rogue'],
+      'pícaros': ['rogue'],
+      'picaro': ['rogue'],
+      'pícaro': ['rogue'],
+      'rogue': ['rogue'],
+      'rogues': ['rogue'],
+      'guerreros': ['warrior'],
+      'guerrero': ['warrior'],
+      'warrior': ['warrior'],
+      'warriors': ['warrior'],
+      'caballeros': ['knight'],
+      'caballero': ['knight'],
+      'knight': ['knight'],
+      'knights': ['knight'],
+      'soldados': ['soldier'],
+      'soldado': ['soldier'],
+      'soldier': ['soldier'],
+      'soldiers': ['soldier'],
+      'asesinos': ['assassin'],
+      'asesino': ['assassin'],
+      'assassin': ['assassin'],
+      'assassins': ['assassin'],
+      'monjes': ['monk'],
+      'monje': ['monk'],
+      'monk': ['monk'],
+      'monks': ['monk'],
+      'pueblárboles': ['treefolk'],
+      'pueblarboles': ['treefolk'],
+      'treefolk': ['treefolk'],
+      'arañas': ['spider'],
+      'araña': ['spider'],
+      'spider': ['spider'],
+      'spiders': ['spider'],
+      'serpientes': ['snake', 'naga'],
+      'serpiente': ['snake', 'naga'],
+      'snake': ['snake', 'naga'],
+      'snakes': ['snake', 'naga'],
+      'nagas': ['naga'],
+      'naga': ['naga'],
+      'minotauros': ['minotaur'],
+      'minotauro': ['minotaur'],
+      'minotaur': ['minotaur'],
+      'minotaurs': ['minotaur'],
+      'horrores': ['horror', 'nightmare'],
+      'horror': ['horror', 'nightmare'],
+      'horrors': ['horror', 'nightmare'],
+      'diablos': ['devil', 'imp'],
+      'diablo': ['devil', 'imp'],
+      'devil': ['devil', 'imp'],
+      'devils': ['devil', 'imp'],
+      'perros': ['dog', 'hound'],
+      'canes': ['dog', 'hound'],
+      'dog': ['dog', 'hound'],
+      'dogs': ['dog', 'hound'],
+      'gatos': ['cat'],
+      'felinos': ['cat'],
+      'cat': ['cat'],
+      'cats': ['cat'],
+      'ratas': ['rat'],
+      'rata': ['rat'],
+      'rat': ['rat'],
+      'rats': ['rat'],
+      'chamanes': ['shaman'],
+      'chamán': ['shaman'],
+      'shaman': ['shaman'],
+      'shamans': ['shaman'],
+      'druidas': ['druid'],
+      'druida': ['druid'],
+      'druid': ['druid'],
+      'druids': ['druid'],
+      'artificeros': ['artificer'],
+      'artífices': ['artificer'],
+      'artificer': ['artificer'],
+      'artificers': ['artificer'],
+      'ninjas': ['ninja'],
+      'ninja': ['ninja'],
+      'samurais': ['samurai'],
+      'samuráis': ['samurai'],
+      'samurai': ['samurai'],
+      'gigantes': ['giant'],
+      'gigante': ['giant'],
+      'giant': ['giant'],
+      'giants': ['giant'],
+      'bestias': ['beast'],
+      'bestia': ['beast'],
+      'beast': ['beast'],
+      'beasts': ['beast'],
+      'elementales': ['elemental'],
+      'elemental': ['elemental'],
+      'elementals': ['elemental'],
+      'hadas': ['faerie'],
+      'hada': ['faerie'],
+      'faerie': ['faerie'],
+      'faeries': ['faerie'],
+      'slivers': ['sliver'],
+      'fragmentados': ['sliver'],
+      'sliver': ['sliver'],
+      'aliados': ['ally'],
+      'aliado': ['ally'],
+      'ally': ['ally'],
+      'allies': ['ally'],
+      'marinos': ['merfolk', 'kraken', 'leviathan', 'octopus', 'serpent', 'fish'],
+      'sea_monsters': ['merfolk', 'kraken', 'leviathan', 'octopus', 'serpent', 'fish'],
+      'forajidos': ['assassin', 'mercenary', 'pirate', 'rogue', 'warlock'],
+      'outlaws': ['assassin', 'mercenary', 'pirate', 'rogue', 'warlock'],
+      'party': ['cleric', 'rogue', 'warrior', 'wizard'],
+      'grupo': ['cleric', 'rogue', 'warrior', 'wizard'],
+      'hombres_lobo': ['werewolf'],
+      'hombres lobo': ['werewolf'],
+      'licantropos': ['werewolf'],
+      'licántropos': ['werewolf'],
+      'werewolves': ['werewolf'],
+      'werewolf': ['werewolf'],
+      'lobos': ['wolf'],
+      'lobo': ['wolf'],
+      'wolves': ['wolf'],
+      'wolf': ['wolf']
+    };
 
+    let targetSubtypes = TRIBAL_SYNONYMS[tribeLower];
+    if (!targetSubtypes) {
+      if (tribeLower.includes('phyrexian') || tribeLower.includes('pirexian') || tribeLower.includes('toxic') || tribeLower.includes('infect')) {
+        targetSubtypes = ['phyrexian'];
+      } else if (tribeLower.includes('werewolf') || tribeLower.includes('licantrop')) {
+        targetSubtypes = ['werewolf'];
+      } else if (tribeLower.includes('lobo') || tribeLower.includes('wolf')) {
+        targetSubtypes = ['wolf'];
+      } else if (tribeLower.includes('merfolk') || tribeLower.includes('triton') || tribeLower.includes('tritón')) {
+        targetSubtypes = ['merfolk'];
+      } else if (tribeLower.includes('sea_monster') || tribeLower.includes('sea monster') || tribeLower.includes('marino') || tribeLower.includes('kraken') || tribeLower.includes('leviathan') || tribeLower.includes('serpent') || tribeLower.includes('octopus')) {
+        targetSubtypes = ['merfolk', 'kraken', 'leviathan', 'octopus', 'serpent', 'fish'];
+      } else if (tribeLower.includes('wall') || tribeLower.includes('muro') || tribeLower.includes('muralla') || tribeLower.includes('defender')) {
+        targetSubtypes = ['wall', 'plant', 'defender'];
+      } else if (tribeLower.includes('forajido') || tribeLower.includes('outlaw')) {
+        targetSubtypes = ['assassin', 'mercenary', 'pirate', 'rogue', 'warlock'];
+      } else if (tribeLower.includes('party') || tribeLower.includes('grupo')) {
+        targetSubtypes = ['cleric', 'rogue', 'warrior', 'wizard'];
+      } else if (tribeLower.includes('vampir')) {
+        targetSubtypes = ['vampire'];
+      } else if (tribeLower.includes('zomb') || tribeLower.includes('undead')) {
+        targetSubtypes = ['zombie', 'skeleton', 'horror'];
+      } else if (tribeLower.includes('goblin') || tribeLower.includes('trasgo')) {
+        targetSubtypes = ['goblin', 'ogre', 'orc'];
+      } else if (tribeLower.includes('elf')) {
+        targetSubtypes = ['elf', 'druid'];
+      } else if (tribeLower.includes('dragon') || tribeLower.includes('dragón')) {
+        targetSubtypes = ['dragon'];
+      } else if (tribeLower.includes('dinosaur')) {
+        targetSubtypes = ['dinosaur', 'beast', 'hydra'];
+      } else if (tribeLower.includes('angel') || tribeLower.includes('ángel')) {
+        targetSubtypes = ['angel'];
+      } else if (tribeLower.includes('demon')) {
+        targetSubtypes = ['demon'];
+      } else if (tribeLower.includes('sliver') || tribeLower.includes('fragmentado')) {
+        targetSubtypes = ['sliver'];
+      } else if (tribeLower.includes('spirit') || tribeLower.includes('espirit')) {
+        targetSubtypes = ['spirit'];
+      } else if (tribeLower.includes('faerie') || tribeLower.includes('hada') || tribeLower.includes('fairy')) {
+        targetSubtypes = ['faerie'];
+      } else if (tribeLower.includes('rat')) {
+        targetSubtypes = ['rat'];
+      } else if (tribeLower.includes('squirrel') || tribeLower.includes('ardilla')) {
+        targetSubtypes = ['squirrel'];
+      } else if (tribeLower.includes('cat') || tribeLower.includes('gato') || tribeLower.includes('felino')) {
+        targetSubtypes = ['cat', 'leopard', 'tiger'];
+      } else if (tribeLower.includes('dog') || tribeLower.includes('perro') || tribeLower.includes('can') || tribeLower.includes('hound')) {
+        targetSubtypes = ['dog', 'hound'];
+      } else if (tribeLower.includes('human')) {
+        targetSubtypes = ['human', 'soldier', 'knight'];
+      } else if (tribeLower.includes('treefolk') || tribeLower.includes('arbol') || tribeLower.includes('árbol')) {
+        targetSubtypes = ['treefolk', 'plant'];
+      } else if (tribeLower.includes('spider') || tribeLower.includes('araña') || tribeLower.includes('arana')) {
+        targetSubtypes = ['spider'];
+      } else if (tribeLower.includes('snake') || tribeLower.includes('serpiente') || tribeLower.includes('naga')) {
+        targetSubtypes = ['snake', 'naga'];
+      } else if (tribeLower.includes('ooze') || tribeLower.includes('limo') || tribeLower.includes('gelatina')) {
+        targetSubtypes = ['ooze'];
+      } else if (tribeLower.includes('gorgon')) {
+        targetSubtypes = ['gorgon'];
+      } else if (tribeLower.includes('hydra') || tribeLower.includes('hidra')) {
+        targetSubtypes = ['hydra'];
+      } else if (tribeLower.includes('giant') || tribeLower.includes('gigante')) {
+        targetSubtypes = ['giant'];
+      } else if (tribeLower.includes('beast') || tribeLower.includes('bestia')) {
+        targetSubtypes = ['beast'];
+      } else if (tribeLower.includes('elemental')) {
+        targetSubtypes = ['elemental'];
+      } else if (tribeLower.includes('eldrazi')) {
+        targetSubtypes = ['eldrazi'];
+      } else if (tribeLower.includes('ninja')) {
+        targetSubtypes = ['ninja'];
+      } else if (tribeLower.includes('pirat')) {
+        targetSubtypes = ['pirate'];
+      } else if (tribeLower.includes('knight') || tribeLower.includes('caballero')) {
+        targetSubtypes = ['knight'];
+      } else if (tribeLower.includes('soldier') || tribeLower.includes('soldado')) {
+        targetSubtypes = ['soldier'];
+      } else if (tribeLower.includes('wizard') || tribeLower.includes('mago')) {
+        targetSubtypes = ['wizard'];
+      } else if (tribeLower.includes('cleric') || tribeLower.includes('clérigo') || tribeLower.includes('clerigo')) {
+        targetSubtypes = ['cleric'];
+      } else if (tribeLower.includes('rogue') || tribeLower.includes('pícaro') || tribeLower.includes('picaro')) {
+        targetSubtypes = ['rogue'];
+      } else if (tribeLower.includes('warrior') || tribeLower.includes('guerrero')) {
+        targetSubtypes = ['warrior'];
+      } else if (tribeLower.includes('assassin') || tribeLower.includes('asesino')) {
+        targetSubtypes = ['assassin'];
+      } else if (tribeLower.includes('warlock') || tribeLower.includes('brujo')) {
+        targetSubtypes = ['warlock'];
+      } else if (tribeLower.includes('shaman') || tribeLower.includes('chamán') || tribeLower.includes('chaman')) {
+        targetSubtypes = ['shaman'];
+      } else if (tribeLower.includes('druid') || tribeLower.includes('druida')) {
+        targetSubtypes = ['druid'];
+      } else if (tribeLower.includes('lizard') || tribeLower.includes('lagarto')) {
+        targetSubtypes = ['lizard'];
+      } else if (tribeLower.includes('mouse') || tribeLower.includes('ratón') || tribeLower.includes('raton') || tribeLower.includes('mice')) {
+        targetSubtypes = ['mouse'];
+      } else if (tribeLower.includes('rabbit') || tribeLower.includes('conejo')) {
+        targetSubtypes = ['rabbit', 'hare'];
+      } else if (tribeLower.includes('bat') || tribeLower.includes('murciélago') || tribeLower.includes('murcielago')) {
+        targetSubtypes = ['bat'];
+      } else if (tribeLower.includes('otter') || tribeLower.includes('nutria')) {
+        targetSubtypes = ['otter'];
+      } else if (tribeLower.includes('frog') || tribeLower.includes('rana')) {
+        targetSubtypes = ['frog'];
+      } else if (tribeLower.includes('bird') || tribeLower.includes('ave') || tribeLower.includes('pájaro') || tribeLower.includes('pajaro')) {
+        targetSubtypes = ['bird'];
+      } else if (tribeLower.includes('turtle') || tribeLower.includes('tortuga')) {
+        targetSubtypes = ['turtle'];
+      } else if (tribeLower.includes('crab') || tribeLower.includes('cangrejo')) {
+        targetSubtypes = ['crab'];
+      } else if (tribeLower.includes('golem')) {
+        targetSubtypes = ['golem', 'artificer'];
+      } else {
+        targetSubtypes = [tribeLower];
+      }
+    }
     return targetSubtypes.some(sub => typeLine.includes(sub) || oracleText.includes(sub));
   }
 }

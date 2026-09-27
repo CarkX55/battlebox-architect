@@ -25,9 +25,21 @@ const cleanCardNameForMatching = (name) => {
   return n;
 };
 
+const KNOWN_LAND_NAMES = new Set([
+  "watery grave", "blood crypt", "overgrown tomb", "temple garden", "godless shrine",
+  "sacred foundry", "stomping ground", "steam vents", "hallowed fountain", "breeding pool",
+  "darkslick shores", "seachrome coast", "blackcleave cliffs", "copperline gorge", "razorverge thicket",
+  "concealed courtyard", "spirebluff canal", "blooming marsh", "inspiring vantage", "botanical sanctum",
+  "shipwreck marsh", "undercity sewers", "shadowy backstreet", "thundering falls", "gloomy backstage",
+  "underground sea", "volcanic island", "tropical island", "tundra", "savannah",
+  "scrubland", "badlands", "taiga", "bayou", "plateau",
+  "polluted delta", "flooded strand", "bloodstained mire", "wooded foothills", "windswept heath",
+  "marsh flats", "scalding tarn", "verdant catacombs", "arid mesa", "misty rainforest"
+]);
+
 /**
  * Helper robusto para identificar si una carta es una tierra.
- * Soporta detecciÃ³n por tipo e inspecciÃ³n de patrones de nombres comunes.
+ * Soporta detección por tipo e inspección de patrones de nombres comunes.
  */
 const isLandCard = (c) => {
   if (!c) return false;
@@ -39,18 +51,6 @@ const isLandCard = (c) => {
 
   const nameLower = (c.name || "").toLowerCase().trim();
   if (isBasicLand(nameLower)) return true;
-  
-  const KNOWN_LAND_NAMES = new Set([
-    "watery grave", "blood crypt", "overgrown tomb", "temple garden", "godless shrine",
-    "sacred foundry", "stomping ground", "steam vents", "hallowed fountain", "breeding pool",
-    "darkslick shores", "seachrome coast", "blackcleave cliffs", "copperline gorge", "razorverge thicket",
-    "concealed courtyard", "spirebluff canal", "blooming marsh", "inspiring vantage", "botanical sanctum",
-    "shipwreck marsh", "undercity sewers", "shadowy backstreet", "thundering falls", "gloomy backstage",
-    "underground sea", "volcanic island", "tropical island", "tundra", "savannah",
-    "scrubland", "badlands", "taiga", "bayou", "plateau",
-    "polluted delta", "flooded strand", "bloodstained mire", "wooded foothills", "windswept heath",
-    "marsh flats", "scalding tarn", "verdant catacombs", "arid mesa", "misty rainforest"
-  ]);
   
   return KNOWN_LAND_NAMES.has(nameLower);
 };
@@ -269,9 +269,10 @@ Optimiza la baraja principal y devuelve el resultado en JSON que cumpla con el e
  * o con heurÃ­sticas locales deterministas, garantizando el Tamaño exacto del mazo.
  */
 export async function optimizarMazo(deckList, formData, aiConfig, preserveLands = true, auditReport = null) {
-  // 1. Limpieza y normalizaciÃ³n de la lista de entrada (forzar quantity numÃ©rica)
+  const format = (formData?.format || '').toLowerCase();
+  const isBattlebox = format.includes('battlebox') || format.includes('casual-house');
   let nextDeck = [...deckList]
-    .filter(c => !BATTLEBOX_VETOS.includes(c.name))
+    .filter(c => isBattlebox ? !BATTLEBOX_VETOS.includes(c.name) : true)
     .map(c => ({
       ...c,
       quantity: Number(c.quantity || c.count || 1)

@@ -4,6 +4,8 @@ import { IdentityFirewall } from './identityFirewall.js';
 import { DemandSupplyLedger } from './demandSupplyLedger.js';
 import { StateCandidateRanker } from './stateCandidateRanker.js';
 import { CardCausalContract } from './cardCausalContract.js';
+import { CurveExecutionAnalyzer } from './curveExecutionAnalyzer.js';
+import { CardImplementer } from '../../agent/cardImplementer.js';
 
 export class CandidateConstraintEngine {
   constructor(db = null) {
@@ -40,30 +42,82 @@ export class CandidateConstraintEngine {
 
         if (colors.length >= 2) {
           const colorSet = new Set(colors);
-          if (colorSet.has('R') && colorSet.has('W') && colorSet.has('B')) {
-            mainLand = 'Blackcleave Cliffs // Inspiring Vantage // Mountain';
-            altLands = ['Battlefield Forge', 'Sulfurous Springs', 'Caves of Koilos', 'Blood Crypt'];
-          } else if (colorSet.has('B') && colorSet.has('R')) {
-            mainLand = 'Blackcleave Cliffs // Sulfurous Springs // Mountain';
-            altLands = ['Blood Crypt', 'Swamp', 'Raucous Theater'];
+          // ─── 3-COLOR SHARDS & WEDGES (Evaluated FIRST) ─────────────────────
+          if (colorSet.has('G') && colorSet.has('W') && colorSet.has('U')) {
+            // Bant (G/W/U)
+            mainLand = "Spara's Headquarters // Hedge Maze // Lush Portico // Plains // Island // Forest";
+            altLands = ['Razorverge Thicket', 'Botanical Sanctum', 'Seachrome Coast', 'Brushland', 'Yavimaya Coast', 'Adarkar Wastes'];
+          } else if (colorSet.has('W') && colorSet.has('U') && colorSet.has('B')) {
+            // Esper (W/U/B)
+            mainLand = "Raffine's Tower // Undercity Sewers // Shadowy Backstreet // Plains // Island // Swamp";
+            altLands = ['Darkslick Shores', 'Caves of Koilos', 'Seachrome Coast', 'Underground River', 'Adarkar Wastes', 'Concealed Courtyard'];
+          } else if (colorSet.has('U') && colorSet.has('B') && colorSet.has('R')) {
+            // Grixis (U/B/R)
+            mainLand = "Xander's Lounge // Thundering Falls // Raucous Theater // Island // Swamp // Mountain";
+            altLands = ['Darkslick Shores', 'Blackcleave Cliffs', 'Spirebluff Canal', 'Underground River', 'Sulfurous Springs', 'Shivan Reef'];
+          } else if (colorSet.has('B') && colorSet.has('R') && colorSet.has('G')) {
+            // Jund (B/R/G)
+            mainLand = "Ziatora's Proving Ground // Commercial District // Raucous Theater // Swamp // Mountain // Forest";
+            altLands = ['Copperline Gorge', 'Blackcleave Cliffs', 'Llanowar Wastes', 'Karplusan Forest', 'Sulfurous Springs', 'Blooming Marsh'];
+          } else if (colorSet.has('R') && colorSet.has('G') && colorSet.has('W')) {
+            // Naya (R/G/W)
+            mainLand = "Jetmir's Garden // Commercial District // Elegant Parlor // Mountain // Forest // Plains";
+            altLands = ['Copperline Gorge', 'Inspiring Vantage', 'Razorverge Thicket', 'Karplusan Forest', 'Battlefield Forge', 'Brushland'];
+          } else if (colorSet.has('W') && colorSet.has('B') && colorSet.has('G')) {
+            // Abzan (W/B/G)
+            mainLand = "Indatha Triome // Shadowy Backstreet // Lush Portico // Plains // Swamp // Forest";
+            altLands = ['Caves of Koilos', 'Llanowar Wastes', 'Razorverge Thicket', 'Concealed Courtyard', 'Blooming Marsh', 'Brushland'];
+          } else if (colorSet.has('U') && colorSet.has('R') && colorSet.has('W')) {
+            // Jeskai (U/R/W)
+            mainLand = "Raugrin Triome // Thundering Falls // Elegant Parlor // Island // Mountain // Plains";
+            altLands = ['Inspiring Vantage', 'Spirebluff Canal', 'Seachrome Coast', 'Battlefield Forge', 'Shivan Reef', 'Adarkar Wastes'];
+          } else if (colorSet.has('B') && colorSet.has('G') && colorSet.has('U')) {
+            // Sultai (B/G/U)
+            mainLand = "Zagoth Triome // Underground Mortuary // Undercity Sewers // Swamp // Forest // Island";
+            altLands = ['Darkslick Shores', 'Botanical Sanctum', 'Llanowar Wastes', 'Underground River', 'Yavimaya Coast', 'Blooming Marsh'];
+          } else if (colorSet.has('R') && colorSet.has('W') && colorSet.has('B')) {
+            // Mardu (R/W/B)
+            mainLand = "Savai Triome // Elegant Parlor // Raucous Theater // Mountain // Plains // Swamp";
+            altLands = ['Inspiring Vantage', 'Blackcleave Cliffs', 'Caves of Koilos', 'Battlefield Forge', 'Sulfurous Springs', 'Concealed Courtyard'];
+          } else if (colorSet.has('G') && colorSet.has('U') && colorSet.has('R')) {
+            // Temur (G/U/R)
+            mainLand = "Ketria Triome // Hedge Maze // Thundering Falls // Forest // Island // Mountain";
+            altLands = ['Copperline Gorge', 'Spirebluff Canal', 'Botanical Sanctum', 'Karplusan Forest', 'Shivan Reef', 'Yavimaya Coast'];
+          }
+          // ─── 2-COLOR GUILDS ────────────────────────────────────────────────
+          else if (colorSet.has('B') && colorSet.has('R')) {
+            mainLand = 'Blackcleave Cliffs // Sulfurous Springs // Raucous Theater // Mountain // Swamp';
+            altLands = ['Blood Crypt', 'Swamp', 'Mountain'];
           } else if (colorSet.has('R') && colorSet.has('W')) {
-            mainLand = 'Inspiring Vantage // Battlefield Forge // Mountain';
-            altLands = ['Sacred Foundry', 'Plains', 'Elegant Parlor'];
+            mainLand = 'Inspiring Vantage // Battlefield Forge // Elegant Parlor // Mountain // Plains';
+            altLands = ['Sacred Foundry', 'Plains', 'Mountain'];
           } else if (colorSet.has('G') && colorSet.has('R')) {
-            mainLand = 'Copperline Gorge // Karplusan Forest // Mountain';
-            altLands = ['Stomping Ground', 'Forest', 'Commercial District'];
+            mainLand = 'Copperline Gorge // Karplusan Forest // Commercial District // Mountain // Forest';
+            altLands = ['Stomping Ground', 'Forest', 'Mountain'];
           } else if (colorSet.has('U') && colorSet.has('R')) {
-            mainLand = 'Spirebluff Canal // Shivan Reef // Mountain';
-            altLands = ['Steam Vents', 'Island', 'Thundering Falls'];
+            mainLand = 'Spirebluff Canal // Shivan Reef // Thundering Falls // Mountain // Island';
+            altLands = ['Steam Vents', 'Island', 'Mountain'];
           } else if (colorSet.has('G') && colorSet.has('W')) {
-            mainLand = 'Razorverge Thicket // Brushland // Forest';
-            altLands = ['Temple Garden', 'Plains', 'Lush Portico'];
+            mainLand = 'Razorverge Thicket // Brushland // Lush Portico // Forest // Plains';
+            altLands = ['Temple Garden', 'Plains', 'Forest'];
           } else if (colorSet.has('U') && colorSet.has('B')) {
-            mainLand = 'Darkslick Shores // Underground River // Swamp';
-            altLands = ['Watery Grave', 'Island', 'Undercity Sewers'];
+            mainLand = 'Darkslick Shores // Underground River // Undercity Sewers // Swamp // Island';
+            altLands = ['Watery Grave', 'Island', 'Swamp'];
+          } else if (colorSet.has('W') && colorSet.has('U')) {
+            mainLand = 'Seachrome Coast // Adarkar Wastes // Meticulous Archive // Plains // Island';
+            altLands = ['Hallowed Fountain', 'Island', 'Plains'];
+          } else if (colorSet.has('W') && colorSet.has('B')) {
+            mainLand = 'Caves of Koilos // Concealed Courtyard // Shadowy Backstreet // Plains // Swamp';
+            altLands = ['Godless Shrine', 'Swamp', 'Plains'];
+          } else if (colorSet.has('G') && colorSet.has('U')) {
+            mainLand = 'Botanical Sanctum // Yavimaya Coast // Hedge Maze // Forest // Island';
+            altLands = ['Breeding Pool', 'Island', 'Forest'];
+          } else if (colorSet.has('B') && colorSet.has('G')) {
+            mainLand = 'Llanowar Wastes // Blooming Marsh // Underground Mortuary // Swamp // Forest';
+            altLands = ['Overgrown Tomb', 'Forest', 'Swamp'];
           } else {
             mainLand = `${colors.join('/')} Optimized Dual Lands & Basics`;
-            altLands = ['Fast Lands', 'Pain Lands', 'Shock Lands'];
+            altLands = ['Fast Lands', 'Pain Lands', 'Shock Lands', 'Triomes'];
           }
         } else {
           if (colors.includes('U')) {
@@ -103,11 +157,11 @@ export class CandidateConstraintEngine {
         continue;
       }
 
-      // Step 2: Rank filtered candidates for this specific slot role
-      const rankedCandidates = this.rankCandidatesForSlot(slot, filteredPool, intentPackage);
+      // Step 2: Rank filtered candidates for this specific slot role via StateCandidateRanker
+      const rankedCandidates = this.rankCandidatesForSlot(slot, filteredPool, intentPackage, deckIdentity, filledSlots);
 
       // Step 3: Select Winner with live Deck State Demand Audit
-      const selected = this.selectWinnerForSlot(slot, rankedCandidates, usedWinnersCount, intentPackage, filledSlots);
+      const selected = this.selectWinnerForSlot(slot, rankedCandidates, usedWinnersCount, intentPackage, filledSlots, deckIdentity, filteredPool);
 
       if (selected.winnerCard) {
         const currentQty = usedWinnersCount.get(selected.winnerCard) || 0;
@@ -140,15 +194,30 @@ export class CandidateConstraintEngine {
    * CandidateFilter: Filters candidate card pool against IntentPackage & IdentityFirewall contracts.
    */
   filterCandidates(intentPackage, cardPool = [], deckIdentity = null) {
-    const allowedColors = new Set(intentPackage.colors);
+    const allowedColors = new Set(intentPackage.colors || ['R']);
     const budget = intentPackage.budget || 'Unlimited';
     const filteredPool = [];
     const rejections = [];
 
     for (const card of cardPool) {
       const cardName = card.name || 'Unknown';
-      const typeLine = (card.type_line || card.typeLine || '').toLowerCase();
-      const cardColors = card.colors || [];
+      const faces = Array.isArray(card.card_faces) ? card.card_faces : [];
+      let typeLine = (card.type_line || card.typeLine || '').toLowerCase();
+      let cardColors = card.colors || [];
+      if (faces.length > 0) {
+        if (!typeLine) {
+          typeLine = faces.map(f => f.type_line || f.typeLine || '').filter(Boolean).join(' // ').toLowerCase();
+        }
+        if (cardColors.length === 0) {
+          const faceColors = new Set();
+          faces.forEach(f => (f.colors || []).forEach(c => faceColors.add(c)));
+          if (faceColors.size > 0) {
+            cardColors = Array.from(faceColors);
+          } else if (Array.isArray(card.color_identity)) {
+            cardColors = card.color_identity;
+          }
+        }
+      }
 
       // Budget filter check
       if (budget === 'Budget-Strict' && (card.priceUSD || 0) > 10.0) {
@@ -166,7 +235,7 @@ export class CandidateConstraintEngine {
       if (!isColorValid) {
         rejections.push({
           cardName,
-          reason: `Card colors [${cardColors.join(',')}] not allowed in [${intentPackage.colors.join(',')}]`,
+          reason: `Card colors [${cardColors.join(',')}] not allowed in [${(intentPackage.colors || []).join(',')}]`,
           rule: 'COLOR_IDENTITY_CONTRACT',
           confidence: 1.0
         });
@@ -176,7 +245,8 @@ export class CandidateConstraintEngine {
       // MustNot filter
       const cardNameLower = cardName.toLowerCase();
       let forbiddenRule = null;
-      for (const rule of intentPackage.mustNotRules) {
+      const mustNotRules = Array.isArray(intentPackage?.mustNotRules) ? intentPackage.mustNotRules : [];
+      for (const rule of mustNotRules) {
         const rLower = rule.toLowerCase();
         if (cardNameLower.includes(rLower) || typeLine.includes(rLower)) {
           forbiddenRule = rule;
@@ -206,6 +276,18 @@ export class CandidateConstraintEngine {
         continue;
       }
 
+      // Causal Demand-Supply Ledger Audit: Reject cards with unfulfillable HARD demands
+      const demandAudit = DemandSupplyLedger.auditCardDemands(card, { cards: [] }, intentPackage);
+      if (!demandAudit.isSatisfied) {
+        rejections.push({
+          cardName,
+          reason: demandAudit.failureReasons.join('; '),
+          rule: 'UNFULFILLED_HARD_DEMAND',
+          confidence: 1.0
+        });
+        continue;
+      }
+
       filteredPool.push(card);
     }
 
@@ -213,505 +295,128 @@ export class CandidateConstraintEngine {
   }
 
   /**
-   * CandidateRanker: Ranks filtered cards by strategic contribution score for a slot.
+   * CandidateRanker (v26.0 Authority Convergence):
+   * Evaluates candidates for a slot via StateCandidateRanker and DeltaState dominance.
+   * Zero arbitrary heuristic point bonuses (+85, -500).
    */
-  rankCandidatesForSlot(slot, filteredPool, intentPackage) {
-    const role = slot.role.toLowerCase();
+  rankCandidatesForSlot(slot, filteredPool, intentPackage = {}, deckIdentity = null, filledSlots = []) {
+    const role = (slot.role || '').toLowerCase();
+    const currentDeckState = {
+      cards: (filledSlots || []).map(s => ({ card: s.winnerCardObj || { name: s.winnerCard }, count: s.requiredDensity || 4 }))
+    };
 
-    return filteredPool.map(card => {
-      const profile = this.metricsDb.getOrExtractProfile(card);
-      const typeLine = (card.type_line || card.typeLine || '').toLowerCase();
-      const oracleText = (card.oracle_text || card.oracleText || '').toLowerCase();
-      const nameLower = (card.name || '').toLowerCase();
-      const cmc = card.cmc || card.mana_value || 0;
+    const winPath = deckIdentity?.mandatoryRoles || intentPackage?.winPath || [slot.role];
+    const proofObligations = deckIdentity?.requiredEngines || [slot.role];
+
+    const strategicContract = {
+      archetype: deckIdentity?.archetypeKey || intentPackage?.archetype || 'Aggro',
+      winPath,
+      proofObligations,
+      format: intentPackage?.format || 'MODERN',
+      constraints: intentPackage?.userConstraints || {}
+    };
+
+    const evaluated = filteredPool.map(card => {
       const contract = CardCausalContract.parse(card);
+      const typeLine = (card.type_line || card.typeLine || '').toLowerCase();
 
-      let score = 0;
+      // Basic hard filter for non-land spell slot
+      if (role !== 'land' && typeLine.includes('land') && !typeLine.includes('creature')) {
+        return {
+          card,
+          score: -5000,
+          dominanceVector: {
+            netUtility: -100,
+            isDominated: true,
+            hasUnsupportedDemands: true,
+            roleValidity: false,
+            roleQuality: 0,
+            stateDeltaScore: -100,
+            synergyScore: 0
+          },
+          stateDelta: null,
+          evidenceTags: ['INVALID_LAND_IN_SPELL_SLOT']
+        };
+      }
 
-      // Contribution score
-      score += profile.getContributionAmount(slot.role);
+      // Strict creature requirement for TRIBAL_DENSITY slot
+      if ((role === 'tribal_density' || role.includes('tribal')) && (!typeLine.includes('creature') || typeLine.includes('vehicle'))) {
+        return {
+          card,
+          score: -5000,
+          dominanceVector: {
+            netUtility: -100,
+            isDominated: true,
+            hasUnsupportedDemands: true,
+            roleValidity: false,
+            roleQuality: 0,
+            stateDeltaScore: -100,
+            synergyScore: 0
+          },
+          stateDelta: null,
+          evidenceTags: ['NON_CREATURE_IN_TRIBAL_DENSITY']
+        };
+      }
 
-      // Causal compatibility check for the requested slot role
+      // Check role compatibility
+      const compat = contract ? CardCausalContract.isCausallyCompatibleWithRole(contract, slot.role, intentPackage) : { isCompatible: true };
+      
+      const stateDelta = StateCandidateRanker.computeStateDelta(currentDeckState, card, strategicContract, intentPackage, slot);
+      const dominanceVector = StateCandidateRanker.computeDominanceVector(stateDelta);
+
+      if (!compat.isCompatible) {
+        dominanceVector.netUtility -= 10.0;
+        dominanceVector.hasUnsupportedDemands = true;
+      }
+
+      // Extract evidence tags for explainability
+      const evidenceTags = [];
       if (contract) {
-        const compat = CardCausalContract.isCausallyCompatibleWithRole(contract, slot.role, intentPackage);
-        if (!compat.isCompatible) {
-          score -= 300;
-        }
-
-        // Penalize cards with unfulfillable HARD demands in general slots (e.g. Artifact payoff in non-artifact deck)
-        const hasHardArtifactDemand = contract.demands.some(d => d.resource === 'ARTIFACT_CONTROL' && d.necessity === 'HARD');
-        if (hasHardArtifactDemand && !typeLine.includes('artifact')) {
-          score -= 350;
-        }
+        contract.supplies.forEach(s => evidenceTags.push(s.capability));
+        contract.demands.forEach(d => evidenceTags.push(`DEMANDS_${d.resource}`));
       }
 
-      // Primary tribe bonus: Handles direct subtype or token/kindred tribe aliases (e.g. Sea Monsters, Saproling, Outlaws)
-      const rawTribeStr = intentPackage.primaryTribe ? String(intentPackage.primaryTribe).toLowerCase().trim() : '';
-      const isValidTribe = rawTribeStr && !['none', 'null', 'general', 'ninguna', 'sin tribu', 'omitir', 'universal', 'sin_tribu'].includes(rawTribeStr);
-      if (isValidTribe) {
-        const tribeLower = rawTribeStr;
-        const GUILD_FACTIONS = new Set([
-          'boros_guild', 'golgari_guild', 'dimir_guild', 'rakdos_guild', 'azorius_guild',
-          'gruul_guild', 'selesnya_guild', 'orzhov_guild', 'izzet_guild', 'simic_guild',
-          'esper_shard', 'jund_shard', 'naya_shard', 'jeskai_shard', 'sultai_shard',
-          'boros', 'golgari', 'dimir', 'rakdos', 'azorius',
-          'gruul', 'selesnya', 'orzhov', 'izzet', 'simic',
-          'esper', 'grixis', 'jund', 'naya', 'bant',
-          'abzan', 'jeskai', 'sultai', 'mardu', 'temur'
-        ]);
+      const score = Math.round(dominanceVector.netUtility * 100);
 
-        if (GUILD_FACTIONS.has(tribeLower) || tribeLower.includes('_guild') || tribeLower.includes('_shard')) {
-          score += 20;
-        } else if (tribeLower.includes('saproling') || tribeLower.includes('fungus') || tribeLower.includes('hongo')) {
-          const isDirectMatch = typeLine.includes('fungus') || typeLine.includes('saproling') || 
-                                oracleText.includes('saproling') || oracleText.includes('fungus') ||
-                                nameLower.includes('slimefoot') || nameLower.includes('thallid');
-          if (isDirectMatch) {
-            score += 45;
-            if (oracleText.includes('create') && oracleText.includes('saproling')) score += 30; // Premier Saproling generator
-            if (oracleText.includes('fungi you control') || oracleText.includes('saprolings you control')) score += 25;
-          } else if (role.includes('tribal_density')) {
-            score -= 120;
-          }
-        } else if (tribeLower.includes('wall') || tribeLower.includes('muro') || tribeLower.includes('defender')) {
-          const isDirectMatch = typeLine.includes('wall') || typeLine.includes('plant') || typeLine.includes('treefolk') ||
-                                oracleText.includes('defender') || oracleText.includes('toughness') ||
-                                nameLower.includes('arcades') || nameLower.includes('doran');
-          if (isDirectMatch) {
-            score += 45;
-            if (oracleText.includes('defender') || typeLine.includes('wall')) score += 25;
-            if (nameLower.includes('arcades') || oracleText.includes('rather than its power') || oracleText.includes('rather than their power')) score += 40;
-          } else if (role.includes('tribal_density')) {
-            score -= 120;
-          }
-        } else if (tribeLower.includes('sea_monster') || tribeLower.includes('sea') || tribeLower.includes('marino') || tribeLower.includes('kraken')) {
-          const seaSubtypes = ['merfolk', 'kraken', 'leviathan', 'octopus', 'serpent', 'fish'];
-          const isDirectMatch = seaSubtypes.some(sub => typeLine.includes(sub) || oracleText.includes(sub));
-          if (isDirectMatch) {
-            score += 45;
-            if (oracleText.includes('kraken') || oracleText.includes('leviathan') || oracleText.includes('serpent') || oracleText.includes('octopus')) score += 25;
-          } else if (role.includes('tribal_density')) {
-            score -= 120;
-          }
-        } else if (tribeLower.includes('outlaw')) {
-          const outlawSubtypes = ['assassin', 'mercenary', 'pirate', 'rogue', 'warlock'];
-          const isDirectMatch = outlawSubtypes.some(sub => typeLine.includes(sub) || oracleText.includes(sub));
-          if (isDirectMatch) {
-            score += 45;
-          } else if (role.includes('tribal_density')) {
-            score -= 120;
-          }
-        } else if (tribeLower.includes('party')) {
-          const partySubtypes = ['cleric', 'rogue', 'warrior', 'wizard'];
-          const isDirectMatch = partySubtypes.some(sub => typeLine.includes(sub) || oracleText.includes(sub));
-          if (isDirectMatch) {
-            score += 45;
-          } else if (role.includes('tribal_density')) {
-            score -= 120;
-          }
-        } else if (tribeLower.includes('human_army') || tribeLower.includes('ejército')) {
-          const armySubtypes = ['human', 'soldier', 'knight'];
-          const isDirectMatch = armySubtypes.some(sub => typeLine.includes(sub) || oracleText.includes(sub));
-          if (isDirectMatch) {
-            score += 45;
-          } else if (role.includes('tribal_density')) {
-            score -= 120;
-          }
-        } else if (tribeLower.includes('goblin_horde') || tribeLower.includes('horda')) {
-          const hordeSubtypes = ['goblin', 'ogre', 'orc'];
-          const isDirectMatch = hordeSubtypes.some(sub => typeLine.includes(sub) || oracleText.includes(sub));
-          if (isDirectMatch) {
-            score += 45;
-          } else if (role.includes('tribal_density')) {
-            score -= 120;
-          }
-        } else if (tribeLower.includes('elf_druid') || tribeLower.includes('naturaleza')) {
-          const druidSubtypes = ['elf', 'druid', 'elemental'];
-          const isDirectMatch = druidSubtypes.some(sub => typeLine.includes(sub) || oracleText.includes(sub));
-          if (isDirectMatch) {
-            score += 45;
-          } else if (role.includes('tribal_density')) {
-            score -= 120;
-          }
-        } else if (tribeLower.includes('undead_scourge') || tribeLower.includes('plaga')) {
-          const undeadSubtypes = ['zombie', 'skeleton', 'vampire', 'horror'];
-          const isDirectMatch = undeadSubtypes.some(sub => typeLine.includes(sub) || oracleText.includes(sub));
-          if (isDirectMatch) {
-            score += 45;
-          } else if (role.includes('tribal_density')) {
-            score -= 120;
-          }
-        } else if (tribeLower.includes('apex_predator') || tribeLower.includes('depredador')) {
-          const apexSubtypes = ['dinosaur', 'beast', 'hydra'];
-          const isDirectMatch = apexSubtypes.some(sub => typeLine.includes(sub) || oracleText.includes(sub));
-          if (isDirectMatch) {
-            score += 45;
-          } else if (role.includes('tribal_density')) {
-            score -= 120;
-          }
-        } else if (tribeLower.includes('werewolf')) {
-          const wolfSubtypes = ['werewolf', 'wolf', 'human'];
-          const isDirectMatch = wolfSubtypes.some(sub => typeLine.includes(sub) || oracleText.includes(sub));
-          if (isDirectMatch) {
-            score += 45;
-          } else if (role.includes('tribal_density')) {
-            score -= 120;
-          }
-        } else {
-          if (typeLine.includes(tribeLower)) {
-            score += 35;
-          } else if (role.includes('tribal_density')) {
-            score -= 120; // Strict penalty for off-tribe creatures in tribal density slots!
-          }
-        }
-      }
+      return {
+        card,
+        score,
+        stateDelta,
+        dominanceVector,
+        evidenceTags
+      };
+    });
 
-      // Penalize pure lands or land MDFCs in non-land spell slots
-      if (role !== 'land' && typeLine.includes('land')) {
-        score -= 500;
-      }
+    // Sort deterministically by StateCandidateRanker dominance vectors
+    evaluated.sort((a, b) => StateCandidateRanker.compareDominanceVectors(b.dominanceVector, a.dominanceVector));
 
-      // ─── POWER LEVEL & CONSTRUCTED EFFICIENCY SCORING ─────────────────────
-      const powerLevel = (intentPackage.powerLevel || 'Competitive').toLowerCase();
-      const rarity = (card.rarity || 'common').toLowerCase();
-
-      if (powerLevel === 'competitive' || powerLevel === 'high-power') {
-        if (rarity === 'mythic') score += 20;
-        else if (rarity === 'rare') score += 15;
-        else if (rarity === 'uncommon') score += 5;
-
-        // Dynamic Efficiency & Versatility Evaluation (Zero Hardcoded Names)
-        const isInstantSpeed = typeLine.includes('instant') || oracleText.includes('flash');
-        if (isInstantSpeed) score += 15;
-
-        const isModalOrFlexible = oracleText.includes('choose one') || oracleText.includes('choose two') || oracleText.includes('kicker');
-        if (isModalOrFlexible) score += 15;
-
-        // Card Velocity (cantrip / card advantage)
-        if (oracleText.includes('draw a card') || oracleText.includes('draw two') || oracleText.includes('look at the top')) {
-          score += 15;
-        }
-      }
-
-      // ─── UNIVERSAL DEMAND-SUPPLY CAUSAL CONTRACT ─────────────────────────
-      // If candidate has hard prerequisites (e.g. Artifacts, Sacrifice, Graveyard), evaluate against deck
-      const candidateDemands = DemandSupplyLedger.extractCardDemands(card);
-      if (candidateDemands.length > 0) {
-        for (const demand of candidateDemands) {
-          if (demand.necessity === 'HARD') {
-            // Check if current pool / deck provides this infrastructure
-            const hasPoolSupply = filteredPool.some(otherCard => {
-              const oOracle = (otherCard.oracle_text || otherCard.oracleText || '').toLowerCase();
-              const oType = (otherCard.type_line || otherCard.typeLine || '').toLowerCase();
-              if (demand.resource === 'ARTIFACT_CONTROL') return oType.includes('artifact') || oOracle.includes('treasure');
-              if (demand.resource === 'SACRIFICE_FODDER') return oType.includes('creature') || oOracle.includes('token');
-              if (demand.resource === 'GRAVEYARD_SUPPLY') return oType.includes('instant') || oType.includes('sorcery') || oOracle.includes('mill');
-              return false;
-            });
-
-            if (!hasPoolSupply) {
-              score -= 300; // Hard rejection for unfulfilled infrastructure demands
-            }
-          }
-        }
-      }
-
-      // ─── SYNERGY BOOST KEYWORDS SCORING ──────────────────────────────────
-      const userBoostKws = intentPackage.userConstraints?.boostKeywords || intentPackage.boostKeywords || [];
-      if (Array.isArray(userBoostKws) && userBoostKws.length > 0) {
-        let kwMatches = 0;
-        const cardNameLower = (card.name || '').toLowerCase();
-        for (const kw of userBoostKws) {
-          const kwLower = String(kw).toLowerCase().trim();
-          if (!kwLower) continue;
-          if (oracleText.includes(kwLower) || typeLine.includes(kwLower) || cardNameLower.includes(kwLower)) {
-            kwMatches++;
-          }
-        }
-        score += Math.min(45, kwMatches * 15);
-      }
-
-      // ─── RAMP ACCELERATION ROLE ───────────────────────────────────────────
-      if (role.includes('ramp') || role.includes('acceleration') || role.includes('mana_dork')) {
-        const manaSupply = contract ? contract.supplies.find(s => s.capability === 'MANA_ACCELERATION') : null;
-        const isSpellslingerIntent = (intentPackage.tempo || intentPackage.archetype || '').toLowerCase().includes('spellslinger') || (intentPackage.tempo || intentPackage.archetype || '').toLowerCase().includes('storm');
-        const isToolboxIntent = (intentPackage.tempo || intentPackage.archetype || '').toLowerCase().includes('toolbox');
-
-        if (manaSupply) {
-          if (manaSupply.isUniversal) {
-            score += 75;
-            if (typeLine.includes('creature')) {
-              if (isSpellslingerIntent) score -= 15; // Non-spell creature dorks are deprioritized in spellslinger
-              else score += 30; // Premier creature dork in stompy/ramp (Halfling, Llanowar, Birds)
-            }
-            if (cmc <= 2) score += 25;
-            else if (cmc === 3) score += 15;
-            else score -= (cmc - 3) * 20;
-          } else if (manaSupply.domain === 'INSTANT_OR_SORCERY_ONLY') {
-            if (isSpellslingerIntent) {
-              score += 95; // Dedicated Spellslinger acceleration engine
-              if (cmc <= 2) score += 30;
-            } else {
-              score -= 250; // Cannot ramp creatures/permanents in Stompy/Creature Ramp!
-            }
-          } else if (manaSupply.domain === 'ACTIVATED_ABILITIES_ONLY') {
-            if (isToolboxIntent) {
-              score += 95;
-            } else {
-              score -= 250; // Cannot cast spells with ability mana!
-            }
-          } else if (manaSupply.domain === 'LEGENDARY_SPELLS_ONLY') {
-            if (isSpellslingerIntent) {
-              score -= 250; // Cannot cast instant/sorcery spells with legendary-restricted mana
-            } else {
-              score += 50;
-            }
-          } else {
-            score += 30;
-          }
-        } else {
-          score -= 200; // Not a ramp accelerator!
-        }
-      }
-
-      // ─── COUNTER & ENGINE SYNERGY ROLE ────────────────────────────────────
-      if (role.includes('counter_synergy') || role.includes('counter') || role.includes('engine')) {
-        const isCounterEngine = oracleText.includes('+1/+1 counter') ||
-                                oracleText.includes('double the number of') ||
-                                oracleText.includes('proliferate') ||
-                                oracleText.includes('counters on');
-        if (isCounterEngine) {
-          score += 45;
-          if (typeLine.includes('enchantment') || typeLine.includes('artifact') || typeLine.includes('creature')) {
-            score += 20; // Stable engine permanence (Innkeeper's Talent, Ozolith, Kami)
-          }
-        } else {
-          score -= 150;
-        }
-      }
-
-      // ─── SACRIFICE OUTLET & ARISTOCRATS ROLE ─────────────────────────────
-      if (role.includes('sacrifice_outlet') || role.includes('sac_outlet')) {
-        const isSacOutlet = oracleText.includes('sacrifice a creature:') ||
-                            oracleText.includes('sacrifice another creature:') ||
-                            oracleText.includes('sacrifice a creature or') ||
-                            oracleText.includes('sacrifice an artifact or creature:');
-        if (isSacOutlet) {
-          score += 55;
-          if (cmc <= 2) score += 25; // Premier 1-2 drop sac outlet (Viscera Seer, Carrion Feeder, Yawgmoth, Bartolome)
-          if (oracleText.includes('sacrifice a creature: put') || oracleText.includes('scry')) score += 15;
-        } else {
-          score -= 150;
-        }
-      }
-
-      // ─── DEATH PAYOFF & DRAIN ROLE ─────────────────────────────────────────
-      if (role.includes('death_payoff') || role.includes('drain')) {
-        const isDeathPayoff = oracleText.includes('whenever a creature dies') ||
-                              oracleText.includes('whenever another creature you control dies') ||
-                              oracleText.includes('whenever you sacrifice a creature') ||
-                              oracleText.includes('loses 1 life and you gain 1 life') ||
-                              oracleText.includes('each opponent loses 1 life');
-        if (isDeathPayoff) {
-          score += 55;
-          if (cmc <= 3) score += 20; // Blood Artist, Zulaport, Cruel Celebrant, Bastion of Remembrance
-        } else {
-          score -= 150;
-        }
-      }
-
-      // ─── RECURSIVE FODDER & TOKEN GENERATORS ──────────────────────────────
-      if (role.includes('recursive_fodder') || role.includes('fodder')) {
-        const isFodder = oracleText.includes('return from your graveyard') ||
-                         oracleText.includes('when this creature dies, create') ||
-                         oracleText.includes('create a token') ||
-                         oracleText.includes('create two') ||
-                         oracleText.includes('afterlife') ||
-                         oracleText.includes('decayed');
-        if (isFodder) {
-          score += 45;
-          if (cmc <= 2) score += 20; // Gravecrawler, Doomed Traveler, Stitcher's Supplier, Greedy Freebooter
-        }
-      }
-
-      // ─── PROWESS & SPELLSLINGER ENGINE ────────────────────────────────────
-      if (role.includes('prowess') || role.includes('magecraft') || role.includes('spell_payoff')) {
-        const isProwess = oracleText.includes('prowess') ||
-                          oracleText.includes('magecraft') ||
-                          oracleText.includes('whenever you cast an instant or sorcery') ||
-                          oracleText.includes('whenever you cast a noncreature spell');
-        if (isProwess) {
-          score += 50;
-          if (cmc <= 2) score += 25; // Monastery Swiftspear, Soul-Scar Mage, Slickshot Show-Off, Sprite Dragon
-        } else {
-          score -= 150;
-        }
-      }
-
-      // ─── AFFINITY & ARTIFACT ENABLERS ─────────────────────────────────────
-      if (role.includes('affinity') || role.includes('artifact_payoff')) {
-        const isAffinity = oracleText.includes('affinity for artifacts') ||
-                           oracleText.includes('number of artifacts you control') ||
-                           oracleText.includes('metalcraft') ||
-                           oracleText.includes('for each artifact you control');
-        if (isAffinity) {
-          score += 50;
-        }
-      }
-
-      // ─── ENCHANTRESS & AURA ENGINE ────────────────────────────────────────
-      if (role.includes('enchantress') || role.includes('aura_buff')) {
-        const isEnchantress = oracleText.includes('whenever you cast an enchantment') ||
-                              oracleText.includes('constellation') ||
-                              oracleText.includes('enchant creature') ||
-                              oracleText.includes('enchanted creature gets');
-        if (isEnchantress) {
-          score += 50;
-        }
-      }
-
-      // ─── LIFEGAIN & GROWTH PAYOFFS ────────────────────────────────────────
-      if (role.includes('lifegain') || role.includes('growth_payoff')) {
-        const isLifegain = oracleText.includes('whenever you gain life') ||
-                           oracleText.includes('lifelink') ||
-                           oracleText.includes('whenever another creature enters the battlefield under your control, you gain 1 life');
-        if (isLifegain) {
-          score += 45;
-          if (oracleText.includes('+1/+1 counter') || oracleText.includes('create a')) score += 20; // Pridemate, Voice of the Blessed
-        }
-      }
-
-      // ─── FINISHER & HIGH CURVE PAYOFFS ────────────────────────────────────
-      if (role.includes('finisher') || role.includes('high_curve') || role.includes('top_curve') || role.includes('payoff')) {
-        const isThreat = typeLine.includes('creature') || oracleText.includes('enters with x') || oracleText.includes('haste');
-        if (isThreat) {
-          if (cmc >= 4 || oracleText.includes('enters with x') || oracleText.includes('x +1/+1')) {
-            score += 45;
-          } else {
-            score -= (4 - cmc) * 15;
-          }
-        }
-      }
-
-      // ─── CURVE & TIMING STRICT ENFORCEMENT ────────────────────────────────
-      // TURN1_PRESSURE / TURN1_PLAY: Must be CMC 1 (or X-cost scalable at 1)
-      if (role.includes('turn1') || role.includes('turn 1') || role.includes('early_play')) {
-        if (cmc === 1 || (cmc === 0 && (oracleText.includes('enters with x') || oracleText.includes('x +1/+1')))) {
-          score += 40;
-        } else {
-          score -= (cmc - 1) * 40; // Heavy penalty for CMC > 1 in Turn 1 slot
-        }
-      }
-
-      // TURN2_PRESSURE / TURN2_PLAY: Must be CMC 2
-      if (role.includes('turn2') || role.includes('turn 2')) {
-        if (cmc === 2) {
-          score += 40;
-        } else if (cmc === 1) {
-          score += 15;
-        } else {
-          score -= (cmc - 2) * 40; // Heavy penalty for CMC >= 3 in Turn 2 slot
-        }
-      }
-
-      // BOARD_PRESENCE / MID_CURVE: Optimal at CMC 3-4
-      if (role.includes('board_presence') || role.includes('mid_curve')) {
-        if (cmc >= 2 && cmc <= 4) {
-          score += 25;
-        } else if (cmc > 5) {
-          score -= (cmc - 4) * 15;
-        }
-      }
-
-      // Hard Type Enforcement for Density & Presence Roles:
-      // TRIBAL_DENSITY, BOARD_PRESENCE, TURN1_PRESSURE, TURN2_PRESSURE MUST be creatures or token creators!
-      if (role.includes('tribal_density') || role.includes('board_presence') || role.includes('pressure')) {
-        if (typeLine.includes('creature')) {
-          score += 30;
-        } else if (oracleText.includes('creature token') || oracleText.includes('token creature')) {
-          score += 15;
-        } else {
-          // Penalize non-creature Kindred spells (Sorceries, Enchantments, Instant)
-          score -= 100;
-        }
-      }
-
-      // ─── CHEAP REMOVAL & BURN REACH ROLES ─────────────────────────────────
-      if (role.includes('cheap_removal') || role.includes('cheap removal') || role.includes('removal') || role.includes('burn')) {
-        const isSpell = typeLine.includes('instant') || typeLine.includes('sorcery');
-        const isInstant = typeLine.includes('instant');
-        const hasUnconditionalRemoval = oracleText.includes('destroy target creature') ||
-                                        oracleText.includes('exile target creature') ||
-                                        oracleText.includes('target creature gets -') ||
-                                        oracleText.includes('destroy target nonland permanent') ||
-                                        oracleText.includes('exile target nonland permanent') ||
-                                        oracleText.includes('deals damage to any target') ||
-                                        oracleText.includes('deals 3 damage to target') ||
-                                        oracleText.includes('deals 2 damage to target') ||
-                                        oracleText.includes('deals 4 damage to target') ||
-                                        oracleText.includes('counter target');
-
-        const hasConditionalRemoval = oracleText.includes('fights') ||
-                                      oracleText.includes('deals damage equal to its power') ||
-                                      oracleText.includes('bite') ||
-                                      oracleText.includes('deals damage to target creature');
-
-        if (hasUnconditionalRemoval) {
-          score += 85; // Massive bonus for true unconditional removal!
-          if (isInstant) score += 30; // Instant speed is king in MTG removal!
-          if (cmc <= 1) score += 40; // 1-mana premium (Cut Down, Fatal Push, Shock, Torch the Tower)
-          else if (cmc === 2) score += 35; // 2-mana premier (Go for the Throat, Bitter Triumph, Lightning Strike, Infernal Grasp, Tear Asunder)
-          else if (cmc === 3) score += 15;
-          else score -= (cmc - 2) * 25;
-        } else if (hasConditionalRemoval) {
-          score += 30;
-          if (cmc <= 1) score += 15;
-          else if (cmc === 2) score += 10;
-        } else {
-          score -= 300; // Strictly penalize non-removal cards in CHEAP_REMOVAL slots!
-        }
-      }
-
-      if (role.includes('flow') || role.includes('card_flow')) {
-        const hasDrawAction = oracleText.includes('draw a card') ||
-                              oracleText.includes('draw cards') ||
-                              oracleText.includes('draws a card') ||
-                              oracleText.includes('search your library') ||
-                              oracleText.includes('reveal the top');
-        if (hasDrawAction) {
-          score += 25;
-          if (typeLine.includes('instant') || typeLine.includes('sorcery')) score += 20;
-          if (oracleText.includes('mana value 5 or greater') || oracleText.includes('power 4 or greater') || oracleText.includes('counter')) {
-            score += 30;
-          }
-          if (cmc <= 3) score += 15;
-        }
-      }
-
-      return { card, score };
-    }).sort((a, b) => b.score - a.score);
+    return evaluated;
   }
-
 
   /**
    * WinnerSelector: Selects the winning card and top alternatives for a slot.
    */
-  selectWinnerForSlot(slot, rankedCandidates, usedWinnersCount, intentPackage, filledSlots = []) {
-    const format = intentPackage.format.toUpperCase();
+  selectWinnerForSlot(slot, rankedCandidates, usedWinnersCount, intentPackage, filledSlots = [], deckIdentity = null, filteredPool = []) {
+    const format = (intentPackage.format || 'MODERN').toUpperCase();
     const maxPlayset = format === 'COMMANDER' ? 1 : 4;
 
     const currentDeckState = {
-      cards: filledSlots.map(s => ({ card: s.winnerCardObj || { name: s.winnerCard }, count: s.requiredDensity }))
+      cards: filledSlots.map(s => ({ card: s.winnerCardObj || { name: s.winnerCard }, count: s.requiredDensity || 4 }))
     };
 
     for (const item of rankedCandidates) {
       const cardName = item.card.name;
       const currentQty = usedWinnersCount.get(cardName) || 0;
 
-      // Verify operational demands against current deck state infrastructure
-      const demandAudit = DemandSupplyLedger.auditCardDemands(item.card, currentDeckState, intentPackage);
-      if (!demandAudit.isSatisfied) {
-        continue; // Skip cards with unsatisfied HARD operational demands
+      // Skip candidates that failed the role proof obligation
+      if (item.dominanceVector && item.dominanceVector.roleValidity === false) {
+        continue;
+      }
+
+      // 1. Verify multi-dimensional marginal state gain & operational dependencies via CurveExecutionAnalyzer
+      const execVector = CurveExecutionAnalyzer.evaluateMarginalAddition(currentDeckState, item.card, intentPackage, slot);
+      if (!execVector.isAccepted) {
+        continue; // Skip candidates that produce negative marginal state gain or fail hard dependencies
       }
 
       // Ensure distinct winner cards across packages to prevent fractional split violations
@@ -724,7 +429,6 @@ export class CandidateConstraintEngine {
           used => StateCandidateRanker.extractCharacterRoot(used) === cardRoot && used !== cardName
         );
 
-        // If there is a legendary collision and other non-colliding candidates exist, prefer alternatives
         if (hasLegendaryCollision) {
           const nonCollidingAlt = rankedCandidates.find(c => {
             const altName = c.card.name;
@@ -733,7 +437,7 @@ export class CandidateConstraintEngine {
             const altCollides = altIsLegendary && Array.from(usedWinnersCount.keys()).some(
               used => StateCandidateRanker.extractCharacterRoot(used) === altRoot
             );
-            return !usedWinnersCount.has(altName) && !altCollides;
+            return !usedWinnersCount.has(altName) && !altCollides && c.dominanceVector?.roleValidity !== false;
           });
 
           if (nonCollidingAlt) {
@@ -742,11 +446,11 @@ export class CandidateConstraintEngine {
         }
 
         const altCards = rankedCandidates
-          .filter(c => c.card.name !== cardName && !usedWinnersCount.has(c.card.name))
+          .filter(c => c.card.name !== cardName && !usedWinnersCount.has(c.card.name) && c.dominanceVector?.roleValidity !== false)
           .slice(0, 3)
           .map(c => c.card.name);
 
-        const confidenceScore = Math.min(1.0, Math.max(0.5, item.score / 35));
+        const confidenceScore = Math.min(1.0, Math.max(0.5, item.score / 350));
         const tribeInfo = intentPackage.primaryTribe ? ` matching ${intentPackage.primaryTribe} tribe` : '';
 
         return {
@@ -754,18 +458,59 @@ export class CandidateConstraintEngine {
           winnerCardObj: item.card,
           alternatives: altCards,
           confidenceScore: Math.round(confidenceScore * 100) / 100,
-          allocationReason: `Selected "${cardName}" with score ${item.score} for slot [${slot.role}]${tribeInfo}`
+          allocationReason: `Selected "${cardName}" (StateDelta: ${item.dominanceVector?.netUtility ?? item.score}) for slot [${slot.role}]${tribeInfo}`
         };
       }
     }
 
-    // Fallback if no unused card available
+    // Secondary search: If slot is tribal density, search filteredPool for unused on-tribe creatures
+    const slotRoleLower = (slot.role || '').toLowerCase();
+    if (slotRoleLower.includes('tribal_density') || slotRoleLower.includes('tribal')) {
+      const primaryTribe = intentPackage.primaryTribe || '';
+      const fallbackCreature = (filteredPool || []).find(c => {
+        const t = (c.type_line || c.typeLine || '').toLowerCase();
+        const isCreature = t.includes('creature') && !t.includes('vehicle') && !t.includes('land');
+        return isCreature && !usedWinnersCount.has(c.name) && IdentityFirewall.isMatchingTribe(c, primaryTribe);
+      });
+
+      if (fallbackCreature) {
+        return {
+          winnerCard: fallbackCreature.name,
+          winnerCardObj: fallbackCreature,
+          alternatives: [],
+          confidenceScore: 0.7,
+          allocationReason: `Selected on-tribe creature "${fallbackCreature.name}" for slot [${slot.role}] matching ${primaryTribe} tribe`
+        };
+      }
+    }
+
+    // Fallback: Search for any unused valid candidate in rankedCandidates or filteredPool
+    const unusedCandidate = rankedCandidates.find(c => c.dominanceVector?.roleValidity !== false && !usedWinnersCount.has(c.card?.name || c.name)) ||
+      rankedCandidates.find(c => !usedWinnersCount.has(c.card?.name || c.name));
+
+    const unusedPoolCard = unusedCandidate?.card || (filteredPool || []).find(c => {
+      const type = (c.type_line || c.typeLine || '').toLowerCase();
+      return !type.includes('land') && !usedWinnersCount.has(c.name);
+    });
+
+    if (unusedPoolCard) {
+      const confScore = unusedCandidate ? Math.min(1.0, Math.max(0.5, (unusedCandidate.score || 0) / 350)) : 0.6;
+      return {
+        winnerCard: unusedPoolCard.name,
+        winnerCardObj: unusedPoolCard,
+        alternatives: [],
+        confidenceScore: Math.round(confScore * 100) / 100,
+        allocationReason: `Marginal fallback allocation of unused candidate "${unusedPoolCard.name}" for slot [${slot.role}]`
+      };
+    }
+
     const tribeName = intentPackage.primaryTribe || (slot.origin && slot.origin.field === 'primaryTribe' ? slot.origin.value : '');
     const mechanicName = (intentPackage.mechanics && intentPackage.mechanics[0]) || '';
     const tag = tribeName ? `${tribeName} ` : (mechanicName ? `${mechanicName} ` : '');
 
-    const fallbackName = rankedCandidates[0] ? rankedCandidates[0].card.name : `[${tag}${slot.role}]`;
-    const fallbackObj = rankedCandidates[0] ? rankedCandidates[0].card : {
+    const validCandidate = rankedCandidates.find(c => c.dominanceVector?.roleValidity !== false);
+    const fallbackName = validCandidate ? validCandidate.card.name : `[${tag}${slot.role}]`;
+    const fallbackObj = validCandidate ? validCandidate.card : {
       name: fallbackName,
       type_line: tribeName ? `Creature — ${tribeName}` : 'Creature',
       oracle_text: mechanicName ? `Stomp — deal 2 damage.` : '',

@@ -32,32 +32,76 @@ export class IntentBuilder {
 
     const archetype = input.archetype || input.arquetipo || input.tempo || null;
     const rawTribe = input.tribe || input.tribu || input.primaryTribe || null;
-    let primaryTribe = rawTribe ? IntentNormalizer.normalizeTribe(rawTribe) : null;
-    if (primaryTribe && ['none', 'null', 'general', 'ninguna', 'sin tribu', 'omitir', 'universal'].includes(primaryTribe.toLowerCase().trim())) {
-      primaryTribe = null;
+    let explicitNoTribe = false;
+    let primaryTribe = null;
+
+    if (rawTribe) {
+      const normTribe = IntentNormalizer.normalizeTribe(rawTribe);
+      if (normTribe && ['none', 'null', 'general', 'ninguna', 'sin tribu', 'omitir', 'universal', 'no', 'sin_tribu'].includes(normTribe.toLowerCase().trim())) {
+        explicitNoTribe = true;
+        primaryTribe = null;
+      } else {
+        primaryTribe = normTribe;
+      }
     }
-    
-    // Auto-detect primaryTribe from selectedEngineId or engineFlavor if tribe is unselected
+
+    // Auto-detect primaryTribe from prompt only if tribe is not explicitly set to 'none'
+    const promptStr = String(input.customPrompt || input.prompt || input.rawPrompt || '').toLowerCase();
     const engId = (input.selectedEngineId || input.engineId || '').toLowerCase();
     const engFlav = (input.engineFlavor || input.flavor || '').toLowerCase();
-    const comb = `${engId} ${engFlav}`;
-    if (!primaryTribe) {
-      if (comb.includes('goblin')) primaryTribe = 'Goblin';
-      else if (comb.includes('dragon')) primaryTribe = 'Dragon';
-      else if (comb.includes('elf')) primaryTribe = 'Elf';
-      else if (comb.includes('merfolk')) primaryTribe = 'Merfolk';
-      else if (comb.includes('vampire')) primaryTribe = 'Vampire';
-      else if (comb.includes('zombie')) primaryTribe = 'Zombie';
-      else if (comb.includes('angel')) primaryTribe = 'Angel';
-      else if (comb.includes('demon')) primaryTribe = 'Demon';
+    const stratStr = Array.isArray(input.strategy) ? input.strategy.join(' ').toLowerCase() : String(input.strategy || input.estrategia || '').toLowerCase();
+    
+    // Only allow auto-detection if the user did NOT explicitly opt out of tribes
+    if (!primaryTribe && !explicitNoTribe) {
+      const comb = `${engId} ${engFlav} ${stratStr} ${promptStr}`;
+      if (comb.includes('sea_monster') || comb.includes('marino') || comb.includes('kraken') || comb.includes('leviathan') || comb.includes('serpent') || comb.includes('octopus')) {
+        primaryTribe = 'Sea_monsters';
+      } else if (comb.includes('werewolf') || comb.includes('hombre lobo') || comb.includes('lobo')) {
+        primaryTribe = 'Werewolf';
+      } else if (comb.includes('saproling') || comb.includes('fungus') || comb.includes('hongo')) {
+        primaryTribe = 'Saproling';
+      } else if (comb.includes('wall') || comb.includes('muro') || comb.includes('defender')) {
+        primaryTribe = 'Wall';
+      } else if (comb.includes('thopter') || comb.includes('servo')) {
+        primaryTribe = 'Thopter';
+      } else if (comb.includes('outlaw') || comb.includes('forajido')) {
+        primaryTribe = 'Outlaw';
+      } else if (comb.includes('party')) {
+        primaryTribe = 'Party';
+      } else if (promptStr.includes('goblin') || (promptStr.includes('trasgo') && !promptStr.includes('sin trasgo'))) {
+        primaryTribe = 'Goblin';
+      } else if (promptStr.includes('dragon') || promptStr.includes('dragón')) {
+        primaryTribe = 'Dragon';
+      } else if (promptStr.includes('elf') || promptStr.includes('elfo')) {
+        primaryTribe = 'Elf';
+      } else if (promptStr.includes('merfolk') || promptStr.includes('tritón') || promptStr.includes('triton')) {
+        primaryTribe = 'Merfolk';
+      } else if (promptStr.includes('vampire') || promptStr.includes('vampiro')) {
+        primaryTribe = 'Vampire';
+      } else if (promptStr.includes('zombie')) {
+        primaryTribe = 'Zombie';
+      } else if (promptStr.includes('dinosaur') || promptStr.includes('dinosaurio')) {
+        primaryTribe = 'Dinosaur';
+      } else if (promptStr.includes('angel') || promptStr.includes('ángel')) {
+        primaryTribe = 'Angel';
+      } else if (promptStr.includes('demon') || promptStr.includes('demonio')) {
+        primaryTribe = 'Demon';
+      }
     }
 
     const rawStrategy = Array.isArray(input.strategy) 
       ? input.strategy 
       : (typeof input.strategy === 'string' && input.strategy.trim() ? [input.strategy.trim()] : (input.estrategia ? [input.estrategia] : []));
-    const rawMechanics = Array.isArray(input.mechanics) 
-      ? input.mechanics 
-      : (typeof input.mechanics === 'string' && input.mechanics.trim() ? [input.mechanics.trim()] : (input.mecanicas ? [input.mecanicas] : []));
+    
+    let rawMechanics = [];
+    const mechanicsInput = input.mechanics || input.mecanicas || [];
+    if (Array.isArray(mechanicsInput)) {
+      rawMechanics = mechanicsInput;
+    } else if (typeof mechanicsInput === 'string' && mechanicsInput.trim()) {
+      rawMechanics = [mechanicsInput.trim()];
+    } else if (mechanicsInput && typeof mechanicsInput === 'object') {
+      rawMechanics = mechanicsInput;
+    }
     
     const budget = input.budget || input.presupuesto || 'Unlimited';
     const powerLevel = input.powerLevel || input.nivelPoder || 'Competitive';
@@ -90,15 +134,21 @@ export class IntentBuilder {
 
     const tribeKey = primaryTribe ? primaryTribe.toLowerCase() : '';
 
+    const flattenedMechanics = Array.isArray(rawMechanics) 
+      ? rawMechanics 
+      : (rawMechanics && typeof rawMechanics === 'object' 
+          ? [...(rawMechanics.required || []), ...(rawMechanics.preferred || []), ...(rawMechanics.optional || [])] 
+          : []);
+
     // Search terms for universal engines
     const searchTerms = [
       selectedEngineId || '',
       engineFlavor || '',
       ...rawStrategy,
-      ...rawMechanics
+      ...flattenedMechanics
     ].map(t => String(t).toLowerCase().trim()).filter(Boolean);
 
-    const matchingEngine = UNIVERSAL_ENGINES.find(e => {
+    const matchingEngine = searchTerms.length > 0 ? UNIVERSAL_ENGINES.find(e => {
       const eId = e.id.toLowerCase();
       const eBase = eId.replace('_generic', '');
       const eLabel = (e.label || '').toLowerCase();
@@ -106,13 +156,13 @@ export class IntentBuilder {
         t === eId || 
         t === eBase || 
         t === eLabel || 
-        eLabel.includes(t) || 
-        t.includes(eBase)
+        (t.length >= 3 && eLabel.includes(t)) || 
+        (eBase.length >= 3 && t.includes(eBase))
       );
-    });
+    }) : null;
 
     let strategy = [...rawStrategy];
-    let mechanics = [...rawMechanics];
+    let mechanics = Array.isArray(rawMechanics) ? [...rawMechanics] : rawMechanics;
 
     if (matchingEngine) {
       const baseName = matchingEngine.id.replace('_generic', '');
@@ -132,11 +182,11 @@ export class IntentBuilder {
       }
     }
 
-    const matchingTribe = MTG_TRIBES.find(t => t.id === tribeKey || t.subtypes?.includes(tribeKey) || t.label.toLowerCase().includes(tribeKey));
+    const matchingTribe = tribeKey ? MTG_TRIBES.find(t => t.id === tribeKey || t.subtypes?.includes(tribeKey) || t.label.toLowerCase().includes(tribeKey)) : null;
     if (matchingTribe) {
       if (colors.length === 0 && matchingTribe.colors) colors = [...matchingTribe.colors];
       if (matchingTribe.flavors) {
-        const matchingFlavor = matchingTribe.flavors.find(f => f.id === selectedEngineId || f.label.toLowerCase() === engineFlavor?.toLowerCase());
+        const matchingFlavor = matchingTribe.flavors.find(f => (selectedEngineId && f.id === selectedEngineId) || (engineFlavor && f.label.toLowerCase() === engineFlavor.toLowerCase()));
         if (matchingFlavor) {
           if (matchingFlavor.corePackageId) selectedCorePackagesSet.add(matchingFlavor.corePackageId);
           if (matchingFlavor.boostKeywords) matchingFlavor.boostKeywords.forEach(kw => boostKeywordsSet.add(kw));
@@ -145,8 +195,13 @@ export class IntentBuilder {
       }
     }
 
-    const stratKey = (selectedEngineId || (strategy[0] || '')).toLowerCase();
-    const matchingStrategy = MTG_STRATEGIES.find(s => s.id === stratKey || s.label.toLowerCase().includes(stratKey) || searchTerms.some(st => s.id === st || s.label.toLowerCase().includes(st)));
+    const stratKey = (selectedEngineId || (strategy[0] || '')).toLowerCase().trim();
+    const matchingStrategy = (stratKey || searchTerms.length > 0) ? MTG_STRATEGIES.find(s => {
+      if (stratKey && (s.id === stratKey || s.label.toLowerCase() === stratKey || (stratKey.length >= 3 && s.label.toLowerCase().includes(stratKey)))) {
+        return true;
+      }
+      return searchTerms.some(st => st && (s.id === st || (st.length >= 3 && s.label.toLowerCase().includes(st))));
+    }) : null;
     if (matchingStrategy) {
       if (matchingStrategy.keywords) matchingStrategy.keywords.forEach(kw => boostKeywordsSet.add(kw));
       if (colors.length === 0 && matchingStrategy.colors) colors = [...matchingStrategy.colors];
@@ -217,9 +272,6 @@ export class IntentBuilder {
     if (userConstraints.customBanlist.length > 0) {
       mustNotRules.push(...userConstraints.customBanlist);
     }
-    if (colors.length > 0 && !colors.includes('G')) {
-      mustNotRules.push('Llanowar Elves', 'Elvish Mystic', 'Birds of Paradise', 'Mono Green Devotion', 'Selesnya CoCo');
-    }
 
     const preferRules = Array.isArray(input.preferRules) ? [...input.preferRules] : [];
     if (mechanics.length > 0) {
@@ -250,8 +302,19 @@ export class IntentBuilder {
       reformulateIfRefuted: input.strategicFreedom?.reformulateIfRefuted ?? (thesisRefutationPolicy !== 'MAINTAIN_SUBOPTIMAL'),
       allowOffTribe: input.strategicFreedom?.allowOffTribe ?? Boolean(input.permitirFueraDeTribu)
     };
-    const decisionPhilosophy = input.decisionPhilosophy || input.filosofiaDecision || 'MAX_POWER';
-    const constructionMode = input.constructionMode || input.modoConstruccion || 'PRO';
+    const isFairPlay = Boolean(input.fairPlayMode);
+    const decisionPhilosophy = isFairPlay ? 'EXPERIENCE_FIRST' : (input.decisionPhilosophy || input.filosofiaDecision || 'MAX_POWER');
+    const constructionMode = isFairPlay ? 'BALANCED_FAIR' : (input.constructionMode || input.modoConstruccion || 'PRO');
+
+    let expectedWinTurn = 5;
+    const archLower = String(archetype || '').toLowerCase();
+    if (archLower.includes('aggro') || archLower.includes('burn') || archLower.includes('sligh')) {
+      expectedWinTurn = 4;
+    } else if (archLower.includes('control')) {
+      expectedWinTurn = 7;
+    } else if (archLower.includes('combo')) {
+      expectedWinTurn = 4;
+    }
 
     return new IntentPackage({
       prompt: input.customPrompt || input.prompt || (archetype ? `${archetype} ${format}` : ''),
@@ -264,6 +327,7 @@ export class IntentBuilder {
       budget,
       powerLevel,
       userConstraints,
+      expectedWinTurn,
       mustRules,
       mustNotRules,
       preferRules,

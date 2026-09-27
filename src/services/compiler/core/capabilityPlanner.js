@@ -91,12 +91,30 @@ export class CapabilityPlanner {
       'turn1_pressure': 'TURN1_PRESSURE',
       'turn2_pressure': 'TURN2_PRESSURE',
       'turn_pressure': 'TURN1_PRESSURE',
+      't1_pressure': 'TURN1_PRESSURE',
+      't2_pressure': 'TURN2_PRESSURE',
       'cheap_removal': 'CHEAP_REMOVAL',
       'removal': 'CHEAP_REMOVAL',
       'removal_density': 'CHEAP_REMOVAL',
+      'spot_removal': 'CHEAP_REMOVAL',
+      'counter_disruption': 'COUNTER_DISRUPTION',
+      'counterspell_suite': 'COUNTER_DISRUPTION',
+      'countermagic': 'COUNTER_DISRUPTION',
+      'counterspell': 'COUNTER_DISRUPTION',
+      'board_sweeper': 'BOARD_SWEEPER',
+      'sweeper': 'BOARD_SWEEPER',
+      'sweepers': 'BOARD_SWEEPER',
+      'board_wipes': 'BOARD_SWEEPER',
+      'mass_removal': 'BOARD_SWEEPER',
       'card_flow': 'CARD_FLOW',
       'card_velocity': 'CARD_FLOW',
+      'card_draw': 'CARD_FLOW',
+      'card_advantage': 'CARD_FLOW',
       'tribal_density': 'TRIBAL_DENSITY',
+      'ramp_acceleration': 'RAMP_ACCELERATION',
+      'amplify_board_pressure': 'AMPLIFY_BOARD_PRESSURE',
+      'board_presence': 'BOARD_PRESENCE',
+      'finisher': 'FINISHER',
       'mana_base': 'MANA_BASE'
     };
 
@@ -228,13 +246,18 @@ export class CapabilityPlanner {
           }
         }
 
-        const topAxis = spellAxes[0] || { id: 'CARD_FLOW', weight: 8 };
+        // Select support fill axis (prioritizing interaction/card flow over finisher bloat)
+        const supportAxes = spellAxes.filter(a => a.id !== 'FINISHER');
+        const fillAxis = supportAxes.length > 0 
+          ? supportAxes[slots.length % supportAxes.length] 
+          : (spellAxes[0] || { id: 'CARD_FLOW', weight: 8 });
+
         const chunkSize = Math.min(remainingBudget, maxPlayset);
         slots.push(new AllocationSlot({
-          slotId: `slot_${slotCounter++}_${topAxis.id}`,
-          role: topAxis.id,
+          slotId: `slot_${slotCounter++}_${fillAxis.id}`,
+          role: fillAxis.id,
           requiredDensity: chunkSize,
-          priority: Math.round((topAxis.weight || 1) * 10),
+          priority: Math.round((fillAxis.weight || 1) * 10),
           timing: 'MID',
           mandatory: false,
           origin: { field: 'budget', value: 'Fill' },

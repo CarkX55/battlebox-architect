@@ -41,7 +41,22 @@ export function buildDeckSkeletonAndSlots(deckDNA) {
   const colorStr = (deckDNA.colors || []).sort().join('');
 
   // Intentar buscar paquete core registrado
-  const coreDef = CORE_PACKAGES[archetypeKey] || CORE_PACKAGES[deckDNA.subArchetype];
+  let coreDef = CORE_PACKAGES[archetypeKey] || CORE_PACKAGES[deckDNA.subArchetype];
+  if (!coreDef) {
+    const k = (archetypeKey + ' ' + (deckDNA.subArchetype || '')).toLowerCase();
+    if (k.includes('burn') || k.includes('sligh')) coreDef = CORE_PACKAGES.burn;
+    else if (k.includes('elf') || k.includes('elves')) coreDef = CORE_PACKAGES.elves;
+    else if (k.includes('goblin')) coreDef = CORE_PACKAGES.goblins;
+    else if (k.includes('merfolk')) coreDef = CORE_PACKAGES.merfolk;
+    else if (k.includes('affinity') || k.includes('robot')) coreDef = CORE_PACKAGES.affinity;
+    else if (k.includes('control') || k.includes('azorius')) coreDef = CORE_PACKAGES.control;
+    else if (k.includes('midrange') || k.includes('jund')) coreDef = CORE_PACKAGES.midrange;
+    else if (k.includes('reanimat')) coreDef = CORE_PACKAGES.reanimator;
+    else if (k.includes('aristocrat') || k.includes('sacrifice')) coreDef = CORE_PACKAGES.aristocrats;
+    else if (k.includes('tron')) coreDef = CORE_PACKAGES.tron;
+    else if (k.includes('storm')) coreDef = CORE_PACKAGES.storm;
+    else if (k.includes('dredge')) coreDef = CORE_PACKAGES.dredge;
+  }
   if (coreDef && coreDef[formatKey]) {
     const formatCore = coreDef[formatKey];
     const rawList = (formatCore.colorVariants && formatCore.colorVariants[colorStr]) 

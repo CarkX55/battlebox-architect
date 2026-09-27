@@ -20,6 +20,8 @@ import TripartiteConstraintsManager from './TripartiteConstraintsManager';
 import StrategicContractPreview from './StrategicContractPreview';
 import { StrategicContractBridge } from '../../services/compiler/core/strategicContractBridge';
 import { IntentBuilder } from '../../services/compiler/core/intentBuilder';
+import { FormatWorldModel } from '../../services/compiler/core/formatWorldModel';
+import { DUEL_PACK_PRESETS } from '../../constants/duelPacks';
 
 // Componente de Renderizado Gráfico de Coste de Maná Premium (Scryfall Style)
 export function RenderManaCost({ manaCost, className }) {
@@ -739,6 +741,29 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
   const [synergyBlueprintContainer, setSynergyBlueprintContainer] = useState('all');
 
   const [forgeHistory, setForgeHistory] = useState([]);
+  const [showDuelPacksModal, setShowDuelPacksModal] = useState(false);
+
+  const handleLoadDuelDeck = (pack, deckConfig, deckNumber) => {
+    vibrateTouch();
+    onFormatChange?.(pack.format || 'MODERN');
+    setFormData(prev => ({
+      ...prev,
+      formato: (pack.format || 'MODERN').toLowerCase(),
+      archetype: deckConfig.archetype,
+      colores: [...deckConfig.colores],
+      tribe: deckConfig.tribe || '',
+      strategy: deckConfig.strategy || '',
+      selectedEngineId: deckConfig.strategy || '',
+      prompt: `[DUEL PACK: ${pack.title} - Mazo ${deckNumber}: ${deckConfig.name}] Mazo competitivo de 60 cartas equilibrado para jugar con amigos contra su némesis. ${deckConfig.desc}`,
+      deckSize: 60,
+      sideboardSize: 15,
+      singleton: false,
+      maxCopies: 4,
+      fairPlayMode: true
+    }));
+    setShowDuelPacksModal(false);
+    setCurrentStep(1);
+  };
 
   useEffect(() => {
     try {
@@ -1629,6 +1654,42 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
     }
   }, [groupedTribes, formData.archetype, activeTribeTab]);
 
+  // ─── AUDITORÍA CAUSAL DE MUNDO POR FORMATO (v25.0) ─────────────────────────
+  const formatWorldViability = useMemo(() => {
+    if (!formData.tribe && !formData.strategy && !formData.selectedEngineId) return null;
+    if (!allCards || allCards.length === 0) return null;
+
+    const fmt = (selectedFormat || 'MODERN').toUpperCase();
+    const isEternal = ['LEGACY', 'BATTLEBOX', 'LEGACY-BATTLEBOX', 'FREE', 'CUSTOM', 'CASUAL'].includes(fmt);
+    const formatPool = isEternal 
+      ? allCards 
+      : allCards.filter(c => c.legalities?.[fmt.toLowerCase()] === 'legal');
+
+    const intent = {
+      format: fmt,
+      primaryTribe: formData.tribe,
+      strategy: formData.strategy || formData.selectedEngineId,
+      colors: (formData.colores && formData.colores.length > 0) ? formData.colores : ['W', 'U', 'B', 'R', 'G']
+    };
+    const identity = {
+      archetypeKey: formData.archetype || 'STRATEGY'
+    };
+
+    const evaluation = FormatWorldModel.evaluateViability(intent, identity, formatPool);
+
+    if (evaluation.viability === 'NOT_VIABLE' || evaluation.viability === 'WEAKLY_SUPPORTED') {
+      const formatPoolsMap = {
+        PIONEER: allCards.filter(c => c.legalities?.pioneer === 'legal'),
+        MODERN: allCards.filter(c => c.legalities?.modern === 'legal'),
+        COMMANDER: allCards.filter(c => c.legalities?.commander === 'legal'),
+        CASUAL: allCards
+      };
+      evaluation.recommendedFormats = FormatWorldModel.discoverRecommendedFormats(intent, identity, formatPoolsMap);
+    }
+
+    return evaluation;
+  }, [formData.tribe, formData.strategy, formData.selectedEngineId, formData.archetype, formData.colores, selectedFormat, allCards]);
+
   const resetColors = () => {
     if (currentArchetype) {
       setFormData(prev => ({ ...prev, colores: currentArchetype.recommendedColors }));
@@ -1812,8 +1873,22 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                   </div>
                 </div>
                 
-                {/* Format selection tabs */}
-                <div className="flex bg-black/60 p-1 rounded-xl border border-white/10 shadow-inner w-full sm:w-auto">
+                <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      vibrateTouch();
+                      setShowDuelPacksModal(true);
+                    }}
+                    className="w-full sm:w-auto px-4 py-2 bg-gradient-to-r from-amber-500/20 via-magic-gold/20 to-amber-500/20 hover:from-amber-500/30 hover:to-magic-gold/30 border border-[#ffca58]/50 hover:border-[#ffca58] text-[#ffca58] rounded-xl text-xs font-cinzel font-bold flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(255,202,88,0.2)] hover:shadow-[0_0_25px_rgba(255,202,88,0.4)] transition-all cursor-pointer"
+                    title="Cargar parejas de mazos equilibrados 50/50 para jugar con amigos"
+                  >
+                    <Swords size={16} className="text-[#ffca58] animate-pulse" />
+                    <span>⚔️ Duelos Equilibrados (50/50)</span>
+                  </button>
+
+                  {/* Format selection tabs */}
+                  <div className="flex bg-black/60 p-1 rounded-xl border border-white/10 shadow-inner w-full sm:w-auto">
                   {['MODERN', 'PIONEER', 'STANDARD', 'COMMANDER', 'PAUPER', 'LEGACY'].map((fmt) => {
                     const isSelected = selectedFormat === fmt;
                     return (
@@ -1861,6 +1936,7 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                   })}
                 </div>
               </div>
+            </div>
 
               {/* Configuración de Estructura de Mazo */}
               <div className="bg-black/40 border border-white/10 p-5 rounded-2xl relative z-10 grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
@@ -3196,6 +3272,72 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
                         </div>
                       </div>
                     </div>
+
+                    {/* 🌟 ASISTENTE DE VIABILIDAD CAUSAL DE MUNDOS (FormatWorldModel v25.0) */}
+                    {formatWorldViability && (
+                      <div className={cn(
+                        "p-4 rounded-2xl border transition-all duration-300 relative z-10 space-y-3 shadow-lg backdrop-blur-md",
+                        formatWorldViability.viability === 'VIABLE'
+                          ? "bg-emerald-950/30 border-emerald-500/40 text-emerald-200"
+                          : formatWorldViability.viability === 'SUPPORTED'
+                            ? "bg-blue-950/30 border-blue-500/40 text-blue-200"
+                            : formatWorldViability.viability === 'WEAKLY_SUPPORTED'
+                              ? "bg-amber-950/40 border-amber-500/50 text-amber-200"
+                              : "bg-red-950/40 border-red-500/50 text-red-200"
+                      )}>
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-start gap-2.5">
+                            <span className="text-xl shrink-0 mt-0.5">
+                              {formatWorldViability.viability === 'VIABLE' ? '🌟' : formatWorldViability.viability === 'SUPPORTED' ? '⚖️' : '⚠️'}
+                            </span>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <h4 className="font-cinzel text-xs font-black uppercase tracking-wider">
+                                  Diagnóstico Causal de Mundo: {formatWorldViability.format}
+                                </h4>
+                                <span className={cn(
+                                  "text-[9px] px-2 py-0.5 rounded font-mono font-bold uppercase border",
+                                  formatWorldViability.viability === 'VIABLE' ? "bg-emerald-900/60 border-emerald-500/40 text-emerald-300" :
+                                  formatWorldViability.viability === 'SUPPORTED' ? "bg-blue-900/60 border-blue-500/40 text-blue-300" :
+                                  formatWorldViability.viability === 'WEAKLY_SUPPORTED' ? "bg-amber-900/60 border-amber-500/40 text-amber-300" :
+                                  "bg-red-900/60 border-red-500/40 text-red-300"
+                                )}>
+                                  {formatWorldViability.viability}
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-white/85 font-serif leading-relaxed mt-1">
+                                {formatWorldViability.suggestedAdaptation}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Formatos Recomendados con mayor soporte causal */}
+                        {formatWorldViability.recommendedFormats && formatWorldViability.recommendedFormats.length > 0 && (
+                          <div className="pt-2 border-t border-white/10 space-y-2">
+                            <span className="text-[9.5px] uppercase font-bold tracking-wider text-[#ffca58] block">
+                              🌟 Mundos Legales con Mayor Soporte Causal para esta Estrategia:
+                            </span>
+                            <div className="flex flex-wrap gap-2">
+                              {formatWorldViability.recommendedFormats.map(rec => (
+                                <button
+                                  key={rec.format}
+                                  type="button"
+                                  onClick={() => {
+                                    vibrateTouch();
+                                    onFormatChange?.(rec.format);
+                                  }}
+                                  className="px-3 py-1.5 rounded-lg bg-black/80 hover:bg-[#ffca58] hover:text-black border border-[#ffca58]/40 hover:border-[#ffca58] text-[10px] font-cinzel font-black uppercase tracking-wider transition-all duration-200 flex items-center gap-1.5 shadow-sm"
+                                >
+                                  <span>✦ Cambiar a {rec.format}</span>
+                                  <span className="text-[8.5px] opacity-75 font-mono">({rec.causalGain})</span>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     {/* Synergy Pack Selector & Blueprint Role Guide */}
                     {(formData.selectedEngineId || formData.archetype) && (
@@ -4893,6 +5035,127 @@ export default function ForgeForm({ onSubmit, isLoading, disabled, error, lastGe
               </div>
             </div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal de Duelos Equilibrados (Duel Packs 50/50) */}
+      <AnimatePresence>
+        {showDuelPacksModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 overflow-y-auto">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="w-full max-w-4xl bg-[#120f0c] border-2 border-magic-gold/40 rounded-2xl p-6 sm:p-8 shadow-[0_0_50px_rgba(255,202,88,0.2)] text-white relative space-y-6 max-h-[90vh] overflow-y-auto"
+            >
+              <div className="flex items-center justify-between border-b border-white/10 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                    <Swords size={22} />
+                  </div>
+                  <div>
+                    <h3 className="text-xl sm:text-2xl font-cinzel text-magic-gold font-bold">
+                      ⚔️ Duelos Equilibrados (Duel Packs 50/50)
+                    </h3>
+                    <p className="text-xs text-stone-400">
+                      Pares de mazos de 60 cartas calibrados a ~50/50 de winrate con velocidad de turno emparejada para jugar con amigos.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowDuelPacksModal(false)}
+                  className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-stone-400 hover:text-white flex items-center justify-center text-sm transition-colors cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                {DUEL_PACK_PRESETS.map((pack) => (
+                  <div
+                    key={pack.id}
+                    className="bg-black/50 border border-white/10 hover:border-magic-gold/40 rounded-xl p-5 transition-all space-y-4 shadow-lg"
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/5 pb-3">
+                      <div>
+                        <h4 className="font-cinzel text-magic-gold text-lg font-bold flex items-center gap-2">
+                          {pack.title}
+                        </h4>
+                        <p className="text-xs text-stone-300 font-serif italic mt-0.5">
+                          {pack.subtitle}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[10px] font-bold uppercase tracking-wider">
+                          ⏱️ Turno Clave: T{pack.targetKillTurn}
+                        </span>
+                        <span className="px-2.5 py-1 rounded-full bg-blue-500/10 border border-blue-500/30 text-blue-300 text-[10px] font-bold uppercase tracking-wider">
+                          {pack.format} 60c
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Mazo 1 */}
+                      <div className="bg-white/[0.03] border border-white/10 rounded-xl p-4 flex flex-col justify-between space-y-3">
+                        <div>
+                          <div className="flex items-center justify-between mb-1.5">
+                            <span className="font-cinzel font-bold text-white text-base">
+                              {pack.deck1.name}
+                            </span>
+                            <div className="flex -space-x-1">
+                              {pack.deck1.colores.map(c => <ManaOrb key={c} color={c} size="w-4 h-4" />)}
+                            </div>
+                          </div>
+                          <span className="text-[10px] uppercase font-bold text-stone-400 block mb-2">
+                            {pack.deck1.archetype} • {pack.deck1.speed}
+                          </span>
+                          <p className="text-xs text-stone-300/90 leading-relaxed font-sans">
+                            {pack.deck1.desc}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleLoadDuelDeck(pack, pack.deck1, 1)}
+                          className="w-full py-2 px-3 bg-magic-gold/20 hover:bg-magic-gold/30 border border-magic-gold/50 text-[#ffca58] hover:text-white rounded-lg text-xs font-cinzel font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer"
+                        >
+                          <span>⚔️ Cargar Mazo 1</span>
+                        </button>
+                      </div>
+
+                      {/* Mazo 2 (Némesis) */}
+                      <div className="bg-white/[0.03] border border-white/10 rounded-xl p-4 flex flex-col justify-between space-y-3">
+                        <div>
+                          <div className="flex items-center justify-between mb-1.5">
+                            <span className="font-cinzel font-bold text-white text-base">
+                              {pack.deck2.name}
+                            </span>
+                            <div className="flex -space-x-1">
+                              {pack.deck2.colores.map(c => <ManaOrb key={c} color={c} size="w-4 h-4" />)}
+                            </div>
+                          </div>
+                          <span className="text-[10px] uppercase font-bold text-stone-400 block mb-2">
+                            {pack.deck2.archetype} • {pack.deck2.speed}
+                          </span>
+                          <p className="text-xs text-stone-300/90 leading-relaxed font-sans">
+                            {pack.deck2.desc}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleLoadDuelDeck(pack, pack.deck2, 2)}
+                          className="w-full py-2 px-3 bg-cyan-900/30 hover:bg-cyan-800/40 border border-cyan-500/40 text-cyan-300 hover:text-white rounded-lg text-xs font-cinzel font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer"
+                        >
+                          <span>🛡️ Cargar Némesis (Mazo 2)</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
 

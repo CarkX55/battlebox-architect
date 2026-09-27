@@ -496,7 +496,7 @@ export default function VisualGrid({ cards, onRemoveCard, onAddCard, isEditing, 
                             {l0.format?.value?.toUpperCase() || 'MODERN'} ({l0.deckSize?.value || 60} Cartas)
                           </span>
                           <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-blue-900/40 border border-blue-500/30 text-blue-200">
-                            Identidad: [(l0.colors?.value || ['U','B']).join(', ')]
+                            Identidad: {Array.isArray(l0.colors?.value) ? l0.colors.value.join('/') : (l0.colors?.value || 'U/B')}
                           </span>
                           <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-emerald-900/40 border border-emerald-500/30 text-emerald-200">
                             Arquetipo: {l1.archetype?.value || 'TEMPO'}

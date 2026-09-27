@@ -1,16 +1,17 @@
 /**
  * StrategicSimulator.js
  * Level 3 Monte Carlo Strategic Hand & Game Simulator with Plan Execution Metrics.
+ * 
  * Evaluates:
  * - Mana Screw % & Mana Flood %
- * - Plan Execution Score (% of games executing turn-by-turn plan before Turn 4)
- * - Engine Assembly Rate (% of games assembling core synergy engine, e.g., 73%)
+ * - Plan Execution Score (% of games executing turn-by-turn plan before Turn 4/Kill Turn)
+ * - Engine Assembly Rate (% of games assembling core synergy engine)
  * - Recovery Index (% of games recovering board pressure after a sweeper)
  * - Interaction Timing & Win Condition Realization
  */
 
 export class StrategicSimulator {
-  static simulateDeck(deckCards = [], iterations = 1000) {
+  static simulateDeck(deckCards = [], iterations = 1000, gameplanContract = null) {
     if (!deckCards || deckCards.length === 0) {
       return {
         iterations: 0,
@@ -23,7 +24,8 @@ export class StrategicSimulator {
         engineAssemblyRate: 0,
         recoveryIndex: 0,
         interactionTimingScore: 0,
-        winConditionRealizationRate: 0
+        winConditionRealizationRate: 0,
+        gameplanThesis: gameplanContract?.thesis || 'Generic Plan'
       };
     }
 
@@ -35,18 +37,33 @@ export class StrategicSimulator {
     let planExecutionCount = 0;
     let recoverySuccessCount = 0;
 
+    // Flatten deck entries
+    const flattenedDeck = [];
+    for (const card of deckCards) {
+      const qty = Number(card.quantity || card.count || 1);
+      for (let q = 0; q < qty; q++) {
+        flattenedDeck.push(card.cardObj || card.card || card);
+      }
+    }
+
+    const deckSize = flattenedDeck.length || 60;
+    const derivedKillTurn = gameplanContract?.derivedKillTurn || 4;
+
     for (let i = 0; i < iterations; i++) {
-      const shuffled = [...deckCards].sort(() => Math.random() - 0.5);
+      const shuffled = [...flattenedDeck].sort(() => Math.random() - 0.5);
       const hand = shuffled.slice(0, 7);
 
-      const landsInHand = hand.filter(c => (c.type_line || c.type || '').includes('Land')).length;
+      const landsInHand = hand.filter(c => {
+        const type = (c.type_line || c.type || '').toLowerCase();
+        return type.includes('land');
+      }).length;
       totalOpeningLands += landsInHand;
 
       if (landsInHand < 2) manaScrewCount++;
       if (landsInHand > 5) manaFloodCount++;
 
-      const spells = hand.filter(c => !(c.type_line || c.type || '').includes('Land'));
-      const cmc1or2Spells = spells.filter(c => (c.cmc || 2) <= 2).length;
+      const spells = hand.filter(c => !(c.type_line || c.type || '').toLowerCase().includes('land'));
+      const cmc1or2Spells = spells.filter(c => Number(c.cmc || c.mana_value || 2) <= 2).length;
 
       if (cmc1or2Spells === 0 && landsInHand >= 2) {
         deadTurnCount++;
@@ -54,20 +71,26 @@ export class StrategicSimulator {
         planExecutionCount++;
       }
 
-      // Check Engine Assembly (Ramp + Draw or Ramp + Threat)
-      const hasRamp = spells.some(c => (c.oracle_text || c.oracleText || '').toLowerCase().includes('add'));
-      const hasThreatOrDraw = spells.some(c => (c.cmc || 0) >= 3);
+      // Check Engine Assembly (Curve out + Amplifier / Synergies)
+      const hasAmplifierOrEngine = spells.some(c => {
+        const oracle = (c.oracle_text || c.oracleText || c.text || '').toLowerCase();
+        return oracle.includes('creatures you control get +') ||
+          oracle.includes('have haste') ||
+          oracle.includes('sacrifice a ') ||
+          oracle.includes('token') ||
+          oracle.includes('damage to any target');
+      });
 
-      if (hasRamp && hasThreatOrDraw) {
+      if (cmc1or2Spells >= 1 && hasAmplifierOrEngine && landsInHand >= 2) {
         engineAssemblyCount++;
       }
 
       // Check Sweeper Recovery Index
-      const hasRecursionOrDraw = spells.some(c => {
-        const text = (c.oracle_text || c.oracleText || '').toLowerCase();
-        return text.includes('draw') || text.includes('return') || text.includes('search');
+      const hasRecursionOrReach = spells.some(c => {
+        const text = (c.oracle_text || c.oracleText || c.text || '').toLowerCase();
+        return text.includes('draw') || text.includes('damage to any target') || text.includes('damage to target player') || text.includes('token') || text.includes('dies');
       });
-      if (hasRecursionOrDraw) {
+      if (hasRecursionOrReach) {
         recoverySuccessCount++;
       }
     }
@@ -82,7 +105,7 @@ export class StrategicSimulator {
     const engineAssemblyRate = Number((engineAssemblyCount / iterations).toFixed(3));
     const recoveryIndex = Number((recoverySuccessCount / iterations).toFixed(3));
     const interactionTimingScore = Number((0.85).toFixed(3));
-    const winConditionRealizationRate = Number((engineAssemblyRate * 0.90).toFixed(3));
+    const winConditionRealizationRate = Number((engineAssemblyRate * 0.92).toFixed(3));
 
     return Object.freeze({
       iterations,
@@ -95,7 +118,9 @@ export class StrategicSimulator {
       engineAssemblyRate,
       recoveryIndex,
       interactionTimingScore,
-      winConditionRealizationRate
+      winConditionRealizationRate,
+      gameplanThesis: gameplanContract?.thesis || 'Asalto de Goblins Aggro Plan',
+      derivedKillTurn
     });
   }
 }

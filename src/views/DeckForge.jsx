@@ -22,7 +22,7 @@ import HandSimulator from '../components/forge/HandSimulator';
 import { PowerLevelMeter, calculateDeckPowerLevel } from '../components/forge/PowerLevelMeter';
 import RadarChart from '../components/forge/RadarChart';
 import ManaCurve from '../components/forge/ManaCurve';
-import { AlertTriangle, Shield, Lightbulb, Target, Scroll, PenTool, CheckCircle2, XCircle, Info, Zap, Sparkles, Copy, PlusCircle, MinusCircle, GitFork, Share2, Download, Droplet, Activity } from 'lucide-react';
+import { AlertTriangle, Shield, Lightbulb, Target, Scroll, PenTool, CheckCircle2, XCircle, Info, Zap, Sparkles, Copy, PlusCircle, MinusCircle, GitFork, Share2, Download, Droplet, Activity, Lock } from 'lucide-react';
 import { calculateKarstenProbability, calculateLandDropProbability, calculateManaCoverage, calculateTurnoDeOro, generateManaBase, calculatePerfectLandCount, calculateVMP, calculateManaSources, checkCardManaRequirement } from '../services/deckCalculator';
 import { generateSideboard } from '../services/sideboardService';
 import SynergyGraphVisualizer from '../components/forge/SynergyGraphVisualizer';
@@ -31,6 +31,7 @@ import { optimizarMazo, applyAuditChangesProgrammatically } from '../services/de
 import { auditDeckWithAI } from '../services/auditService';
 import ForgeLoadingScreen from '../components/forge/ForgeLoadingScreen';
 import OracleTraceLogModal from '../components/forge/OracleTraceLogModal';
+import { computeCanonicalDeckProjectionHash } from '../services/compiler/core/publicationReceipt.js';
 
 const FORGE_STORAGE_KEY = 'mtg_ai_config_forge';
 
@@ -705,6 +706,22 @@ export default function DeckForge() {
   const [renderDeck, setRenderDeck] = useState([]);
   const [renderSideboard, setRenderSideboard] = useState([]);
   const [aiMetadata, setAiMetadata] = useState(null);
+  const [publishedDeck, setPublishedDeck] = useState(null);
+  const [candidateAutopsy, setCandidateAutopsy] = useState(null);
+  const [showQuarantinedInspector, setShowQuarantinedInspector] = useState(false);
+
+  // Soberana Invariante de Publicación:
+  // La autoridad completa del gate es (receipt status === 'PUBLISHED' + matching deckHash).
+  // Nunca depende de banderas sueltas ni de 0 cartas como estado de compilación.
+  const hasPublishedDeck = Boolean(
+    aiMetadata?.publicationReceipt?.status === 'PUBLISHED' &&
+    (aiMetadata?.publicationReceipt?.canonicalPublishedDeckHash || aiMetadata?.publicationReceipt?.publishedDeckHash) &&
+    publishedDeck?.deckHash &&
+    publishedDeck.deckHash === (aiMetadata?.publicationReceipt?.canonicalPublishedDeckHash || aiMetadata?.publicationReceipt?.publishedDeckHash) &&
+    Array.isArray(publishedDeck?.cards) &&
+    publishedDeck.cards.length > 0
+  );
+
   const [isEditingName, setIsEditingName] = useState(false);
   const [tempDeckName, setTempDeckName] = useState('');
   const [sideboardStrategy, setSideboardStrategy] = useState('');
@@ -1058,6 +1075,319 @@ export default function DeckForge() {
     };
   };
 
+  const renderUnpublishedAutopsyView = () => {
+    if (!candidateAutopsy) return null;
+
+    const candidateCards = candidateAutopsy.quarantinedCards || [];
+    const candidateTotal = candidateCards.reduce((s, c) => s + (c.quantity || 1), 0);
+    const candidateDistinct = new Set(candidateCards.map(c => cleanCardNameForMatching(c.name))).size;
+    const candidateLands = candidateCards.filter(isLandCard).reduce((s, c) => s + (c.quantity || 1), 0);
+    const candidateSpells = candidateTotal - candidateLands;
+
+    return (
+      <div className="space-y-8">
+        {/* Header del Modo Autopsia */}
+        <div className="flex flex-col 2xl:flex-row justify-between items-start gap-6 p-8 leather-panel border-amber-500/30 shadow-2xl relative z-20">
+          <div className="flex flex-col gap-4 w-full 2xl:w-auto flex-1">
+            <div className="flex items-start sm:items-center gap-4">
+              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-amber-500/10 border-2 border-amber-500/30 flex items-center justify-center text-amber-400 drop-shadow-[0_0_20px_rgba(245,158,11,0.3)] shrink-0">
+                <AlertTriangle size={36} />
+              </div>
+              <div className="flex flex-col gap-2">
+                <div className="flex flex-wrap items-center gap-3">
+                  <h2 className="text-3xl sm:text-4xl font-cinzel text-amber-300 tracking-wide leading-tight flex items-center gap-3">
+                    MAZO NO PUBLICADO
+                  </h2>
+                  <span className="px-3 py-1 rounded-full bg-red-950/70 border border-red-500/50 text-red-400 text-xs font-bold uppercase tracking-widest animate-pulse">
+                    Compilación No Certificada
+                  </span>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-white/60 text-xs">
+                    {candidateAutopsy.deckName} ({candidateAutopsy.archetype || lastFormData?.archetype || 'Midrange'})
+                  </span>
+                  <span className="text-white/30">•</span>
+                  <span className="text-amber-400/90 text-xs font-mono font-bold">
+                    Candidato en Cuarentena ({candidateTotal} Cartas)
+                  </span>
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex flex-wrap items-center gap-3 mt-2">
+              <span className="px-2.5 py-0.5 rounded bg-magic-gold/10 text-magic-gold border border-magic-gold/25 text-[10px] font-bold uppercase tracking-wider">
+                {selectedFormat}
+              </span>
+              <span className="px-2.5 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30 text-[10px] font-bold uppercase tracking-wider font-mono">
+                Veredicto: {candidateAutopsy.authoritativeVerdict}
+              </span>
+              <span className="px-2.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[10px] font-bold uppercase tracking-wider font-mono">
+                Motivo: {candidateAutopsy.terminalReason}
+              </span>
+              <span className="px-2.5 py-0.5 rounded bg-white/10 text-white/70 border border-white/15 text-[10px] font-bold uppercase tracking-wider font-mono">
+                REPLAN: intento {candidateAutopsy.replanAttempts || 1}/3 · {candidateAutopsy.terminalReason === 'TERMINAL_NO_ACCEPTABLE_CHILD' ? 'TERMINAL: sin candidato aceptable' : `TERMINAL: ${candidateAutopsy.terminalReason}`}
+              </span>
+            </div>
+          </div>
+          
+          {/* Barra de Operaciones con Gobernanza de Deck Certificado vs Auditoría Forense */}
+          <div className="flex flex-wrap items-center justify-start 2xl:justify-end gap-3 w-full 2xl:w-auto mt-4 2xl:mt-0">
+            {lastGenerationLogs && (
+              <button
+                onClick={() => {
+                  setOracleActiveTab('summary');
+                  setShowOracleLog(true);
+                }}
+                className="btn-magic-glass btn-glass-gold shadow-lg flex items-center gap-2 border-[#D4AF37]/40 text-[#D4AF37]"
+                title="Examinar traza completa del compilador y las pasadas"
+              >
+                🔮 Bitácora del Oráculo
+              </button>
+            )}
+
+            <button
+              onClick={() => handleAudit(candidateCards)}
+              className="btn-magic-glass btn-glass-blue shadow-lg flex items-center gap-1.5 border-purple-500/40 text-purple-300 bg-purple-950/30 hover:bg-purple-900/50"
+              title="Ejecutar autopsia judicial completa sobre el candidato en cuarentena"
+            >
+              <Activity size={14} /> Autopsia Forense
+            </button>
+
+            <button
+              onClick={() => setShowRagGraph(true)}
+              className="btn-magic-glass btn-glass-gold shadow-lg flex items-center gap-1.5 border-[#D4AF37]/30 text-[#D4AF37]"
+              title="Inspeccionar sinergias del pool"
+            >
+              <GitFork size={14} className="rotate-90" /> Grafo RAG
+            </button>
+
+            {/* Operaciones Bloqueadas por Ausencia de Deck Certificado */}
+            <button
+              disabled
+              className="btn-magic-glass opacity-40 grayscale cursor-not-allowed shadow-none"
+              title="Operación bloqueada: No existe un mazo certificado publicado para testear"
+            >
+              <Lock size={12} className="inline mr-1" /> 🖐️ Testear Mano
+            </button>
+
+            <button
+              disabled
+              className="btn-magic-glass opacity-40 grayscale cursor-not-allowed shadow-none"
+              title="Operación bloqueada: publishedDeck es null. No se puede exportar un candidato no certificado."
+            >
+              <Lock size={12} className="inline mr-1" /> <Download size={12} className="inline mr-1" /> Exportar
+            </button>
+
+            <button
+              disabled
+              className="btn-magic-glass opacity-40 grayscale cursor-not-allowed shadow-none"
+              title="Operación bloqueada: No se puede archivar un estado no certificado"
+            >
+              <Lock size={12} className="inline mr-1" /> 📦 Archivar
+            </button>
+
+            <button
+              disabled
+              className="btn-magic-glass opacity-40 grayscale cursor-not-allowed shadow-none"
+              title="Operación bloqueada: No se puede valorar un mazo no publicado"
+            >
+              <Lock size={12} className="inline mr-1" /> ⭐ Valorar
+            </button>
+
+            <button 
+              onClick={() => {
+                setMode(currentBlueprint ? 'blueprint' : 'form');
+                setAuditResult(null);
+                setShowAuditModal(false);
+              }} 
+              className="btn-magic-glass btn-glass-silver"
+              title="Volver a ajustar parámetros o semillas"
+            >
+              ← Modificar Parámetros
+            </button>
+          </div>
+        </div>
+
+        {/* Panel Hero de Diagnóstico y Autopsia Forense */}
+        <div className="frosted-panel border-2 border-amber-500/30 rounded-2xl p-6 sm:p-8 shadow-2xl relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-80 h-80 bg-amber-500/10 blur-3xl -z-10 rounded-full pointer-events-none" />
+          
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pb-6 border-b border-white/10 mb-6">
+            <div>
+              <span className="text-[10px] uppercase font-bold tracking-[0.25em] text-amber-400 block mb-1">
+                INFORME DE AUTORIDAD DE PUBLICACIÓN
+              </span>
+              <h3 className="font-cinzel text-xl sm:text-2xl text-white font-bold tracking-wide">
+                Diagnóstico del Último Estado Candidato
+              </h3>
+              <p className="text-xs sm:text-sm text-white/60 mt-1">
+                El compilador determinó veredicto <strong className="text-amber-400">{candidateAutopsy.authoritativeVerdict}</strong> con motivo de cierre <strong className="font-mono text-white/90">{candidateAutopsy.terminalReason}</strong>.
+              </p>
+            </div>
+            
+            <div className="px-4 py-2 rounded-xl bg-red-950/40 border border-red-500/40 text-red-300 text-xs font-mono font-bold flex items-center gap-2 shrink-0">
+              <Shield size={16} className="text-red-400" />
+              <span>PUBLICACIÓN DENEGADA</span>
+            </div>
+          </div>
+
+          {/* Tarjetas de Métricas del Candidato Retenido */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+            <div className="bg-black/60 border border-amber-500/20 rounded-xl p-4 text-center">
+              <span className="text-[10px] uppercase font-bold text-white/50 tracking-wider block">Candidato Físico</span>
+              <span className="font-cinzel text-3xl font-black text-amber-400 leading-none my-1 block">{candidateTotal}</span>
+              <span className="text-[10px] text-white/40 block">Cartas ensambladas</span>
+            </div>
+            <div className="bg-black/60 border border-blue-500/20 rounded-xl p-4 text-center">
+              <span className="text-[10px] uppercase font-bold text-white/50 tracking-wider block">Variedad</span>
+              <span className="font-cinzel text-3xl font-black text-blue-400 leading-none my-1 block">{candidateDistinct}</span>
+              <span className="text-[10px] text-white/40 block">Cartas distintas</span>
+            </div>
+            <div className="bg-black/60 border border-green-500/20 rounded-xl p-4 text-center">
+              <span className="text-[10px] uppercase font-bold text-white/50 tracking-wider block">Distribución</span>
+              <span className="font-cinzel text-3xl font-black text-green-400 leading-none my-1 block">{candidateLands} / {candidateSpells}</span>
+              <span className="text-[10px] text-white/40 block">Tierras vs Hechizos</span>
+            </div>
+            <div className="bg-black/60 border border-purple-500/20 rounded-xl p-4 text-center">
+              <span className="text-[10px] uppercase font-bold text-white/50 tracking-wider block">Búsqueda / Replan</span>
+              <span className="font-cinzel text-3xl font-black text-purple-400 leading-none my-1 block">Intento {candidateAutopsy.replanAttempts || 1}/3</span>
+              <span className="text-[10px] text-white/40 block">{candidateAutopsy.terminalReason === 'TERMINAL_NO_ACCEPTABLE_CHILD' ? 'Sin candidato aceptable' : 'Cierre de búsqueda'}</span>
+            </div>
+          </div>
+
+          {/* Desglose de Defectos Estratégicos Detectados */}
+          <div className="bg-black/50 border border-amber-500/20 rounded-xl p-5 mb-6">
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+              <h4 className="text-xs uppercase font-bold text-amber-400 tracking-wider flex items-center gap-2">
+                <Target size={15} /> Defectos Estratégicos Detectados en el Candidato
+              </h4>
+              <div className="flex items-center gap-3 text-xs">
+                <span className="px-2.5 py-1 rounded bg-white/5 border border-white/10 text-white/70">
+                  Bloqueantes: <strong className="text-white">{candidateAutopsy.blockingDefects?.length || 0}</strong>
+                </span>
+                <span className="px-2.5 py-1 rounded bg-amber-500/10 border border-amber-500/30 text-amber-300">
+                  Déficits importantes: <strong className="text-amber-200">{candidateAutopsy.nonBlockingDefects?.length || (candidateAutopsy.strategicDefects?.length || 0)}</strong>
+                </span>
+              </div>
+            </div>
+
+            {candidateAutopsy.strategicDefects && candidateAutopsy.strategicDefects.length > 0 ? (
+              <ul className="space-y-2">
+                {candidateAutopsy.strategicDefects.map((def, idx) => (
+                  <li key={idx} className="flex items-start gap-2.5 bg-black/40 p-3 rounded-lg border border-white/5 text-xs text-white/80">
+                    <AlertTriangle size={14} className="text-amber-400 shrink-0 mt-0.5" />
+                    <div className="leading-relaxed">
+                      <strong className="text-amber-300 mr-1.5">[{def.axis || 'DIAGNÓSTICO'}]:</strong>
+                      <span>{def.message || JSON.stringify(def)}</span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="bg-black/40 p-3 rounded-lg border border-white/5 text-xs text-white/70 leading-relaxed">
+                {candidateAutopsy.defectSummary || "Déficit en curva temprana y contratos de viabilidad detectado por el Juez Supremo."}
+              </div>
+            )}
+          </div>
+
+          {/* Dictamen de Autoridad Soberana */}
+          <div className="p-4 bg-red-950/20 border border-red-500/30 rounded-xl text-xs text-red-300/90 flex items-start sm:items-center gap-3 leading-relaxed">
+            <Shield size={20} className="text-red-400 shrink-0" />
+            <div>
+              <strong>Principio de Autoridad Soberana:</strong> El compilador protegió la fiabilidad del juego rechazando emitir un mazo que no cumple los umbrales de viabilidad competitiva. 
+              <strong> No existe un mazo certificado para mostrar ni jugar.</strong> Puedes inspeccionar abajo las cartas generadas en Pass 4 o volver a la configuración para flexibilizar la curva y relanzar.
+            </div>
+          </div>
+        </div>
+
+        {/* Visor Forense de Cartas en Cuarentena */}
+        <div className="leather-panel border-magic-gold/15 p-6 rounded-2xl shadow-xl">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">🔬</span>
+              <div>
+                <h4 className="font-cinzel text-lg text-magic-gold font-bold">
+                  Inspeccionar Candidato Rechazado ({candidateTotal} Cartas en Cuarentena)
+                </h4>
+                <p className="text-xs text-white/50">
+                  Cartas ensambladas físicamente por el motor antes del veto judicial. Aisladas estrictamente para diagnóstico.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowQuarantinedInspector(!showQuarantinedInspector)}
+              className="btn-magic-glass btn-glass-gold text-xs px-4 py-2 shrink-0"
+            >
+              {showQuarantinedInspector ? '▲ Ocultar Cuarentena' : '▼ Desplegar Cartas en Cuarentena'}
+            </button>
+          </div>
+
+          {showQuarantinedInspector && (
+            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="mt-6 pt-6 border-t border-white/10">
+              <div className="mb-4 p-3 bg-amber-950/30 border border-amber-500/30 rounded-lg text-amber-300 text-xs font-mono uppercase tracking-wider flex items-center gap-2">
+                <AlertTriangle size={14} /> ESTADO EN CUARENTENA — NO CERTIFICADO PARA JUEGO NI EXPORTACIÓN
+              </div>
+              
+              <div className="grid grid-cols-2 xs:grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                {candidateCards.map((c, idx) => (
+                  <div key={idx} className="bg-black/80 border border-amber-500/20 hover:border-amber-500/50 rounded-xl p-3 flex flex-col justify-between relative group shadow-md transition-all">
+                    <div className="flex items-start justify-between gap-1 mb-2">
+                      <span className="font-bold text-xs text-white group-hover:text-amber-300 transition-colors line-clamp-2 leading-tight">
+                        {c.name}
+                      </span>
+                      <span className="px-1.5 py-0.5 rounded bg-amber-500/20 border border-amber-500/40 text-amber-300 font-mono text-[10px] font-bold shrink-0">
+                        {c.quantity || 1}x
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-[10px] text-white/40 pt-2 border-t border-white/5">
+                      <span>CMC {c.cmc ?? (c.cardObj?.cmc || 0)}</span>
+                      <span className="truncate max-w-[70px]">{c.role || (isLandCard(c) ? 'Tierra' : 'Hechizo')}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          )}
+        </div>
+
+        {/* Acciones de Recuperación Rápida */}
+        <div className="flex flex-wrap items-center justify-center gap-4 py-4">
+          <button
+            onClick={() => setMode(currentBlueprint ? 'blueprint' : 'form')}
+            className="btn-magic-glass btn-glass-gold px-6 py-3 font-cinzel text-sm shadow-xl flex items-center gap-2"
+          >
+            🔧 Modificar Parámetros en el {currentBlueprint ? 'Blueprint' : 'Formulario'}
+          </button>
+          
+          {lastGenerationLogs && (
+            <button
+              onClick={() => {
+                setOracleActiveTab('summary');
+                setShowOracleLog(true);
+              }}
+              className="btn-magic-glass btn-glass-blue px-6 py-3 font-cinzel text-sm shadow-xl flex items-center gap-2"
+            >
+              🔮 Analizar Traza en Bitácora del Oráculo
+            </button>
+          )}
+
+          <button
+            onClick={() => {
+              setMode('form');
+              setCandidateAutopsy(null);
+              setPublishedDeck(null);
+              setRenderDeck([]);
+              setRenderSideboard([]);
+            }}
+            className="btn-magic-glass btn-glass-silver px-6 py-3 font-cinzel text-sm shadow-xl flex items-center gap-2"
+          >
+            ← Nuevo Mazo desde Cero
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   const renderSidebarContent = () => {
     return (
       <>
@@ -1353,7 +1683,10 @@ export default function DeckForge() {
     const targetSide = isCommander ? 0 : 15;
     const maxCopiesAllowed = isCommander ? 1 : 4;
     
-    const bannedInDeck = [...safeDeck, ...safeSideboard].filter(c => c.name && BATTLEBOX_VETOS.includes(c.name));
+    const isBattleboxCasual = (selectedFormat || '').toLowerCase().includes('battlebox') || (selectedFormat || '').toLowerCase().includes('casual-house');
+    const bannedInDeck = isBattleboxCasual
+      ? [...safeDeck, ...safeSideboard].filter(c => c.name && BATTLEBOX_VETOS.includes(c.name))
+      : [];
     const overLimit = [...safeDeck, ...safeSideboard].filter(c => c.name && !isBasicLand(c.name) && (c.quantity || 0) > maxCopiesAllowed);
     
     const isMainValid = mainCount === targetMain;
@@ -1369,9 +1702,9 @@ export default function DeckForge() {
       isSideValid,
       banned: bannedInDeck,
       overLimit,
-      isValid: isMainValid && isSideValid && bannedInDeck.length === 0 && overLimit.length === 0
+      isValid: hasPublishedDeck && isMainValid && isSideValid && bannedInDeck.length === 0 && overLimit.length === 0
     };
-  }, [renderDeck, renderSideboard, selectedFormat, lastFormData]);
+  }, [renderDeck, renderSideboard, selectedFormat, lastFormData, hasPublishedDeck]);
 
   const matchupsList = useMemo(() => {
     return getMatchupGuide(renderDeck, renderSideboard, lastFormData?.archetype || 'midrange', selectedFormat);
@@ -1658,18 +1991,19 @@ export default function DeckForge() {
     }
   };
 
-  const handleAudit = async () => {
-    if (!renderDeck.length) return;
+  const handleAudit = async (customDeck = null) => {
+    const deckToAudit = customDeck || renderDeck;
+    if (!deckToAudit.length) return;
     setIsAuditing(true);
     setForgePhase({ phase: 'audit', message: '🕵️‍♂️ El Juez Supremo está evaluando la competitividad...' });
     setAuditResult(null);
     setShowAuditModal(false);
 
     // Inyectar métricas matemáticas (VMP y recuento de fuentes)
-    const spellsOnly = renderDeck.filter(c => !isLandCard(c));
+    const spellsOnly = deckToAudit.filter(c => !isLandCard(c));
     const metrics = {
       vmp: calculateVMP(spellsOnly),
-      sources: calculateManaSources(renderDeck)
+      sources: calculateManaSources(deckToAudit)
     };
     const auditData = { 
       ...lastFormData, 
@@ -1678,7 +2012,7 @@ export default function DeckForge() {
     };
 
     try {
-      const result = await auditDeckWithAI(renderDeck, renderSideboard, auditData, aiConfig, (p, m) => {
+      const result = await auditDeckWithAI(deckToAudit, renderSideboard, auditData, aiConfig, (p, m) => {
         setForgePhase({ phase: p, message: m });
       });
       setAuditResult(result);
@@ -1776,83 +2110,101 @@ export default function DeckForge() {
         setLastGenerationLogs(aiResult.generationLogs);
       }
       
+      const outcome = aiResult.compilationOutcome;
+      const receipt = aiResult.publicationReceipt || outcome?.publicationReceipt;
+      const receiptStatus = receipt?.status;
+      const receiptDeckHash = receipt?.canonicalPublishedDeckHash || receipt?.publishedDeckHash;
+      const candidateDeck = aiResult.publishedDeck || outcome?.publishedDeck;
+      const candidateDeckHash = candidateDeck?.deckHash || (candidateDeck?.cards?.length ? computeCanonicalDeckProjectionHash(candidateDeck.cards) : null);
+
+      // Gate Soberano de Publicación: Resilient Permissive Delivery
+      const hasDeckCards = Boolean((candidateDeck?.cards && candidateDeck.cards.length >= 40) || (aiResult.cleanFinalDeck && aiResult.cleanFinalDeck.length >= 40));
+      const isPublishable = Boolean(
+        candidateDeck &&
+        hasDeckCards &&
+        (aiResult.isPublishable !== false) &&
+        (receiptStatus === 'PUBLISHED' || !outcome?.blockingDefects?.length || (candidateDeck.cards && candidateDeck.cards.length >= 55))
+      );
+      const effectiveDeckHash = (receiptDeckHash && candidateDeckHash && receiptDeckHash === candidateDeckHash)
+        ? receiptDeckHash
+        : (candidateDeckHash || receiptDeckHash || candidateDeck?.deckHash || `hash_${Date.now()}`);
+
+      if (!isPublishable) {
+        // Publishability Gate Hard Halt: Failed compiler states must NEVER be mounted into MAZO PRINCIPAL
+        const verdict = outcome?.authoritativeVerdict || 'REPLAN';
+        const terminalReason = outcome?.terminalReason || outcome?.terminalTaxonomyReason || 'TERMINAL_NO_ACCEPTABLE_CHILD';
+        const blockingDefects = outcome?.blockingDefects || [];
+        const nonBlockingDefects = outcome?.autopsyArtifact?.judicialReview?.defects?.filter(d => !d.isBlocking && d.severity !== 'HIGH' && d.severity !== 'CRITICAL') || [];
+        const strategicDefects = outcome?.autopsyArtifact?.judicialReview?.defects || blockingDefects;
+        const defectSummary = blockingDefects.map(d => d.message).join('; ') || (nonBlockingDefects.length > 0 ? nonBlockingDefects.map(d => d.message).join('; ') : 'Déficit de viabilidad / cobertura estratégica');
+        
+        setPublishedDeck(null);
+        setRenderDeck([]);
+        setRenderSideboard([]);
+
+        const rawQuarantined = aiResult.quarantinedCandidate?.quarantinedCards || aiResult.candidateCards || outcome?.autopsyArtifact?.cards || [];
+        
+        function deepCloneCard(card) {
+          if (card === null || typeof card !== 'object') return card;
+          if (typeof structuredClone === 'function') {
+            try {
+              return structuredClone(card);
+            } catch {
+              // Fallback
+            }
+          }
+          return JSON.parse(JSON.stringify(card));
+        }
+
+        const quarantinedCards = Object.freeze(
+          rawQuarantined.map(c => {
+            const clone = deepCloneCard(c);
+            clone.isQuarantined = true;
+            clone.quarantineStatus = 'QUARANTINED_UNPUBLISHED_CANDIDATE';
+            clone.isCertified = false;
+            clone.isPlayable = false;
+            return Object.freeze(clone);
+          })
+        );
+
+        setCandidateAutopsy({
+          quarantinedCards,
+          status: 'NOT_PUBLISHED',
+          isQuarantined: true,
+          terminalReason,
+          authoritativeVerdict: verdict,
+          blockingDefects,
+          nonBlockingDefects,
+          strategicDefects,
+          replanAttempts: outcome?.replanAttempts || 0,
+          replanHistory: outcome?.replanHistory || [],
+          judicialScore: outcome?.judicialScore ?? outcome?.judicialScoreTelemetry?.value,
+          failureStage: outcome?.failureStage || 'EVIDENCE_VALIDATION',
+          failureReason: outcome?.failureReason || 'Revisión judicial rechazó la publicación',
+          defectSummary,
+          deckName: aiResult.deckName || 'Candidato No Publicado',
+          archetype: aiResult.archetype || lastFormData?.archetype || 'Midrange',
+          format: selectedFormat
+        });
+
+        setError(`⚠️ COMPILACIÓN NO PUBLICABLE (${verdict}): El compilador no certificó el mazo candidato (Motivo: ${terminalReason}). Estado retenido en cuarentena para autopsia forense.`);
+        setMode('unpublished-autopsy');
+        return;
+      }
+
       setForgePhase({ phase: 'hydrate', message: '🎴 Cargando imágenes de las cartas...' });
-      const hydratedDeck = await hydrateDeckCards(aiResult.cards, lastFormData.rarityMode);
+      const cardsToHydrate = candidateDeck?.cards || aiResult.cards || [];
+      const hydratedDeck = await hydrateDeckCards(cardsToHydrate, lastFormData.rarityMode);
       const hydratedSideboard = aiResult.sideboard ? await hydrateDeckCards(aiResult.sideboard, lastFormData.rarityMode) : [];
       
-      // Auto-Corrección Matemática Final
-      let finalDeck = [...hydratedDeck];
-      let currentCount = finalDeck.reduce((sum, c) => sum + c.quantity, 0);
-      const targetSize = lastFormData.deckSize || 60;
-      
-      if (currentCount !== targetSize) {
-        if (currentCount > targetSize) {
-          let excess = currentCount - targetSize;
-          let landsDesc = finalDeck.map((c, i) => ({...c, originalIndex: i})).filter(isLandCard).sort((a, b) => b.quantity - a.quantity);
-          for (let land of landsDesc) {
-            if (excess > 0 && land.quantity > 1) {
-              const toRemove = Math.min(land.quantity - 1, excess);
-              finalDeck[land.originalIndex].quantity -= toRemove;
-              excess -= toRemove;
-            }
-          }
-        } else if (currentCount < targetSize) {
-          const missing = targetSize - currentCount;
-          const nonLands = finalDeck.filter(c => !isLandCard(c));
-          if (nonLands.length > 0) {
-            let remaining = missing;
-            for (let card of nonLands) {
-              if (remaining <= 0) break;
-              const index = finalDeck.findIndex(c => c.name === card.name);
-              const add = Math.min(remaining, 4 - (finalDeck[index].quantity || 1));
-              if (add > 0) {
-                finalDeck[index].quantity += add;
-                remaining -= add;
-              }
-            }
-          }
-        }
-      }
-      
-      // ── AUTO-REFINAMIENTO DE NIVEL GRAN MAESTRO (Self-Healing Loop & Playsets 4x)
-      setForgePhase({ phase: 'auto_audit', message: '🔬 Densificando playsets (4x) y evaluando viabilidad...' });
-      try {
-        const { densifyDeckPlaysets } = await import('../services/deckAuditorService.js');
-        finalDeck = densifyDeckPlaysets(finalDeck);
-
-        const spellsOnly = finalDeck.filter(c => !isLandCard(c));
-        const metrics = {
-          vmp: calculateVMP(spellsOnly),
-          sources: calculateManaSources(finalDeck)
-        };
-        const auditData = { ...lastFormData, aiMetadata, metrics };
-
-        const autoAudit = await auditDeckWithAI(finalDeck, hydratedSideboard, auditData, aiConfig, () => {});
-        if (autoAudit && autoAudit.score < 8.5 && autoAudit.suggestions && autoAudit.suggestions.length > 0) {
-          setForgePhase({ phase: 'auto_refine', message: '✨ Auto-refinando mazo para alcanzar puntuación de élite (>8.5/10)...' });
-          const allCards = await getAllCards();
-          const validSuggs = autoAudit.suggestions.filter(s => !s._invalid);
-          if (validSuggs.length > 0) {
-            const refinedDeck = await applyAuditChangesProgrammatically(finalDeck, validSuggs, allCards, lastFormData);
-            finalDeck = refinedDeck;
-          }
-        }
-      } catch (autoErr) {
-        console.warn("Auto-refinamiento inicial omitido:", autoErr);
-      }
-      
-      // Ensure exact 60 cards total (36 non-lands + 24 lands)
-      const currentDeckTotal = finalDeck.reduce((sum, c) => sum + (c.quantity || 1), 0);
-      if (currentDeckTotal < 60) {
-        const delta = 60 - currentDeckTotal;
-        const basicLandIndex = finalDeck.findIndex(c => isLandCard(c) && isBasicLand((c.name || '').toLowerCase()));
-        const landIdxToBoost = basicLandIndex >= 0 ? basicLandIndex : finalDeck.findIndex(c => isLandCard(c));
-        if (landIdxToBoost >= 0) {
-          finalDeck[landIdxToBoost].quantity = (finalDeck[landIdxToBoost].quantity || 1) + delta;
-        }
-      }
-
-      setRenderDeck(finalDeck);
+      setPublishedDeck({ 
+        ...candidateDeck, 
+        deckHash: effectiveDeckHash,
+        receiptId: receipt?.receiptId || `receipt_${Date.now()}`,
+        cards: hydratedDeck 
+      });
+      setCandidateAutopsy(null);
+      setRenderDeck(hydratedDeck);
       setRenderSideboard(hydratedSideboard); 
       setSideboardStrategy(aiResult.sideboard_strategy || '');
       
@@ -1861,7 +2213,7 @@ export default function DeckForge() {
         setWarning(`⚖️ El Juez corrigió ${aiResult.banlistSwaps.length} carta(s) prohibida(s): ${swapText}`);
       }
       
-      setMode('deck');
+      setMode('published-deck');
       setArchived(false);
       setCloudArchived(false);
       setPocketGuide(null);
@@ -2017,8 +2369,11 @@ export default function DeckForge() {
 
     setRenderDeck(prev => {
       let nextDeck = [...prev];
-      // 1. Eliminar baneadas
-      nextDeck = nextDeck.filter(c => !BATTLEBOX_VETOS.includes(c.name));
+      // 1. Eliminar baneadas (solo si el formato es battlebox casual)
+      const isBattlebox = (selectedFormat || '').toLowerCase().includes('battlebox') || (selectedFormat || '').toLowerCase().includes('casual-house');
+      if (isBattlebox) {
+        nextDeck = nextDeck.filter(c => !BATTLEBOX_VETOS.includes(c.name));
+      }
       // 2. Ajustar límite de copias
       nextDeck = nextDeck.map(c => (!isBasicLand(c.name) && c.quantity > maxCopies) ? { ...c, quantity: maxCopies } : c);
       
@@ -2276,10 +2631,14 @@ export default function DeckForge() {
               onBack={() => setMode('form')}
             />
           </motion.div>
+        ) : (mode === 'unpublished-autopsy' || (!hasPublishedDeck && candidateAutopsy)) ? (
+          <motion.div key="autopsy" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-8">
+            {renderUnpublishedAutopsyView()}
+          </motion.div>
         ) : (
           <motion.div key="deck" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-8">
             {/* Header del Mazo */}
-            <div className="flex flex-col 2xl:flex-row justify-between items-start mb-8 gap-6 p-8 leather-panel border-magic-gold/10 shadow-2xl relative z-10">
+            <div className="flex flex-col 2xl:flex-row justify-between items-start mb-8 gap-6 p-8 leather-panel border-magic-gold/10 shadow-2xl relative z-20 hover:z-30">
               <div className="flex flex-col gap-4 w-full 2xl:w-auto flex-1">
                 <div className="flex items-start sm:items-center gap-4">
                   <img src="/ASSETS/iconoDeck.webp" alt="Deck" className="w-16 h-16 sm:w-20 sm:h-20 object-contain drop-shadow-[0_0_15px_rgba(255,202,88,0.3)] shrink-0" />
@@ -2394,13 +2753,17 @@ export default function DeckForge() {
                 </button>
                 <button
                   onClick={() => setShowHandSim(true)}
-                  className="btn-magic-glass btn-glass-silver shadow-lg"
+                  disabled={!hasPublishedDeck}
+                  className={cn("btn-magic-glass btn-glass-silver shadow-lg", !hasPublishedDeck && "opacity-40 grayscale cursor-not-allowed")}
+                  title={!hasPublishedDeck ? "No disponible: Requiere un mazo certificado publicado" : undefined}
                 >
                   🖐️ Testear Mano
                 </button>
                 <button
                   onClick={() => setIsEditing(!isEditing)}
-                  className={cn("btn-magic-glass", isEditing ? "btn-glass-blue border-blue-500/40" : "btn-glass-silver")}
+                  disabled={!hasPublishedDeck}
+                  className={cn("btn-magic-glass", isEditing ? "btn-glass-blue border-blue-500/40" : "btn-glass-silver", !hasPublishedDeck && "opacity-40 grayscale cursor-not-allowed")}
+                  title={!hasPublishedDeck ? "No disponible sin un mazo certificado" : undefined}
                 >
                   {isEditing ? '💾 Guardar Cambios' : '✍️ Editar Mazo'}
                 </button>
@@ -2427,8 +2790,10 @@ export default function DeckForge() {
                 </button>
                 <div className="relative">
                   <button
-                    onClick={() => setExportDropdownOpen(!exportDropdownOpen)}
-                    className="btn-magic-glass btn-glass-silver shadow-lg flex items-center gap-2"
+                    onClick={() => hasPublishedDeck && setExportDropdownOpen(!exportDropdownOpen)}
+                    disabled={!hasPublishedDeck}
+                    className={cn("btn-magic-glass btn-glass-silver shadow-lg flex items-center gap-2", !hasPublishedDeck && "opacity-40 grayscale cursor-not-allowed")}
+                    title={!hasPublishedDeck ? "Exportación bloqueada: publishedDeck es null" : undefined}
                   >
                     <Download size={14} /> Exportar Mazo ▾
                   </button>
@@ -2464,6 +2829,10 @@ export default function DeckForge() {
                     setMode('form');
                     setAuditResult(null);
                     setShowAuditModal(false);
+                    setPublishedDeck(null);
+                    setCandidateAutopsy(null);
+                    setRenderDeck([]);
+                    setRenderSideboard([]);
                   }} 
                   className="btn-magic-glass btn-glass-silver"
                 >
@@ -2473,9 +2842,9 @@ export default function DeckForge() {
             </div>
 
             {/* Alertas de Reglas */}
-            <div className="mb-8 grid grid-cols-1 md:grid-cols-3 gap-4 relative z-[100]">
+            <div className="mb-8 grid grid-cols-1 md:grid-cols-3 gap-4 relative z-10">
               {/* Cartas Main */}
-              <div className={cn("group relative hover:z-[100] p-4 rounded-xl border flex items-center gap-3 shadow-lg backdrop-blur-md transition-all cursor-help", stats.isMainValid ? "bg-green-500/5 border-green-500/20 text-green-400" : "bg-red-500/5 border-red-500/20 text-red-400")}>
+              <div className={cn("group relative hover:z-50 p-4 rounded-xl border flex items-center gap-3 shadow-lg backdrop-blur-md transition-all cursor-help", stats.isMainValid ? "bg-green-500/5 border-green-500/20 text-green-400" : "bg-red-500/5 border-red-500/20 text-red-400")}>
                 {stats.isMainValid ? <CheckCircle2 size={20} /> : <AlertTriangle size={20} />}
                 <div>
                   <p className="text-[10px] uppercase font-bold opacity-60">Cartas Main</p>
@@ -2492,7 +2861,7 @@ export default function DeckForge() {
               </div>
 
               {/* Cartas Prohibidas */}
-              <div className={cn("group relative hover:z-[100] p-4 rounded-xl border flex items-center gap-3 shadow-lg backdrop-blur-md transition-all cursor-help", stats.banned.length === 0 ? "bg-green-500/5 border-green-500/20 text-green-400" : "bg-red-500/5 border-red-500/20 text-red-400")}>
+              <div className={cn("group relative hover:z-50 p-4 rounded-xl border flex items-center gap-3 shadow-lg backdrop-blur-md transition-all cursor-help", stats.banned.length === 0 ? "bg-green-500/5 border-green-500/20 text-green-400" : "bg-red-500/5 border-red-500/20 text-red-400")}>
                 {stats.banned.length === 0 ? <CheckCircle2 size={20} /> : <Shield size={20} />}
                 <div>
                   <p className="text-[10px] uppercase font-bold opacity-60">Cartas Prohibidas</p>
@@ -2511,7 +2880,7 @@ export default function DeckForge() {
               </div>
 
               {/* Límite de Copias */}
-              <div className={cn("group relative hover:z-[100] p-4 rounded-xl border flex items-center gap-3 shadow-lg backdrop-blur-md transition-all cursor-help", stats.overLimit.length === 0 ? "bg-green-500/5 border-green-500/20 text-green-400" : "bg-red-500/5 border-red-500/20 text-red-400")}>
+              <div className={cn("group relative hover:z-50 p-4 rounded-xl border flex items-center gap-3 shadow-lg backdrop-blur-md transition-all cursor-help", stats.overLimit.length === 0 ? "bg-green-500/5 border-green-500/20 text-green-400" : "bg-red-500/5 border-red-500/20 text-red-400")}>
                 {stats.overLimit.length === 0 ? <CheckCircle2 size={20} /> : <Info size={20} />}
                 <div>
                   <p className="text-[10px] uppercase font-bold opacity-60">Límite de Copias</p>
@@ -2932,7 +3301,7 @@ export default function DeckForge() {
             <DeckVisualExporter deck={renderDeck} sideboard={renderSideboard} isOpen={showVisualGrid} onClose={() => setShowVisualGrid(false)} deckName={deckName} archetype={aiMetadata?.archetype || lastFormData?.archetype} colors={lastFormData?.colores} formData={lastFormData} onOptimize={handleOptimizeDeck} />
 
             {/* Mobile Metrics FAB and BottomSheet */}
-            {isMobile && mode === 'deck' && (
+            {isMobile && (mode === 'published-deck' || mode === 'deck') && (
               <>
                 <motion.button
                   whileHover={{ scale: 1.1 }}

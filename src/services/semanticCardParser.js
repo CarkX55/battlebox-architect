@@ -8,6 +8,7 @@
  */
 
 import { getCardKnowledge } from './knowledgeGraphService.js';
+import { extractCanonicalCmc, extractCanonicalOracleText, extractCanonicalTypeLine } from './compiler/core/canonicalCardNormalizer.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TAXONOMÍA ESTRUCTURADA DE DEMANDAS CAUSALES
@@ -64,10 +65,10 @@ export function parseSemanticCard(card) {
   }
 
   const nameLower = card.name.toLowerCase();
-  const oracle = (card.oracle_text || card.text || '').toLowerCase();
-  const typeLine = (card.type_line || card.type || '').toLowerCase();
+  const oracle = extractCanonicalOracleText(card).toLowerCase();
+  const typeLine = extractCanonicalTypeLine(card).toLowerCase();
   const keywords = (card.keywords || []).map(k => k.toLowerCase());
-  const cmc = typeof card.cmc === 'number' ? card.cmc : parseInt(card.cmc || 0, 10);
+  const cmc = extractCanonicalCmc(card);
 
   // 1. Carga inicial con fallback a Overrides de Knowledge Graph
   const know = getCardKnowledge(card);
@@ -320,6 +321,7 @@ export function parseSemanticCard(card) {
   const cardCausalContract = {
     card: card.name,
     oracleSource: 'SCRYFALL_ORACLE',
+    cmc,
     supplies: supplies.map(s => s.resource),
     demands: demands.map(d => ({ resource: d.resource, necessity: d.necessity, targetTurn: d.targetTurn || 2 })),
     timing: {
@@ -337,6 +339,8 @@ export function parseSemanticCard(card) {
     cardName: card.name,
     cmc,
     typeLine,
+    oracleText: extractCanonicalOracleText(card),
+    colors: Object.freeze([...(card.colors || card.card_faces?.[0]?.colors || [])]),
     capabilities,
     requirements,
     supplies,

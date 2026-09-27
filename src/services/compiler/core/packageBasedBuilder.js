@@ -1,22 +1,16 @@
-/**
- * src/services/compiler/core/packageBasedBuilder.js
- * 
- * PackageBasedBuilder: Macro Strategic Package Constructor v1.0.
- * Assembles the deck by allocating complete macro packages first (e.g. GIANTS_STOMP_PACKAGE, EARLY_RAMP_PACKAGE)
- * before individual slot optimization.
- */
-
 import { FunctionalPackageLibrary } from './functionalPackageLibrary.js';
+import { EmergentCausalPackageAssembler } from './emergentCausalPackageAssembler.js';
 
 export class PackageBasedBuilder {
   /**
-   * Assembles macro packages based on DeckIdentity.
+   * Assembles macro packages based on DeckIdentity and Emergent Causal Graph discovery.
    * 
    * @param {import('./deckIdentityModel.js').DeckIdentity} deckIdentity 
    * @param {import('./intentPackage.js').IntentPackage} intentPackage 
+   * @param {Array<Object>} candidatePool
    * @returns {{ allocatedPackages: Array<Object>, totalPackageDensity: number, assemblyLog: string }}
    */
-  static assembleMacroPackages(deckIdentity, intentPackage) {
+  static assembleMacroPackages(deckIdentity, intentPackage, candidatePool = []) {
     const mandatoryPackages = deckIdentity ? (deckIdentity.mandatoryPackages || []) : [];
     const allocatedPackages = [];
     let totalPackageDensity = 0;
@@ -29,7 +23,16 @@ export class PackageBasedBuilder {
       }
     }
 
-    const assemblyLog = `Ensamblados ${allocatedPackages.length} paquetes funcionales macro (${totalPackageDensity} slots reservados por identidad).`;
+    // If no static packages were declared, discover emergent packages dynamically from the pool
+    if (allocatedPackages.length === 0 && candidatePool.length > 0) {
+      const emergent = EmergentCausalPackageAssembler.discoverPackages(candidatePool, intentPackage, deckIdentity);
+      for (const ep of emergent.slice(0, 2)) {
+        allocatedPackages.push(ep);
+        totalPackageDensity += ep.requiredSlotsCount;
+      }
+    }
+
+    const assemblyLog = `Ensamblados ${allocatedPackages.length} paquetes funcionales causales emergentes (${totalPackageDensity} cartas reservadas por grafo).`;
 
     return {
       allocatedPackages: Object.freeze(allocatedPackages),

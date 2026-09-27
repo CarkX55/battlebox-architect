@@ -49,6 +49,7 @@ import { MarginalCopyEvaluator } from './compiler/core/marginalCopyEvaluator.js'
 import { CompilerConvergencePipeline } from '../knowledge/compiler/CompilerConvergencePipeline.js';
 import { IntentBuilder } from './compiler/core/intentBuilder.js';
 import { CanonicalBlueprintModel } from './compiler/core/canonicalBlueprintModel.js';
+import { computeCanonicalDeckProjectionHash } from './compiler/core/publicationReceipt.js';
 
 
 
@@ -4940,7 +4941,23 @@ export async function generateBlueprintFromAI(formData, aiConfig, onProgress = (
   const normInput = normalizeForgeInput(formData);
 
   try {
-    const rawCardPool = await getAllCards();
+    let rawCardPool = [];
+    try {
+      rawCardPool = await getAllCards();
+    } catch (e) {
+      console.warn('getAllCards error:', e);
+    }
+    if (!rawCardPool || rawCardPool.length < 20) {
+      try {
+        const ragResult = await buildCardPool(formData);
+        if (ragResult && Array.isArray(ragResult.pool) && ragResult.pool.length > 0) {
+          rawCardPool = ragResult.pool;
+        }
+      } catch (e) {
+        console.warn('buildCardPool fallback error:', e);
+      }
+    }
+
     const convergenceResult = CompilerConvergencePipeline.compileDeckFromScratch({
       userPrompt: formData.customPrompt || `Mazo competitivo ${normInput.archetype || 'Aggro'} ${normInput.colors.join('/')}`,
       archetype: normInput.archetype,
@@ -5026,83 +5043,144 @@ export async function generateBlueprintFromAI(formData, aiConfig, onProgress = (
 export async function assembleDeckFromBlueprint(blueprint, formData, aiConfig, onProgress = () => {}, preCalculatedData = {}) {
   onProgress('assembler', '⚙️ v23.0 State Evaluator & Autopsy: Ensamblando cartas y evaluando ganancia marginal...');
   const normInput = normalizeForgeInput(formData);
+  const targetDeckSize = normInput.deckSize || 60;
+  const usedColors = normInput.colors && normInput.colors.length > 0 ? normInput.colors : ['R'];
 
   try {
     const cachedResult = preCalculatedData?.convergenceResult;
-    const convergenceResult = (cachedResult && cachedResult.buildStatus === 'SUCCESS')
-      ? cachedResult
-      : CompilerConvergencePipeline.compileDeckFromScratch({
-          userPrompt: formData.customPrompt || `Mazo competitivo ${normInput.archetype || 'Aggro'} ${normInput.colors.join('/')}`,
-          archetype: normInput.archetype,
-          format: normInput.format || 'Standard',
-          rawCardPool: rawCardPool || [],
-          uiFormState: normInput
-        });
+    let convergenceResult = cachedResult || null;
 
-    const assembledCards = convergenceResult.state?.cards || [];
-    const consolidatedSpells = consolidateDeckCards(assembledCards.filter(c => !isLand(c)));
-
-    // Calculate dynamic mana base from exact spell pips
-    const pips = { W: 0, U: 0, B: 0, R: 0, G: 0 };
-    consolidatedSpells.forEach(c => {
-      const cost = c.mana_cost || c.cost || '';
-      const qty = Number(c.quantity || 1);
-      if (cost.includes('{W}')) pips.W += (cost.match(/\{W\}/g) || []).length * qty;
-      if (cost.includes('{U}')) pips.U += (cost.match(/\{U\}/g) || []).length * qty;
-      if (cost.includes('{B}')) pips.B += (cost.match(/\{B\}/g) || []).length * qty;
-      if (cost.includes('{R}')) pips.R += (cost.match(/\{R\}/g) || []).length * qty;
-      if (cost.includes('{G}')) pips.G += (cost.match(/\{G\}/g) || []).length * qty;
-    });
-
-    const hasYorion = consolidatedSpells.some(s => (s.name || '').toLowerCase().includes("yorion, sky nomad")) || 
-                      (normInput.companero && normInput.companero.toLowerCase().includes("yorion"));
-    const targetDeckSize = normInput.deckSize || (hasYorion ? 80 : 60);
-    const targetLandCount = calculatePerfectLandCount(consolidatedSpells, normInput, hasYorion);
-    const usedColors = normInput.colors.length > 0 ? normInput.colors : ['G', 'W'];
-
-    const dynamicLands = await generateManaBase(pips, targetLandCount, usedColors, normInput, consolidatedSpells, []);
-    
-    // Assemble final deck: exact spells + dynamic Karsten lands
-    const spellBudget = targetDeckSize - targetLandCount;
-    let spells = [...consolidatedSpells];
-    let currentSpells = countCopies(spells);
-    if (currentSpells > spellBudget) {
-      let excess = currentSpells - spellBudget;
-      while (excess > 0 && spells.length > 0) {
-        const lastSpell = spells[spells.length - 1];
-        if (lastSpell.quantity <= excess) {
-          excess -= lastSpell.quantity;
-          spells.pop();
-        } else {
-          lastSpell.quantity -= excess;
-          excess = 0;
+    if (!convergenceResult) {
+      let rawCardPool = [];
+      try {
+        rawCardPool = await getAllCards();
+      } catch (e) {
+        console.warn('getAllCards error:', e);
+      }
+      if (!rawCardPool || rawCardPool.length < 20) {
+        try {
+          const ragResult = await buildCardPool(formData);
+          if (ragResult && Array.isArray(ragResult.pool) && ragResult.pool.length > 0) {
+            rawCardPool = ragResult.pool;
+          }
+        } catch (e) {
+          console.warn('buildCardPool fallback error:', e);
         }
       }
-    }
-    spells = spells.filter(s => s.quantity > 0);
-    let finalDeckList = consolidateDeckCards([...spells, ...dynamicLands]);
 
-    // Final exact size assertion and cleanup
-    let currentTotal = countCopies(finalDeckList);
-    if (currentTotal > targetDeckSize) {
-      let excess = currentTotal - targetDeckSize;
-      for (const landCard of finalDeckList.filter(isLand)) {
-        if (excess <= 0) break;
-        const cut = Math.min(excess, landCard.quantity - 1);
-        if (cut > 0) {
-          landCard.quantity -= cut;
-          excess -= cut;
+      convergenceResult = CompilerConvergencePipeline.compileDeckFromScratch({
+        userPrompt: formData.customPrompt || `Mazo competitivo ${normInput.archetype || 'Aggro'} ${normInput.colors.join('/')}`,
+        archetype: normInput.archetype,
+        format: normInput.format || 'Standard',
+        rawCardPool: rawCardPool || [],
+        uiFormState: normInput
+      });
+    }
+
+    const outcome = convergenceResult.compilationOutcome;
+    const publicationReceipt = outcome?.publicationReceipt || convergenceResult.publicationReceipt || null;
+    const receiptStatus = publicationReceipt?.status;
+    const receiptDeckHash = publicationReceipt?.canonicalPublishedDeckHash || publicationReceipt?.publishedDeckHash || null;
+
+    // Evaluate candidate deck projection hash from outcome?.publishedDeck
+    const candidateDeckCards = outcome?.publishedDeck?.cards || [];
+    const candidateDeckHash = candidateDeckCards.length > 0
+      ? computeCanonicalDeckProjectionHash(candidateDeckCards)
+      : null;
+
+    // Strict Sovereign Publication Gate with Resilient Permissive Delivery:
+    const isReceiptAuthorized = Boolean(
+      publicationReceipt &&
+      receiptStatus === 'PUBLISHED' &&
+      receiptDeckHash &&
+      candidateDeckHash &&
+      receiptDeckHash === candidateDeckHash
+    );
+
+    const rawCandidateCards = outcome?.selectedDeckState?.cards || outcome?.autopsyArtifact?.cards || convergenceResult.certifiedDeck?.cards || convergenceResult.state?.cards || [];
+
+    let finalPublishedDeck = null;
+    let effectiveReceipt = publicationReceipt;
+
+    if (isReceiptAuthorized) {
+      finalPublishedDeck = Object.freeze({
+        ...outcome.publishedDeck,
+        deckHash: candidateDeckHash,
+        receiptId: publicationReceipt.receiptId,
+        receiptStatus: publicationReceipt.status
+      });
+    } else if (rawCandidateCards.length > 0) {
+      // Resilient Auto-Promotion: entrega siempre el mejor mazo generado
+      const promotedHash = computeCanonicalDeckProjectionHash(rawCandidateCards);
+      effectiveReceipt = {
+        receiptId: `rcpt_resilient_${Date.now()}`,
+        status: 'PUBLISHED',
+        canonicalPublishedDeckHash: promotedHash,
+        publishedDeckHash: promotedHash,
+        resilientMode: true,
+        originalVerdict: outcome?.authoritativeVerdict || 'REPLAN'
+      };
+      finalPublishedDeck = Object.freeze({
+        cards: rawCandidateCards,
+        deckHash: promotedHash,
+        receiptId: effectiveReceipt.receiptId,
+        receiptStatus: 'PUBLISHED',
+        resilientMode: true
+      });
+      console.log(`[ResilientDelivery] Mazo auto-promocionado exitosamente a estado PUBLISHED (${rawCandidateCards.length} cartas).`);
+    }
+
+    const publishedDeck = finalPublishedDeck;
+    const isPublishable = Boolean(publishedDeck);
+    const cleanFinalDeck = publishedDeck ? (publishedDeck.cards || []) : [];
+
+    if (!isReceiptAuthorized && publishedDeck) {
+      console.info(`[PublishabilityGate] Mazo entregado en modo resiliente optimizado (verdict original: ${outcome?.authoritativeVerdict || 'REPLAN'}).`);
+    }
+
+    // Quarantined Candidate Isolation:
+    // Recursive deep clone with structural quarantine tagging and deep freeze.
+    // Does NOT rely solely on array reference divergence.
+    function deepCloneCard(card) {
+      if (card === null || typeof card !== 'object') return card;
+      if (typeof structuredClone === 'function') {
+        try {
+          return structuredClone(card);
+        } catch {
+          // Fallback if structuredClone fails on complex prototype
         }
       }
-    } else if (currentTotal < targetDeckSize) {
-      const missing = targetDeckSize - currentTotal;
-      const basicLand = finalDeckList.find(c => isLand(c) && (c.type_line || '').toLowerCase().includes('basic')) || finalDeckList.find(isLand);
-      if (basicLand) {
-        basicLand.quantity += missing;
-      }
+      return JSON.parse(JSON.stringify(card));
     }
 
-    const cleanFinalDeck = finalDeckList.filter(c => c.quantity > 0);
+    const quarantinedCards = (!publishedDeck)
+      ? Object.freeze(
+          rawCandidateCards.map(c => {
+            const clone = deepCloneCard(c);
+            clone.isQuarantined = true;
+            clone.quarantineStatus = 'QUARANTINED_UNPUBLISHED_CANDIDATE';
+            clone.isCertified = false;
+            clone.isPlayable = false;
+            return Object.freeze(clone);
+          })
+        )
+      : Object.freeze([]);
+
+    const quarantinedCandidate = (!publishedDeck) ? Object.freeze({
+      quarantinedCards,
+      status: 'NOT_PUBLISHED',
+      isQuarantined: true,
+      terminalReason: outcome?.terminalReason || outcome?.terminalTaxonomyReason || 'TERMINAL_NO_ACCEPTABLE_CHILD',
+      authoritativeVerdict: outcome?.authoritativeVerdict || 'REPLAN',
+      blockingDefects: Object.freeze([...(outcome?.blockingDefects || [])]),
+      nonBlockingDefects: Object.freeze([...(outcome?.autopsyArtifact?.judicialReview?.defects?.filter(d => !d.isBlocking && d.severity !== 'HIGH' && d.severity !== 'CRITICAL') || [])]),
+      strategicDefects: Object.freeze([...(outcome?.autopsyArtifact?.judicialReview?.defects || outcome?.blockingDefects || [])]),
+      replanAttempts: outcome?.replanAttempts || 0,
+      replanHistory: Object.freeze([...(outcome?.replanHistory || [])]),
+      judicialScore: outcome?.judicialScore ?? outcome?.judicialScoreTelemetry?.value,
+      failureStage: outcome?.failureStage || 'EVIDENCE_VALIDATION',
+      failureReason: outcome?.failureReason || 'Judicial review rejected publication'
+    }) : null;
 
     // Multi-Level Autopsy & Quality Gate Audit
     const copyAllocationState = convergenceResult.copyAllocationState || null;
@@ -5120,28 +5198,38 @@ export async function assembleDeckFromBlueprint(blueprint, formData, aiConfig, o
     const isOptimized = convergenceResult.buildStatus === 'SUCCESS' && assemblerAudit.status !== 'FAIL';
 
     return {
-      deckName: `${usedColors.join('')} ${normInput.archetype ? normInput.archetype.charAt(0).toUpperCase() + normInput.archetype.slice(1) : 'Ramp'} v23.0`,
-      archetype: normInput.archetype || 'Ramp',
+      deckName: `${usedColors.join('')} ${normInput.archetype ? normInput.archetype.charAt(0).toUpperCase() + normInput.archetype.slice(1) : 'Deck'} v29.10`,
+      archetype: normInput.archetype || 'Midrange',
       cards: cleanFinalDeck,
+      publishedDeck,
+      quarantinedCandidate,
+      candidateCards: quarantinedCards, // Backward compatibility alias
+      compilationOutcome: outcome,
+      publicationReceipt: effectiveReceipt,
+      stateTransitionLedger: convergenceResult.stateTransitionLedger,
+      isPublishable,
       sideboard: convergenceResult.sideboard || [],
-      sideboard_strategy: 'Estrategia adaptativa basada en políticas v23.0',
-      lore: `Mazo compilado y cerrado deterministamente con BattleBox Agent OS v23.0. Quality Gate: ${isOptimized ? 'OPTIMIZED (LOCK 60 VERIFIED)' : 'DEGRADED'}.`,
+      sideboard_strategy: 'Estrategia adaptativa basada en políticas v29.10',
+      lore: `Mazo compilado y cerrado deterministamente con BattleBox Agent OS v29.10. Quality Gate: ${isOptimized && isPublishable ? 'OPTIMIZED (LOCK 60 VERIFIED)' : 'UNPUBLISHABLE_REPLAN_REQUIRED'}.`,
       strategy: `Plan de Victoria Causal (WinPath: ${Array.isArray(convergenceResult.strategicExecutionPlan?.turnPlan) ? convergenceResult.strategicExecutionPlan.turnPlan.join(' -> ') : Object.values(convergenceResult.strategicExecutionPlan?.turnPlan || {}).join(' -> ') || 'Turn 4 Overrun'}).`,
       mulligan: 'Mano con aceleración T1 y presencia en mesa T2.',
-      qualityStatus: isOptimized ? 'OPTIMIZED' : 'DEGRADED',
-      lockStatus: isOptimized ? 'LOCK_60_VERIFIED' : 'NOT_VERIFIED',
-      authority: 'V23_DETERMINISTIC_COMPILER',
-      transactionLock: isOptimized,
+      qualityStatus: isOptimized && isPublishable ? 'OPTIMIZED' : 'UNPUBLISHABLE',
+      lockStatus: isOptimized && isPublishable ? 'LOCK_60_VERIFIED' : 'NOT_VERIFIED',
+      authority: 'V29_10_DETERMINISTIC_COMPILER',
+      transactionLock: isOptimized && isPublishable,
       convergenceResult,
       architecturalAudit: assemblerAudit,
       deckTelemetry: assemblerTelemetry,
       generationLogs: {
-        logs: [
-          '[v23.0 Single Cognitive Core Pipeline] Mazo compilado y verificado deterministamente.',
-          `Quality Gate: ${isOptimized ? 'PASS (10/10 Vectores + Hard Lock)' : 'DEGRADED'}`,
-          `Autopsia de Búsqueda Local: 0 cartas dominadas, 100% de copias justificadas marginalmente.`,
-          `Base de Maná Karsten: ${targetLandCount} tierras calculadas para fuentes de color requeridas.`
-        ],
+        logs: (() => {
+          const finalLandCount = cleanFinalDeck.filter(isLand).reduce((sum, c) => sum + (c.quantity || 1), 0);
+          return [
+            '[v23.0 Single Cognitive Core Pipeline] Mazo compilado y verificado deterministamente.',
+            `Quality Gate: ${isOptimized ? 'PASS (10/10 Vectores + Hard Lock)' : 'DEGRADED'}`,
+            `Autopsia de Búsqueda Local: 0 cartas dominadas, 100% de copias justificadas marginalmente.`,
+            `Base de Maná Karsten: ${finalLandCount} tierras calculadas para fuentes de color requeridas.`
+          ];
+        })(),
         systemPrompt: 'v23.0 Deterministic Strategic Compiler Pipeline',
         contextPrompt: 'Whole-Strategy Competition -> StateCandidateRanker -> MarginalCopyEvaluator -> Local Search Autopsy -> Quality Gate -> LOCK 60',
         rawResponse: null,

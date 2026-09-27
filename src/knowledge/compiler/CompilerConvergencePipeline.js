@@ -106,6 +106,38 @@ import { LongitudinalMetaValidator } from '../../services/compiler/core/longitud
 import { CompilerValidationReport } from '../../services/compiler/core/compilerValidationReport.js';
 import { ProStrategicReasoningEngine } from '../../services/compiler/core/proStrategicReasoningEngine.js';
 import { DeliberativeCouncilEngine } from '../../services/compiler/core/deliberativeCouncilEngine.js';
+import { DeterministicSupremeJudge } from '../../services/compiler/core/deterministicSupremeJudge.js';
+import { DeckState } from '../../services/compiler/core/deckState.js';
+import { CertifiedDeckState } from '../../services/compiler/core/certifiedDeckState.js';
+import { ReplanExecutor } from '../../services/compiler/core/replanExecutor.js';
+import { DeckCompositionGenome } from '../../services/compiler/core/deckCompositionGenome.js';
+import { DeckCompositionState } from '../../services/compiler/core/deckCompositionState.js';
+import { MinimumViableGenomeGate } from '../../services/compiler/core/minimumViableGenomeGate.js';
+import { ExecutableWinPath } from '../../services/compiler/core/executableWinPath.js';
+import { ClosedLoopTournamentEngine } from '../../services/compiler/core/closedLoopTournamentEngine.js';
+import { ProgressiveDeckStateBuilder } from '../../services/compiler/core/progressiveDeckStateBuilder.js';
+import { EmergentCausalPackageAssembler } from '../../services/compiler/core/emergentCausalPackageAssembler.js';
+import { MechanicDiscoveryEngine } from '../../services/compiler/core/mechanicDiscoveryEngine.js';
+import { StrategicMemoryModel } from '../../services/compiler/core/strategicMemoryModel.js';
+import { StrategicLineGraph } from '../../services/compiler/core/strategicLineGraph.js';
+import { GameplanSynthesizer } from '../../services/compiler/core/gameplanSynthesizer.js';
+import { GameplanIntegrityGate } from '../../services/compiler/core/gameplanIntegrityGate.js';
+import { GameplanDriftDetector } from '../../services/compiler/core/gameplanDriftDetector.js';
+import { DeckPlanCoverage } from '../../services/compiler/core/deckPlanCoverage.js';
+import { ManaExecutionOptimizer } from '../../services/compiler/core/manaExecutionOptimizer.js';
+import { DeckStateSnapshot } from '../../services/compiler/core/deckStateSnapshot.js';
+import { HypergeometricDistribution } from '../../services/compiler/core/hypergeometricDistribution.js';
+import { ProvenanceHashChain } from '../../services/compiler/core/provenanceHashChain.js';
+import { StateTransitionLedger, STATE_TRANSITION_TYPES, TRANSITION_STEPS, hashCanonicalFailureState, computeHolisticStateHash } from '../../services/compiler/core/stateTransitionLedger.js';
+import { PublicationReceipt, computeCanonicalDeckProjectionHash } from '../../services/compiler/core/publicationReceipt.js';
+import { StrategicSearchCertificate } from '../../services/compiler/core/strategicSearchCertificate.js';
+import { PruningRulesRegistry } from '../../services/compiler/core/pruningRulesRegistry.js';
+import { HoldoutValidationEngine } from '../../services/compiler/core/holdoutValidationEngine.js';
+import { CanonicalStrategicProjection } from '../../services/compiler/core/canonicalStrategicProjection.js';
+import { StrategicClosureCertificate, STRATEGIC_CLOSURE_STATUS } from '../../services/compiler/core/strategicClosureCertificate.js';
+import { GameplanExecutionPolicy } from '../../services/compiler/core/gameplanExecutionPolicy.js';
+import { computeDeterministicHash } from '../../services/compiler/core/certifiedDeckState.js';
+import { extractCanonicalCardProfile } from '../../services/cardIntelligenceEngine.js';
 
 export class CompilerConvergencePipeline {
   static compileDeckFromScratch({
@@ -116,16 +148,41 @@ export class CompilerConvergencePipeline {
     rawGeminiLLMInput = null,
     uiFormState = null
   }) {
+    // Compiler Ingestion Canonicalization Guard (v29.10 SSOT)
+    // Sanitizes all cards in rawCardPool so zero stale or un-normalized card_intelligence can leak
+    if (Array.isArray(rawCardPool)) {
+      for (const c of rawCardPool) {
+        if (c) extractCanonicalCardProfile(c);
+      }
+    }
+
     // Reset Oracle Trace Logger & Explainability Timeline
     OracleTraceLog.reset(userPrompt);
     ExplainabilityTimeline.reset();
 
     ExplainabilityTimeline.addStep('T0', 'User Request', `Received user compilation prompt: "${userPrompt}"`);
 
+    // Initialize Unbroken Cryptographic State Transition Ledger (v29.10)
+    const ledger = new StateTransitionLedger({ compilerVersion: 'V29.10' });
+
     // PASS 1: Single Intent Authority — IntentBuilder produces immutable IntentPackage directly from UI Form State
     const compilerInput = CompilerInput.createFromUI(uiFormState || { prompt: userPrompt, format, archetype }, userPrompt);
     const rawIntentPackage = compilerInput.intentPackage;
     const initialIntentHash = rawIntentPackage.computeIntentHash();
+
+    // S0: INITIAL_INTENT_STATE (Genesis State Snapshot)
+    ledger.initializeGenesisState({
+      step: TRANSITION_STEPS.S0_INTENT,
+      state: rawIntentPackage,
+      stateHash: initialIntentHash,
+      metadata: {
+        componentId: 'IntentBuilder',
+        componentVersion: 'V29.10',
+        policyHash: computeDeterministicHash({ format, userPrompt }),
+        format,
+        userPrompt
+      }
+    });
 
     // Principle #3: Wrap IntentPackage with IntentUsageTracker to audit complete consumption
     const usageTracker = new IntentUsageTracker();
@@ -164,143 +221,286 @@ export class CompilerConvergencePipeline {
       }
     };
 
-    // PASS 2: Strategic Identity Compiler — Compile rich DeckIdentity before CapabilityVector
+    // PASS 2: Discovery & Strategic Memory Layer (V29.4 GameplanContract SSOT)
+    const discoveredMechanics = MechanicDiscoveryEngine.discover({ cardPool: rawCardPool, intentPackage });
+    const strategicMemory = StrategicMemoryModel.buildMemory({ discoveredMechanics, intentPackage });
+    const lineSelection = StrategicLineGraph.selectLines({ strategicMemory, intentPackage });
+    const gameplanContract = GameplanSynthesizer.synthesize({ lineSelection, cardPool: rawCardPool, intentPackage });
+
     const deckIdentity = StrategicIdentityCompiler.compileIdentity(intentPackage);
 
-    // PASS 2b: StrategicObjective & CapabilityVector (Quantitative Target Axes)
-    const strategicObjective = new StrategicObjective({
-      speedTier: intentPackage.tempo,
-      desiredTurnWin: deckIdentity.expectedKillTurn
+    // S1: GAMEPLAN_SYNTHESIZED
+    const gameplanHash = computeDeterministicHash(gameplanContract);
+    ledger.recordTransition({
+      componentId: 'GameplanSynthesizer',
+      componentVersion: 'V29.10',
+      policyHash: computeDeterministicHash(gameplanContract.tacticalExecutionProfile || {}),
+      transitionPolicyVersion: 'V29.10',
+      authorityAttestation: 'GAMEPLAN_SSOT',
+      fromStep: TRANSITION_STEPS.S0_INTENT,
+      toStep: TRANSITION_STEPS.S1_GAMEPLAN,
+      fromHash: initialIntentHash,
+      toHash: gameplanHash,
+      state: gameplanContract,
+      mutationType: STATE_TRANSITION_TYPES.REFINEMENT_STEP,
+      semanticDiff: { thesis: gameplanContract.thesis, derivedKillTurn: gameplanContract.derivedKillTurn },
+      reason: 'Synthesized GameplanContract and tactical execution profile'
     });
-    const capabilityAxes = strategicObjective.toCapabilityAxes(intentPackage);
-    const capabilityVector = new CapabilityVector(capabilityAxes);
 
     OracleTraceLog.logPass({
       passIndex: 2,
-      passName: `PASS 2: Strategic Identity Compiler [${deckIdentity.archetypeKey}] & CapabilityVector`,
+      passName: `PASS 2: Discovery & Strategic Memory [${gameplanContract.derivedFromLine || deckIdentity.archetypeKey}] & GameplanContract`,
       category: 'STRATEGIC_IDENTITY',
-      component: 'StrategicIdentityCompiler',
+      component: 'StrategicMemoryModel',
       status: 'PASS',
-      inputs: { archetypeKey: deckIdentity.archetypeKey, expectedKillTurn: deckIdentity.expectedKillTurn },
-      outputs: { requiredEnginesCount: (deckIdentity.mandatoryEngines || []).length, axesCount: capabilityVector.axes.length },
-      details: { deckIdentity: deckIdentity.toJSON(), capabilityVector: capabilityVector.toJSON() }
+      inputs: { archetypeKey: deckIdentity.archetypeKey, expectedKillTurn: gameplanContract.derivedKillTurn },
+      outputs: { derivedFromLine: gameplanContract.derivedFromLine, requiredEnginesCount: (gameplanContract.requiredEngines || []).length, derivedKillTurn: gameplanContract.derivedKillTurn },
+      details: { gameplanContract: { thesis: gameplanContract.thesis, derivedKillTurn: gameplanContract.derivedKillTurn, feasibilityStatus: gameplanContract.feasibilityStatus }, deckIdentity: deckIdentity.toJSON() }
     });
 
-    // PASS 3: CapabilityPlanner & Incremental Hybrid Solver (Produces CapabilityPlan & ResidualVector)
-    const { capabilityPlan, residualVector, objectiveScore } = CapabilityPlanner.plan(intentPackage, capabilityVector);
-
+    // PASS 3: Strategic Truth Layer & GameplanContract SSOT (V29.4)
     OracleTraceLog.logPass({
       passIndex: 3,
-      passName: 'PASS 3: Incremental Hybrid Solver & CapabilityPlan',
-      category: 'CAPABILITY_PLANNER',
-      component: 'CapabilityPlanner',
+      passName: 'PASS 3: Strategic Truth Layer & GameplanContract SSOT (V29.4)',
+      category: 'STRATEGIC_TRUTH',
+      component: 'GameplanSynthesizer',
       status: 'PASS',
-      inputs: { totalAxes: capabilityVector.axes.length },
-      outputs: { objectiveScore, totalRequiredDensity: capabilityPlan.totalDensity, residualMagnitude: residualVector.magnitude },
-      details: { capabilityPlan: capabilityPlan.toJSON(), residualVector }
+      inputs: { totalTurnRequirements: (gameplanContract.turnRequirements || []).length, derivedKillTurn: gameplanContract.derivedKillTurn },
+      outputs: { gameplanThesis: gameplanContract.thesis, winCondition: gameplanContract.winCondition?.type, feasibility: gameplanContract.feasibilityStatus },
+      details: { gameplanContract: { thesis: gameplanContract.thesis, identityConstraints: gameplanContract.identityConstraints, turnRequirements: gameplanContract.turnRequirements, winCondition: gameplanContract.winCondition, recoveryPlans: gameplanContract.recoveryPlans, causalInvariants: gameplanContract.causalInvariants } }
     });
 
-    // PASS 4: Restricted Search Space & CandidateConstraintEngine (Filter ──► Ranker ──► Winner Selection)
-    const { restrictedPool, rejectedCount, rejectionLog } = SearchSpaceCompiler.compileRestrictedPool(rawCardPool, deckIdentity, intentPackage);
-    const macroPackageAssembly = PackageBasedBuilder.assembleMacroPackages(deckIdentity, intentPackage);
+    // PASS 4: Restricted Search Space & Progressive Global State Optimization
+    const { restrictedPool, rejectedCount, rejectionLog } = SearchSpaceCompiler.compileRestrictedPool(rawCardPool, deckIdentity, intentPackage, gameplanContract);
+    const macroPackageAssembly = PackageBasedBuilder.assembleMacroPackages(deckIdentity, intentPackage, restrictedPool);
 
-    const constraintEngine = new CandidateConstraintEngine();
-    const { filledSlots, rejectedEvidence, reasonLedger } = constraintEngine.processPlan(intentPackage, capabilityPlan, restrictedPool, null, deckIdentity);
+    // S2: SEARCH_SPACE_RESTRICTED
+    const restrictedPoolHash = computeDeterministicHash(restrictedPool.map(c => c.name || c.id));
+    ledger.recordTransition({
+      componentId: 'SearchSpaceCompiler',
+      componentVersion: 'V29.10',
+      policyHash: computeDeterministicHash(deckIdentity),
+      transitionPolicyVersion: 'V29.10',
+      authorityAttestation: 'IDENTITY_FIREWALL',
+      fromStep: TRANSITION_STEPS.S1_GAMEPLAN,
+      toStep: TRANSITION_STEPS.S2_SEARCH_DOMAIN,
+      fromHash: gameplanHash,
+      toHash: restrictedPoolHash,
+      state: restrictedPool,
+      mutationType: STATE_TRANSITION_TYPES.CANDIDATE_ADMISSION,
+      semanticDiff: { restrictedPoolCount: restrictedPool.length, rejectedCount },
+      reason: 'Filtered candidate pool with Identity Firewall'
+    });
+
+    // Initial search space pre-filter vetos
+    const searchSpaceVetos = (rejectionLog || []).map(r => ({
+      cardName: r.cardName,
+      oracle_id: (r.cardName || '').toLowerCase(),
+      rejectionReason: r.reason,
+      phase: 'SEARCH_SPACE_PREFILTER'
+    }));
+
+    // Progressive Global State Optimization (V29.10 Gameplan-First Causal Construction)
+    const { deckState: progressiveDeckState, buildLog: progressiveBuildLog, retroactiveSwapsCount } = ProgressiveDeckStateBuilder.buildDeckState({
+      intentPackage: {
+        ...intentPackage,
+        vetoLedger: [...(intentPackage.vetoLedger || []), ...searchSpaceVetos]
+      },
+      deckIdentity,
+      gameplanContract,
+      candidatePool: restrictedPool
+    });
+
+    const copyAllocationState = CopyAllocationManager.createAllocationStateFromDeckState(progressiveDeckState, intentPackage.format, intentPackage, deckIdentity);
+    const packages = copyAllocationState.packages;
+    const rejectedEvidence = [];
+    const reasonLedger = null;
+    const filledSlots = [];
+
+    const isBuilderViable = progressiveDeckState?.isViable !== false && progressiveDeckState?.buildStatus !== 'INFEASIBLE';
+    const pass4Status = isBuilderViable ? 'PASS' : 'FAIL';
 
     OracleTraceLog.logPass({
       passIndex: 4,
-      passName: 'PASS 4: Restricted Search Space & Identity CandidateConstraintEngine',
-      category: 'CANDIDATE_CONSTRAINT_ENGINE',
-      component: 'CandidateConstraintEngine',
-      status: 'PASS',
-      inputs: { totalSlots: filledSlots.length, rawCardPoolCount: rawCardPool.length, restrictedPoolCount: restrictedPool.length },
-      outputs: { filledSlotsCount: filledSlots.length, rejectedCount: rejectedEvidence.length + rejectedCount, macroPackages: macroPackageAssembly.allocatedPackages.length },
-      details: { filledSlots: filledSlots.map(s => s.toJSON()), rejectedEvidence: rejectedEvidence.slice(0, 5), macroPackageAssembly }
+      passName: 'PASS 4: Progressive Global DeckState Optimization & Emergent Packages',
+      category: 'PROGRESSIVE_STATE_BUILDER',
+      component: 'ProgressiveDeckStateBuilder',
+      status: pass4Status,
+      inputs: { rawCardPoolCount: rawCardPool.length, restrictedPoolCount: restrictedPool.length },
+      outputs: {
+        physicalCardCount: progressiveDeckState.physicalCardCount || progressiveDeckState.cards.reduce((s, c) => s + (c.quantity || 1), 0),
+        distinctCardCount: progressiveDeckState.distinctCardCount || progressiveDeckState.cards.length,
+        nonLandCardCount: progressiveDeckState.nonLandCardCount || progressiveDeckState.totalSpells,
+        landCount: progressiveDeckState.landCount || progressiveDeckState.totalLands,
+        macroPackages: macroPackageAssembly.allocatedPackages.length,
+        retroactiveSwapsCount,
+        buildStatus: progressiveDeckState.buildStatus || 'SUCCESS'
+      },
+      details: { progressiveBuildLog, macroPackageAssembly }
     });
 
-    // Step 4b: Build CopyAllocationState through Single Authority CopyAllocationManager
-    const copyAllocationState = CopyAllocationManager.createAllocationStateFromPlan(filledSlots, format, null);
-    const packages = copyAllocationState.packages;
-
-    ExplainabilityTimeline.addStep('T4', 'Slot Budget Reservation', `CopyAllocationManager allocated ${copyAllocationState.totalAllocatedDensity} density across ${packages.length} strategic packages in ${copyAllocationState.mode} mode (source: ${copyAllocationState.modeSource})`);
-
-    // Step 4d: Capability Package Model Audit (Pre-expansion model validation)
-    const packageModelAudit = {
-      totalPackages: copyAllocationState.packages.length,
-      validLockLevels: copyAllocationState.packages.every(p => p.lockLevel),
-      validPriorities: copyAllocationState.packages.every(p => p.priority),
-      validDensities: copyAllocationState.packages.every(p => p.requiredDensity > 0),
-      hasRationales: copyAllocationState.packages.every(p => p.rationale && p.rationale.length > 0),
-      status: 'PASS'
-    };
-
-    ExplainabilityTimeline.addStep('T4b', 'Capability Package Model Audit',
-      `Validated ${packageModelAudit.totalPackages} capability packages: ` +
-      `LockLevels OK, Priorities OK, Densities OK, Rationales OK.`
+    ExplainabilityTimeline.addStep('T4', 'Progressive Global State Optimization', 
+      `Built ${progressiveDeckState.cards.length} card global state with ${macroPackageAssembly.allocatedPackages.length} emergent causal packages and ${retroactiveSwapsCount} retroactive swaps (Status: ${progressiveDeckState.buildStatus || 'SUCCESS'}).`
     );
 
+    // PASS 5: V28.2 / V29.1 Seed Genome Construction from Progressive DeckState
+    const cardIdentityMap = new Map();
+    const copiesByOracleId = new Map();
+    const rolesByOracleId = new Map();
+    const packageAssignments = new Map();
+
+    const nonLandSpells = progressiveDeckState.cards.filter(c => !c.isLand);
+    const landCards = progressiveDeckState.cards.filter(c => c.isLand);
+
+    for (const entry of nonLandSpells) {
+      const cardObj = entry.cardObj || entry.card || entry;
+      const oId = DeckCompositionGenome.getOracleId(cardObj);
+      const qty = Number(entry.quantity || entry.count || 1);
+      cardIdentityMap.set(oId, cardObj);
+      copiesByOracleId.set(oId, qty);
+      rolesByOracleId.set(oId, entry.role || 'CORE_SPELL');
+      packageAssignments.set(oId, entry.packageId || 'CORE');
+    }
+
+    const landState = {
+      totalLands: landCards.reduce((sum, c) => sum + Number(c.quantity || c.count || 1), 0),
+      landCards: landCards.map(l => ({ ...l, quantity: Number(l.quantity || l.count || 1) }))
+    };
+
+    const seedGenome = new DeckCompositionGenome({
+      cardIdentityMap,
+      copiesByOracleId,
+      rolesByOracleId,
+      packageAssignments,
+      landState,
+      format: intentPackage.format,
+      intentHash: initialIntentHash
+    });
+
+    const mvgCheck = MinimumViableGenomeGate.validateGenome(seedGenome, intentPackage, deckIdentity);
+    let winningCompState = null;
+    let tournamentReport = null;
+
+    if (mvgCheck.isViable) {
+      const tournamentResult = ClosedLoopTournamentEngine.executeTournament({
+        seedGenomes: [seedGenome],
+        candidatePool: restrictedPool,
+        intentPackage,
+        deckIdentity,
+        options: { maxEpochs: 3, maxBudget: 1500 }
+      });
+      winningCompState = tournamentResult.winningState;
+      tournamentReport = tournamentResult.tournamentReport;
+    }
+
+    const preOptimizationState = winningCompState ? winningCompState.toDeckState(progressiveDeckState.vetoLedger) : progressiveDeckState;
+    const rawNonLands = preOptimizationState.cards.filter(c => !c.isLand);
+
+    // S3: SELECTED_SPELLS
+    const spellStateH1 = computeDeterministicHash(rawNonLands);
+    ledger.recordTransition({
+      componentId: 'ProgressiveDeckStateBuilder',
+      componentVersion: 'V29.10',
+      policyHash: computeDeterministicHash(progressiveDeckState.builderCoverage || {}),
+      transitionPolicyVersion: 'V29.10',
+      authorityAttestation: 'PROGRESSIVE_BUILDER_V29_10',
+      fromStep: TRANSITION_STEPS.S2_SEARCH_DOMAIN,
+      toStep: TRANSITION_STEPS.S3_SELECTED_SPELLS,
+      fromHash: restrictedPoolHash,
+      toHash: spellStateH1,
+      state: rawNonLands,
+      mutationType: STATE_TRANSITION_TYPES.PROGRESSIVE_ADDITION,
+      semanticDiff: { spellCount: rawNonLands.length, distinctSpells: progressiveDeckState.cards.length },
+      reason: 'Progressive state optimization produced non-land spell state'
+    });
+
+    // PASS 8: Complete-State Mana Co-Optimization (V29.10 ManaExecutionOptimizer)
+    let manaOptimization = ManaExecutionOptimizer.optimizeLandState({
+      nonLandSpells: rawNonLands,
+      gameplanContract,
+      intentPackage,
+      availableLands: rawCardPool.filter(c => (c.type_line || c.type || '').toLowerCase().includes('land'))
+    });
+
+    // Cryptographic Invariant: SPELL_STATE_H1 === MANA_INPUT_H1
+    if (manaOptimization.inputSpellStateHash && manaOptimization.inputSpellStateHash !== spellStateH1) {
+      throw new Error(`PROTOCOL_VIOLATION: UNAUTHORIZED_STATE_MUTATION: ManaExecutionOptimizer input spell state hash (${manaOptimization.inputSpellStateHash}) does not match ProgressiveDeckState spells (${spellStateH1})`);
+    }
+
+    const appliedLandsCount = manaOptimization.optimalDeckState.landCards.reduce((sum, c) => sum + Number(c.quantity || c.count || 1), 0);
+    if (appliedLandsCount !== manaOptimization.optimalLandCount) {
+      throw new Error(`HARD FAIL: MANA_STATE_MUTATION_DETECTED: ManaExecutionOptimizer selected ${manaOptimization.optimalLandCount} lands, but appliedDeck contains ${appliedLandsCount} lands.`);
+    }
+
+    const optimizedDeckCards = [
+      ...manaOptimization.optimalDeckState.nonLandSpells,
+      ...manaOptimization.optimalDeckState.landCards
+    ];
+    const deckState = new DeckState(optimizedDeckCards, {
+      format: intentPackage.format,
+      archetype: intentPackage.strategicTempo,
+      vetoLedger: progressiveDeckState.vetoLedger
+    });
+
+    // Cryptographic Invariant: MANA_OUTPUT_H2 === FINAL_DECK_SPELL_STATE_H2
+    const manaOutputH2 = manaOptimization.optimizedSpellStateHash || computeDeterministicHash(manaOptimization.optimalDeckState.nonLandSpells);
+    const optimizedDeckCardsHash = computeDeterministicHash(optimizedDeckCards);
+    const finalDeckSpellsH2 = computeDeterministicHash(deckState.cards.filter(c => !c.isLand));
+    if (finalDeckSpellsH2 !== manaOutputH2) {
+      throw new Error(`PROTOCOL_VIOLATION: UNAUTHORIZED_STATE_MUTATION: Spell state diverged between ManaExecutionOptimizer output (${manaOutputH2}) and final deckState (${finalDeckSpellsH2})`);
+    }
+
+    // S4: MANA_OPTIMIZED
+    ledger.recordTransition({
+      componentId: 'ManaExecutionOptimizer',
+      componentVersion: 'V29.10',
+      policyHash: manaOptimization.manaOptimizationStateId,
+      transitionPolicyVersion: 'V29.10',
+      authorityAttestation: 'COMPLETE_STATE_STOCHASTIC_CO_OPTIMIZER',
+      fromStep: TRANSITION_STEPS.S3_SELECTED_SPELLS,
+      toStep: TRANSITION_STEPS.S4_MANA_OPTIMIZED,
+      fromHash: spellStateH1,
+      toHash: optimizedDeckCardsHash,
+      state: optimizedDeckCards,
+      mutationType: STATE_TRANSITION_TYPES.MANA_CO_OPTIMIZATION,
+      semanticDiff: {
+        optimalLandCount: manaOptimization.optimalLandCount,
+        spellCount: manaOptimization.spellCount,
+        gameplanSuccessRate: manaOptimization.gameplanSuccessRate
+      },
+      reason: `Optimal ${manaOptimization.optimalLandCount} lands selected via Frank Karsten complete state evaluation`
+    });
+
     OracleTraceLog.logPass({
-      passIndex: 4,
-      passName: 'PASS 4: CopyAllocationManager — Package Composer & Strategic Budget Allocation',
-      category: 'PACKAGE_COMPOSER',
-      component: 'CopyAllocationManager',
-      status: copyAllocationState.allVerified ? 'PASS' : 'WARN',
+      passIndex: 8,
+      passName: 'PASS 8: Complete-State Stochastic Land Co-Optimization (Adaptive Spectrum)',
+      category: 'MANA_EXECUTION_OPTIMIZATION',
+      component: 'ManaExecutionOptimizer',
+      status: manaOptimization.isViable ? 'PASS' : 'WARN',
       inputs: {
-        totalRequirements: capabilityPlan.slots.length,
-        format,
-        allocationMode: copyAllocationState.mode,
-        modeSource: copyAllocationState.modeSource
+        nonLandSpellsCount: rawNonLands.length,
+        testedSpectrum: (manaOptimization.comparativeTelemetry || []).map(t => t.lands)
       },
       outputs: {
-        totalPackages: packages.length,
-        totalAllocatedDensity: copyAllocationState.totalAllocatedDensity,
-        totalDesiredCopies: copyAllocationState.totalDesiredCopies,
-        allVerified: copyAllocationState.allVerified,
-        packageModelStatus: packageModelAudit.status
+        optimalLandCount: manaOptimization.optimalLandCount,
+        gameplanSuccessRate: `${(manaOptimization.gameplanSuccessRate * 100).toFixed(1)}%`,
+        certificationStatus: manaOptimization.certificationStatus,
+        winningJustification: manaOptimization.justification
       },
       details: {
-        capabilityPlan: capabilityPlan.toJSON(),
-        copyAllocationState: copyAllocationState.getPackageSummaries(),
-        packageModelAudit,
-        packages
+        comparativeTelemetry: manaOptimization.comparativeTelemetry
       }
     });
 
-
-    // PASS 8: Land & Frank Karsten Calculation Justification
-    const avgCmc = 2.4;
-    const virtualManaSources = 10;
-    OracleTraceLog.logPass({
-      passIndex: 8,
-      passName: 'PASS 8: Land & Frank Karsten Calculation Justification',
-      category: 'KARSTEN_MANA_CALCULATOR',
-      component: 'FrankKarstenManaEngine',
-      status: 'PASS',
-      inputs: { targetLands: 24, averageCmc: avgCmc, virtualManaSources },
-      outputs: { expectedManaTurn4: 4.91, monteCarloScrewRate: '18%' },
-      details: { reason: `Average CMC is ${avgCmc}. Virtual mana dorks: ${virtualManaSources}. Karsten target: 24 lands.` }
-    });
-
-    // PASS 5: Pure DeckExpansion — transform CopyAllocationState into DeckState
-    const rawDeckState = DeckExpansion.expand(copyAllocationState);
-
-    // PASS 5b: Autonomous StrategicStateOptimizer & DemandSupplyLedger Universal Causal Refinement
-    const { optimizedState: deckState, autopsyReport, optimizationLog } = StrategicStateOptimizer.optimize(
-      rawDeckState,
-      deckIdentity,
-      intentPackage,
-      restrictedPool
-    );
+    const finalAllocationState = CopyAllocationManager.createAllocationStateFromDeckState(deckState, intentPackage.format, intentPackage, deckIdentity);
     
     // PASS 6: DeckFitnessEvaluator & CompilerReport
     const fitnessReport = DeckFitnessEvaluator.evaluate(deckState, intentPackage);
     const compilerReport = new CompilerReport({
       intentPackage,
-      capabilityPlan,
-      allocationState: copyAllocationState,
+      allocationState: finalAllocationState,
       deckState,
       fitnessReport,
-      residualVector,
       rejectedEvidence,
       compilerConfidence: 98
     });
@@ -308,14 +508,14 @@ export class CompilerConvergencePipeline {
     // PASS 7: Architectural Invariant Audit
     const finalDeckCards = deckState.cards;
     const architecturalAudit = CopyAllocationAuditor.audit(
-      copyAllocationState,
+      finalAllocationState,
       finalDeckCards,
       null
     );
 
     const deckTelemetry = DeckTelemetry.capture(
       finalDeckCards,
-      copyAllocationState,
+      finalAllocationState,
       architecturalAudit
     );
 
@@ -375,7 +575,7 @@ export class CompilerConvergencePipeline {
 
     // PASS 17: Principle #4 Intent Influence & Causal Evidence Graph Audit
     const influenceGraph = new IntentInfluenceGraph();
-    influenceGraph.buildGraph(intentPackage, capabilityPlan, filledSlots, rejectedEvidence);
+    influenceGraph.buildGraph(intentPackage, null, filledSlots, rejectedEvidence);
     const intentInfluenceReport = influenceGraph.calculateInfluenceReport();
 
     OracleTraceLog.logPass({
@@ -444,7 +644,9 @@ export class CompilerConvergencePipeline {
       inputs: { format: intentPackage.format, targetArchetypeKey: deckIdentity.archetypeKey },
       outputs: {
         overallViabilityPercentage: `${formatViabilityReport.overallViabilityPercentage}%`,
-        criticalMassScore: `${formatViabilityReport.criticalMassScore}%`,
+        viability: formatViabilityReport.viability,
+        causalChainIntegrity: `${Math.round(formatViabilityReport.causalChainIntegrity * 100)}%`,
+        winPathClosure: formatViabilityReport.winPathClosure,
         isFormatViable: formatViabilityReport.isFormatViable,
         suggestedAdaptation: formatViabilityReport.suggestedAdaptation
       },
@@ -558,7 +760,7 @@ export class CompilerConvergencePipeline {
     const diversityIndexReport = StrategicDiversityIndex.evaluateDiversity(deckState, deckIdentity);
 
     // Strategic Execution Compiler, Failure Analysis, Decision Tree Simulator & Strategic Coherence Score
-    const strategicExecutionPlan = StrategicExecutionCompiler.compileExecutionPlan(deckIdentity, intentPackage);
+    const strategicExecutionPlan = StrategicExecutionCompiler.compileExecutionPlan(deckIdentity, intentPackage, gameplanContract);
     const failureAnalysisTrace = StrategicFailureAnalyzer.analyzeMatchupVulnerabilities(deckState, deckIdentity, 'AZORIUS_CONTROL');
     const turnDecisionSimulatorTrace = TurnByTurnDecisionSimulator.simulateDecisionTree(deckState, strategicExecutionPlan.turnPlan);
     const strategicCoherenceReport = StrategicCoherenceScore.evaluateCoherence(deckState, deckIdentity, strategicExecutionPlan);
@@ -567,7 +769,7 @@ export class CompilerConvergencePipeline {
     // Strategic Knowledge v2 Inferences, Roles, Dependencies & DNA Traces
     const strategicInferenceTrace = StrategicInferenceGraph.buildInferenceChain(repCard, deckIdentity.archetypeKey);
     const functionalRoleTrace = FunctionalRoleGraph.getFunctionalRoles(repCard, deckIdentity.archetypeKey);
-    const dependencyGraphTrace = StrategicDependencyGraph.traceDependencies('LARGE_THREATS');
+    const dependencyGraphTrace = StrategicDependencyGraph.traceDependencies(intentPackage.primaryTribe ? 'TRIBAL_SYNERGY' : (intentPackage.tempo?.toLowerCase().includes('aggro') ? 'EARLY_PRESSURE' : 'MANA_ACCELERATION'));
     const archetypeDNATrace = ArchetypeDNA.getArchetypeDNA(deckIdentity.archetypeKey);
     const packageEvolutionTrace = PackageEvolutionDatabase.getPackageEvolution(primaryPackageName);
 
@@ -615,35 +817,292 @@ export class CompilerConvergencePipeline {
     const proDecisionTree = ProStrategicReasoningEngine.simulateProDecisionTree(deckState, strategicExecutionPlan);
     const proPhaseSimulation = ProStrategicReasoningEngine.simulateStepByStepGame(deckState, 1000);
 
-    // Deliberative Multi-Agent Strategic Council Engine (9 Agents, Meta Research, Hypothesis Critique, Package A vs B, Multi-Variant Optimization)
+    // V29.2 SSOT: Precompute Plan Coverage for Deterministic Supreme Judge
+    let currentDeckState = deckState;
+    let planCoverage = DeckPlanCoverage.computeCoverage({ deckState: currentDeckState, gameplanContract });
+
+    // Deterministic Supreme Judge & Operational REPLAN Convergence Loop (v29.10)
+    let supremeJudicialReview = DeterministicSupremeJudge.judgeDeck(currentDeckState, deckIdentity, { ...intentPackage, planCoverage }, 1);
+    const repairHistory = [];
+
+    const maxReplanIterations = 3;
+    let replanAttempts = 0;
+    let replanRequested = false;
+    let terminalReplanReason = null;
+
+    while (supremeJudicialReview.authoritativeVerdict === 'REPLAN') {
+      replanRequested = true;
+      if (replanAttempts >= maxReplanIterations) {
+        terminalReplanReason = 'TERMINAL_REPLAN_BUDGET_EXHAUSTED';
+        break;
+      }
+
+      replanAttempts++;
+      const parentDeckProjectionHash = computeDeterministicHash(currentDeckState.cards);
+      const parentStateHash = ledger.latestHash;
+
+      console.log(`[COMPILER] ========================================`);
+      console.log(`[COMPILER] REPLAN ATTEMPT ${replanAttempts}`);
+      console.log(`[COMPILER] Parent State Hash: ${parentStateHash}`);
+      console.log(`[COMPILER] Parent Deck Hash:  ${parentDeckProjectionHash}`);
+      console.log(`[COMPILER] Directives: ${supremeJudicialReview.replanDirectives.map(d => `${d.action}${d.turn ? ' (T' + d.turn + ')' : ''}`).join(', ')}`);
+
+      const repairScope = ReplanExecutor.deriveRepairScope(
+        supremeJudicialReview.defects,
+        supremeJudicialReview.replanDirectives,
+        currentDeckState
+      );
+
+      // Parent immutability assertion
+      const parentHashBefore = computeDeterministicHash(currentDeckState.cards);
+
+      const { repairedDeckState, repairRecord } = ReplanExecutor.recompileScope(
+        repairScope,
+        currentDeckState,
+        deckIdentity,
+        intentPackage,
+        restrictedPool || rawCardPool,
+        replanAttempts + 1
+      );
+
+      const parentHashAfter = computeDeterministicHash(currentDeckState.cards);
+      if (parentHashBefore !== parentHashAfter) {
+        throw new Error('PROTOCOL_VIOLATION: PARENT_STATE_MUTATED_IN_PLACE: ReplanExecutor must never mutate parent state in-place.');
+      }
+
+      if (repairRecord.candidateStatus !== 'EVALUATED' || !repairRecord.changesMade || repairRecord.changesMade.length === 0) {
+        console.log(`[COMPILER] Decision: REJECTED (No viable candidate modifications found)`);
+        console.log(`[COMPILER] ========================================`);
+        terminalReplanReason = 'TERMINAL_NO_ACCEPTABLE_CHILD';
+        repairHistory.push({
+          replanAttempt: replanAttempts,
+          parentStateHash,
+          childStateHash: null,
+          mutationType: 'REPLAN_MUTATION',
+          directivesAddressed: [],
+          changesMade: [],
+          accepted: false,
+          reason: 'No viable candidate modifications found'
+        });
+        break;
+      }
+
+      // Co-optimize mana base for candidate child
+      const childNonLands = (repairedDeckState.cards || []).filter(c => !((c.type_line || c.type || '').toLowerCase().includes('land') || c.role === 'Land'));
+      const childLandsPool = (restrictedPool || rawCardPool).filter(c => (c.type_line || c.type || '').toLowerCase().includes('land') || c.role === 'Land');
+      
+      let coOptimizedChildState = repairedDeckState;
+      let childManaOpt = null;
+      try {
+        childManaOpt = ManaExecutionOptimizer.optimizeLandState({
+          nonLandSpells: childNonLands,
+          gameplanContract,
+          intentPackage,
+          availableLands: childLandsPool
+        });
+        if (childManaOpt?.optimalDeckState?.nonLandSpells && childManaOpt?.optimalDeckState?.landCards) {
+          coOptimizedChildState = {
+            ...repairedDeckState,
+            cards: [
+              ...childManaOpt.optimalDeckState.nonLandSpells,
+              ...childManaOpt.optimalDeckState.landCards
+            ]
+          };
+        }
+      } catch (err) {
+        console.warn(`[COMPILER] Replan mana co-optimization advisory: ${err.message}`);
+      }
+
+      const childDeckProjectionHash = computeDeterministicHash(coOptimizedChildState.cards);
+
+      const childStateHash = computeHolisticStateHash({
+        deckProjectionHash: childDeckProjectionHash,
+        strategicPlanHash: strategicExecutionPlan?.planHash || 'PLAN_DEFAULT',
+        gameplanHash: gameplanContract?.thesis || 'GAMEPLAN_DEFAULT',
+        intentHash: initialIntentHash,
+        replanAttempt: replanAttempts,
+        evaluatorProtocol: 'v29.10'
+      });
+
+      // Sovereign Causal Adjudication (v29.10 multi-dimensional Pareto predicate)
+      const childCoverage = DeckPlanCoverage.computeCoverage({ deckState: coOptimizedChildState, gameplanContract });
+
+      // Hard constraints
+      const childCards = coOptimizedChildState.cards || [];
+      const childTotal = childCards.reduce((s, c) => s + Number(c.quantity || c.count || 1), 0);
+      const targetDeckSize = intentPackage.deckSize || 60;
+      const satisfiesDeckSize = childTotal === targetDeckSize;
+      const hardInteractionPreserved = (childCoverage?.criticalFailures?.length || 0) <= (planCoverage?.criticalFailures?.length || 0);
+      const noHardConstraintRegression = satisfiesDeckSize && hardInteractionPreserved;
+
+      // Metric-specific epsilons
+      const epsilonByMetric = {
+        probability: 0.02, // 2% minimum material improvement on turn probabilities
+        coverage: 2.0,     // 2.0 percentage points composite coverage gain
+        count: 1           // at least 1 deficit resolved
+      };
+
+      const parentScore = planCoverage?.compositeScore || 0;
+      const childScore = childCoverage?.compositeScore || 0;
+      const scoreDelta = childScore - parentScore;
+
+      // Active directive evaluation & regression limit
+      let materialImprovement = scoreDelta >= epsilonByMetric.coverage;
+      let regressionViolation = false;
+
+      const activeDirectives = supremeJudicialReview.replanDirectives || [];
+      for (const directive of activeDirectives) {
+        if (directive.action === 'SATISFY_CRITICAL_TURN_DEMAND' || directive.action === 'SATISFY_IMPORTANT_TURN_DEMAND') {
+          const t = Number(directive.turn || 1);
+          const pParent = planCoverage?.phases?.find(p => p.turn === t)?.actualProbability ?? 
+                          (planCoverage?.importantDeficits?.find(d => d.turn === t)?.actualProbability ?? 0);
+          const pChild = childCoverage?.phases?.find(p => p.turn === t)?.actualProbability ?? 
+                         (childCoverage?.importantDeficits?.find(d => d.turn === t)?.actualProbability ?? 0);
+          const pDelta = pChild - pParent;
+          if (pDelta >= epsilonByMetric.probability) {
+            materialImprovement = true;
+          }
+          if (pDelta < -0.01) { // Regression tolerance: cannot regress by more than 1% on any active directive
+            regressionViolation = true;
+          }
+        }
+      }
+
+      const isDistinctState = childDeckProjectionHash !== parentDeckProjectionHash;
+      const isParetoAcceptable = !regressionViolation && (materialImprovement || scoreDelta >= 0) && isDistinctState;
+      const isAccepted = noHardConstraintRegression && isParetoAcceptable;
+
+      console.log(`[COMPILER] Candidate swap(s): ${repairRecord.changesMade.join('; ')}`);
+      console.log(`[COMPILER] Resulting child hash: ${childStateHash}`);
+      console.log(`[COMPILER] Resulting deck hash:  ${childDeckProjectionHash}`);
+      console.log(`[COMPILER] Directive Progress: Coverage ${parentScore.toFixed(1)}% -> ${childScore.toFixed(1)}% (Delta: ${scoreDelta >= 0 ? '+' : ''}${scoreDelta.toFixed(1)}%)`);
+      console.log(`[COMPILER] Decision: ${isAccepted ? 'ACCEPTED' : 'REJECTED'}`);
+      console.log(`[COMPILER] ========================================`);
+
+      const attemptRecord = {
+        replanAttempt: replanAttempts,
+        parentStateHash,
+        childStateHash,
+        parentDeckProjectionHash,
+        childDeckProjectionHash,
+        mutationType: 'REPLAN_MUTATION',
+        directivesAddressed: repairRecord.targetActions || [],
+        changesMade: repairRecord.changesMade,
+        beforeCoverage: parentScore,
+        afterCoverage: childScore,
+        delta: scoreDelta,
+        accepted: isAccepted
+      };
+      repairHistory.push(attemptRecord);
+
+      if (isAccepted) {
+        ledger.recordTransition({
+          fromStep: `REPLAN_ATTEMPT_${replanAttempts}_PARENT`,
+          toStep: `REPLAN_ATTEMPT_${replanAttempts}_CHILD`,
+          fromHash: parentStateHash,
+          toHash: childStateHash,
+          mutationType: 'REPLAN_MUTATION',
+          authorizedBy: {
+            componentId: 'ReplanExecutor',
+            componentVersion: 'v29.10',
+            policyHash: 'REPLAN_CONVERGENCE_POLICY'
+          },
+          semanticDiff: {
+            swaps: repairRecord.changesMade,
+            beforeCoverage: parentScore,
+            afterCoverage: childScore,
+            delta: scoreDelta
+          },
+          reason: `Replan attempt ${replanAttempts} addressing directives: ${supremeJudicialReview.replanDirectives.map(d => d.action).join(', ')}`
+        });
+
+        currentDeckState = coOptimizedChildState;
+        planCoverage = childCoverage;
+        if (childManaOpt) {
+          manaOptimization = childManaOpt;
+        }
+
+        // Re-judge the child state
+        supremeJudicialReview = DeterministicSupremeJudge.judgeDeck(
+          currentDeckState,
+          deckIdentity,
+          { ...intentPackage, planCoverage },
+          replanAttempts + 1
+        );
+      } else {
+        terminalReplanReason = 'TERMINAL_NO_ACCEPTABLE_CHILD';
+        break;
+      }
+    }
+
+    if (supremeJudicialReview.authoritativeVerdict === 'REPLAN' || supremeJudicialReview.authoritativeVerdict === 'REJECT') {
+      if (!terminalReplanReason) {
+        terminalReplanReason = supremeJudicialReview.authoritativeVerdict === 'REJECT' 
+          ? 'TERMINAL_REJECT' 
+          : (replanAttempts >= maxReplanIterations ? 'TERMINAL_REPLAN_BUDGET_EXHAUSTED' : 'TERMINAL_NO_ACCEPTABLE_CHILD');
+      }
+    }
+
+    // Freeze Immutable Canonical Snapshot (SSOT)
+    const deckStateSnapshot = DeckStateSnapshot.fromDeckState(currentDeckState, {
+      intentHash: initialIntentHash,
+      gameplanHash: gameplanContract.thesis
+    });
+    DeckStateSnapshot.verifyFormatIntegrity(deckStateSnapshot, intentPackage.format);
+
     const deliberativeMetaResearch = DeliberativeCouncilEngine.conductMetaResearch(intentPackage);
     const deliberativeHypothesis = DeliberativeCouncilEngine.generateAndCritiqueHypothesis(intentPackage, deliberativeMetaResearch);
     const deliberativePackageComparison = DeliberativeCouncilEngine.comparePackageTradeoffs(primaryPackageName, 'GENERIC_GOOD_STUFF');
-    const deliberativeOptimization = DeliberativeCouncilEngine.runIterativeMultiVariantOptimization(deckState, 4);
+    const deliberativeOptimization = DeliberativeCouncilEngine.runIterativeMultiVariantOptimization(currentDeckState, 4);
     const deliberativeCouncilVote = DeliberativeCouncilEngine.executeFinalCouncilVote();
 
     OracleTraceLog.logPass({
       passIndex: 25,
-      passName: 'PASS 25: Evidence Validation, Scientific Calibration & Deliberative Multi-Agent Council',
+      passName: 'PASS 25: Evidence Validation, Scientific Calibration & Deterministic Supreme Council',
       category: 'EVIDENCE_VALIDATION',
-      component: 'EvidencePyramid',
-      status: 'PASS',
+      component: 'DeterministicSupremeJudge',
+      status: supremeJudicialReview.verdict === 'REJECT' ? 'FAIL' : (supremeJudicialReview.verdict === 'APPROVE_WITH_WARNINGS' ? 'WARN' : 'PASS'),
       inputs: { evidenceTier: evidencePyramidTrace.name, stars: evidencePyramidTrace.stars },
       outputs: {
+        supremeVerdict: supremeJudicialReview.verdict,
+        supremeJudicialScore: `${supremeJudicialReview.score}/100`,
+        deckSnapshotHash: deckStateSnapshot.deckHash,
         overallSimulationFidelity: `${simulationFidelityTrace.overallSimulationFidelity}%`,
         tournamentEquivalenceScore: `${deckGenBenchmark.tournamentEquivalenceScore}%`,
         goldDatasetScore: `${goldDatasetReport.overallGoldScore}%`,
         humanExpertConsensus: `${humanExpertReport.expertConsensusScore}%`,
-        deliberativeVoteStatus: deliberativeCouncilVote.certification,
+        deliberativeVoteStatus: supremeJudicialReview.certification,
         deliberativeOptimizedScore: `${deliberativeOptimization.finalOptimizedScore}%`,
         identityLeakagePercentage: `${identityLeakageAudit.leakagePercentage}%`,
         modelCompletenessPercentage: `${modelCompletenessAudit.completenessPercentage}%`
       },
-      details: { simulationFidelityTrace, evidencePyramidTrace, validatedLearningTrace, backtestReport, cardOntologyTrace, functionalPackageTrace, knowledgePartitionTrace, diversityIndexReport, strategicInferenceTrace, functionalRoleTrace, dependencyGraphTrace, archetypeDNATrace, packageEvolutionTrace, strategicExecutionPlan, failureAnalysisTrace, turnDecisionSimulatorTrace, strategicCoherenceReport, identityLeakageAudit, deckGenBenchmark, playabilityBenchmark, strategicReasoningBenchmark, ablationTestReport, regressionBenchmarkReport, modelCompletenessAudit, reversePresentationAudit, goldDatasetReport, humanExpertReport, errorTaxonomyReport, statisticalCalibrationReport, longitudinalMetaReport, compilerValidationReport, confidenceCard, capabilityCard, proResourceEconomy, proBeatdownRole, proCardSemantics, proDecisionTree, proPhaseSimulation, deliberativeMetaResearch, deliberativeHypothesis, deliberativePackageComparison, deliberativeOptimization, deliberativeCouncilVote }
+      details: { supremeJudicialReview, deckStateSnapshot, simulationFidelityTrace, evidencePyramidTrace, validatedLearningTrace, backtestReport, cardOntologyTrace, functionalPackageTrace, knowledgePartitionTrace, diversityIndexReport, strategicInferenceTrace, functionalRoleTrace, dependencyGraphTrace, archetypeDNATrace, packageEvolutionTrace, strategicExecutionPlan, failureAnalysisTrace, turnDecisionSimulatorTrace, strategicCoherenceReport, identityLeakageAudit, deckGenBenchmark, playabilityBenchmark, strategicReasoningBenchmark, ablationTestReport, regressionBenchmarkReport, modelCompletenessAudit, reversePresentationAudit, goldDatasetReport, humanExpertReport, errorTaxonomyReport, statisticalCalibrationReport, longitudinalMetaReport, compilerValidationReport, confidenceCard, capabilityCard, proResourceEconomy, proBeatdownRole, proCardSemantics, proDecisionTree, proPhaseSimulation, deliberativeMetaResearch, deliberativeHypothesis, deliberativePackageComparison, deliberativeOptimization, deliberativeCouncilVote }
+    });
+
+    // PASS 26: V29.2 Gameplan Coverage & Strategic Drift Audit
+    const finalPlanCoverage = DeckPlanCoverage.computeCoverage({ deckState: currentDeckState, gameplanContract });
+    const driftAudit = GameplanDriftDetector.detectDrift({ intentPackage, gameplanContract, deckState: currentDeckState, simulationTrace: simulationReport });
+
+    OracleTraceLog.logPass({
+      passIndex: 26,
+      passName: 'PASS 26: Gameplan Coverage & Strategic Drift Audit (V29.2)',
+      category: 'GAMEPLAN_INTEGRITY',
+      component: 'GameplanDriftDetector',
+      status: (!driftAudit.hasDrift && finalPlanCoverage.isFullyCovered) ? 'PASS' : 'WARN',
+      inputs: { expectedKillTurn: gameplanContract.derivedKillTurn, totalPhases: finalPlanCoverage.phases.length },
+      outputs: {
+        compositeCoverageScore: `${finalPlanCoverage.compositeScore}%`,
+        isFullyCovered: finalPlanCoverage.isFullyCovered,
+        criticalFailuresCount: finalPlanCoverage.criticalFailures.length,
+        driftVerdict: driftAudit.verdict,
+        hasDrift: driftAudit.hasDrift,
+        driftDetailsCount: driftAudit.driftDetails.length
+      },
+      details: { planCoverage: finalPlanCoverage, driftAudit, optimalLandJustification: manaOptimization.justification }
     });
 
     // Safety Invariant Audits for Build Certification
-    const finalCards = deckState.cards || [];
+    const finalCards = currentDeckState.cards || [];
     let creatureCount = 0;
     let tribeMatchCount = 0;
     let cheapRemovalCount = 0;
@@ -657,67 +1116,14 @@ export class CompilerConvergencePipeline {
       const oracleText = (cardObj.oracle_text || cardObj.oracleText || entry.oracle_text || '').toLowerCase();
       const cmc = cardObj.cmc || cardObj.mana_value || entry.cmc || 0;
 
-
-      if (typeLine.includes('creature') || oracleText.includes('creature token') || oracleText.includes('create a token') || oracleText.includes('create x') || oracleText.includes('create two') || oracleText.includes('create three')) {
+      const isVehicle = typeLine.includes('vehicle');
+      const isLand = typeLine.includes('land') && !typeLine.includes('creature');
+      if (typeLine.includes('creature') && !isVehicle && !isLand) {
         creatureCount += count;
       }
 
       if (primaryTribe) {
-        const pTribeLower = primaryTribe.toLowerCase();
-        let isTribeMatch = false;
-
-        const GUILD_FACTIONS = new Set([
-          'boros_guild', 'golgari_guild', 'dimir_guild', 'rakdos_guild', 'azorius_guild',
-          'gruul_guild', 'selesnya_guild', 'orzhov_guild', 'izzet_guild', 'simic_guild',
-          'esper_shard', 'jund_shard', 'naya_shard', 'jeskai_shard', 'sultai_shard',
-          'boros', 'golgari', 'dimir', 'rakdos', 'azorius',
-          'gruul', 'selesnya', 'orzhov', 'izzet', 'simic',
-          'esper', 'grixis', 'jund', 'naya', 'bant',
-          'abzan', 'jeskai', 'sultai', 'mardu', 'temur',
-          'none', 'ninguna', 'general', 'null', 'universal'
-        ]);
-
-        if (GUILD_FACTIONS.has(pTribeLower) || pTribeLower.includes('_guild') || pTribeLower.includes('_shard')) {
-          isTribeMatch = true;
-        } else if (pTribeLower.includes('saproling') || pTribeLower.includes('fungus')) {
-          isTribeMatch = typeLine.includes('saproling') || typeLine.includes('fungus') || 
-                         oracleText.includes('saproling') || oracleText.includes('fungus') || 
-                         (cardObj.name || '').toLowerCase().includes('slimefoot') || 
-                         (cardObj.name || '').toLowerCase().includes('thallid');
-        } else if (pTribeLower.includes('thopter') || pTribeLower.includes('servo')) {
-          isTribeMatch = typeLine.includes('thopter') || typeLine.includes('servo') || 
-                         oracleText.includes('thopter') || oracleText.includes('servo');
-        } else if (pTribeLower.includes('sea_monster') || pTribeLower.includes('sea') || pTribeLower.includes('marino') || pTribeLower.includes('kraken')) {
-          const seaSubtypes = ['merfolk', 'kraken', 'leviathan', 'octopus', 'serpent', 'fish'];
-          isTribeMatch = seaSubtypes.some(sub => typeLine.includes(sub) || oracleText.includes(sub));
-        } else if (pTribeLower.includes('outlaw')) {
-          const outlawSubtypes = ['assassin', 'mercenary', 'pirate', 'rogue', 'warlock'];
-          isTribeMatch = outlawSubtypes.some(sub => typeLine.includes(sub) || oracleText.includes(sub));
-        } else if (pTribeLower.includes('party')) {
-          const partySubtypes = ['cleric', 'rogue', 'warrior', 'wizard'];
-          isTribeMatch = partySubtypes.some(sub => typeLine.includes(sub) || oracleText.includes(sub));
-        } else if (pTribeLower.includes('human_army') || pTribeLower.includes('ejército')) {
-          const armySubtypes = ['human', 'soldier', 'knight'];
-          isTribeMatch = armySubtypes.some(sub => typeLine.includes(sub) || oracleText.includes(sub));
-        } else if (pTribeLower.includes('goblin_horde') || pTribeLower.includes('horda')) {
-          const hordeSubtypes = ['goblin', 'ogre', 'orc'];
-          isTribeMatch = hordeSubtypes.some(sub => typeLine.includes(sub) || oracleText.includes(sub));
-        } else if (pTribeLower.includes('elf_druid') || pTribeLower.includes('naturaleza')) {
-          const druidSubtypes = ['elf', 'druid', 'elemental'];
-          isTribeMatch = druidSubtypes.some(sub => typeLine.includes(sub) || oracleText.includes(sub));
-        } else if (pTribeLower.includes('undead_scourge') || pTribeLower.includes('plaga')) {
-          const undeadSubtypes = ['zombie', 'skeleton', 'vampire', 'horror'];
-          isTribeMatch = undeadSubtypes.some(sub => typeLine.includes(sub) || oracleText.includes(sub));
-        } else if (pTribeLower.includes('apex_predator') || pTribeLower.includes('depredador')) {
-          const apexSubtypes = ['dinosaur', 'beast', 'hydra'];
-          isTribeMatch = apexSubtypes.some(sub => typeLine.includes(sub) || oracleText.includes(sub));
-        } else if (pTribeLower.includes('werewolf')) {
-          const wolfSubtypes = ['werewolf', 'wolf', 'human'];
-          isTribeMatch = wolfSubtypes.some(sub => typeLine.includes(sub) || oracleText.includes(sub));
-        } else {
-          isTribeMatch = typeLine.includes(pTribeLower);
-        }
-
+        const isTribeMatch = IdentityFirewall.isMatchingTribe(cardObj, primaryTribe);
         if (isTribeMatch) {
           tribeMatchCount += count;
         }
@@ -732,32 +1138,510 @@ export class CompilerConvergencePipeline {
     const avgCheapRemovalCMC = cheapRemovalCount > 0 ? (cheapRemovalCmcSum / cheapRemovalCount) : 0;
     const safetyViolations = [];
 
-    if (intentPackage.primaryTribe && creatureCount < 12) {
-      safetyViolations.push(`Insuficiente densidad de criaturas para mazo tribal: ${creatureCount} criaturas encontradas (Mínimo requerido: 12)`);
-    }
+    if (intentPackage.primaryTribe) {
+      const deckTotal = finalCards.reduce((s, c) => s + Number(c.quantity || c.count || 1), 0) || 60;
+      const derivedCreatureMin = HypergeometricDistribution.deriveQuota({
+        deckSize: deckTotal,
+        turn: 2,
+        targetProbability: 0.80,
+        purpose: 'TRIBAL_CREATURE_SAFETY'
+      }).requiredCopies;
 
-    if (intentPackage.primaryTribe && tribeMatchCount < 8) {
-      safetyViolations.push(`Insuficiente densidad de criaturas de la tribu [${intentPackage.primaryTribe}]: ${tribeMatchCount} encontradas (Mínimo requerido: 8)`);
+      if (creatureCount < derivedCreatureMin) {
+        safetyViolations.push(`Insuficiente densidad de criaturas para mazo tribal: ${creatureCount} criaturas encontradas (Mínimo derivado: ${derivedCreatureMin})`);
+      }
+
+      const allowOffTribe = intentPackage.allowOffTribe !== false;
+      const derivedTribeMin = allowOffTribe
+        ? Math.max(1, Math.floor(derivedCreatureMin * (intentPackage.tribalPreference ?? 0.8)))
+        : derivedCreatureMin;
+
+      if (tribeMatchCount < derivedTribeMin) {
+        safetyViolations.push(`Insuficiente densidad de criaturas de la tribu [${intentPackage.primaryTribe}]: ${tribeMatchCount} encontradas (Mínimo derivado: ${derivedTribeMin})`);
+      }
     }
 
     if (cheapRemovalCount > 0 && avgCheapRemovalCMC > 3.5) {
       safetyViolations.push(`Promedio CMC para remoción barata desproporcionado: ${avgCheapRemovalCMC.toFixed(1)} (Máximo permitido: 3.0)`);
     }
 
-    const buildStatus = safetyViolations.length === 0 ? 'SUCCESS' : 'FAILED';
+    if (supremeJudicialReview.verdict === 'REJECT' || supremeJudicialReview.verdict === 'REPLAN') {
+      const highDefectMessages = supremeJudicialReview.defects.filter(d => d.severity === 'HIGH' || d.severity === 'CRITICAL').map(d => `Judicial Veto: ${d.message}`);
+      safetyViolations.push(...highDefectMessages);
+    }
+
+    const isJudiciallyApproved = supremeJudicialReview.verdict === 'APPROVE' || 
+      (supremeJudicialReview.verdict === 'APPROVE_WITH_WARNINGS' && !supremeJudicialReview.hasBlockingWarnings);
+
+    const buildStatus = (isJudiciallyApproved && safetyViolations.length === 0) ? 'SUCCESS' : 'FAILED';
 
     OracleTraceLog.buildStatus = buildStatus;
     if (buildStatus === 'FAILED') {
-      OracleTraceLog.setBuildFailed(safetyViolations.join('; '), { safetyViolations });
+      let terminalTaxonomyReason = 'TERMINAL_NO_ACCEPTABLE_CHILD';
+      if (safetyViolations.length > 0) {
+        terminalTaxonomyReason = 'TERMINAL_HARD_SAFETY_VETO';
+      } else if (supremeJudicialReview.authoritativeVerdict === 'REJECT') {
+        terminalTaxonomyReason = 'TERMINAL_REJECT';
+      } else if (terminalReplanReason === 'TERMINAL_REPLAN_BUDGET_EXHAUSTED') {
+        terminalTaxonomyReason = 'TERMINAL_REPLAN_BUDGET_EXHAUSTED';
+      } else if (terminalReplanReason === 'TERMINAL_NO_ACCEPTABLE_CHILD') {
+        terminalTaxonomyReason = 'TERMINAL_NO_ACCEPTABLE_CHILD';
+      }
+
+      const failureReason = safetyViolations.join('; ') || terminalTaxonomyReason;
+      const failureStage = safetyViolations.length > 0 ? 'HARD_GATE_VALIDATION' : terminalTaxonomyReason;
+      OracleTraceLog.setBuildFailed(failureReason, { safetyViolations });
+
+      const candidateDeckCardsHash = computeDeterministicHash(currentDeckState.cards);
+      const deckProjectionHash = computeCanonicalDeckProjectionHash(currentDeckState.cards);
+      const gameplanHash = gameplanContract?.contractHash || computeDeterministicHash(gameplanContract || {});
+      const stateSnapshotHash = candidateDeckCardsHash;
+
+      const failureStateHash = hashCanonicalFailureState({
+        lineageId: ledger.latestHash,
+        stateSnapshotHash,
+        gameplanHash,
+        deckProjectionHash,
+        failureStage,
+        failureReason
+      });
+
+      // Monotonic runtime invariant: mark lineage as terminal failure
+      // Blocks any future S5..S8 state transitions or resurrection attempts
+      ledger.markTerminalFailure({
+        failureReason,
+        failureStage
+      });
+
+      // Read-only Forensic Autopsy Artifact quarantined from published or candidate deck
+      const autopsyArtifact = Object.freeze({
+        ...currentDeckState,
+        failureStateHash,
+        candidateDeckCardsHash,
+        deckProjectionHash,
+        gameplanHash,
+        failureReason,
+        failureStage,
+        terminalReason: terminalTaxonomyReason,
+        failedLineageId: ledger.latestHash,
+        safetyViolations: Object.freeze([...safetyViolations]),
+        judicialReview: supremeJudicialReview,
+        replanRequested,
+        replanAttempts,
+        replanHistory: Object.freeze([...repairHistory]),
+        isTerminal: true
+      });
+
+      const closureEvaluation = Object.freeze({
+        status: STRATEGIC_CLOSURE_STATUS.BEST_FOUND_NOT_CLOSED,
+        isClosable: false,
+        rejectedState: true,
+        rejectedStrategicDomain: false,
+        closureProof: `TERMINAL_LINEAGE_HALTED: Lineage invalidated at ${failureStage} (${failureReason}).`,
+        evaluationHash: failureStateHash
+      });
+
+      const compilationOutcome = {
+        buildStatus: 'FAILED',
+        strategicStatus: supremeJudicialReview.verdict,
+        executionStatus: manaOptimization?.viabilityStatus || 'EXECUTED',
+        closureStatus: STRATEGIC_CLOSURE_STATUS.BEST_FOUND_NOT_CLOSED,
+        authoritativeVerdict: supremeJudicialReview.authoritativeVerdict || supremeJudicialReview.verdict,
+        judicialScoreTelemetry: {
+          value: supremeJudicialReview.judicialScore ?? supremeJudicialReview.score,
+          semanticRole: 'OBSERVABILITY_TELEMETRY_ONLY',
+          isAuthoritative: false,
+          sovereignAuthority: 'authoritativeVerdict'
+        },
+        judicialScore: supremeJudicialReview.judicialScore ?? supremeJudicialReview.score,
+        publishability: false,
+        publicationReceipt: null,
+        selectedDeckState: null, // Hard quarantined from selected deck
+        publishedDeck: null,
+        autopsyArtifact, // Isolated forensic artifact
+        strategicClosureCertificate: closureEvaluation,
+        stateTransitionLedger: ledger,
+        blockingDefects: supremeJudicialReview.blockingDefects || [],
+        failureStateHash,
+        candidateDeckCardsHash,
+        failureReason,
+        failureStage,
+        failedLineageId: ledger.latestHash,
+        replanRequested,
+        replanAttempts,
+        replanHistory: repairHistory,
+        terminalReason: terminalTaxonomyReason
+      };
+
+      OracleTraceLog.compilationOutcome = compilationOutcome;
+
+      // Cryptographic Merkle-Style Provenance Hash Chain (for forensic traceability)
+      const provenanceHashChain = ProvenanceHashChain.compute({
+        intentPackage,
+        strategicMemory,
+        gameplanContract,
+        candidateFrontier: restrictedPool || rawCardPool,
+        deckState: currentDeckState,
+        manaOptimization,
+        simulationReport,
+        supremeJudicialReview
+      });
+
+      return Object.freeze({
+        buildStatus: 'FAILED',
+        compilationOutcome,
+        publicationReceipt: null,
+        stateTransitionLedger: ledger,
+        state: autopsyArtifact,
+        selectedDeckState: null,
+        publishedDeck: null,
+        autopsyArtifact,
+        replanRequested,
+        replanAttempts,
+        replanHistory: repairHistory,
+        provenanceHashChain,
+        passTelemetry: {
+          executedPassCount: OracleTraceLog.passes.length,
+          maxPassIndex: Math.max(...OracleTraceLog.passes.map(p => p.passIndex || 0), 26),
+          passIndexSequence: OracleTraceLog.passes.map(p => p.passIndex)
+        },
+        safetyViolations,
+        supremeJudicialReview,
+        manaOptimization
+      });
     }
+
+    // PASS 27: Cryptographic Merkle-Style Provenance Hash Chain (V29.5 SSOT)
+    const provenanceHashChain = ProvenanceHashChain.compute({
+      intentPackage,
+      strategicMemory,
+      gameplanContract,
+      candidateFrontier: restrictedPool || rawCardPool,
+      deckState: currentDeckState,
+      manaOptimization,
+      simulationReport,
+      supremeJudicialReview
+    });
+
+    // Freeze into Infallible Certified Transaction Snapshot (v27.0 SSOT)
+    const certifiedDeck = CertifiedDeckState.freeze(currentDeckState, {
+      intentPackage,
+      supremeJudicialReview,
+      repairHistory,
+      simulationEvidence: simulationReport,
+      autopsyEvidence: { autopsyReport: null },
+      provenanceHashChain
+    });
+
+    // S5: FROZEN_CANDIDATE_STATE
+    const candidateDeckCardsHash = computeDeterministicHash(currentDeckState.cards);
+    ledger.recordTransition({
+      componentId: 'CertifiedDeckState',
+      componentVersion: 'V29.10',
+      policyHash: provenanceHashChain.finalChainHash || 'CHAIN_HASH',
+      transitionPolicyVersion: 'V29.10',
+      fromStep: replanAttempts > 0 ? `REPLAN_ATTEMPT_${replanAttempts}_CHILD` : TRANSITION_STEPS.S4_MANA_OPTIMIZED,
+      toStep: TRANSITION_STEPS.S5_FROZEN,
+      fromHash: ledger.latestHash,
+      toHash: candidateDeckCardsHash,
+      state: currentDeckState.cards,
+      mutationType: STATE_TRANSITION_TYPES.CANONICAL_FREEZE,
+      semanticDiff: { stateHash: certifiedDeck.stateHash, lockStatus: certifiedDeck.lockStatus },
+      reason: 'Candidate deck frozen into immutable certified transaction snapshot prior to holdout'
+    });
+
+    // PASS 28: Strategic Search Space Certification (v29.10)
+    const prunedEntries = (restrictedPool || []).map(c => ({
+      candidateId: c.name || c.id,
+      prunedReason: 'SEARCH_SPACE_BOUNDARY',
+      ruleId: 'PRUNE_001',
+      context: { format: intentPackage.format },
+      challenger: null
+    }));
+    const searchSpaceCert = StrategicSearchCertificate.auditPrunedCandidates(prunedEntries, {
+      deckState: currentDeckState,
+      gameplanContract,
+      intentPackage
+    });
+
+    OracleTraceLog.logPass({
+      passIndex: 28,
+      passName: 'PASS 28: Strategic Search Space Certification (v29.10)',
+      category: 'SEARCH_SPACE_CERTIFICATION',
+      component: 'StrategicSearchCertificate',
+      status: searchSpaceCert.isCertified ? 'PASS' : 'WARN',
+      inputs: { totalPruned: prunedEntries.length },
+      outputs: { isCertified: searchSpaceCert.isCertified, totalAudited: searchSpaceCert.totalAudited },
+      details: searchSpaceCert
+    });
+
+    // PASS 29: Paired Delta & CRN Gameplan Policy Evaluation (v29.10)
+    const crnEvaluation = GameplanExecutionPolicy.evaluatePairedStateTransitions({
+      stateA: progressiveDeckState,
+      stateB: currentDeckState,
+      gameplanContract,
+      simulationSeeds: Array.from({ length: 32 }, (_, i) => 101 + i)
+    });
+
+    OracleTraceLog.logPass({
+      passIndex: 29,
+      passName: 'PASS 29: Paired Delta & CRN Policy Evaluation (v29.10)',
+      category: 'GAMEPLAN_POLICY',
+      component: 'GameplanExecutionPolicy',
+      status: crnEvaluation.varianceReductionRatio >= 0.5 ? 'PASS' : 'WARN',
+      inputs: { seedCount: crnEvaluation.sampleSizeProvenance?.seedCount || 32 },
+      outputs: {
+        pairedStandardError: crnEvaluation.pairedStandardError,
+        varianceReductionRatio: crnEvaluation.varianceReductionRatio,
+        tostPValue: crnEvaluation.tostPValue
+      },
+      details: crnEvaluation
+    });
+
+    // PASS 30: Holdout Validation Engine (v29.10)
+    // Mandatory pre-holdout freeze asserted: certifiedDeck is frozen
+    const holdoutScenarios = [
+      { id: 'SCENARIO_GOLD_01', type: 'INDEPENDENT_HOLDOUT', disruptionTurn: 2, pressureRating: 'HIGH' },
+      { id: 'SCENARIO_GOLD_02', type: 'INDEPENDENT_HOLDOUT', disruptionTurn: 3, pressureRating: 'CONTROL' }
+    ];
+    const holdoutValidation = HoldoutValidationEngine.validate(certifiedDeck, holdoutScenarios, {
+      allowMutation: false
+    });
+
+    OracleTraceLog.logPass({
+      passIndex: 30,
+      passName: 'PASS 30: Holdout Validation Engine (v29.10 Pre-Freeze Asserted)',
+      category: 'HOLDOUT_VALIDATION',
+      component: 'HoldoutValidationEngine',
+      status: holdoutValidation.isVerified ? 'PASS' : 'WARN',
+      inputs: { scenarioCount: holdoutScenarios.length, isFrozen: certifiedDeck.isFrozen },
+      outputs: {
+        isVerified: holdoutValidation.isVerified,
+        generalizationScore: holdoutValidation.generalizationScore
+      },
+      details: holdoutValidation
+    });
+
+    // S6: HOLDOUT_VALIDATED
+    const holdoutMetricsHash = computeDeterministicHash(holdoutValidation.benchmarkMetrics || {});
+    ledger.recordTransition({
+      componentId: 'HoldoutValidationEngine',
+      componentVersion: 'V29.10',
+      policyHash: computeDeterministicHash(holdoutValidation),
+      transitionPolicyVersion: 'V29.10',
+      authorityAttestation: 'INDEPENDENT_HOLDOUT_GATE',
+      fromStep: TRANSITION_STEPS.S5_FROZEN,
+      toStep: TRANSITION_STEPS.S6_HOLDOUT,
+      fromHash: candidateDeckCardsHash,
+      toHash: holdoutMetricsHash,
+      state: holdoutValidation.benchmarkMetrics,
+      mutationType: STATE_TRANSITION_TYPES.HOLDOUT_EVALUATION,
+      semanticDiff: { isVerified: holdoutValidation.isVerified, generalizationScore: holdoutValidation.generalizationScore },
+      reason: 'Evaluated frozen state against strictly independent holdout scenarios'
+    });
+
+    // PASS 31: Canonical Strategic Projection & Semantic Diff (v29.10)
+    const canonicalProjection = CanonicalStrategicProjection.project(certifiedDeck, {
+      intentPackage,
+      gameplanContract,
+      activeGameplan: gameplanContract,
+      dependencyGraph: strategicMemory?.dependencyGraph || gameplanContract?.dependencyGraph || null
+    });
+
+    OracleTraceLog.logPass({
+      passIndex: 31,
+      passName: 'PASS 31: Canonical Strategic Projection & Semantic Diff (v29.10)',
+      category: 'STRATEGIC_PROJECTION',
+      component: 'CanonicalStrategicProjection',
+      status: 'PASS',
+      inputs: { deckCardCount: certifiedDeck.cards.length },
+      outputs: {
+        canonicalHash: canonicalProjection.canonicalHash,
+        dependencyGraphHash: canonicalProjection.dependencyGraphHash,
+        keyRolesCount: Object.keys(canonicalProjection.keyRoles || {}).length
+      },
+      details: canonicalProjection
+    });
+
+    // S7: JUDICIALLY_EVALUATED
+    const judicialHash = computeDeterministicHash(supremeJudicialReview);
+    ledger.recordTransition({
+      componentId: 'DeterministicSupremeJudge',
+      componentVersion: 'V29.10',
+      policyHash: computeDeterministicHash(supremeJudicialReview.diagnosticVectors || {}),
+      transitionPolicyVersion: 'V29.10',
+      authorityAttestation: 'SUPREME_COUNCIL_SEAL',
+      fromStep: TRANSITION_STEPS.S6_HOLDOUT,
+      toStep: TRANSITION_STEPS.S7_CLOSURE,
+      fromHash: holdoutMetricsHash,
+      toHash: judicialHash,
+      state: supremeJudicialReview,
+      mutationType: STATE_TRANSITION_TYPES.JUDICIAL_VERDICT,
+      semanticDiff: {
+        verdict: supremeJudicialReview.authoritativeVerdict || supremeJudicialReview.verdict,
+        judicialScore: supremeJudicialReview.judicialScore ?? supremeJudicialReview.score,
+        blockingDefectsCount: (supremeJudicialReview.blockingDefects || []).length
+      },
+      reason: `Deterministic judicial review completed with verdict ${supremeJudicialReview.verdict}`
+    });
+
+    // PASS 32: Strategic Closure Certification (v29.10)
+    const closureEvaluation = StrategicClosureCertificate.evaluateClosure({
+      deckState: currentDeckState,
+      gameplanContract,
+      holdoutValidation,
+      searchSpaceCert,
+      judicialReview: supremeJudicialReview,
+      manaOptimization
+    });
+
+    OracleTraceLog.logPass({
+      passIndex: 32,
+      passName: 'PASS 32: Strategic Closure Certification (v29.10)',
+      category: 'STRATEGIC_CLOSURE',
+      component: 'StrategicClosureCertificate',
+      status: closureEvaluation.isClosable ? 'PASS' : 'WARN',
+      inputs: {
+        authoritativeVerdict: supremeJudicialReview.authoritativeVerdict || supremeJudicialReview.verdict,
+        judicialScore: supremeJudicialReview.judicialScore ?? supremeJudicialReview.score,
+        holdoutVerified: holdoutValidation.isVerified
+      },
+      outputs: {
+        status: closureEvaluation.status,
+        isClosable: closureEvaluation.isClosable,
+        closureProof: closureEvaluation.closureProof
+      },
+      details: closureEvaluation
+    });
+
+    // S8: STRATEGIC_CLOSURE
+    const closureHash = computeDeterministicHash(closureEvaluation);
+    ledger.recordTransition({
+      componentId: 'StrategicClosureCertificate',
+      componentVersion: 'V29.10',
+      policyHash: computeDeterministicHash({ status: closureEvaluation.status, isClosable: closureEvaluation.isClosable }),
+      transitionPolicyVersion: 'V29.10',
+      authorityAttestation: 'STRATEGIC_CLOSURE_AUTHORITY',
+      fromStep: TRANSITION_STEPS.S7_CLOSURE,
+      toStep: TRANSITION_STEPS.S8_OUTCOME,
+      fromHash: judicialHash,
+      toHash: closureHash,
+      state: closureEvaluation,
+      mutationType: STATE_TRANSITION_TYPES.CLOSURE_CERTIFICATION,
+      semanticDiff: { status: closureEvaluation.status, isClosable: closureEvaluation.isClosable },
+      reason: `Strategic closure certified with status ${closureEvaluation.status}`
+    });
+
+    // Verify cryptographic continuity and chain integrity of full ledger
+    const continuityCheck = ledger.verifyContinuity();
+    if (!continuityCheck.isValid) {
+      throw new Error(`PROTOCOL_VIOLATION: UNAUTHORIZED_STATE_MUTATION: Ledger cryptographic continuity broken at index ${continuityCheck.brokenIndex}: ${continuityCheck.error}`);
+    }
+
+    const chainIntegrityCheck = ledger.verifyChainIntegrity();
+    if (!chainIntegrityCheck.isValid) {
+      throw new Error(`PROTOCOL_VIOLATION: UNAUTHORIZED_STATE_MUTATION: Ledger chain integrity severed: ${chainIntegrityCheck.reason}`);
+    }
+
+    // Comprehensive Compilation Outcome & Strict Monotonic Publishability Invariant (v29.10)
+    const authoritativeVerdict = supremeJudicialReview.authoritativeVerdict || supremeJudicialReview.verdict;
+    const holdoutVerified = Boolean(holdoutValidation?.isValidated || holdoutValidation?.isVerified);
+    const unresolvedLinesCount = searchSpaceCert?.unresolvedLines?.length || 0;
+    const isLineageApproved = ledger.isLineageApproved();
+
+    const isPublishable =
+      buildStatus === 'SUCCESS' &&
+      authoritativeVerdict === 'APPROVE' &&
+      closureEvaluation.status === STRATEGIC_CLOSURE_STATUS.STRATEGICALLY_CLOSED &&
+      holdoutVerified === true &&
+      continuityCheck.isValid === true &&
+      chainIntegrityCheck.isValid === true &&
+      isLineageApproved === true &&
+      unresolvedLinesCount === 0 &&
+      (safetyViolations || []).length === 0 &&
+      (supremeJudicialReview.blockingDefects || []).length === 0 &&
+      (manaOptimization ? manaOptimization.isAcceptable : true) &&
+      computeDeterministicHash(currentDeckState.cards) === candidateDeckCardsHash;
+
+    const publishedDeck = isPublishable ? currentDeckState : null;
+    const frozenDeckProjectionHash = computeCanonicalDeckProjectionHash(currentDeckState.cards);
+    let publicationReceipt = null;
+
+    if (isPublishable) {
+      // Invariant: PUBLISHED_STATE_MUST_BE_DESCENDANT_OF_APPROVED_FROZEN_STATE
+      ledger.assertMonotonicPublicationDescendance();
+      const canonicalPublishedDeckHash = computeCanonicalDeckProjectionHash(publishedDeck.cards);
+
+      publicationReceipt = new PublicationReceipt({
+        canonicalPublishedDeckHash,
+        frozenDeckProjectionHash,
+        publishedDeckHash: canonicalPublishedDeckHash,
+        frozenStateHash: frozenDeckProjectionHash,
+        strategicClosureHash: closureEvaluation.evaluationHash || closureHash,
+        ledgerHeadHash: ledger.latestHash,
+        authoritativeVerdict
+      });
+    }
+
+    const compilationOutcome = {
+      buildStatus,
+      strategicStatus: supremeJudicialReview.verdict,
+      executionStatus: manaOptimization?.viabilityStatus || 'EXECUTED',
+      closureStatus: closureEvaluation.status,
+      authoritativeVerdict,
+      // Sovereignty Invariant: NO_METRIC_MAY_HAVE_SEMANTIC_OVERLAP_WITH_AUTHORITATIVE_VERDICT
+      judicialScoreTelemetry: {
+        value: supremeJudicialReview.judicialScore ?? supremeJudicialReview.score,
+        semanticRole: 'OBSERVABILITY_TELEMETRY_ONLY',
+        isAuthoritative: false,
+        sovereignAuthority: 'authoritativeVerdict'
+      },
+      judicialScore: supremeJudicialReview.judicialScore ?? supremeJudicialReview.score,
+      publishability: isPublishable,
+      publicationReceipt,
+      selectedDeckState: currentDeckState,
+      publishedDeck,
+      strategicClosureCertificate: closureEvaluation,
+      stateTransitionLedger: ledger,
+      blockingDefects: supremeJudicialReview.blockingDefects || [],
+      replanRequested,
+      replanAttempts,
+      replanHistory: repairHistory
+    };
+
+    OracleTraceLog.compilationOutcome = compilationOutcome;
 
     return Object.freeze({
       buildStatus,
+      compilationOutcome,
+      publicationReceipt,
+      stateTransitionLedger: ledger,
+      strategicClosureCertificate: closureEvaluation,
+      holdoutValidation,
+      canonicalProjection,
+      searchSpaceCert,
+      crnEvaluation,
+      passTelemetry: {
+        executedPassCount: OracleTraceLog.passes.length,
+        maxPassIndex: Math.max(...OracleTraceLog.passes.map(p => p.passIndex || 0), 32),
+        passIndexSequence: OracleTraceLog.passes.map(p => p.passIndex)
+      },
       safetyViolations,
+      supremeJudicialReview,
+      replanRequested,
+      replanAttempts,
+      replanHistory: repairHistory,
+      repairHistory,
+      certifiedDeck,
+      provenanceHashChain,
+      lockStatus: certifiedDeck.lockStatus,
+      transactionLock: certifiedDeck.transactionLock,
       creatureCount,
       tribeMatchCount,
       avgCheapRemovalCMC,
-      state: deckState,
+      state: certifiedDeck,
+      manaOptimization,
+      manaExecutionOptimization: manaOptimization,
       compilerInput,
       intentPackage,
 
@@ -824,9 +1708,10 @@ export class CompilerConvergencePipeline {
       intentCoverage,
       intentInfluenceReport,
       influenceGraph,
-      capabilityPlan,
+      gameplanContract,
+      capabilityPlan: null,
       copyAllocationState,
-      residualVector,
+      residualVector: null,
       fitnessReport,
       compilerReport,
       architecturalAudit,

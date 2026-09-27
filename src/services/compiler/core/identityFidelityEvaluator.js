@@ -45,12 +45,13 @@ export class IdentityFidelityEvaluator {
 
     const engineFidelityPercentage = forbiddenBreaches.length === 0 ? 100 : Math.max(0, 100 - (forbiddenBreaches.length * 20));
 
-    // 2. Curve Alignment Check
+    // 2. Curve Alignment & Strategic Fidelity Check
     const targetMinCurve = targetIdentity.expectedCurveRange?.min || 1;
     const targetMaxCurve = targetIdentity.expectedCurveRange?.max || 5;
 
     let curveValidCount = 0;
     let nonLandTotal = 0;
+    let midLateDropsCount = 0;
 
     for (const card of cards) {
       const qty = card.quantity || 1;
@@ -61,10 +62,22 @@ export class IdentityFidelityEvaluator {
         if (cmc >= targetMinCurve - 1 && cmc <= targetMaxCurve + 1) {
           curveValidCount += qty;
         }
+        if (cmc >= 3) {
+          midLateDropsCount += qty;
+        }
       }
     }
 
-    const curveFidelityPercentage = nonLandTotal > 0 ? Math.round((curveValidCount / nonLandTotal) * 100) : 100;
+    const curveEnvelopeCompliance = nonLandTotal > 0 ? Math.round((curveValidCount / nonLandTotal) * 100) : 100;
+    
+    // Strategic Curve Fidelity: If target identity expects higher curve (targetMaxCurve >= 4),
+    // a deck with zero mid/late drops (CMC 3+) has suffered curve collapse even if envelope compliance is 100%.
+    let curveStrategicFidelity = curveEnvelopeCompliance;
+    if (targetMaxCurve >= 4 && nonLandTotal >= 20 && midLateDropsCount === 0) {
+      curveStrategicFidelity = Math.min(35, curveEnvelopeCompliance);
+    } else if (targetMaxCurve >= 4 && nonLateDropsRatio(midLateDropsCount, nonLandTotal) < 0.15) {
+      curveStrategicFidelity = Math.round(curveEnvelopeCompliance * 0.7);
+    }
 
     // 3. Mana Ramp Requirement Check
     let manaFidelityPercentage = 100;
@@ -82,15 +95,24 @@ export class IdentityFidelityEvaluator {
     return {
       overallFidelityScore,
       engineFidelityPercentage,
-      curveFidelityPercentage,
+      curveEnvelopeCompliance,
+      curveStrategicFidelity,
+      curveFidelityPercentage: curveStrategicFidelity, // Backward compatibility alias
       manaFidelityPercentage,
-      isHighFidelity: overallFidelityScore >= 95,
+      isHighFidelity: overallFidelityScore >= 95 && curveStrategicFidelity >= 70,
       auditDetails: Object.freeze({
         archetypeKey: targetIdentity.archetypeKey,
         forbiddenBreaches: Object.freeze(forbiddenBreaches),
         curveValidCount,
-        nonLandTotal
+        midLateDropsCount,
+        nonLandTotal,
+        curveEnvelopeCompliance,
+        curveStrategicFidelity
       })
     };
   }
+}
+
+function nonLateDropsRatio(midLate, total) {
+  return total > 0 ? (midLate / total) : 0;
 }

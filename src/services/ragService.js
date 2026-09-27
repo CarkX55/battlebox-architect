@@ -448,22 +448,21 @@ export const buildCardPool = async (formData) => {
   // Buscar sabor (flavor) de la tribu si aplica
   let activeFlavor = null;
   const targetEngineId = formData.selectedEngineId || formData.engineFlavor || formData.strategy || strategyId;
-  if (tribeData && tribeData.flavors) {
+  const targetEngineStr = String(targetEngineId || '').trim();
+  if (targetEngineStr && tribeData && tribeData.flavors) {
     activeFlavor = tribeData.flavors.find(f => 
-      f.id === targetEngineId || 
-      f.label === targetEngineId ||
-      f.id === formData.strategy || 
-      f.label === formData.strategy
+      f.id === targetEngineStr || 
+      f.label === targetEngineStr ||
+      (formData.strategy && (f.id === formData.strategy || f.label === formData.strategy))
     );
   }
-  if (!activeFlavor) {
+  if (!activeFlavor && targetEngineStr) {
     for (const t of MTG_TRIBES) {
       if (t.flavors) {
         const found = t.flavors.find(f => 
-          f.id === targetEngineId || 
-          f.label === targetEngineId ||
-          f.id === formData.strategy || 
-          f.label === formData.strategy
+          f.id === targetEngineStr || 
+          f.label === targetEngineStr ||
+          (formData.strategy && (f.id === formData.strategy || f.label === formData.strategy))
         );
         if (found) {
           activeFlavor = found;
@@ -472,13 +471,13 @@ export const buildCardPool = async (formData) => {
       }
     }
   }
-  if (!activeFlavor && UNIVERSAL_ENGINES) {
-    const targetStr = String(targetEngineId || '').toLowerCase().trim();
+  if (!activeFlavor && targetEngineStr && UNIVERSAL_ENGINES) {
+    const targetStr = targetEngineStr.toLowerCase();
     activeFlavor = UNIVERSAL_ENGINES.find(e => 
       e.id.toLowerCase() === targetStr || 
       e.id.toLowerCase().replace('_generic', '') === targetStr ||
-      (e.label && e.label.toLowerCase().includes(targetStr)) ||
-      (targetStr && e.label && targetStr.includes(e.id.toLowerCase().replace('_generic', '')))
+      (targetStr.length >= 3 && e.label && e.label.toLowerCase().includes(targetStr)) ||
+      (targetStr.length >= 3 && e.label && targetStr.includes(e.id.toLowerCase().replace('_generic', '')))
     );
   }
 
@@ -875,11 +874,11 @@ export const buildCardPool = async (formData) => {
       }
     }
 
-    // Inyección y Boost dinámico de staples interactivos de colores (con penalización tribal)
+    // Inyección y Boost dinámico de staples interactivos de colores
     if (activeStaples.has(cardNameLower)) {
-      const isTribal = tribeData || (formData.tribe && formData.tribe !== 'none' && formData.tribe !== 'ninguna');
-      const extraStapleBoost = isTribal ? 50 : 100;
-      score += Math.round(extraStapleBoost * competitiveMultiplier);
+      score += Math.round(1200 * competitiveMultiplier);
+    } else if (!isCreature && card.mana_value <= 3 && (oracleText.includes('destroy target') || oracleText.includes('exile target') || oracleText.includes('counter target') || oracleText.includes('damage to any target') || oracleText.includes('damage to target creature'))) {
+      score += Math.round(800 * competitiveMultiplier);
     }
 
     // A.1) Grafo Semántico de Obsidian: Coocurrencias y Etiquetas Mecánicas
@@ -1089,7 +1088,11 @@ export const buildCardPool = async (formData) => {
         const activeSynonyms = tribeSynonymsMap[activeTribeKey] || [activeTribeKey];
         const matchesTribeMultiField = activeSynonyms.some(syn => typeLine.includes(syn) || oracleText.includes(syn) || cardNameLower.includes(syn));
         if (matchesTribeMultiField) {
-          score += 1500; // Impulso tribal multicapa supremo (name + type_line + oracle_text)
+          if (typeLine.includes('creature')) {
+            score += 1500; // Impulso tribal multicapa supremo para criaturas
+          } else {
+            score += 400; // Impulso moderado para hechizos no-criatura
+          }
         } else if (typeLine.includes('creature') || typeLine.includes('planeswalker')) {
           // Si es una criatura o planeswalker y NO matchea la tribu activa ni genera fichas de esa tribu/himnos
           const isTargetTribeTokenOrAnthem = (oracleText.includes(activeTribeKey) || oracleText.includes('fungus') || oracleText.includes('saproling') || oracleText.includes('creature tokens') || oracleText.includes('tokens you control')) && 
@@ -1452,15 +1455,34 @@ export const buildCardPool = async (formData) => {
     }
 
     // === BATTLE BOX INTERACTIVE EQUITY POLICY ===
-    // Penalización severa a cartas de bloqueo pasivo absoluto (locks)
-    const absoluteLockCards = ["ensnaring bridge", "blood moon", "chalice of the void", "trinisphere", "mycosynth lattice", "stony silence", "rest in peace", "leyline of the void", "static orb", "winter orb"];
-    if (absoluteLockCards.includes(cardNameLower)) {
-      score -= 150;
-    }
-    // Penalizar combos de daño directo no-interactivos a la cabeza
-    const nonInteractiveBurn = ["grapeshot", "boros charm", "bump in the night", "lava spike"];
-    if (nonInteractiveBurn.includes(cardNameLower)) {
-      score -= 80;
+    // Solo aplicar penalizaciones de bloqueo pasivo si es explícitamente formato Battlebox casual
+    const isBattleboxMode = (selectedFormat || '').toLowerCase().includes('battlebox');
+    if (isBattleboxMode) {
+      const absoluteLockCards = ["ensnaring bridge", "blood moon", "chalice of the void", "trinisphere", "mycosynth lattice", "stony silence", "rest in peace", "leyline of the void", "static orb", "winter orb"];
+      if (absoluteLockCards.includes(cardNameLower)) {
+        score -= 150;
+      }
+      const nonInteractiveBurn = ["grapeshot", "boros charm", "bump in the night", "lava spike"];
+      if (nonInteractiveBurn.includes(cardNameLower)) {
+        score -= 80;
+      }
+    } else {
+      // En formatos competitivos (Modern, Pioneer, Legacy, Standard), dar BOOST a wincons de arquetipo:
+      if (archLower.includes('burn') || archLower.includes('aggro')) {
+        if (["boros charm", "lava spike", "lightning bolt", "roil eruption", "play with fire", "monastery swiftspear", "goblin guide"].includes(cardNameLower)) {
+          score += 100;
+        }
+      }
+      if (archLower.includes('storm') || strategyId === 'storm') {
+        if (["grapeshot", "empty the warrens", "ral, monsoon mage", "past in flames"].includes(cardNameLower)) {
+          score += 120;
+        }
+      }
+      if (archLower.includes('prison') || archLower.includes('moon')) {
+        if (["blood moon", "magus of the moon", "chalice of the void", "ensnaring bridge", "trinisphere"].includes(cardNameLower)) {
+          score += 140;
+        }
+      }
     }
     // Boost moderado a disparadores ETB, combate y sacrificios dinámicos
     const interactiveKeywords = ["enters the battlefield", "whenever you attack", "whenever a creature attacks", "sacrifice a creature: ", "whenever a creature dies", "when you cast this spell, draw", "explores", "surveils", "scry"];
@@ -1693,7 +1715,7 @@ export const buildCardPool = async (formData) => {
       }
 
       // RAMP DE MANÁ VERDE BASADO EN TEXTO ORACLE (Sin listas de nombres)
-      if (userColors.includes('G') || userColors.includes('g')) {
+      if (allowedColors.includes('G') || allowedColors.includes('g')) {
         if (oracleText.includes('add {') || oracleText.includes('search your library for a land') || oracleText.includes('target land produces')) {
           score += 40;
         }

@@ -322,20 +322,18 @@ export class DeckState {
       count = allowed;
     }
 
-    // Invariant 3: High-CMC Ceiling Check (Prevent top-heavy curves, with exception for Heavy Tribes)
+    // Invariant 3: High-CMC Capacity Check (Contextual to ramp infrastructure & alternative execution modes)
     const cmcVal = Number(card.cmc || card.mana_value || 0);
-    if (!isLand && cmcVal >= 5) {
+    const cardOracle = (card.oracle_text || card.oracleText || '').toLowerCase();
+    const hasEarlyMode = cardOracle.includes('cycling') || cardOracle.includes('adventure') || cardOracle.includes('channel') || cardOracle.includes('prototype') || cardOracle.includes('spree');
+    if (!isLand && cmcVal >= 5 && !hasEarlyMode) {
       const isRamp = (this.archetype || '').toLowerCase().includes('ramp') || (this.selectedEngineId || '').toLowerCase().includes('ramp');
-      const targetTribe = (this.primaryTribe || '').toLowerCase();
-      const HEAVY_TRIBES = ['dragon', 'demon', 'giant', 'dinosaur', 'eldrazi', 'kraken', 'sphinx', 'angel', 'sea_monsters', 'apex_predators'];
-      const isHeavyTribe = HEAVY_TRIBES.some(t => targetTribe.includes(t));
-
-      const max5PlusAllowed = isHeavyTribe ? 14 : (isRamp ? 10 : 6);
+      const max5PlusAllowed = isRamp ? 12 : 6;
       const current5Plus = (this.cmcCurve[5] || 0) + (this.cmcCurve[6] || 0) + (this.cmcCurve[7] || 0);
       if (current5Plus + count > max5PlusAllowed) {
         const allowed = Math.max(0, max5PlusAllowed - current5Plus);
         if (allowed === 0) {
-          return { success: false, reason: `High-CMC spell capacity reached (${current5Plus}/${max5PlusAllowed} slots for CMC >= 5).` };
+          return { success: false, reason: `High-CMC spell capacity reached (${current5Plus}/${max5PlusAllowed} slots for CMC >= 5 without early mode).` };
         }
         count = allowed;
       }

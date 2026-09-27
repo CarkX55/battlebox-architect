@@ -1,6 +1,7 @@
 import { getAllCards } from './dbIngestor.js';
 import { parseSemanticCard } from './semanticCardParser.js';
 import { analyzeCardIntelligence } from './cardIntelligenceEngine.js';
+import { extractCanonicalCmc } from './compiler/core/canonicalCardNormalizer.js';
 
 const getFetchOptions = (signal) => {
   const options = { signal };
@@ -47,12 +48,15 @@ export async function saveCardToDB(card) {
   if (typeof indexedDB === 'undefined' || !card) {
     return;
   }
-  if (!card.semantic_representation) {
+  const canonicalCmc = extractCanonicalCmc(card);
+  if (!card.semantic_representation || (card.semantic_representation.cmc === 0 && canonicalCmc > 0)) {
     card.semantic_representation = parseSemanticCard(card);
   }
-  if (!card.card_intelligence) {
-    card.card_intelligence = analyzeCardIntelligence(card);
+  if (card.semantic_representation) {
+    card.semantic_representation.cmc = canonicalCmc;
   }
+  // SSOT: Always derive card_intelligence strictly from canonical normalization
+  card.card_intelligence = analyzeCardIntelligence(card);
   const database = await openDB();
   return new Promise((resolve, reject) => {
     const tx = database.transaction(STORE_NAME, 'readwrite');
@@ -75,12 +79,15 @@ export async function getCardFromDB(name) {
     request.onsuccess = () => {
       const result = request.result || null;
       if (result) {
-        if (!result.semantic_representation) {
+        const canonicalCmc = extractCanonicalCmc(result);
+        if (!result.semantic_representation || (result.semantic_representation.cmc === 0 && canonicalCmc > 0)) {
           result.semantic_representation = parseSemanticCard(result);
         }
-        if (!result.card_intelligence) {
-          result.card_intelligence = analyzeCardIntelligence(result);
+        if (result.semantic_representation) {
+          result.semantic_representation.cmc = canonicalCmc;
         }
+        // SSOT: Always derive card_intelligence strictly from canonical normalization
+        result.card_intelligence = analyzeCardIntelligence(result);
       }
       resolve(result);
     };

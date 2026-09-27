@@ -1,0 +1,100 @@
+{
+  "version": "V29.5",
+  "architecturalModel": "Single Canonical Causal Chain",
+  "authorityRegistry": {
+    "intentIngestion": {
+      "component": "IntentBuilder",
+      "canonicalArtifact": "IntentPackage",
+      "authorityType": "SSOT_ENTRY_POINT",
+      "canMutatePostPass": false,
+      "description": "Transforms UI form state and natural prompt into an immutable IntentPackage IR with SHA-256 intentHash."
+    },
+    "strategicDiscovery": {
+      "component": "MechanicDiscoveryEngine + StrategicMemoryModel + StrategicLineGraph",
+      "canonicalArtifact": "StrategicMemory",
+      "authorityType": "EMPIRICAL_LINE_DISCOVERY",
+      "canMutatePostPass": false,
+      "description": "Discovers mechanical capability clusters and selects viable lines from empirical pool density with strategicMemoryHash."
+    },
+    "gameplanSynthesis": {
+      "component": "GameplanSynthesizer",
+      "canonicalArtifact": "GameplanContract",
+      "authorityType": "SSOT_STRATEGIC_TRUTH",
+      "canMutatePostPass": false,
+      "description": "Synthesizes executable turn requirements, windows, and required engines. Hashes structural payload excluding presentation prose."
+    },
+    "searchSpaceRestiction": {
+      "component": "SearchSpaceCompiler + IdentityFirewall + GameplanIntegrityGate",
+      "canonicalArtifact": "CandidateFrontier",
+      "authorityType": "GATE_FILTER",
+      "canMutatePostPass": false,
+      "description": "Applies format legality, color identity, allowOffTribe gate, and Gameplan role proof obligations to emit candidate frontier."
+    },
+    "stateConstruction": {
+      "component": "ProgressiveDeckStateBuilder",
+      "canonicalArtifact": "DeckState",
+      "authorityType": "SINGLE_PHYSICAL_COLLECTION_BUILDER",
+      "canMutatePostPass": true,
+      "description": "Iteratively transitions S0 -> S_target using StateCandidateRanker and ContextualCardCompetition state comparison."
+    },
+    "candidateRanking": {
+      "component": "StateCandidateRanker",
+      "canonicalArtifact": "DominanceVector",
+      "authorityType": "STATE_DELTA_COMPARISON_RANKER",
+      "canMutatePostPass": false,
+      "description": "Compares state transitions S+A vs S+B across 9-layer lexicographic Pareto dominance vector."
+    },
+    "contextualCardCompetition": {
+      "component": "ContextualCardCompetition",
+      "canonicalArtifact": "StateDeltaTradeoff",
+      "authorityType": "HELPER_PONDERATOR",
+      "canMutatePostPass": false,
+      "description": "Strict helper invoked by StateCandidateRanker to modulate tribalPreference opportunity cost in state comparison."
+    },
+    "manaOptimization": {
+      "component": "ManaExecutionOptimizer",
+      "canonicalArtifact": "ManaTransitionProposal",
+      "authorityType": "MANA_STATE_TRANSITION_SOLVER",
+      "canMutatePostPass": true,
+      "description": "Solves optimal land base for fixed non-land spells. Formalizes transition DeckState(S) -> DeckState(S') with manaHash."
+    },
+    "simulationExecution": {
+      "component": "StrategicPlayabilityEngine + DeterministicGameState",
+      "canonicalArtifact": "ExecutionEvidence",
+      "authorityType": "SINGLE_SIMULATION_ENGINE",
+      "canMutatePostPass": false,
+      "description": "Seeded deterministic Monte Carlo simulation (PRNG) observing playability, curve execution, and win turns."
+    },
+    "judicialCertification": {
+      "component": "DeterministicSupremeJudge",
+      "canonicalArtifact": "JudicialReview",
+      "authorityType": "FINAL_JUDICIAL_VETO",
+      "canMutatePostPass": false,
+      "description": "Audits 14 deterministic axes, enforces gameplan coverage, executes bounded replanning via ReplanExecutor or issues final REJECT."
+    },
+    "legacyAdapters": {
+      "components": [
+        "StrategicIdentityCompiler",
+        "CapabilityPlanner",
+        "CandidateConstraintEngine",
+        "AllocationSlot"
+      ],
+      "canonicalArtifact": "None",
+      "authorityType": "READ_ONLY_COMPATIBILITY_ADAPTER",
+      "canMutatePostPass": false,
+      "description": "Físicamente aislados. Sus outputs jamás entran en Gameplan, Frontier, Ranker, DeckState, Mana ni Judge."
+    },
+    "illustrativeTelemetry": {
+      "components": [
+        "DeliberativeCouncilEngine",
+        "GoldDatasetRegistry",
+        "HumanExpertBenchmark",
+        "StatisticalConfidenceCalibrator"
+      ],
+      "canonicalArtifact": "IllustrativeReport",
+      "authorityType": "NONE_READ_ONLY_EXPLANATION",
+      "canMutatePostPass": false,
+      "description": "Etiquetados como evidenceType: 'ILLUSTRATIVE'. assertDecisionSafeEvidence() bloquea su uso en cualquier decisión."
+    }
+  }
+}

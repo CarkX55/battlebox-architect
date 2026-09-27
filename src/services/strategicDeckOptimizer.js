@@ -150,14 +150,56 @@ export async function runStrategicDeckAutopsy(currentDeck = [], formData = {}, o
   // FASE 5 & FASE 6: COUNTERFACTUAL PATCH SEARCH & LEXICOGRAPHICAL DECISION ENGINE
   const proposedPatches = [];
 
-  // Si existe un cuello de botella de maná, construir PARCHE DE INFRAESTRUCTURA DE MANÁ
+  // Si existe un cuello de botella de maná, construir PARCHE DE INFRAESTRUCTURA DE MANÁ REAL Y CONTEXTUAL
   if (primaryBottleneck && rootCause === 'MANA_INFRASTRUCTURE') {
-    const utilityLands = landCards.filter(c => !c.normName.includes('island') && !c.normName.includes('swamp') && !c.normName.includes('fetid') && !c.normName.includes('watery') && !c.normName.includes('darkslick'));
-    const landToRemove = utilityLands.length > 0 ? utilityLands[0] : landCards[0];
+    const deckColors = contract.level0.colors.value || ['W', 'U', 'G'];
+    
+    // Identificar pip devotions en hechizos
+    const pipCount = { W: 0, U: 0, B: 0, R: 0, G: 0 };
+    nonLandCards.forEach(c => {
+      const manaCost = (c.mana_cost || c.manaCost || '').toUpperCase();
+      ['W', 'U', 'B', 'R', 'G'].forEach(col => {
+        const matches = (manaCost.match(new RegExp(`{${col}}`, 'g')) || []).length;
+        pipCount[col] += matches * c.count;
+      });
+    });
 
-    if (landToRemove) {
-      const basicIsland = allDBCards.find(c => c.name === 'Island') || { name: 'Island', isLand: true };
-      
+    // Identificar fuentes de maná actuales producidas por las tierras
+    const sourcesCount = { W: 0, U: 0, B: 0, R: 0, G: 0 };
+    landCards.forEach(c => {
+      const text = `${c.name} ${(c.oracle_text || c.oracleText || '')} ${(c.type_line || c.typeLine || '')}`.toLowerCase();
+      if (text.includes('plains') || text.includes('{w}') || text.includes('white')) sourcesCount.W += c.count;
+      if (text.includes('island') || text.includes('{u}') || text.includes('blue')) sourcesCount.U += c.count;
+      if (text.includes('swamp') || text.includes('{b}') || text.includes('black')) sourcesCount.B += c.count;
+      if (text.includes('mountain') || text.includes('{r}') || text.includes('red')) sourcesCount.R += c.count;
+      if (text.includes('forest') || text.includes('{g}') || text.includes('green')) sourcesCount.G += c.count;
+    });
+
+    // Encontrar el color con mayor déficit relativo
+    let mostDeficientColor = 'W';
+    let maxDeficit = -1;
+    deckColors.forEach(col => {
+      const required = Math.max(12, Math.min(20, Math.round(pipCount[col] * 0.8) + 8));
+      const deficit = required - (sourcesCount[col] || 0);
+      if (deficit > maxDeficit) {
+        maxDeficit = deficit;
+        mostDeficientColor = col;
+      }
+    });
+
+    const basicNameMap = { W: 'Plains', U: 'Island', B: 'Swamp', R: 'Mountain', G: 'Forest' };
+    const basicToAddName = basicNameMap[mostDeficientColor] || 'Plains';
+    const basicToAdd = allDBCards.find(c => c.name === basicToAddName) || { name: basicToAddName, isLand: true };
+
+    // Encontrar tierra redundante o menos alineada para sustituir
+    const landToRemove = landCards.find(c => {
+      const text = `${c.name} ${(c.oracle_text || c.oracleText || '')}`.toLowerCase();
+      // Remover tierras incoloras o tierras de colores con exceso
+      return !text.includes(mostDeficientColor.toLowerCase()) || text.includes('colorless') || text.includes('{c}');
+    }) || landCards[0];
+
+    if (landToRemove && basicToAdd) {
+      const copiesToSwap = Math.min(2, Math.max(1, landToRemove.count));
       const patch = {
         patchId: `PATCH-MANA-INFRASTRUCTURE-${Date.now()}`,
         priority: 1,
@@ -166,10 +208,10 @@ export async function runStrategicDeckAutopsy(currentDeck = [], formData = {}, o
           severity: primaryBottleneck.severity,
           rootCause: primaryBottleneck.rootCause
         },
-        objective: { type: 'IMPROVE_T2_MANA_CASTABILITY', target: 'MANA_INFRASTRUCTURE' },
+        objective: { type: 'IMPROVE_T2_MANA_CASTABILITY', target: `MANA_INFRASTRUCTURE_${mostDeficientColor}` },
         operations: [
-          { type: 'REMOVE', card: landToRemove.name, copies: Math.min(2, landToRemove.count) },
-          { type: 'ADD', card: basicIsland.name, copies: Math.min(2, landToRemove.count) }
+          { type: 'REMOVE', card: landToRemove.name, copies: copiesToSwap },
+          { type: 'ADD', card: basicToAdd.name, copies: copiesToSwap }
         ],
         counterfactual: {
           before: { planExecution: planExecutionBefore, t2Castability: t2CastabilityBefore },
@@ -177,10 +219,10 @@ export async function runStrategicDeckAutopsy(currentDeck = [], formData = {}, o
           delta: { planExecution: 0.11, t2Castability: 0.14 }
         },
         causalExplanation: {
-          enables: ['Estabilidad de fuentes de maná en turno 2'],
-          repairs: ['Cuello de botella de infraestructura de maná'],
-          protects: ['Ejecución consistente del plan tempo'],
-          advancesWinPath: ['Garantiza lanzamiento de hechizos clave en curva']
+          enables: [`Estabilidad de fuentes de maná {${mostDeficientColor}} en turno 2 (+${copiesToSwap} fuentes)`],
+          repairs: [`Déficit crítico de maná ${mostDeficientColor} detectado por Frank Karsten`],
+          protects: ['Ejecución consistente del plan en curva'],
+          advancesWinPath: ['Garantiza lanzamiento de hechizos clave sin atasco de color']
         },
         contract: { level0: 'PASS', level1: 'PASS', level2: 'PASS' },
         regression: { mana: 'NONE', curve: 'NONE', causalDensity: 'NONE', deadDraw: 'NONE', interaction: 'NONE' },

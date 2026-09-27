@@ -22,6 +22,7 @@ import { ManaFeasibilityAdvisor } from './advisors/ManaFeasibilityAdvisor.js';
 import { CausalSynergyAdvisor } from './advisors/CausalSynergyAdvisor.js';
 import { CurveVelocityAdvisor } from './advisors/CurveVelocityAdvisor.js';
 import { ContextualUtilityAdvisor } from './advisors/ContextualUtilityAdvisor.js';
+import { CardImplementer } from './cardImplementer.js';
 
 export class DecisionEngine {
   /**
@@ -62,24 +63,19 @@ export class DecisionEngine {
         'none', 'ninguna', 'general', 'null', 'universal'
       ]);
       const isTribalDeck = Boolean(rawTribe && !GUILD_FACTIONS.has(rawTribe) && !rawTribe.includes('_guild') && !rawTribe.includes('_shard'));
+      const role = (contract.role || '').toUpperCase();
+      const isEnablerRole = role.includes('ENABLER') || 
+                            role.includes('RAMP') || 
+                            role.includes('OUTLET') || 
+                            role.includes('PAYOFF') || 
+                            role.includes('FODDER') || 
+                            role.includes('VELOCITY') ||
+                            role.includes('REMOVAL') ||
+                            role.includes('CARD_FLOW');
 
-      if (isTribalDeck && typeLine.includes('creature')) {
-        let targetSubtypes = [rawTribe];
-        if (rawTribe === 'outlaws') targetSubtypes = ['assassin', 'mercenary', 'pirate', 'rogue', 'warlock'];
-        else if (rawTribe === 'party') targetSubtypes = ['cleric', 'rogue', 'warrior', 'wizard'];
-        else if (rawTribe === 'goblin_horde' || rawTribe.includes('goblin')) targetSubtypes = ['goblin', 'ogre', 'orc'];
-        else if (rawTribe === 'elf_druid' || rawTribe.includes('elf')) targetSubtypes = ['elf', 'druid'];
-        else if (rawTribe === 'human_army' || rawTribe.includes('human')) targetSubtypes = ['human', 'soldier', 'knight'];
-        else if (rawTribe === 'undead_scourge' || rawTribe.includes('zombie')) targetSubtypes = ['zombie', 'skeleton', 'vampire', 'horror'];
-        else if (rawTribe === 'sea_monsters' || rawTribe.includes('sea') || rawTribe.includes('marino') || rawTribe.includes('kraken')) targetSubtypes = ['merfolk', 'kraken', 'leviathan', 'octopus', 'serpent', 'fish'];
-        else if (rawTribe === 'apex_predators' || rawTribe.includes('predator')) targetSubtypes = ['dinosaur', 'beast', 'hydra'];
-        else if (rawTribe === 'werewolves' || rawTribe.includes('werewolf')) targetSubtypes = ['werewolf', 'wolf', 'human'];
-
-        const isTribeCreature = targetSubtypes.some(sub => typeLine.includes(sub));
-        const generatesTribeToken = oracleText.includes('create') && targetSubtypes.some(sub => oracleText.includes(sub));
-        const isTribeLordOrSynergy = targetSubtypes.some(sub => oracleText.includes(sub));
-
-        if (!isTribeCreature && !generatesTribeToken && !isTribeLordOrSynergy) {
+      if (isTribalDeck && typeLine.includes('creature') && !isEnablerRole) {
+        const isTribeMatch = CardImplementer.matchesTribe(candidate, rawTribe);
+        if (!isTribeMatch) {
           evaluatedCandidates.push({
             candidate,
             passed: false,
@@ -96,7 +92,7 @@ export class DecisionEngine {
           candidate,
           passed: false,
           failLevel: 1,
-          failReason: manaReport.veto ? (manaReport.evidence[0] || 'Vetoed by ManaFeasibilityAdvisor') : (causalReport.evidence[0] || 'Vetoed by CausalSynergyAdvisor (Unfulfilled Dependency)'),
+          failReason: manaReport.veto ? (manaReport.evidence?.[0] || 'Vetoed by ManaFeasibilityAdvisor') : (causalReport.evidence?.[0] || 'Vetoed by CausalSynergyAdvisor (Unfulfilled Dependency)'),
           reports: { mana: manaReport, causal: causalReport, curve: curveReport, utility: utilityReport }
         });
         continue;
@@ -108,7 +104,7 @@ export class DecisionEngine {
           candidate,
           passed: false,
           failLevel: 2,
-          failReason: curveReport.evidence[0] || 'Curve overcrowded',
+          failReason: curveReport.evidence?.[0] || 'Curve overcrowded',
           reports: { mana: manaReport, causal: causalReport, curve: curveReport, utility: utilityReport }
         });
         continue;
@@ -143,21 +139,7 @@ export class DecisionEngine {
         ]);
 
         if (rawTribe && !GUILD_FACTIONS.has(rawTribe) && !rawTribe.includes('_guild') && !rawTribe.includes('_shard')) {
-          let targetSubtypes = [rawTribe];
-          if (rawTribe === 'outlaws') targetSubtypes = ['assassin', 'mercenary', 'pirate', 'rogue', 'warlock'];
-          else if (rawTribe === 'party') targetSubtypes = ['cleric', 'rogue', 'warrior', 'wizard'];
-          else if (rawTribe === 'goblin_horde' || rawTribe.includes('goblin')) targetSubtypes = ['goblin', 'ogre', 'orc'];
-          else if (rawTribe === 'elf_druid' || rawTribe.includes('elf')) targetSubtypes = ['elf', 'druid'];
-          else if (rawTribe === 'human_army' || rawTribe.includes('human')) targetSubtypes = ['human', 'soldier', 'knight'];
-          else if (rawTribe === 'undead_scourge' || rawTribe.includes('zombie')) targetSubtypes = ['zombie', 'skeleton', 'vampire', 'horror'];
-          else if (rawTribe === 'sea_monsters' || rawTribe.includes('sea') || rawTribe.includes('marino') || rawTribe.includes('kraken')) targetSubtypes = ['merfolk', 'kraken', 'leviathan', 'octopus', 'serpent', 'fish'];
-          else if (rawTribe === 'apex_predators' || rawTribe.includes('predator')) targetSubtypes = ['dinosaur', 'beast', 'hydra'];
-          else if (rawTribe === 'werewolves' || rawTribe.includes('werewolf')) targetSubtypes = ['werewolf', 'wolf', 'human'];
-
-          const isTribeCreature = typeLine.includes('creature') && targetSubtypes.some(sub => typeLine.includes(sub));
-          const generatesTribeToken = oracleText.includes('create') && targetSubtypes.some(sub => oracleText.includes(sub));
-          const isTribeLordOrSynergy = targetSubtypes.some(sub => oracleText.includes(sub));
-          satisfiesRole = isTribeCreature || generatesTribeToken || isTribeLordOrSynergy;
+          satisfiesRole = CardImplementer.matchesTribe(candidate, rawTribe);
         }
       }
 
@@ -198,24 +180,10 @@ export class DecisionEngine {
         }
 
         if (isTribalDeck && (contract.role === 'TRIBAL_THREAT' || contract.role === 'TRIBAL_DENSITY')) {
-          const typeLine = (item.candidate.type_line || item.candidate.typeLine || '').toLowerCase();
-          const oracleText = (item.candidate.oracle_text || item.candidate.oracleText || item.candidate.text || '').toLowerCase();
-          
-          let targetSubtypes = [rawTribe];
-          if (rawTribe === 'outlaws') targetSubtypes = ['assassin', 'mercenary', 'pirate', 'rogue', 'warlock'];
-          else if (rawTribe === 'party') targetSubtypes = ['cleric', 'rogue', 'warrior', 'wizard'];
-          else if (rawTribe === 'goblin_horde' || rawTribe.includes('goblin')) targetSubtypes = ['goblin', 'ogre', 'orc'];
-          else if (rawTribe === 'elf_druid' || rawTribe.includes('elf')) targetSubtypes = ['elf', 'druid'];
-          else if (rawTribe === 'human_army' || rawTribe.includes('human')) targetSubtypes = ['human', 'soldier', 'knight'];
-          else if (rawTribe === 'undead_scourge' || rawTribe.includes('zombie')) targetSubtypes = ['zombie', 'skeleton', 'vampire', 'horror'];
-          else if (rawTribe === 'sea_monsters' || rawTribe.includes('sea') || rawTribe.includes('marino') || rawTribe.includes('kraken')) targetSubtypes = ['merfolk', 'kraken', 'leviathan', 'octopus', 'serpent', 'fish'];
-          else if (rawTribe === 'apex_predators' || rawTribe.includes('predator')) targetSubtypes = ['dinosaur', 'beast', 'hydra'];
-          else if (rawTribe === 'werewolves' || rawTribe.includes('werewolf')) targetSubtypes = ['werewolf', 'wolf', 'human'];
-
-          const isTribeCreature = typeLine.includes('creature') && targetSubtypes.some(sub => typeLine.includes(sub));
-          const generatesTribeToken = oracleText.includes('create') && targetSubtypes.some(sub => oracleText.includes(sub));
-          const isTribeLordOrSynergy = targetSubtypes.some(sub => oracleText.includes(sub));
-          return isTribeCreature || generatesTribeToken || isTribeLordOrSynergy;
+          const isTribeMatch = CardImplementer.matchesTribe(item.candidate, rawTribe);
+          if (!isTribeMatch) {
+            return false;
+          }
         }
         return true;
       });
@@ -237,71 +205,86 @@ export class DecisionEngine {
       };
     }
 
-    // Phase 3: Pure Lexicographical Counterfactual State Comparison
-    // Evaluation: State_A = [DeckState + Candidate A] vs State_B = [DeckState + Candidate B]
-    let bestChoice = validCandidates[0];
+    // Phase 3: Pure Lexicographical Counterfactual State Comparison & Top-Tier Weighted Sampling
+    // Rank all valid candidates with multi-dimensional fitness
+    const scoredCandidates = validCandidates.map(challenger => {
+      let score = 100;
+      const caps = challenger.reports?.causal?.addedCapabilities || [];
+      const oracle = (challenger.candidate.oracle_text || challenger.candidate.oracleText || challenger.candidate.text || '').toLowerCase();
+      const cmc = challenger.candidate.cmc || challenger.candidate.mana_value || 0;
 
-    for (let i = 1; i < validCandidates.length; i++) {
-      const challenger = validCandidates[i];
-
-      // Comparison Level 3.5: NEED_PRIORITY_BEATS_CARD_POWER Dominance
-      // A candidate resolving a CRITICAL/HIGH open need dominates a candidate with higher raw power that does not.
-      const challengerResolvesCriticalNeed = challenger.reports?.causal?.status !== 'UNFULFILLED_DEPENDENCY' && (contract.priority === 'CRITICAL' || contract.priority === 'HIGH');
-      const bestResolvesCriticalNeed = bestChoice.reports?.causal?.status !== 'UNFULFILLED_DEPENDENCY' && (contract.priority === 'CRITICAL' || contract.priority === 'HIGH');
-
-      if (challengerResolvesCriticalNeed && !bestResolvesCriticalNeed) {
-        bestChoice = challenger;
-        continue;
+      // Level 3.5: Priority fulfillment
+      if (challenger.reports?.causal?.status !== 'UNFULFILLED_DEPENDENCY' && (contract.priority === 'CRITICAL' || contract.priority === 'HIGH')) {
+        score += 80;
       }
 
-      // Comparison Level 4: Strategic Need Resolution Dominance
-      const activeBottleneck = contract.role;
-      const bestCaps = bestChoice.reports?.causal?.addedCapabilities || [];
-      const challengerCaps = challenger.reports?.causal?.addedCapabilities || [];
-
-      const bestResolvesBottleneck = bestCaps.includes(activeBottleneck) || activeBottleneck === contract.role;
-      const challengerResolvesBottleneck = challengerCaps.includes(activeBottleneck) || activeBottleneck === contract.role;
-
-      if (challengerResolvesBottleneck && !bestResolvesBottleneck) {
-        bestChoice = challenger;
-        continue;
+      // Level 4: Active bottleneck resolution
+      if (caps.includes(contract.role) || challenger.candidate.role === contract.role) {
+        score += 60;
       }
 
-      // Comparison Level 4.5: Oracle Tuner & Causal Infrastructure Supply Dominance
-      const bestMatchesBoost = bestChoice.reports?.causal?.status !== 'UNFULFILLED_DEPENDENCY' && (bestCaps.includes('ENGINE_SYNERGY') || bestChoice.reports?.causal?.causalRole === 'PRODUCER');
-      const challengerMatchesBoost = challenger.reports?.causal?.status !== 'UNFULFILLED_DEPENDENCY' && (challengerCaps.includes('ENGINE_SYNERGY') || challenger.reports?.causal?.causalRole === 'PRODUCER');
-      if (challengerMatchesBoost && !bestMatchesBoost) {
-        bestChoice = challenger;
-        continue;
+      // Level 4.5: Engine Synergy & Boost Keywords
+      if (caps.includes('ENGINE_SYNERGY') || challenger.reports?.causal?.causalRole === 'PRODUCER') {
+        score += 50;
       }
 
-      // Comparison Level 5: Causal Fit Dominance (Non-Redundant > Redundant)
-      if (challenger.reports.causal.status === 'CAUSAL_FIT' && bestChoice.reports.causal.status === 'REDUNDANT') {
-        bestChoice = challenger;
-        continue;
+      // Level 5: Causal Fit
+      if (challenger.reports?.causal?.status === 'CAUSAL_FIT') {
+        score += 40;
+      } else if (challenger.reports?.causal?.status === 'REDUNDANT') {
+        score -= 20;
       }
 
-      // Comparison Level 6: Contextual Utility & Versatility (High Utility > Moderate/Dead Risk)
-      if (challenger.reports.utility.status === 'HIGH_UTILITY' && bestChoice.reports.utility.status !== 'HIGH_UTILITY') {
-        bestChoice = challenger;
-        continue;
+      // Level 6: Contextual Utility
+      if (challenger.reports?.utility?.status === 'HIGH_UTILITY') score += 30;
+      if (challenger.reports?.utility?.flexibility === 'HIGH_MODAL') score += 20;
+
+      // Level 7: Reach & Finishers
+      if ((contract.role === 'REACH' || contract.role === 'FINISHER') && oracle.includes('damage to any target')) {
+        score += 30;
       }
 
-      // Comparison Level 7: WinPath Synergy & Package Fit Dominance (v9.6)
-      const challengerReach = (challenger.candidate.oracle_text || challenger.candidate.oracleText || '').toLowerCase().includes('damage to any target');
-      const bestReach = (bestChoice.candidate.oracle_text || bestChoice.candidate.oracleText || '').toLowerCase().includes('damage to any target');
-      const isAggroReachRole = contract.role === 'REACH' || contract.role === 'FACE_BURN_REACH' || contract.role === 'FINISHER';
+      // Level 8: Curve Velocity
+      const isEarly = contract.role === 'T1_PRESSURE' || contract.role === 'T2_PRESSURE' || contract.role === 'EARLY_RAMP' || contract.role === 'CHEAP_REMOVAL';
+      if (isEarly && cmc <= 2) score += (3 - cmc) * 15;
 
-      if (isAggroReachRole && challengerReach && !bestReach) {
-        bestChoice = challenger;
-        continue;
-      }
+      // Level 9: Dynamic 1st-Level Parameter Modifiers
+      const userConstraints = deckState.intentPackage?.userConstraints || {};
+      const priorityMode = userConstraints.generationPriority || deckState.intentPackage?.generationPriority || 'hybrid';
 
-      // Comparison Level 8: Low CMC Curve Velocity (CMC 1-2 preference for Early Roles)
-      const isEarlyRole = contract.role === 'T1_PRESSURE' || contract.role === 'T2_PRESSURE' || contract.role === 'EARLY_RAMP' || contract.role === 'EARLY_INTERACTION' || contract.role === 'CHEAP_REMOVAL' || contract.priority === 'CRITICAL';
-      if (isEarlyRole && challenger.candidate.cmc < bestChoice.candidate.cmc) {
-        bestChoice = challenger;
-        continue;
+      if (priorityMode === 'synergy' && caps.includes('ENGINE_SYNERGY')) score += 40;
+      if (priorityMode === 'thematic' && caps.includes('TRIBAL_MEMBER')) score += 40;
+
+      return {
+        item: challenger,
+        score
+      };
+    });
+
+    scoredCandidates.sort((a, b) => b.score - a.score);
+
+    const maxScore = scoredCandidates[0].score;
+    // Elite Band: candidates scoring within 20% margin of top score
+    const eliteBand = scoredCandidates.filter(c => c.score >= maxScore - 25);
+
+    const userConstraints = deckState.intentPackage?.userConstraints || {};
+    const creativity = Number(userConstraints.creativity ?? deckState.intentPackage?.creativity ?? 40);
+    const isDeterministic = userConstraints.generationPriority === 'deterministic' || creativity === 0;
+
+    let bestChoice;
+    if (isDeterministic || eliteBand.length === 1) {
+      bestChoice = scoredCandidates[0].item;
+    } else {
+      // Top-Tier Weighted Stochastic Sampling among elite candidates
+      const totalWeight = eliteBand.reduce((sum, c) => sum + Math.max(1, c.score), 0);
+      let rand = Math.random() * totalWeight;
+      bestChoice = eliteBand[0].item;
+      for (const entry of eliteBand) {
+        rand -= Math.max(1, entry.score);
+        if (rand <= 0) {
+          bestChoice = entry.item;
+          break;
+        }
       }
     }
 

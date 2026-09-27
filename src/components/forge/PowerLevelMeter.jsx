@@ -21,7 +21,7 @@ export const PowerLevelMeter = ({ deck, format = 'STANDARD', archetype = '', cla
   if (!powerLevel || !powerLevel.score) return null;
 
   return (
-    <div className={cn("group relative flex items-center gap-3 bg-stone-950/80 border border-stone-700/60 px-3.5 py-1.5 rounded-xl shadow-lg backdrop-blur-md", className)}>
+    <div className={cn("group relative hover:z-[999] flex items-center gap-3 bg-stone-950/80 border border-stone-700/60 px-3.5 py-1.5 rounded-xl shadow-lg backdrop-blur-md", className)}>
       <div className={cn("p-1.5 rounded-lg bg-black/60 border border-stone-700/60 flex items-center justify-center", powerLevel.color)}>
         <Icon size={16} />
       </div>
@@ -54,8 +54,8 @@ export const PowerLevelMeter = ({ deck, format = 'STANDARD', archetype = '', cla
       </div>
 
       {/* Tooltip Detallado del Escáner de Poder */}
-      <div className="absolute top-full left-0 mt-2 w-80 p-4 bg-stone-950/95 border border-amber-500/40 rounded-2xl shadow-2xl 
-                      opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-[999] backdrop-blur-2xl pointer-events-none text-stone-200">
+      <div className="absolute top-full left-0 mt-2 w-80 p-4 bg-[#14110e] border border-amber-500/50 rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.95)] 
+                      opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-[9999] backdrop-blur-3xl pointer-events-none text-stone-200">
         <div className="flex items-center justify-between border-b border-stone-800 pb-2 mb-3">
           <h5 className="font-cinzel text-amber-300 text-xs tracking-widest font-black uppercase flex items-center gap-1.5">
             <Sparkles className="w-3.5 h-3.5 text-amber-400" />

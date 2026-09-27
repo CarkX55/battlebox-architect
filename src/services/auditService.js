@@ -885,13 +885,20 @@ ${orphans ? 'CARTAS HUÉRFANAS DETECTADAS:\n' + orphans : ''}
   );
 
   const { analyzeKarstenManaDevotion, calculateDeterministicDeckScore } = await import('./deckAuditorService.js');
-  const karstenAnalysis = analyzeKarstenManaDevotion(spells, formData?.metrics?.sources || {});
+  const { calculateManaSources, calculateVMP } = await import('./deckCalculator.js');
+  const actualSources = calculateManaSources(hydratedDeckCards);
+  const actualVmp = calculateVMP(spells);
+  const sourcesForKarsten = (formData?.metrics?.sources && Object.values(formData.metrics.sources).some(v => v > 0)) 
+    ? formData.metrics.sources 
+    : actualSources;
+
+  const karstenAnalysis = analyzeKarstenManaDevotion(spells, sourcesForKarsten);
 
   // Calcular nota matemática objetiva y determinista basada en datos duros
   const mathScore = calculateDeterministicDeckScore(
     pillarAnalysis,
     karstenAnalysis,
-    formData?.metrics?.vmp,
+    formData?.metrics?.vmp ?? actualVmp,
     formData?.stance,
     totalCards,
     targetCards
@@ -1015,12 +1022,22 @@ ${orphans ? 'CARTAS HUÉRFANAS DETECTADAS:\n' + orphans : ''}
 
             if (drawDeficit) {
               const drawCandidates = getPillarCandidatesFromDB('draw', allCards, allowedColors, selectedFormat, formData?.rarityMode || 'high-power', [], [], activeStrategy, primaryTribe);
-              const topDraw = drawCandidates[0] || (allowedColors.includes('B') ? 'Read the Bones' : allowedColors.includes('U') ? 'Brainstorm' : allowedColors.includes('G') ? 'Harmonize' : 'Night\'s Whisper');
-              exactAdds.push({ name: topDraw, quantity: qtyToTrim });
+              const validDraw = drawCandidates.find(cand => {
+                const cur = origMap.get(normalizeCardName(cand))?.quantity || 0;
+                return cur < 4;
+              }) || (allowedColors.includes('B') ? 'Read the Bones' : allowedColors.includes('U') ? 'Brainstorm' : allowedColors.includes('G') ? 'Harmonize' : 'Night\'s Whisper');
+              const curQty = origMap.get(normalizeCardName(validDraw))?.quantity || 0;
+              const addQty = Math.min(qtyToTrim, Math.max(1, 4 - curQty));
+              exactAdds.push({ name: validDraw, quantity: addQty });
             } else if (threatDeficit) {
               const threatCandidates = getPillarCandidatesFromDB('threats', allCards, allowedColors, selectedFormat, formData?.rarityMode || 'high-power', [], [], activeStrategy, primaryTribe);
-              const topThreat = threatCandidates[0] || (allowedColors.includes('G') ? 'Elder Gargaroth' : allowedColors.includes('B') ? 'Grave Titan' : 'Questing Beast');
-              exactAdds.push({ name: topThreat, quantity: qtyToTrim });
+              const validThreat = threatCandidates.find(cand => {
+                const cur = origMap.get(normalizeCardName(cand))?.quantity || 0;
+                return cur < 4;
+              }) || (allowedColors.includes('G') ? 'Elder Gargaroth' : allowedColors.includes('B') ? 'Grave Titan' : 'Questing Beast');
+              const curQty = origMap.get(normalizeCardName(validThreat))?.quantity || 0;
+              const addQty = Math.min(qtyToTrim, Math.max(1, 4 - curQty));
+              exactAdds.push({ name: validThreat, quantity: addQty });
             }
           }
         }
@@ -1142,11 +1159,34 @@ ${orphans ? 'CARTAS HUÉRFANAS DETECTADAS:\n' + orphans : ''}
     console.warn("Fallo al ejecutar Autopsia Estratégica v2 del Juez Supremo:", sErr);
   }
 
+  let deterministicJudicialReview = null;
+  try {
+    const { DeterministicSupremeJudge } = await import('./compiler/core/deterministicSupremeJudge.js');
+    const { IntentBuilder } = await import('./compiler/core/intentBuilder.js');
+    const { StrategicIdentityCompiler } = await import('./compiler/core/strategicIdentityCompiler.js');
+
+    const intentPackage = IntentBuilder.buildFromUI({
+      ...formData,
+      colores: allowedColors,
+      format: selectedFormat
+    });
+    const deckIdentity = StrategicIdentityCompiler.compileIdentity(intentPackage);
+    deterministicJudicialReview = DeterministicSupremeJudge.judgeDeck({ cards: hydratedDeckCards }, deckIdentity, intentPackage, 1);
+  } catch (djErr) {
+    console.warn("Fallo al ejecutar DeterministicSupremeJudge en auditoría:", djErr);
+  }
+
+  let calibratedScore = mathScore;
+  if (deterministicJudicialReview?.score != null) {
+    const judicialScore = Math.min(10, Math.max(1, Math.round(deterministicJudicialReview.score / 10)));
+    calibratedScore = Math.max(calibratedScore, judicialScore);
+  }
+
   return {
     ...jsonResult,
     verdict: finalVerdict,
     summary: finalVerdict,
-    score: mathScore,
+    score: calibratedScore,
     criticalAlerts,
     warnings,
     suggestions,
@@ -1155,7 +1195,8 @@ ${orphans ? 'CARTAS HUÉRFANAS DETECTADAS:\n' + orphans : ''}
     _monteCarlo: monteCarlo,
     _cardRequirements: cardReqs,
     _supremeJudgeReport: supremeJudgeReport,
-    _strategicAutopsy: strategicAutopsy
+    _strategicAutopsy: strategicAutopsy,
+    _deterministicJudge: deterministicJudicialReview
   };
 }
 
