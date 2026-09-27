@@ -1,7 +1,7 @@
 ---
-title: "L�rien Revealed"
+title: "Lorien Revealed"
 type: "spell"
-cmc: 2
+cmc: 5
 synergies:
   - name: "[[Scalding Tarn]]"
     coeff: 1
@@ -20,7 +20,7 @@ synergies:
   - name: "[[Monumental Henge]]"
     coeff: 0.75
 ---
-# L�rien Revealed
+# Lorien Revealed
 
 - **Tipo:** Spell
 - **Sinergias Top 8:**

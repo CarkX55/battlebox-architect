@@ -1,6 +1,6 @@
 ---
-title: "Bartolom� del Presidio"
-type: "spell"
+title: "Bartolome del Presidio"
+type: "creature"
 cmc: 2
 synergies:
   - name: "[[Cauldron Familiar]]"
@@ -15,14 +15,12 @@ synergies:
     coeff: 1
   - name: "[[Carrion Feeder]]"
     coeff: 1
-  - name: "[[Moseo, Vein's New Dean]]"
-    coeff: 1
   - name: "[[Young Wolf]]"
     coeff: 1
 ---
-# Bartolom� del Presidio
+# Bartolome del Presidio
 
-- **Tipo:** Spell
+- **Tipo:** Creature
 - **Sinergias Top 8:**
   - [[Cauldron Familiar]] (Fuerza: 100%)
   - [[Gilded Goose]] (Fuerza: 100%)
@@ -30,7 +28,6 @@ synergies:
   - [[Orcish Bowmasters]] (Fuerza: 100%)
   - [[Badgermole Cub]] (Fuerza: 100%)
   - [[Carrion Feeder]] (Fuerza: 100%)
-  - [[Moseo, Vein's New Dean]] (Fuerza: 100%)
   - [[Young Wolf]] (Fuerza: 100%)
 
 ---
