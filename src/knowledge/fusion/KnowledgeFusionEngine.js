@@ -4,7 +4,7 @@
  */
 
 import { KnowledgeObject } from '../storage/KnowledgeObject.js';
-import { ConfidenceCalculator } from '../validation/ConfidenceCalculator.js';
+import { ConfidenceCalculator } from '../Validation/ConfidenceCalculator.js';
 
 export class KnowledgeFusionEngine {
   static fuse(rawObjects = []) {

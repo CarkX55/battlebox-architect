@@ -7,7 +7,7 @@
 
 import { SLOT_STATES } from './DeckConstructionState.js';
 import { CandidateAdmissionGate } from './CandidateAdmissionGate.js';
-import { OracleTraceLog } from '../serving/OracleTraceLog.js';
+import { OracleTraceLog } from '../Serving/OracleTraceLog.js';
 
 export class SlotCandidateRanker {
   static rankAndBindDeck(deckState, cardPool = [], exhaustionTracker = null) {

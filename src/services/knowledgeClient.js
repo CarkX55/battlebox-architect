@@ -4,7 +4,7 @@
  * Falls back safely to client-side pipeline if server is offline.
  */
 
-import { KnowledgeUpdatePipeline } from '../knowledge/ingestion/KnowledgeUpdatePipeline.js';
+import { KnowledgeUpdatePipeline } from '../knowledge/Ingestion/KnowledgeUpdatePipeline.js';
 
 const SERVER_URL = 'http://localhost:3001';
 

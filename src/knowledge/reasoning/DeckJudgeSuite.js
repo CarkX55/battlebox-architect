@@ -5,7 +5,7 @@
  */
 
 import { StrategicSimulator } from '../simulation/StrategicSimulator.js';
-import { OracleTraceLog } from '../serving/OracleTraceLog.js';
+import { OracleTraceLog } from '../Serving/OracleTraceLog.js';
 import { StrategicJudgeEnhancements } from './StrategicJudgeEnhancements.js';
 
 export class SizeVerifier {

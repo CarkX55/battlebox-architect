@@ -14,7 +14,7 @@ import { buildCardPool } from './ragService.js';
 import { getAllCards } from './dbIngestor.js';
 import { IntentBuilder } from './compiler/core/intentBuilder.js';
 import { AgenticDeckArchitect } from './agent/agenticDeckArchitect.js';
-import { OracleTraceLog } from '../knowledge/serving/OracleTraceLog.js';
+import { OracleTraceLog } from '../knowledge/Serving/OracleTraceLog.js';
 import { CopyAllocationAuditor } from './compiler/core/copyAllocationAuditor.js';
 import { DeckTelemetry } from './compiler/core/deckTelemetry.js';
 import { CompilerConvergencePipeline } from '../knowledge/compiler/CompilerConvergencePipeline.js';

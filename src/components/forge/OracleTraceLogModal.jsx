@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { OracleTraceLog } from '../../knowledge/serving/OracleTraceLog.js';
+import { OracleTraceLog } from '../../knowledge/Serving/OracleTraceLog.js';
 import { Scroll, ShieldAlert, CheckCircle2, ChevronRight, Download, Search, Zap, Code, AlertTriangle, Copy, Check } from 'lucide-react';
 import { cn } from '../../utils/cn';
 

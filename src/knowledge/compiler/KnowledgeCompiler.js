@@ -4,7 +4,7 @@
  * Pipeline: Raw Facts -> DSL Translation -> Feature Pipeline -> Sub-Graph Indexing -> Published Bundle & Manifest.
  */
 
-import { KnowledgeGraph } from '../graph/KnowledgeGraph.js';
+import { KnowledgeGraph } from '../Graph/KnowledgeGraph.js';
 import { MTGAdapter } from '../adapters/MTGAdapter.js';
 import { FeaturePipeline } from '../fusion/FeaturePipeline.js';
 import { BundleManifest } from './BundleManifest.js';

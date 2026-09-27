@@ -6,7 +6,7 @@
 import { KnowledgeDatabase } from '../storage/KnowledgeDatabase.js';
 import { FastIndexManager } from '../storage/FastIndexManager.js';
 import { KnowledgeFusionEngine } from '../fusion/KnowledgeFusionEngine.js';
-import { KnowledgeValidator } from '../validation/KnowledgeValidator.js';
+import { KnowledgeValidator } from '../Validation/KnowledgeValidator.js';
 import { TelemetryLogger } from '../scheduler/TelemetryLogger.js';
 
 import { MTGJSONProvider } from '../providers/MTGJSONProvider.js';
